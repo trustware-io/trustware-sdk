@@ -1,0 +1,86 @@
+{
+  "name": "@trustware/sdk",
+  "version": "1.0.0",
+  "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
+  "license": "MIT",
+  "author": "Trustware",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trustware/sdk.git"
+  },
+  "homepage": "https://trustware.io",
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.mjs",
+      "require": "./dist/core.cjs"
+    },
+    "./wallet": {
+      "types": "./dist/wallet.d.ts",
+      "import": "./dist/wallet.mjs",
+      "require": "./dist/wallet.cjs"
+    },
+    "./react": {
+      "types": "./dist/widget.d.ts",
+      "import": "./dist/widget.mjs",
+      "require": "./dist/widget.cjs"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "import": "./dist/constants.mjs",
+      "require": "./dist/constants.cjs"
+    },
+    "./types": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/core.ts src/wallet.ts src/widget.tsx src/constants.ts --dts --format esm,cjs --clean",
+    "dev": "tsup src/index.ts src/core.ts src/wallet.ts src/widget.tsx src/constants.ts --dts --format esm,cjs --watch",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "tsup": "^8.0.1",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "bridge",
+    "swap",
+    "cross-chain",
+    "squid",
+    "web3",
+    "sdk",
+    "widget"
+  ]
+}
