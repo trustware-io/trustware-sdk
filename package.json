@@ -50,8 +50,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts src/core.ts src/wallet.ts src/widget.tsx src/constants.ts --dts --format esm,cjs --clean",
-    "dev": "tsup src/index.ts src/core.ts src/wallet.ts src/widget.tsx src/constants.ts --dts --format esm,cjs --watch",
+    "build": "tsup --config tsup.config.ts",
+    "dev": "tsup --config tsup.config.ts --watch",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit"
   },

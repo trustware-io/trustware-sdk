@@ -1,7 +1,19 @@
-export type SDKConfig = {
+export type TrustwareConfig = {
+  /** Required API key issued by Trustware */
   apiKey: string;
-  defaultSlippage?: number;
-  defaults?: { toChain?: string; toToken?: string; fromToken?: string };
+
+  /** Route defaults for one-click usage */
+  defaults?: {
+    toChain?: string;
+    toToken?: string;
+    fromToken?: string;
+    defaultSlippage?: number;
+  };
+  /** Optional UI overrides for widgets */
+  ui?: {
+    theme?: { primary?: string; radius?: number };
+    messages?: Partial<DefaultMessages>;
+  };
 };
 
 export type InternalUIConfig = {

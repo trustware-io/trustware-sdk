@@ -2,12 +2,13 @@ import {
   BuildRouteResult,
   RouteParams,
   Transaction,
-  SDKConfig,
+  TrustwareConfig,
   WalletInterFaceAPI,
   InternalUIConfig,
   DefaultMessages,
 } from "./types";
 import { API_PREFIX, API_ROOT, SDK_NAME, SDK_VERSION } from "./constants";
+import { Registry, NATIVE } from "./registry";
 
 const DEFAULT_MESSAGES: DefaultMessages = {
   title: "Top up",
@@ -18,30 +19,45 @@ const DEFAULT_MESSAGES: DefaultMessages = {
   errorPrefix: "Error",
 };
 
+export type BalanceRow = {
+  chain_key: string; // "berachain"
+  category: "native" | "erc20" | "spl" | "btc";
+  contract?: `0x${string}`; // ERC20 address (if erc20)
+  symbol?: string; // e.g., "BERA", "USDC.e"
+  decimals: number;
+  balance: string; // raw units (wei/lamports/etc)
+  name?: string;
+};
+
 export class TrustwareCore {
   // readonly view of config (used by widget)
-  public cfg!: SDKConfig & { ui?: InternalUIConfig };
+  public cfg!: TrustwareConfig & { ui?: InternalUIConfig };
   public messages: DefaultMessages = DEFAULT_MESSAGES;
-
   private wallet?: WalletInterFaceAPI;
+  public _registry?: Registry;
 
   // ---------------- lifecycle ----------------
   init(
-    cfg: SDKConfig & {
+    cfg: TrustwareConfig & {
       ui?: InternalUIConfig;
       messages?: Partial<DefaultMessages>;
     },
   ) {
     if (!cfg?.apiKey) throw new Error("Trustware.init: apiKey is required");
     this.cfg = {
-      defaultSlippage: 1,
-      defaults: {},
       ...cfg,
+      defaults: {
+        defaultSlippage: 1,
+        ...(cfg.defaults ?? {}),
+      },
       ui: cfg.ui ?? {},
     };
     if (cfg.messages) {
       this.messages = { ...DEFAULT_MESSAGES, ...cfg.messages };
     }
+    // create registry pointing at the same API root the core uses
+    const baseURL = `${API_ROOT}${API_PREFIX}`;
+    this._registry = new Registry(baseURL);
     return this;
   }
 
@@ -142,7 +158,7 @@ export class TrustwareCore {
     return j.data as Transaction;
   }
 
-    /// polls the status of the route intent until it reaches a terminal state (success or failed).
+  /// polls the status of the route intent until it reaches a terminal state (success or failed).
   // @title Poll Route Status
   // @description Polls the status of the specified RouteIntent until it reaches a terminal state (either "success" or "failed"). This function continuously checks the status at regular intervals and returns the final status once the route processing is complete.
   // @param {string} intentId - The unique identifier of the RouteIntent to be polled.
@@ -161,19 +177,51 @@ export class TrustwareCore {
     }
   }
 
+  /** expose connected address (so widgets/partners don't reach into private fields) */
+  async getAddress(): Promise<string> {
+    if (!this.wallet) throw new Error("Trustware.wallet not configured");
+    return this.wallet.getAddress();
+  }
+
+  /** Map chainId -> backend chain_key and return balances */
+  async getBalances(
+    chainId: string | number,
+    address: string,
+  ): Promise<BalanceRow[]> {
+    const reg = await this.ensureRegistry();
+    const meta = reg.chain(chainId);
+    // Prefer the Squid `networkIdentifier` ("avalanche", "berachain", "base", etc.)
+    const chainKey = meta?.networkIdentifier || String(chainId);
+    const url = `${API_ROOT}${API_PREFIX}/wallets/${encodeURIComponent(chainKey)}/${address}/balances`;
+    const r = await fetch(url, { method: "GET" });
+    if (!r.ok) throw new Error(`balances: HTTP ${r.status}`);
+    const j = await r.json();
+    const rows: BalanceRow[] = Array.isArray(j) ? j : (j.data ?? []);
+    return rows;
+  }
+
   // ---------------- send with partner wallet ----------------
-  async sendRouteTransaction(b: BuildRouteResult): Promise<`0x${string}`> {
+  async sendRouteTransaction(
+    b: BuildRouteResult,
+    fallbackChainId?: number, // <- new
+  ): Promise<`0x${string}`> {
     if (!this.wallet) throw new Error("Trustware.wallet not configured");
     const tr = b.route.transactionRequest;
     const to = tr.to as `0x${string}`;
     const data = tr.data as `0x${string}`;
     const value = tr.value ? BigInt(tr.value) : 0n;
 
-    if (tr.chainId) {
-      const target = Number(tr.chainId);
+    // Determine the chain we MUST be on to execute the source tx
+    const target = Number(tr.chainId ?? fallbackChainId);
+    if (Number.isFinite(target)) {
       const current = await this.wallet.getChainId();
-      if (Number.isFinite(target) && target !== current) {
-        await this.wallet.switchChain(target);
+      if (current !== target) {
+        try {
+          await this.wallet.switchChain(target);
+        } catch (e) {
+          // don't blow up on 4001 / in-progress; just surface later if send fails
+          console.warn("switchChain failed / skipped:", e);
+        }
       }
     }
 
@@ -181,7 +229,8 @@ export class TrustwareCore {
       const from = await this.wallet.getAddress();
       const hexValue = value ? `0x${value.toString(16)}` : "0x0";
       const params: any = { from, to, data, value: hexValue };
-      if (tr.chainId) params.chainId = `0x${Number(tr.chainId).toString(16)}`;
+      if (Number.isFinite(target)) params.chainId = `0x${target!.toString(16)}`;
+
       const hash = await this.wallet.request({
         method: "eth_sendTransaction",
         params: [params],
@@ -192,7 +241,7 @@ export class TrustwareCore {
         to,
         data,
         value,
-        chainId: tr.chainId ? Number(tr.chainId) : undefined,
+        chainId: Number.isFinite(target) ? target : undefined,
       });
       return resp.hash as `0x${string}`;
     }
@@ -200,30 +249,84 @@ export class TrustwareCore {
 
   // ---------------- one-shot flow ----------------
   async runTopUp(params: {
-    fromChain?: string; // will fall back to wallet chain
+    fromChain?: string;
     toChain?: string;
     fromToken?: string;
     toToken?: string;
     fromAmount: string | number;
   }) {
-    if (!this.wallet) throw new Error("Trustware.wallet not configured");
+    if (!this.wallet)
+      throw new Error(
+        "Trustware.wallet not configured (did you pass a wallet to the Provider?)",
+      );
+
+    const reg = await this.ensureRegistry();
     const fromAddress = await this.wallet.getAddress();
-    const chainId = await this.wallet.getChainId();
+    const currentChainId = await this.wallet.getChainId();
 
-    const build = await this.buildRoute({
-      fromChain: params.fromChain ?? String(chainId),
-      toChain: params.toChain ?? (this.cfg.defaults?.toChain as string),
-      fromToken: params.fromToken ?? (this.cfg.defaults?.fromToken as string),
-      toToken: params.toToken ?? (this.cfg.defaults?.toToken as string),
-      fromAmount: String(params.fromAmount),
-      fromAddress,
-      toAddress: fromAddress,
-      slippage: this.cfg.defaultSlippage ?? 1,
-    });
+    // remember where the user started
+    const originalChain = currentChainId;
 
-    const hash = await this.sendRouteTransaction(build);
-    await this.submitReceipt(build.intentId, hash);
-    return this.pollStatus(build.intentId);
+    const fromChain = params.fromChain ?? String(currentChainId);
+    const toChain = params.toChain ?? String(this.cfg.defaults?.toChain ?? "");
+
+    // resolve tokens (address or NATIVE sentinel)
+    const fromToken =
+      reg.resolveToken(
+        fromChain,
+        params.fromToken ??
+          (this.cfg.defaults?.fromToken as string) ??
+          undefined,
+      ) ?? NATIVE;
+    const toToken =
+      reg.resolveToken(
+        toChain,
+        params.toToken ?? (this.cfg.defaults?.toToken as string) ?? undefined,
+      ) ?? NATIVE;
+
+    let intentId: string | undefined;
+
+    try {
+      const build = await this.buildRoute({
+        fromChain,
+        toChain,
+        fromToken,
+        toToken,
+        fromAmount: String(params.fromAmount),
+        fromAddress,
+        toAddress: fromAddress,
+        slippage: this.cfg.defaults?.defaultSlippage ?? 1,
+      });
+
+      intentId = build.intentId;
+
+      // ensure wallet is on the source chain to sign
+      const hash = await this.sendRouteTransaction(build, Number(fromChain));
+
+      // let backend start monitoring
+      await this.submitReceipt(build.intentId, hash);
+
+      // poll until terminal status
+      const tx = await this.pollStatus(build.intentId);
+      return tx;
+    } catch (e: any) {
+      // nice error for user cancellation
+      if (isUserRejected(e)) {
+        throw new Error("Transaction cancelled by user");
+      }
+      // bubble other errors
+      throw e;
+    } finally {
+      // ALWAYS switch back to the user’s original chain if we moved them
+      try {
+        if (originalChain && originalChain !== Number(fromChain)) {
+          await this.wallet.switchChain(originalChain);
+        }
+      } catch (swErr) {
+        console.warn("switch back skipped:", swErr);
+        // don’t rethrow, original error (if any) already surfaced
+      }
+    }
   }
 
   // ---------------- utils ----------------
@@ -246,6 +349,20 @@ export class TrustwareCore {
     } catch {}
     throw new Error(`HTTP ${r.status}: ${msg}`);
   }
+
+  private async ensureRegistry() {
+    if (!this._registry)
+      this._registry = new Registry(`${API_ROOT}${API_PREFIX}`);
+    await this._registry.ensureLoaded();
+    return this._registry;
+  }
+}
+
+function isUserRejected(e: any): boolean {
+  const code = e?.code ?? e?.data?.code;
+  if (code === 4001) return true; // EIP-1193 userRejectedRequest
+  const msg = String(e?.message || e)?.toLowerCase?.() || "";
+  return msg.includes("user rejected") || msg.includes("user denied");
 }
 
 function sleep(ms: number) {
