@@ -333,7 +333,7 @@ export class TrustwareCore {
   private jsonHeaders(extra?: Record<string, string>): HeadersInit {
     const h: Record<string, string> = {
       "Content-Type": "application/json",
-      "X-API-Key": this.cfg.apiKey,
+      "X-API-Key": `Bearer ${this.cfg.apiKey}`
       "X-SDK-Name": SDK_NAME,
       "X-SDK-Version": SDK_VERSION,
       "X-API-Version": "2025-10-01",
