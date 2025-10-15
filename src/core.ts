@@ -57,7 +57,7 @@ export class TrustwareCore {
     }
     // create registry pointing at the same API root the core uses
     const baseURL = `${API_ROOT}${API_PREFIX}`;
-    this._registry = new Registry(baseURL);
+    this._registry = new Registry(baseURL, this.cfg);
     return this;
   }
 
@@ -110,6 +110,7 @@ export class TrustwareCore {
     const r = await fetch(`${API_ROOT}${API_PREFIX}/squid/route`, {
       method: "POST",
       headers: this.jsonHeaders(),
+      credentials: "omit",
       body: JSON.stringify(p),
     });
     await this.assertOK(r);
@@ -192,7 +193,7 @@ export class TrustwareCore {
     const meta = reg.chain(chainId);
     // Prefer the Squid `networkIdentifier` ("avalanche", "berachain", "base", etc.)
     const chainKey = meta?.networkIdentifier || String(chainId);
-    const url = `${API_ROOT}${API_PREFIX}/wallets/${encodeURIComponent(chainKey)}/${address}/balances`;
+    const url = `${API_ROOT}${API_PREFIX}/data/wallets/${encodeURIComponent(chainKey)}/${address}/balances`;
     const r = await fetch(url, { method: "GET" });
     if (!r.ok) throw new Error(`balances: HTTP ${r.status}`);
     const j = await r.json();

@@ -1,4 +1,5 @@
 // src/registry.ts
+import { TrustwareConfig } from "./types";
 export const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 export type ChainMeta = {
@@ -20,15 +21,25 @@ export class Registry {
   private _chainsById = new Map<string, ChainMeta>();
   private _tokensByChain = new Map<string, TokenMeta[]>(); // key: chainId
   private _loaded = false;
+  private cfg: TrustwareConfig = {
+    apiKey: "",
+  };
 
-  constructor(private baseURL: string) {} // e.g. http://localhost:8000/api
+  constructor(
+    private baseURL: string,
+    cfg: { apiKey?: string } = {},
+  ) {} // e.g. http://localhost:8000/api
 
   async ensureLoaded() {
     if (this._loaded) return;
     // fetch concurrently.
     const [chainsRes, tokensRes] = await Promise.all([
-      fetch(`${this.baseURL}/squid/chains`),
-      fetch(`${this.baseURL}/squid/tokens`),
+      fetch(`${this.baseURL}/squid/chains`, {
+        headers: { Accept: "application/json", "X-API-Key": this.cfg.apiKey },
+      }),
+      fetch(`${this.baseURL}/squid/tokens`, {
+        headers: { Accept: "application/json", "X-API-Key": this.cfg.apiKey },
+      }),
     ]);
     if (!chainsRes.ok) throw new Error(`chains: HTTP ${chainsRes.status}`);
     if (!tokensRes.ok) throw new Error(`tokens: HTTP ${tokensRes.status}`);
