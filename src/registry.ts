@@ -1,17 +1,18 @@
 // src/registry.ts
-import { TrustwareConfig } from "./types";
+import { TrustwareConfigStore } from "./config/store";
+
 export const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 export type ChainMeta = {
-  id: string; // e.g. "43114"
-  networkIdentifier: string; // e.g. "avalanche"
+  id: string;
+  networkIdentifier: string;
   nativeCurrency: { symbol: string; decimals: number; name: string };
 };
 
 export type TokenMeta = {
-  chainId: string; // "43114"
+  chainId: string;
   address: `0x${string}`;
-  symbol: string; // e.g. "USDC.e"
+  symbol: string;
   decimals: number;
   visible?: boolean;
   active?: boolean;
@@ -19,26 +20,21 @@ export type TokenMeta = {
 
 export class Registry {
   private _chainsById = new Map<string, ChainMeta>();
-  private _tokensByChain = new Map<string, TokenMeta[]>(); // key: chainId
+  private _tokensByChain = new Map<string, TokenMeta[]>();
   private _loaded = false;
-  private cfg: TrustwareConfig = {
-    apiKey: "",
-  };
 
-  constructor(
-    private baseURL: string,
-    cfg: { apiKey?: string } = {},
-  ) {} // e.g. http://localhost:8000/api
+  constructor(private baseURL: string) {}
 
   async ensureLoaded() {
     if (this._loaded) return;
-    // fetch concurrently.
+    const cfg = TrustwareConfigStore.get();
+
     const [chainsRes, tokensRes] = await Promise.all([
       fetch(`${this.baseURL}/squid/chains`, {
-        headers: { Accept: "application/json", "X-API-Key": this.cfg.apiKey },
+        headers: { Accept: "application/json", "X-API-Key": cfg.apiKey },
       }),
       fetch(`${this.baseURL}/squid/tokens`, {
-        headers: { Accept: "application/json", "X-API-Key": this.cfg.apiKey },
+        headers: { Accept: "application/json", "X-API-Key": cfg.apiKey },
       }),
     ]);
     if (!chainsRes.ok) throw new Error(`chains: HTTP ${chainsRes.status}`);
@@ -47,7 +43,6 @@ export class Registry {
     const chains = await chainsRes.json();
     const tokens = await tokensRes.json();
 
-    // chains can be array or wrapped; normalize expecting an array
     const chainsArr: ChainMeta[] = Array.isArray(chains)
       ? chains
       : (chains.data ?? []);
@@ -75,7 +70,6 @@ export class Registry {
     return this._tokensByChain.get(String(chainId)) ?? [];
   }
 
-  /** Resolve UI input into a wire token for Squid (address or NATIVE sentinel). */
   resolveToken(
     chainId: string | number,
     input?: string | null,
@@ -83,24 +77,22 @@ export class Registry {
     if (!input) return undefined;
     const s = String(input).trim();
 
-    // If it looks like an address, pass through
+    // address passthrough
     if (/^0x[0-9a-fA-F]{40}$/.test(s)) return s as `0x${string}`;
 
-    // Try native-by-symbol (case-insensitive, from chains metadata)
+    // native by symbol
     const chain = this.chain(chainId);
     const nativeSym = chain?.nativeCurrency?.symbol?.toUpperCase?.();
     if (nativeSym && s.toUpperCase() === nativeSym) return NATIVE;
 
-    // Also accept a few common native aliases:
     if (["ETH", "MATIC", "AVAX", "BNB", "NATIVE"].includes(s.toUpperCase()))
       return NATIVE;
 
-    // Otherwise map symbol → address using tokens list for that chain
+    // symbol → address
     const list = this.tokens(chainId);
     const hit = list.find((t) => t.symbol?.toUpperCase?.() === s.toUpperCase());
     if (hit) return hit.address;
 
-    // No match; let caller decide to throw or pass-through
     return s;
   }
 }
