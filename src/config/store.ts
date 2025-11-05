@@ -35,6 +35,14 @@ class ConfigStore {
     return this._cfg;
   }
 
+  getTheme() {
+    return this.get().theme;
+  }
+
+  getMessages() {
+    return this.get().messages;
+  }
+
   subscribe(fn: (cfg: ResolvedTrustwareConfig) => void) {
     this._listeners.add(fn);
     if (this._cfg) fn(this._cfg);
@@ -56,6 +64,8 @@ export const TrustwareConfig = {
   update: (patch: Partial<TrustwareConfigOptions>) =>
     TrustwareConfigStore.update(patch),
   get: () => TrustwareConfigStore.get(),
+  getTheme: () => TrustwareConfigStore.get().theme,
+  getMessages: () => TrustwareConfigStore.get().messages,
   subscribe: (fn: (cfg: ResolvedTrustwareConfig) => void) =>
     TrustwareConfigStore.subscribe(fn),
 };

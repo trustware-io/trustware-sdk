@@ -24,10 +24,39 @@ function flagMatch(meta: WalletMeta, p: any): boolean {
   );
 }
 
-function pickMetaForInjected(p: any): WalletMeta {
+const GENERIC_DETECT_FLAGS = new Set(["isMetaMask"]);
+const WALLET_ORDER = new Map(WALLETS.map((w, idx) => [w.id, idx]));
+
+function isGenericFlagMatch(meta: WalletMeta): boolean {
+  const flags = meta.detectFlags ?? [];
+  if (!flags.length) return false;
+  return flags.every((flag) => GENERIC_DETECT_FLAGS.has(flag));
+}
+
+function compareFlagMatches(a: WalletMeta, b: WalletMeta): number {
+  const aGeneric = isGenericFlagMatch(a);
+  const bGeneric = isGenericFlagMatch(b);
+  if (aGeneric !== bGeneric) return aGeneric ? 1 : -1;
+
+  const aFlags = a.detectFlags?.length ?? 0;
+  const bFlags = b.detectFlags?.length ?? 0;
+  if (aFlags !== bFlags) return bFlags - aFlags;
+
+  const aOrder = WALLET_ORDER.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+  const bOrder = WALLET_ORDER.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+  return aOrder - bOrder;
+}
+
+export function pickMetaForInjected(p: any): WalletMeta {
   // Try to match by flags first; otherwise fall back to "injected" generic
-  const byFlag = WALLETS.find((m) => flagMatch(m, p));
-  if (byFlag) return byFlag;
+  const flagMatches = WALLETS.filter((m) => flagMatch(m, p));
+  if (flagMatches.length) {
+    const bestMatch = flagMatches.reduce<WalletMeta | null>((best, current) => {
+      if (!best) return current;
+      return compareFlagMatches(current, best) < 0 ? current : best;
+    }, null);
+    if (bestMatch) return bestMatch;
+  }
 
   // Heuristic by name string if present
   const name =
@@ -39,12 +68,20 @@ function pickMetaForInjected(p: any): WalletMeta {
     (p?.isCoinbaseWallet && "Coinbase Wallet") ||
     "Injected Wallet";
 
-  const id = name.toLowerCase().replace(/\s+/g, "-") as WalletId;
-  const known = WALLETS.find((w) => w.id === id);
+  const normalizedId = name.toLowerCase().replace(/\s+/g, "-") as WalletId;
+  const known = WALLETS.find((w) => w.id === normalizedId);
   if (known) return known;
 
+  const isMetaMaskName = /metamask/i.test(name);
+  if (isMetaMaskName) {
+    const metamask = WALLETS.find((w) => w.id === "metamask");
+    if (metamask) {
+      return { ...metamask, name };
+    }
+  }
+
   return {
-    id: "metamask", // default to MetaMask-like injected UX
+    id: normalizedId,
     name,
     category: "injected",
     logo: "",
