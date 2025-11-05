@@ -295,9 +295,8 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
             display: "flex",
             flexDirection: "column",
             gap: "16px",
-            maxHeight: "90vh",
-            overflowY: "auto",
             paddingRight: "4px",
+            minHeight: 0,
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
@@ -365,7 +364,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
             )}
           </section>
 
-          <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <section style={{ display: "flex", flexDirection: "column", gap: "12px", height: "fit-content" }}>
             <button
               type="button"
               onClick={() => setShowPopular((value) => !value)}
@@ -400,15 +399,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
             )}
           </section>
 
-          <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>
-              More Wallets
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {otherWallets.map(renderWalletRow)}
-            </div>
-          </section>
-        </div>
+                 </div>
 
         <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
           {onBack && (
