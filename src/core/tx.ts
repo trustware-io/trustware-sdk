@@ -61,6 +61,7 @@ export async function runTopUp(params: {
   toChain?: string;
   fromToken?: string;
   toToken?: string;
+  toAddress?: string;
   fromAmount: string | number;
 }) {
   const w = walletManager.wallet;
@@ -103,7 +104,11 @@ export async function runTopUp(params: {
       toToken,
       fromAmount: String(params.fromAmount),
       fromAddress,
-      toAddress: fromAddress,
+      toAddress:
+        params.toAddress ??
+        cfg.routes.toAddress ??
+        (cfg.routes.fromAddress as string | undefined) ??
+        fromAddress,
       slippage: cfg.routes.defaultSlippage,
     });
 

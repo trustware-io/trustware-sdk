@@ -59,12 +59,23 @@ export type Transaction = {
 export type BuildRouteResult = {
   intentId: string;
   route: {
-    estimate: { fromAmount: string; toAmount: string; fees?: any; route?: any };
+    estimate: { 
+      fromAmount: string;
+      toAmount: string;
+      fromAmountUSD?: string;
+      toAmountUSD?: string;
+      toAmountMinUSD?: string;
+      minimumReceived?: string;
+      fees?: any;
+      route?: any;
+    };
     transactionRequest: {
       to: string;
       data: string;
       value?: string;
       chainId?: string;
+      fromAmountUSD?: string;
+      toAmountMinUSD?: string;
     };
   };
 };

@@ -1,26 +1,12 @@
 // src/registry.ts
 import { TrustwareConfigStore } from "./config/store";
+import type { ChainDef, TokenDef } from "./types/";
 
 export const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
-export type ChainMeta = {
-  id: string;
-  networkIdentifier: string;
-  nativeCurrency: { symbol: string; decimals: number; name: string };
-};
-
-export type TokenMeta = {
-  chainId: string;
-  address: `0x${string}`;
-  symbol: string;
-  decimals: number;
-  visible?: boolean;
-  active?: boolean;
-};
-
 export class Registry {
-  private _chainsById = new Map<string, ChainMeta>();
-  private _tokensByChain = new Map<string, TokenMeta[]>();
+  private _chainsById = new Map<string, ChainDef>();
+  private _tokensByChain = new Map<string, TokenDef[]>();
   private _loaded = false;
 
   constructor(private baseURL: string) {}
@@ -43,30 +29,48 @@ export class Registry {
     const chains = await chainsRes.json();
     const tokens = await tokensRes.json();
 
-    const chainsArr: ChainMeta[] = Array.isArray(chains)
+    const chainsArr: ChainDef[] = Array.isArray(chains)
       ? chains
       : (chains.data ?? []);
     for (const c of chainsArr) {
-      if (c?.id) this._chainsById.set(String(c.id), c as ChainMeta);
+      const canonical = c?.chainId ?? c?.id;
+      if (canonical == null) continue;
+      const chainId = c.chainId ?? canonical;
+      const normalized: ChainDef = {
+        ...c,
+        id: c.id ?? canonical,
+        chainId,
+      };
+      this._chainsById.set(String(canonical), normalized);
     }
 
-    const tokensArr: TokenMeta[] = Array.isArray(tokens)
+    const tokensArr: TokenDef[] = Array.isArray(tokens)
       ? tokens
       : (tokens.data ?? []);
     for (const t of tokensArr) {
-      const id = String(t.chainId);
+      const canonical = t?.chainId;
+      if (canonical == null) continue;
+      const id = String(canonical);
+      const normalized: TokenDef = {
+        ...t,
+        chainId: t.chainId ?? canonical,
+      };
       if (!this._tokensByChain.has(id)) this._tokensByChain.set(id, []);
-      this._tokensByChain.get(id)!.push(t as TokenMeta);
+      this._tokensByChain.get(id)!.push(normalized);
     }
 
     this._loaded = true;
   }
 
-  chain(chainId: string | number): ChainMeta | undefined {
+  chains(): ChainDef[] {
+    return Array.from(this._chainsById.values());
+  }
+  
+  chain(chainId: string | number): ChainDef | undefined {
     return this._chainsById.get(String(chainId));
   }
 
-  tokens(chainId: string | number): TokenMeta[] {
+  tokens(chainId: string | number): TokenDef[] {
     return this._tokensByChain.get(String(chainId)) ?? [];
   }
 

@@ -34,6 +34,17 @@ export const Trustware = {
     return TrustwareConfigStore.get();
   },
 
+  setDestinationAddress(address?: string | null) {
+    const prev = TrustwareConfigStore.get();
+    TrustwareConfigStore.update({
+      routes: {
+        ...prev.routes,
+        toAddress: address ?? undefined,
+      },
+    });
+    return Trustware;
+  },
+  
   /** Read active wallet */
   getWallet(): WalletInterFaceAPI | null {
     return walletManager.wallet;

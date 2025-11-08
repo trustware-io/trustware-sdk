@@ -15,6 +15,7 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
         routes: {
           toChain: "",
           toToken: "",
+          toAddress: undefined,
           defaultSlippage: 1,
           options: {},
         },

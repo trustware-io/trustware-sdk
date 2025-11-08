@@ -7,6 +7,7 @@ export type TrustwareConfigOptions = {
     toToken: string; // Default destination token
     fromToken?: string; // Default source token (optional)
     fromAddress?: string; // Default source address (optional)
+    toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
     defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
     options?: {
       fixedFromAmount?: string | number;
@@ -27,6 +28,7 @@ export type ResolvedTrustwareConfig = {
     toToken: string;
     fromToken?: string;
     fromAddress?: string;
+    toAddress?: string;
     defaultSlippage: number; // resolved
     options: {
       fixedFromAmount?: string | number;

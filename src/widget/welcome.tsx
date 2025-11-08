@@ -1,20 +1,10 @@
 import { useMemo, useState } from "react";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
-
-function hexToRgba(hex: string, alpha = 1) {
-  if (!hex) return `rgba(0,0,0,${alpha})`;
-  const h = hex.replace("#", "");
-  const isShort = h.length === 3;
-  const r = parseInt(isShort ? h[0] + h[0] : h.slice(0, 2), 16);
-  const g = parseInt(isShort ? h[1] + h[1] : h.slice(2, 4), 16);
-  const b = parseInt(isShort ? h[2] + h[2] : h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+import { hexToRgba } from "src/utils";
 
 export function Welcome({ onNext }: { onNext: () => void }) {
   const { theme, messages } = useTrustwareConfig();
   const [hover, setHover] = useState(false);
-
   const c = useMemo(() => {
     const primary = theme?.primaryColor ?? "#3b82f6";
     const secondary = theme?.secondaryColor ?? "#6366F1";
@@ -36,7 +26,6 @@ export function Welcome({ onNext }: { onNext: () => void }) {
   }, [theme]);
 
   const radius = theme?.radius ?? 16;
-
   return (
     <div
       style={{
@@ -82,7 +71,7 @@ export function Welcome({ onNext }: { onNext: () => void }) {
             color: "transparent",
           }}
         >
-          {messages?.welcomeTitle || "Welcome"}
+          {messages?.title || "Trustware SDK"}
         </h2>
 
         <p
@@ -94,7 +83,7 @@ export function Welcome({ onNext }: { onNext: () => void }) {
             maxWidth: 820,
           }}
         >
-          {messages?.welcomeSubtitle ||
+          {messages?.description ||
             "You can send, receive, and route assets safely. Follow the steps below to get started."}
         </p>
 
@@ -122,7 +111,7 @@ export function Welcome({ onNext }: { onNext: () => void }) {
             }}
           >
             <span style={{ position: "relative", fontWeight: 600 }}>
-              {messages?.welcomeSecuredByLabel || "Secured by"}
+              Secured by
               <span
                 aria-hidden
                 style={{
@@ -224,67 +213,31 @@ export function Welcome({ onNext }: { onNext: () => void }) {
           >
             <Step
               index={1}
-              title={messages?.welcomeStep1Title || "Connect a wallet"}
-              copy={
-                messages?.welcomeStep1Copy ||
-                "Use the button in the next step to connect or choose a saved account."
-              }
+              title={"Connect a wallet"}
+              copy={"Use the button in the next step to connect or choose a saved account."}
               c={c}
             />
             <Step
               index={2}
-              title={messages?.welcomeStep2Title || "Enter amount & options"}
-              copy={
-                messages?.welcomeStep2Copy ||
-                "Pick the token and amount. We’ll route across chains if needed."
-              }
+              title={"Enter amount & options"}
+              copy={"Pick the token and amount. We’ll route across chains if needed."}
               c={c}
             />
             <Step
               index={3}
-              title={messages?.welcomeStep3Title || "Review & confirm"}
-              copy={
-                messages?.welcomeStep3Copy ||
-                "Check the details, then approve the transaction in your wallet."
-              }
+              title={"Review & confirm"}
+              copy={"Check the details, then approve the transaction in your wallet."}
               c={c}
             />
           </div>
         </div>
 
-        {/* foot notes */}
-        {/*
-        <div
-          style={{
-            marginTop: 10,
-            display: "grid",
-            gap: 6,
-            fontSize: 12.5,
-            color: c.textMuted,
-          }}
-        >
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <Badge c={c}>🛡️</Badge>
-            <span>
-              {messages?.welcomePrivacy ||
-                "Your keys stay in your wallet. We never see your private keys."}
-            </span>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <Badge c={c}>⛽</Badge>
-            <span>
-              {messages?.welcomeFees ||
-                "Network fees and small routing fees may apply and are shown before you confirm."}
-            </span>
-          </div>
-        </div>
-        */}
 
         {/* CTA */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
           <button
             onClick={onNext}
-            aria-label={messages?.welcomeCta || "Continue"}
+            aria-label={"Continue"}
             style={{
               position: "relative",
               padding: "10px 16px",
@@ -309,7 +262,7 @@ export function Welcome({ onNext }: { onNext: () => void }) {
               el.style.boxShadow = `0 8px 20px ${hexToRgba(c.primary, 0.35)}`;
             }}
           >
-            {messages?.welcomeCta || "Continue"}
+            Continue
           </button>
         </div>
       </div>
@@ -407,4 +360,3 @@ function Badge({ children, c }: { children: any; c: any }) {
     </span>
   );
 }
-

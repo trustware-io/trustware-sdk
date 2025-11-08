@@ -55,6 +55,7 @@ export function resolveConfig(
     toToken: input.routes.toToken,
     fromToken: input.routes.fromToken,
     fromAddress: input.routes.fromAddress,
+    toAddress: input.routes.toAddress,
     defaultSlippage: normalizeSlippage(
       input.routes.defaultSlippage ?? DEFAULT_SLIPPAGE,
     ),

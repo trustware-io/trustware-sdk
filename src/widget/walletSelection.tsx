@@ -80,7 +80,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
         setErrorMessage(description);
       }
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe;
+    };
   }, []);
 
   useEffect(() => {
@@ -398,8 +400,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
               </div>
             )}
           </section>
-
-                 </div>
+        </div>
 
         <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
           {onBack && (

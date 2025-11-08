@@ -5,8 +5,15 @@ import { walletManager } from 'src/wallets/';
 import { TrustwareConfig } from 'src/config';
 import { WalletSelection } from './walletSelection';
 import { TokenChainSelection } from './tokenChainSelection';
+import { AmountInput } from './amountInput';
+import { ConfirmPayment } from './confirmPayment';
+import { PaymentStatus } from './paymentStatus';
+import { PaymentSuccess } from './paymentSuccuess';
+import { PaymentFailure } from './paymentFailure';
 import { useTrustwareConfig } from 'src/hooks/useTrustwareConfig';
+import { useTrustwareRoute } from 'src/hooks';
 import { SDK_VERSION } from 'src/constants';
+import { hexToRgba } from 'src/utils/';
 import { Welcome } from './welcome';
 
 enum WidgetState {
@@ -20,27 +27,20 @@ enum WidgetState {
   PaymentFailure
 }
 
-function hexToRgba(hex: string, alpha = 1) {
-  if (!hex) return `rgba(0,0,0,${alpha})`;
-  const h = hex.replace('#', '');
-  const isShort = h.length === 3;
-  const r = parseInt(isShort ? h[0] + h[0] : h.slice(0, 2), 16);
-  const g = parseInt(isShort ? h[1] + h[1] : h.slice(2, 4), 16);
-  const b = parseInt(isShort ? h[2] + h[2] : h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 export function TrustwareWidget() {
-  const { status, errors } = useTrustware();
+  const { status, errors, core } = useTrustware();
   const config = useTrustwareConfig();
-  const { theme, messages } = config;
+  const { theme, messages, routes } = config;
   const [widgetState, setWidgetState] = useState<WidgetState>(
     WidgetState.Welcome,
   );
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [selectedToken, setSelectedToken] = useState<TokenDef | null>(null);
-  const [amount, setAmount] = useState<number | null>(null);
+  const [amount, setAmount] = useState<string>('');
+  const [lastError, setLastError] = useState<string | null>(null);
   const widgetStateRef = useRef(widgetState);
+  const [fromAddress, setFromAddress] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = TrustwareConfig.subscribe((cfg) => {
@@ -57,12 +57,54 @@ export function TrustwareWidget() {
     widgetStateRef.current = widgetState;
   }, [widgetState]);
 
+  useEffect(() => {
+    let active = true;
+
+    const refreshAddress = async () => {
+      try {
+        const wallet = walletManager.wallet;
+        if (!wallet) {
+          if (active) setFromAddress(null);
+          return;
+        }
+        const address = await wallet.getAddress();
+        if (active) setFromAddress(address ?? null);
+      } catch {
+        if (active) setFromAddress(null);
+      }
+    };
+
+    void refreshAddress();
+    const unsubscribe = walletManager.onChange(() => {
+      void refreshAddress();
+    });
+
+    return () => {
+      active = false;
+      // call and ignore any boolean the function might return
+      unsubscribe();
+    };
+  }, []);
+
+  const routeState = useTrustwareRoute({
+    core,
+    fromChainId: selectedChain?.chainId ?? selectedChain?.id ?? undefined,
+    toChainId: routes?.toChain,
+    fromToken: selectedToken?.address,
+    toToken: routes?.toToken,
+    fromAmount: amount,
+    fromAddress,
+    toAddress: routes?.toAddress ?? routes?.fromAddress ?? fromAddress ?? undefined,
+    slippage: routes?.defaultSlippage,
+  });
+
+
   const resetState = useCallback(() => {
     setWidgetState(WidgetState.WalletSelection);
     setSelectedChain(null);
     setSelectedToken(null);
-    //setAmountWei("");
-    //setRouteState(createInitialRouteState());
+    setAmount('');
+    setLastError(null);
   }, []);
 
   const disconnectWallet = useCallback(() => {
@@ -89,6 +131,7 @@ export function TrustwareWidget() {
         resetState();
         break;
       case WidgetState.AmountInput:
+        setAmount('');
         setWidgetState(WidgetState.TokenChainSelection);
         break;
       case WidgetState.ConfirmPayment:
@@ -100,13 +143,14 @@ export function TrustwareWidget() {
       case WidgetState.PaymentSuccess:
       case WidgetState.PaymentFailure:
         resetState();
+        setWidgetState(WidgetState.WalletSelection);
         break;
       default:
         break;
     }
-  }, [widgetState, disconnectWallet, resetState]);
+  }, [widgetState, disconnectWallet, resetState, setWidgetState, setAmount]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     // Logic to handle next navigation based on current widget state
     // switch
     switch (widgetState) {
@@ -117,24 +161,44 @@ export function TrustwareWidget() {
         setWidgetState(WidgetState.TokenChainSelection);
         break;
       case WidgetState.TokenChainSelection:
-        setWidgetState(WidgetState.AmountInput);
+        if (selectedChain && selectedToken) {
+          setWidgetState(WidgetState.AmountInput);
+        }
         break;
       case WidgetState.AmountInput:
         setWidgetState(WidgetState.ConfirmPayment);
         break;
       case WidgetState.ConfirmPayment:
-        setWidgetState(WidgetState.PaymentProcessing);
+        if (routeState.status === 'ready' && selectedChain && selectedToken) {
+          setWidgetState(WidgetState.PaymentProcessing);
+        }
         break;
       case WidgetState.PaymentProcessing:
         break;
       case WidgetState.PaymentSuccess:
       case WidgetState.PaymentFailure:
         resetState();
+        setWidgetState(WidgetState.WalletSelection);
         break;
       default:
         break;
     }
-  };
+  }, [widgetState, selectedChain, selectedToken, amount, routeState, resetState, setWidgetState]);
+
+
+  const handlePaymentSuccess = useCallback(() => {
+    setWidgetState(WidgetState.PaymentSuccess);
+  }, [setWidgetState]);
+
+  const handlePaymentFailure = useCallback((error?: string) => {
+    setLastError(error ?? null);
+    setWidgetState(WidgetState.PaymentFailure);
+  }, [setLastError, setWidgetState]);
+
+  const handleRetry = useCallback(() => {
+    setLastError(null);
+    setWidgetState(WidgetState.ConfirmPayment);
+  }, [setLastError, setWidgetState]);
 
   const renderStatus = () => {
     if (status === 'error') {
@@ -195,7 +259,6 @@ export function TrustwareWidget() {
       </div>
     );
   }
-
   if (status === 'error' || !theme || !messages || status === 'idle' || status === 'initializing') {
     return <>{renderStatus()}</>;
   }
@@ -228,9 +291,9 @@ export function TrustwareWidget() {
           minHeight: 0,
         }}
       >
-        <div
+        {/*} <div
           style={{
-            display: widgetState === WidgetState.Welcome ? 'none' : 'flex',
+            display: widgetState !== WidgetState.Welcome ? 'none' : 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             borderBottom: `1px solid ${theme?.borderColor}`,
@@ -246,7 +309,7 @@ export function TrustwareWidget() {
           <span style={{ fontSize: '0.9rem' }}>
             {messages?.description || 'Please follow the steps to complete your payment.'}
           </span>
-        </div>
+        </div>*/}
 
         {widgetState === WidgetState.Welcome && (
           <Welcome onNext={handleNext} />
@@ -264,6 +327,54 @@ export function TrustwareWidget() {
             onTokenSelected={(token) => setSelectedToken(token)}
           />
         )}
+
+        {widgetState === WidgetState.AmountInput && selectedChain && selectedToken && (
+          <AmountInput
+            onBack={handleBack}
+            onNext={handleNext}
+            selectedChain={selectedChain}
+            selectedToken={selectedToken}
+            amount={amount}
+            onAmountChange={(value) => setAmount(value)}
+          />
+        )}
+
+        {widgetState === WidgetState.ConfirmPayment && selectedChain && selectedToken && (
+          <ConfirmPayment
+            amount={amount}
+            selectedChain={selectedChain}
+            selectedToken={selectedToken}
+            routeState={routeState}
+            onBack={handleBack}
+            onConfirm={handleNext}
+          />
+        )}
+
+        {widgetState === WidgetState.PaymentProcessing && (
+          <PaymentStatus
+            amount={amount}
+            selectedChain={selectedChain}
+            selectedToken={selectedToken}
+            routeState={routeState}
+            core={core}
+            onClose={handleBack}
+            onSuccess={handlePaymentSuccess}
+            onFailure={handlePaymentFailure}
+          />
+        )}
+
+        {widgetState === WidgetState.PaymentSuccess && (
+          <PaymentSuccess onClose={handleBack} />
+        )}
+
+        {widgetState === WidgetState.PaymentFailure && (
+          <PaymentFailure
+            onClose={handleBack}
+            onRetry={handleRetry}
+            error={lastError}
+          />
+        )}
+
       </div>
 
       {/* Footer */}
