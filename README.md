@@ -246,5 +246,5 @@ Events:
 
 - TypeScript defs in `src/core` for full API.
 - Source: Explore `sdk/src` for implementation details.
-- [Core Guide](./docs/coreGuide.md)
-- [Integrations](./docs/integrationGuide.md)
+- [Core Guide](docs/coreGuide.md)
+- [Integrations](docs/integrationGuide.md)
