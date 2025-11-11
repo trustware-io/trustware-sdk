@@ -1,6 +1,6 @@
 # Trustware SDK
 
-The Trustware SDK provides a React provider, prebuilt UI widget, and typed core API for bridging and top-up routes. It powers seamless fund transfers across chains, reusing resolved configurations for quoting, route selection, and transaction execution. Whether you embed the widget for a quick integration or use the imperative core for custom UIs, the SDK handles wallet detection, approvals, and submission under the hood.
+The Trustware SDK provides a React provider, prebuilt UI widget, and typed core API for bridging and top-up routes. It powers seamless fund transfers across chains, reusing resolved configurations for quoting, route selection, and transaction execution. Whether you embed the widget for a quick integration or use the imperative core for custom UIs, the SDK handles wallet detection, approvals, submission, and asset settlement under the hood.
 
 This guide covers installation, configuration, integration patterns (widget-based and headless), and advanced usage.
 
@@ -17,13 +17,13 @@ The package exposes ESM modules and ships full TypeScript types.
 ## Core Concepts
 
 - **`TrustwareProvider`** – Wraps your app to provide configuration (API key, routes, theme) via React context, making it available to the widget and core API.
-- **`TrustwareWidget`** – A prebuilt React component that renders a UI for quoting, wallet selection, and top-up submission.
-- **`Trustware` core** – An imperative singleton with helpers like `Trustware.runTopUp`, `Trustware.buildRoute`, and wallet utilities. Import once the provider is mounted.
+- **`TrustwareWidget`** – A prebuilt React component that renders a UI for quoting, wallet selection, top-up submission, and asset settlement.
+- **`Trustware core`** – An imperative singleton with helpers like `Trustware.runTopUp`, `Trustware.buildRoute`, and wallet utilities. Import once the provider is mounted.
 - **Config** – `TrustwareConfigOptions` defines your API key, default routes (e.g., toChain, toToken), slippage, theme, messages, and wallet detection behavior.
 
 ## Configuration
 
-Create a config object at the root of your app. It merges defaults for routes, slippage, and fallbacks (e.g., `toAddress` defaults to `fromAddress` if unset).
+Create a config object at the root of your app. It merges defaults for routes, slippage, and fallbacks (e.g., `toAddress` defaults to `fromAddress` if unset). By default the widget will route funds to original address that initiated the transaction, if that address can support the new funds.
 
 ```ts
 const trustwareConfig = {
@@ -142,7 +142,7 @@ export function useTrustwareWalletBridge() {
 
 ## Using the Widget
 
-The `<TrustwareWidget />` handles the full flow: quoting, wallet prompts, approvals, and submission. It mirrors the core's lifecycle and uses the provider's config/wallet.
+The `<TrustwareWidget />` handles the full flow: quoting, wallet prompts, approvals, submission, and final asset settlement. It mirrors the core's lifecycle and uses the provider's config/wallet, without disrupting user flows in your application.
 
 - Customize via `theme` and `messages` in config.
 - For dynamic `toAddress`: Call `Trustware.setDestinationAddress` before render.
@@ -246,5 +246,5 @@ Events:
 
 - TypeScript defs in `src/core` for full API.
 - Source: Explore `sdk/src` for implementation details.
-- [Core Guide](./docs/coreGuide.md)
-- [Integrations](./docs/integrationGuide.md)
+- [Core Guide](docs/coreGuide.md)
+- [Integrations](docs/integrationGuide.md)
