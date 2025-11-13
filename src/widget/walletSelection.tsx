@@ -126,7 +126,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   };
 
   const attemptConnection = async (wallet: WalletMeta) => {
-    console.log("Selected wallet:", wallet);
     setSelectedWallet(wallet);
     setErrorMessage(null);
     if (walletManager.status === "connecting") return;
@@ -159,7 +158,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   };
 
   const handleContinue = () => {
-    console.log("Continuing with wallet:", selectedWallet);
     if (status === "connected") {
       onNext();
       return;
