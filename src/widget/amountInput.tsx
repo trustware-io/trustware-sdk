@@ -141,6 +141,42 @@ export function AmountInput({
     return (tokenUnits * tokenPriceUSD!).toFixed(2);
   }, [balanceTokenStr, hasUsdPrice, tokenPriceUSD]);
 
+  // dynamic font size based on input length 
+  const dynamicFontSize = useMemo(() => {
+    // What the user *sees* as the main value
+    const raw = input || (mode === "WEI" ? "0" : "0.00");
+
+    // Ignore any formatting; we care about how many digits / chars
+    const visible = raw.replace(/[^0-9.]/g, "");
+    const len = visible.length || 1;
+
+    // Tunable bounds
+    const MAX = 40; // really big for short values
+    const MIN = 18; // don’t go below this
+
+    let size = MAX;
+
+    if (len <= 4) {
+      // 0, 1.2, 10.5 → huge
+      size = MAX;
+    } else if (len <= 8) {
+      // gradually shrink for mid-size values
+      size = MAX - (len - 4) * 2; // 4→40px, 8→32px
+    } else if (len <= 14) {
+      // longer values shrink more
+      size = MAX - 8 - (len - 8) * 1.5; // 9..14 → ~30..21px
+    } else {
+      // anything insane (big wei) → clamp to MIN
+      size = MIN;
+    }
+
+    // Wei strings tend to be long; nudge down a bit more
+    if (mode === "WEI") size -= 2;
+
+    return Math.max(MIN, size);
+  }, [input, mode]);
+
+
   // validate
   const errors: string[] = useMemo(() => {
     const errs: string[] = [];
@@ -283,8 +319,19 @@ export function AmountInput({
         </div>
 
         {/* Amount input */}
+        {/* Amount input */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 }}>
-          {mode === "USD" && <span style={{ fontSize: 32, color: muted() }}>$</span>}
+          {mode === "USD" && (
+            <span
+              style={{
+                fontSize: dynamicFontSize,
+                color: muted(),
+                lineHeight: 1,
+              }}
+            >
+              $
+            </span>
+          )}
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -292,13 +339,14 @@ export function AmountInput({
             placeholder={mode === "WEI" ? "0" : "0.00"}
             style={{
               textAlign: "center",
-              fontSize: 32,
+              fontSize: dynamicFontSize,
               fontWeight: 700,
               border: "none",
               outline: "none",
               background: "transparent",
               color: theme.textColor,
               width: 260,
+              lineHeight: 1.1,
             }}
           />
         </div>
