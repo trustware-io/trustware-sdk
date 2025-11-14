@@ -69,6 +69,7 @@ export const WALLETS: WalletMeta[] = [
     emoji: "🌈",
     homepage: "https://rainbow.me/",
     deepLink: (url) => formatDeepLink("rainbow", url) ?? "",
+    detectFlags: ["isRainbow"],
   },
   {
     id: "okx",
@@ -103,7 +104,7 @@ export const WALLETS: WalletMeta[] = [
     logo: "https://bv.trustware.io/assets/wallets/taho.png",
     emoji: "🟪",
     homepage: "https://taho.xyz/",
-    detectFlags: ["isTally"],
+    detectFlags: ["isTally", "isTallyWallet", "isTahoWallet"],
   },
   {
     id: "trust",
@@ -112,24 +113,27 @@ export const WALLETS: WalletMeta[] = [
     logo: "https://bv.trustware.io/assets/wallets/trust.svg",
     emoji: "🛡️",
     homepage: "https://trustwallet.com/",
+    detectFlags: ["isTrustWallet"],
   },
   {
     id: "bitget",
     name: "Bitget Wallet",
-    category: "app",
+    category: "injected",
     logo: "https://bv.trustware.io/assets/wallets/bitget.svg",
     emoji: "🟩",
     homepage: "https://web3.bitget.com/",
+    detectFlags: ["isBitGetWallet"],
   },
   {
     id: "phantom-evm",
     name: "Phantom (EVM)",
-    category: "app",
+    category: "injected",
     logo: "https://bv.trustware.io/assets/wallets/phantom.svg",
     emoji: "👻",
     homepage: "https://phantom.app/",
+    detectFlags: ["isPhantom"],
   },
-     {
+  {
     id: "safe",
     name: "Safe",
     category: "app",
