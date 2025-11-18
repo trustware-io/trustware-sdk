@@ -9,11 +9,28 @@ import { walletManager } from "../wallets/manager";
 import { buildRoute, submitReceipt, getStatus, pollStatus } from "./routes";
 import { getBalances } from "./balances";
 import { sendRouteTransaction, runTopUp } from "./tx";
+import { validateSdkAccess } from "./http";
+
+// simple memo to avoid re-validating same key repeatedly
+let _lastValidatedKey: string | null = null;
 
 export const Trustware = {
   /** Initialize config */
-  init(cfg: TrustwareConfigOptions) {
+  async init(cfg: TrustwareConfigOptions) {
     TrustwareConfigStore.init(cfg);
+    const key = TrustwareConfigStore.get().apiKey;
+
+    if (_lastValidatedKey !== key) {
+     try {
+        await validateSdkAccess();
+        _lastValidatedKey = key;
+      } catch (err: any) {
+        // surface a helpful message while preserving original error
+        const reason = err?.message ? `: ${err.message}` : "";
+        throw new Error(`Trustware.init: API key validation failed${reason}`);
+        return {};
+      }
+    } 
     return Trustware;
   },
 
@@ -44,7 +61,7 @@ export const Trustware = {
     });
     return Trustware;
   },
-  
+
   /** Read active wallet */
   getWallet(): WalletInterFaceAPI | null {
     return walletManager.wallet;

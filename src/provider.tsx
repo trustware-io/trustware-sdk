@@ -43,7 +43,7 @@ export function TrustwareProvider({
         setErrors(undefined);
 
         // Initialize config once
-        Trustware.init(config);
+        await Trustware.init(config);
 
         if (wallet) {
           // If caller gives us a wallet, attach it directly
