@@ -36,9 +36,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   const [destinationToken, setDestinationToken] = useState(
     () => config.routes.toToken,
   );
-  const [slippage, setSlippage] = useState(
-    () => config.routes.defaultSlippage,
-  );
+  const [slippage, setSlippage] = useState(() => config.routes.defaultSlippage);
 
   useEffect(() => {
     walletManager.setDetected(detected);
@@ -166,7 +164,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
     void attemptConnection(selectedWallet);
   };
 
-
   const renderWalletRow = (wallet: WalletMeta) => {
     const detected = detectedIds.has(wallet.id);
     const isSelected = selectedWallet?.id === wallet.id;
@@ -184,8 +181,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
           width: "100%",
           padding: "12px",
           borderRadius: `${theme.radius}px`,
-          border: `1px solid ${isSelected ? theme.primaryColor : theme.borderColor
-            }`,
+          border: `1px solid ${
+            isSelected ? theme.primaryColor : theme.borderColor
+          }`,
           backgroundColor: isSelected
             ? theme.primaryColor
             : theme.backgroundColor,
@@ -203,13 +201,25 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
               alt={wallet.name}
               width={40}
               height={40}
-              style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "contain" }}
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "8px",
+                objectFit: "contain",
+              }}
             />
           ) : (
             <div style={{ fontSize: "1.5rem" }}>{wallet.emoji ?? "👛"}</div>
           )}
           <div style={{ textAlign: "left" }}>
-            <div style={{ fontWeight: 600, display: "flex", gap: "8px", alignItems: "center" }}>
+            <div
+              style={{
+                fontWeight: 600,
+                display: "flex",
+                gap: "8px",
+                alignItems: "center",
+              }}
+            >
               <span>{wallet.name}</span>
               {detected && (
                 <span
@@ -221,7 +231,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
                     backgroundColor: isSelected
                       ? theme.backgroundColor
                       : theme.primaryColor,
-                    color: isSelected ? theme.primaryColor : theme.backgroundColor,
+                    color: isSelected
+                      ? theme.primaryColor
+                      : theme.backgroundColor,
                   }}
                 >
                   Detected
@@ -252,7 +264,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
               height: "20px",
               borderRadius: "50%",
               border: `2px solid ${isSelected ? theme.backgroundColor : theme.borderColor}`,
-              backgroundColor: isSelected ? theme.backgroundColor : "transparent",
+              backgroundColor: isSelected
+                ? theme.backgroundColor
+                : "transparent",
             }}
           />
         )}
@@ -299,7 +313,14 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
             minHeight: 0,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
             <h2 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>
               Select Your Wallet
             </h2>
@@ -314,24 +335,29 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
               }}
             >
               <div style={{ display: "flex" }}>
-                {["avax-logo-2.png", "ethereum-logo.svg", "fantom-logo.png", "tether-logo.svg", "polygon-logo.png", "usdc-logo.webp"].map(
-                  (asset) => (
-                    <img
-                      key={asset}
-                      src={`https://bv.trustware.io/assets/tokens/${asset}`}
-                      alt={asset}
-                      width={28}
-                      height={28}
-                      style={{
-                        width: "28px",
-                        height: "28px",
-                        borderRadius: "50%",
-                        border: `2px solid ${theme.borderColor}`,
-                        marginLeft: "-8px",
-                      }}
-                    />
-                  ),
-                )}
+                {[
+                  "avax-logo-2.png",
+                  "ethereum-logo.svg",
+                  "fantom-logo.png",
+                  "tether-logo.svg",
+                  "polygon-logo.png",
+                  "usdc-logo.webp",
+                ].map((asset) => (
+                  <img
+                    key={asset}
+                    src={`https://app=.trustware.io/assets/tokens/${asset}`}
+                    alt={asset}
+                    width={28}
+                    height={28}
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      border: `2px solid ${theme.borderColor}`,
+                      marginLeft: "-8px",
+                    }}
+                  />
+                ))}
               </div>
               <span style={{ fontSize: "0.75rem", opacity: 0.7 }}>
                 All tokens on all EVM networks accepted
@@ -339,7 +365,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
             </div>
           </div>
 
-          <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <section
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <div
                 style={{
@@ -358,13 +386,22 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
                 No browser wallets detected.
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
                 {detectedWallets.map(renderWalletRow)}
               </div>
             )}
           </section>
 
-          <section style={{ display: "flex", flexDirection: "column", gap: "12px", height: "fit-content" }}>
+          <section
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              height: "fit-content",
+            }}
+          >
             <button
               type="button"
               onClick={() => setShowPopular((value) => !value)}
@@ -393,7 +430,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
               </span>
             </button>
             {showPopular && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
                 {popularWallets.map(renderWalletRow)}
               </div>
             )}
@@ -428,9 +467,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
               borderRadius: `${theme.radius}px`,
               border: "none",
               backgroundColor:
-                status === "connected"
-                  ? theme.primaryColor
-                  : theme.borderColor,
+                status === "connected" ? theme.primaryColor : theme.borderColor,
               color:
                 status === "connected"
                   ? theme.backgroundColor
@@ -450,4 +487,3 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
     </>
   );
 }
-

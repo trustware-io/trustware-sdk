@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import { hexToRgba } from "src/utils";
+import { ASSETS_BASE_URL } from "../constants";
 
 export function Welcome({ onNext }: { onNext: () => void }) {
   const { theme, messages } = useTrustwareConfig();
@@ -35,14 +36,14 @@ export function Welcome({ onNext }: { onNext: () => void }) {
         borderRadius: radius,
         background: `radial-gradient(1200px 500px at 0% -20%, ${hexToRgba(
           c.primary,
-          0.22
+          0.22,
         )} 0%, transparent 55%), radial-gradient(900px 400px at 100% 0%, ${hexToRgba(
           c.secondary,
-          0.15
+          0.15,
         )} 0%, transparent 50%), ${c.bg}`,
         boxShadow: `inset 0 1px 0 ${hexToRgba("#fff", 0.04)}, 0 8px 26px ${hexToRgba(
           "#000",
-          0.35
+          0.35,
         )}`,
         overflowX: "hidden",
       }}
@@ -144,8 +145,8 @@ export function Welcome({ onNext }: { onNext: () => void }) {
               title="Trustware"
             >
               <img
-                src="https://bv.trustware.io/assets/trustware-logo.png"
-                alt=""
+                src={`${ASSETS_BASE_URL}/assets/trustware-logo.png`}
+                alt="The main Trustware logo"
                 style={{ width: 16, height: 16, borderRadius: 4 }}
               />
               Trustware
@@ -159,7 +160,7 @@ export function Welcome({ onNext }: { onNext: () => void }) {
               gap: 8,
               padding: "5px 8px",
               borderRadius: 10,
-              background: c.glass(0.10),
+              background: c.glass(0.1),
               border: `1px solid ${c.glass(0.18)}`,
               opacity: hover ? 1 : 0.9,
               transition: "opacity 200ms",
@@ -178,7 +179,7 @@ export function Welcome({ onNext }: { onNext: () => void }) {
               }}
             >
               <img
-                src="https://bv.trustware.io/assets/squid_logo_black.svg"
+                src={`${ASSETS_BASE_URL}/assets/squid_logo_black.svg`}
                 alt="Squid"
                 style={{ width: 90, height: "auto", display: "block" }}
               />
@@ -214,27 +215,34 @@ export function Welcome({ onNext }: { onNext: () => void }) {
             <Step
               index={1}
               title={"Connect a wallet"}
-              copy={"Use the button in the next step to connect or choose a saved account."}
+              copy={
+                "Use the button in the next step to connect or choose a saved account."
+              }
               c={c}
             />
             <Step
               index={2}
               title={"Enter amount & options"}
-              copy={"Pick the token and amount. We’ll route across chains if needed."}
+              copy={
+                "Pick the token and amount. We’ll route across chains if needed."
+              }
               c={c}
             />
             <Step
               index={3}
               title={"Review & confirm"}
-              copy={"Check the details, then approve the transaction in your wallet."}
+              copy={
+                "Check the details, then approve the transaction in your wallet."
+              }
               c={c}
             />
           </div>
         </div>
 
-
         {/* CTA */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}
+        >
           <button
             onClick={onNext}
             aria-label={"Continue"}
@@ -333,8 +341,12 @@ function Step({
         {index}
       </div>
       <div>
-        <div style={{ fontWeight: 700, lineHeight: 1.25, marginBottom: 2 }}>{title}</div>
-        <div style={{ color: c.textMuted, fontSize: 13.5, lineHeight: 1.45 }}>{copy}</div>
+        <div style={{ fontWeight: 700, lineHeight: 1.25, marginBottom: 2 }}>
+          {title}
+        </div>
+        <div style={{ color: c.textMuted, fontSize: 13.5, lineHeight: 1.45 }}>
+          {copy}
+        </div>
       </div>
     </div>
   );
