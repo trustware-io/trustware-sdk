@@ -1,5 +1,11 @@
 "use client";
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { Trustware } from "./core"; // <-- the facade above
 import type { TrustwareConfigOptions } from "./types";
@@ -23,7 +29,7 @@ export function TrustwareProvider({
   autoDetect = true,
   children,
 }: {
-  config: TrustwareConfigOptions;          // <-- updated type
+  config: TrustwareConfigOptions; // <-- updated type
   wallet?: WalletInterFaceAPI;
   autoDetect?: boolean;
   children: React.ReactNode;
@@ -65,16 +71,23 @@ export function TrustwareProvider({
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [config, wallet, autoDetect]);
 
-  const value = useMemo<Ctx>(() => ({ status, errors, core: Trustware }), [status, errors]);
+  const value = useMemo<Ctx>(
+    () => ({ status, errors, core: Trustware }),
+    [status, errors]
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useTrustware() {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useTrustware must be used inside <TrustwareProvider config={...}>");
+  if (!ctx)
+    throw new Error(
+      "useTrustware must be used inside <TrustwareProvider config={...}>"
+    );
   return ctx;
 }
-

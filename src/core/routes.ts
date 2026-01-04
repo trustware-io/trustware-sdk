@@ -38,7 +38,7 @@ export async function buildRoute(p: RouteParams): Promise<BuildRouteResult> {
   return j.data as BuildRouteResult;
 }
 
-// @title Submit Receipt 
+// @title Submit Receipt
 // @description Submits a transaction receipt for a previously created route intent. This function is used to inform the system of the transaction hash associated with the route intent.
 // @param {string} intentId - The unique identifier of the route intent.
 // @param {string} txHash - The transaction hash of the submitted transaction.
@@ -59,7 +59,7 @@ export async function submitReceipt(intentId: string, txHash: string) {
   return j.data;
 }
 
-// @title Get Route Intent Status 
+// @title Get Route Intent Status
 // @description Retrieves the current status of a route intent based on its unique identifier. This function is used to check the progress of a cross-chain or same-chain transaction.
 // @param {string} intentId - The unique identifier of the route intent.
 // @returns {Promise<Transaction>} - A promise that resolves to a Transaction object containing the status and details of the route intent.
@@ -76,7 +76,7 @@ export async function getStatus(intentId: string): Promise<Transaction> {
   return j.data as Transaction;
 }
 
-// @title Poll Route Intent Status  
+// @title Poll Route Intent Status
 // @description Polls the status of a route intent at regular intervals until it reaches a terminal state (success or failed) or a timeout occurs. This function is useful for monitoring the progress of a transaction.
 // @param {string} intentId - The unique identifier of the route intent.
 // @param {Object} [options] - Optional parameters for polling.
@@ -89,7 +89,7 @@ export async function getStatus(intentId: string): Promise<Transaction> {
 // const finalStatus = await pollStatus(intentId, { intervalMs: 3000, timeoutMs: 600000 });
 export async function pollStatus(
   intentId: string,
-  { intervalMs = 2000, timeoutMs = 5 * 60_000 } = {},
+  { intervalMs = 2000, timeoutMs = 5 * 60_000 } = {}
 ): Promise<Transaction> {
   const t0 = Date.now();
   while (true) {

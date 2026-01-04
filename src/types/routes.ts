@@ -59,7 +59,7 @@ export type Transaction = {
 export type BuildRouteResult = {
   intentId: string;
   route: {
-    estimate: { 
+    estimate: {
       fromAmount: string;
       toAmount: string;
       fromAmountUSD?: string;

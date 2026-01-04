@@ -3,7 +3,7 @@ import type { WalletInterFaceAPI, DetectedWallet, EIP1193 } from "../types/";
 export { useEIP1193, useWagmi } from "./eipWallets"; // <-- your old "src/wallet.ts" path
 
 export function toWalletInterfaceFromDetected(
-  dw: DetectedWallet,
+  dw: DetectedWallet
 ): WalletInterFaceAPI {
   if (!dw?.provider) throw new Error("No provider on detected wallet");
   const eth = dw.provider as EIP1193;

@@ -217,7 +217,7 @@ function rank(list: Detected[]): Detected[] {
 
 /** Prefer Rabby automatically; fallback to others (no browser setting needed) */
 export async function autoDetectWallet(
-  timeoutMs = 400,
+  timeoutMs = 400
 ): Promise<{ kind: "eip1193"; wallet: WalletInterFaceAPI } | null> {
   if (typeof window === "undefined") return null;
   const w = window as any;

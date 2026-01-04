@@ -3,9 +3,13 @@ import type { ChainDef, TokenDef } from "src/types";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import { getBalances, type BalanceRow } from "src/core/balances";
 import { walletManager } from "src/wallets";
-import { formatUsd, hexToRgba, resolveChainLabel, weiToDecimalString } from "src/utils";
+import {
+  formatUsd,
+  hexToRgba,
+  resolveChainLabel,
+  weiToDecimalString,
+} from "src/utils";
 import type { TrustwareRouteState } from "src/hooks";
-
 
 export type ConfirmPaymentProps = {
   amount: string; // wei string (from AmountInput)
@@ -29,7 +33,10 @@ const ERC20_ALLOWANCE = {
   name: "allowance",
   type: "function",
   stateMutability: "view",
-  inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }],
+  inputs: [
+    { name: "owner", type: "address" },
+    { name: "spender", type: "address" },
+  ],
   outputs: [{ name: "", type: "uint256" }],
 } as const;
 
@@ -61,7 +68,8 @@ export function ConfirmPayment({
   const tokenSymbol = selectedToken?.symbol ?? "TOKEN";
   const tokenDecimals = selectedToken?.decimals ?? 18;
   const tokenPriceUSD =
-    typeof selectedToken?.usdPrice === "number" && isFinite(selectedToken.usdPrice!)
+    typeof selectedToken?.usdPrice === "number" &&
+    isFinite(selectedToken.usdPrice!)
       ? (selectedToken!.usdPrice as number)
       : null;
 
@@ -73,7 +81,9 @@ export function ConfirmPayment({
 
   const amountUsdStr = useMemo(() => {
     if (amountWei <= 0n || !tokenPriceUSD) return "";
-    const units = Number(weiToDecimalString(amountWei, tokenDecimals, Math.max(6, tokenDecimals)));
+    const units = Number(
+      weiToDecimalString(amountWei, tokenDecimals, Math.max(6, tokenDecimals))
+    );
     if (!isFinite(units)) return "";
     return formatUsd(units * tokenPriceUSD);
   }, [amountWei, tokenDecimals, tokenPriceUSD]);
@@ -115,7 +125,9 @@ export function ConfirmPayment({
       if (!Number.isFinite(canonical)) return;
 
       const wallet = walletManager.simple;
-      const address = wallet ? await wallet.getAddress().catch(() => undefined) : undefined;
+      const address = wallet
+        ? await wallet.getAddress().catch(() => undefined)
+        : undefined;
       if (!address) {
         setBalanceWei(0n);
         return;
@@ -126,8 +138,10 @@ export function ConfirmPayment({
         const rows: BalanceRow[] = await getBalances(canonical, address);
         const addrLower = (selectedToken.address || "").toLowerCase();
         let row =
-          rows.find((r) => r.category === "erc20" && r.contract?.toLowerCase() === addrLower) ||
-          rows.find((r) => r.category === "native");
+          rows.find(
+            (r) =>
+              r.category === "erc20" && r.contract?.toLowerCase() === addrLower
+          ) || rows.find((r) => r.category === "native");
         const b = row?.balance ? BigInt(row.balance) : 0n;
         if (!cancelled) setBalanceWei(b);
       } catch {
@@ -141,7 +155,6 @@ export function ConfirmPayment({
     };
   }, [selectedChain, selectedToken]);
 
-
   const balanceTokStr = useMemo(
     () => weiToDecimalString(balanceWei, tokenDecimals, 6),
     [balanceWei, tokenDecimals]
@@ -152,9 +165,15 @@ export function ConfirmPayment({
     return formatUsd(units * tokenPriceUSD);
   }, [balanceTokStr, tokenPriceUSD]);
 
-  const remainingWei = useMemo(() => balanceWei - amountWei, [balanceWei, amountWei]);
+  const remainingWei = useMemo(
+    () => balanceWei - amountWei,
+    [balanceWei, amountWei]
+  );
   const remainingTokStr = useMemo(
-    () => (remainingWei >= 0n ? weiToDecimalString(remainingWei, tokenDecimals, 6) : "0"),
+    () =>
+      remainingWei >= 0n
+        ? weiToDecimalString(remainingWei, tokenDecimals, 6)
+        : "0",
     [remainingWei, tokenDecimals]
   );
   const remainingUsdStr = useMemo(() => {
@@ -167,8 +186,12 @@ export function ConfirmPayment({
   const txReq = routeState.status === "ready" ? routeState.txReq : undefined;
   const spender = pickSpender(txReq, selectedChain);
 
-  const isNative = (selectedToken?.address?.toLowerCase?.() ?? "") === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-  const [allowanceWei, setAllowanceWei] = useState<bigint | null>(isNative ? amountWei : null);
+  const isNative =
+    (selectedToken?.address?.toLowerCase?.() ?? "") ===
+    "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  const [allowanceWei, setAllowanceWei] = useState<bigint | null>(
+    isNative ? amountWei : null
+  );
   const [readingAllowance, setReadingAllowance] = useState(false);
 
   useEffect(() => {
@@ -188,7 +211,9 @@ export function ConfirmPayment({
         return;
       }
       // Try read allowance(owner -> spender)
-      const owner = await (walletManager as any)?.simple?.getAddress?.().catch(() => undefined);
+      const owner = await (walletManager as any)?.simple
+        ?.getAddress?.()
+        .catch(() => undefined);
       if (!owner) {
         setAllowanceWei(null);
         return;
@@ -201,7 +226,8 @@ export function ConfirmPayment({
           functionName: "allowance",
           args: [owner, spender],
         });
-        if (!cancelled) setAllowanceWei(typeof res === "bigint" ? res : BigInt(res ?? 0));
+        if (!cancelled)
+          setAllowanceWei(typeof res === "bigint" ? res : BigInt(res ?? 0));
       } catch {
         if (!cancelled) setAllowanceWei(null);
       } finally {
@@ -224,9 +250,12 @@ export function ConfirmPayment({
     const e: string[] = [];
     if (amountWei <= 0n) e.push("Amount is invalid.");
     if (!loadingBal && balanceWei === 0n) e.push("Insufficient balance.");
-    if (!loadingBal && amountWei > balanceWei) e.push("Amount exceeds available balance.");
-    if (!isNative && spender == null) e.push("Missing Squid spender address for this route.");
-    if (routeState.status === "error") e.push(routeState.error || "Route build failed.");
+    if (!loadingBal && amountWei > balanceWei)
+      e.push("Amount exceeds available balance.");
+    if (!isNative && spender == null)
+      e.push("Missing Squid spender address for this route.");
+    if (routeState.status === "error")
+      e.push(routeState.error || "Route build failed.");
     if (routeState.status === "building") e.push("Building route…");
     if (routeState.status === "idle") e.push("Waiting for amount/token/chain…");
     return e;
@@ -242,9 +271,23 @@ export function ConfirmPayment({
   const muted = (o = 0.6) => hexToRgba(theme.textColor, o);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, width: "100%", color: theme.textColor }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 20,
+        width: "100%",
+        color: theme.textColor,
+      }}
+    >
       {/* Header */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <button
           type="button"
           onClick={onBack}
@@ -262,7 +305,9 @@ export function ConfirmPayment({
         </button>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontWeight: 700 }}>Confirm transfer</div>
-          <div style={{ fontSize: 12, color: muted() }}>{messages.description}</div>
+          <div style={{ fontSize: 12, color: muted() }}>
+            {messages.description}
+          </div>
         </div>
         <span style={{ width: 64 }} />
       </header>
@@ -290,37 +335,62 @@ export function ConfirmPayment({
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={{ color: muted() }}>Send exactly</span>
           <span>
-            {amountTokenStr ? `${amountTokenStr} ${tokenSymbol}` : `${amountWei.toString()} wei ${tokenSymbol}`}
+            {amountTokenStr
+              ? `${amountTokenStr} ${tokenSymbol}`
+              : `${amountWei.toString()} wei ${tokenSymbol}`}
             {amountUsdStr ? ` (${amountUsdStr})` : ""}
           </span>
         </div>
 
         {/* Balance summary (optional but nice) */}
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: 12,
+          }}
+        >
           <span style={{ color: muted() }}>Available</span>
           <span>
             {loadingBal ? "Loading…" : `${balanceTokStr} ${tokenSymbol}`}
             {!loadingBal && tokenPriceUSD ? ` (${balanceUsdStr})` : ""}
           </span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: 12,
+          }}
+        >
           <span style={{ color: muted() }}>Remaining after send</span>
-          <span style={{ color: remainingWei < 0n ? "#ef4444" : theme.textColor }}>
+          <span
+            style={{ color: remainingWei < 0n ? "#ef4444" : theme.textColor }}
+          >
             {remainingWei < 0n ? "—" : `${remainingTokStr} ${tokenSymbol}`}
             {tokenPriceUSD && remainingWei >= 0n ? ` (${remainingUsdStr})` : ""}
           </span>
         </div>
-
 
         {/* Route messages */}
         {routeState.status === "building" && (
           <div style={{ fontSize: 12, color: muted() }}>Building route…</div>
         )}
         {routeState.status === "error" && (
-          <div style={{ fontSize: 12, color: "#b91c1c" }}>{routeState.error || "Failed to build route."}</div>
+          <div style={{ fontSize: 12, color: "#b91c1c" }}>
+            {routeState.error || "Failed to build route."}
+          </div>
         )}
         {routeInfo && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4, fontSize: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              marginTop: 4,
+              fontSize: 12,
+            }}
+          >
             <span>Estimated receive: {routeInfo.toAmount ?? "—"}</span>
             <span>Minimum guaranteed: {routeInfo.minAmount ?? "—"}</span>
           </div>
@@ -342,7 +412,9 @@ export function ConfirmPayment({
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: muted() }}>Spender</span>
               <span style={{ fontFamily: "monospace" }}>
-                {spender ? `${spender.slice(0, 6)}...${spender.slice(-4)}` : "—"}
+                {spender
+                  ? `${spender.slice(0, 6)}...${spender.slice(-4)}`
+                  : "—"}
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -357,7 +429,8 @@ export function ConfirmPayment({
             </div>
             {needsApproval && (
               <div style={{ color: "#ef4444" }}>
-                Allowance insufficient for this amount. Approve in your wallet first.
+                Allowance insufficient for this amount. Approve in your wallet
+                first.
               </div>
             )}
           </div>
@@ -406,7 +479,9 @@ export function ConfirmPayment({
           borderRadius: radius,
           border: "none",
           cursor: canConfirm ? "pointer" : "not-allowed",
-          background: canConfirm ? theme.primaryColor : hexToRgba(theme.borderColor, 0.6),
+          background: canConfirm
+            ? theme.primaryColor
+            : hexToRgba(theme.borderColor, 0.6),
           color: theme.backgroundColor,
           fontWeight: 700,
           marginBottom: 8,
@@ -417,4 +492,3 @@ export function ConfirmPayment({
     </div>
   );
 }
-

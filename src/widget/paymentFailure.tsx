@@ -39,7 +39,8 @@ export function PaymentFailure({
         <div style={{ fontSize: 36 }}>⚠️</div>
         <div style={{ fontWeight: 700 }}>Payment failed</div>
         <div style={{ fontSize: 13, opacity: 0.75 }}>
-          {error ?? 'Something went wrong while processing your payment. Please try again or contact support.'}
+          {error ??
+            "Something went wrong while processing your payment. Please try again or contact support."}
         </div>
       </div>
 

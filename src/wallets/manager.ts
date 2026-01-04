@@ -62,7 +62,7 @@ class WalletManager {
 
   async connectDetected(
     target: DetectedWallet,
-    opts?: { wagmi?: WagmiBridge },
+    opts?: { wagmi?: WagmiBridge }
   ) {
     this._status = "connecting";
     this.emit();

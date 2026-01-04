@@ -21,7 +21,7 @@ export const Trustware = {
     const key = TrustwareConfigStore.get().apiKey;
 
     if (_lastValidatedKey !== key) {
-     try {
+      try {
         await validateSdkAccess();
         _lastValidatedKey = key;
       } catch (err: any) {
@@ -30,7 +30,7 @@ export const Trustware = {
         throw new Error(`Trustware.init: API key validation failed${reason}`);
         return {};
       }
-    } 
+    }
     return Trustware;
   },
 

@@ -18,12 +18,12 @@ type AnnounceEvent = CustomEvent<{
 // ────────────────────────────────────────────────────────────
 
 const WALLET_BY_ID = new Map<WalletId, WalletMeta>(
-  WALLETS.map((w) => [w.id, w]),
+  WALLETS.map((w) => [w.id, w])
 );
 
 // Used for ranking detected wallets
 const DETECT_PRIORITY = new Map<WalletId, number>(
-  WALLETS.map((w, idx) => [w.id, idx]),
+  WALLETS.map((w, idx) => [w.id, idx])
 );
 
 // Flags that are "compat only" and should never beat a more specific match
@@ -67,7 +67,7 @@ const NAME_WALLET_MAP: { pattern: RegExp; id: WalletId }[] = [
 
 function getProviderName(
   detail?: EIP6963ProviderDetail,
-  provider?: any,
+  provider?: any
 ): string | undefined {
   return (
     detail?.info?.name ||
@@ -79,7 +79,7 @@ function getProviderName(
 
 function getProviderRdns(
   detail?: EIP6963ProviderDetail,
-  provider?: any,
+  provider?: any
 ): string | undefined {
   return (
     detail?.info?.rdns ||
@@ -156,7 +156,7 @@ function findWalletByFlags(provider: any): FlagMatch | undefined {
   for (const meta of WALLETS) {
     if (!meta.detectFlags?.length) continue;
     const hit = meta.detectFlags.some((flag) =>
-      hasFlagOnProvider(provider, flag),
+      hasFlagOnProvider(provider, flag)
     );
     if (!hit) continue;
 
@@ -186,7 +186,7 @@ function findWalletByFlags(provider: any): FlagMatch | undefined {
 
 function resolveWalletMeta(
   provider: any,
-  detail?: EIP6963ProviderDetail,
+  detail?: EIP6963ProviderDetail
 ): WalletMeta {
   const rdns = getProviderRdns(detail, provider);
   const nameFromProvider =
@@ -242,13 +242,13 @@ function rankDetected(list: DetectedWallet[]): DetectedWallet[] {
   const priority = (id: WalletId) =>
     DETECT_PRIORITY.get(id) ?? Number.MAX_SAFE_INTEGER;
   return [...list].sort(
-    (a, b) => priority(a.meta.id as WalletId) - priority(b.meta.id as WalletId),
+    (a, b) => priority(a.meta.id as WalletId) - priority(b.meta.id as WalletId)
   );
 }
 
 export function buildDetectedWalletFromProvider(
   provider: any,
-  providerDetailMap: Map<any, EIP6963ProviderDetail>,
+  providerDetailMap: Map<any, EIP6963ProviderDetail>
 ): DetectedWallet {
   const detail = providerDetailMap.get(provider);
   const meta = resolveWalletMeta(provider, detail);
@@ -336,7 +336,7 @@ export function useWalletDetection(timeoutMs = 400) {
 
   const detectedIds = useMemo(
     () => new Set(detected.map((d) => d.meta.id)),
-    [detected],
+    [detected]
   );
 
   return { detected, detectedIds };

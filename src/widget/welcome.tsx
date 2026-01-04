@@ -36,14 +36,14 @@ export function Welcome({ onNext }: { onNext: () => void }) {
         borderRadius: radius,
         background: `radial-gradient(1200px 500px at 0% -20%, ${hexToRgba(
           c.primary,
-          0.22,
+          0.22
         )} 0%, transparent 55%), radial-gradient(900px 400px at 100% 0%, ${hexToRgba(
           c.secondary,
-          0.15,
+          0.15
         )} 0%, transparent 50%), ${c.bg}`,
         boxShadow: `inset 0 1px 0 ${hexToRgba("#fff", 0.04)}, 0 8px 26px ${hexToRgba(
           "#000",
-          0.35,
+          0.35
         )}`,
         overflowX: "hidden",
       }}

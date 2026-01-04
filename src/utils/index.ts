@@ -31,7 +31,7 @@ export function formatNumber(value?: number, maxFractionDigits = 6) {
 // ------- tiny local helpers (no new imports) -------
 export function parseDecimalToWeiUnsafe(
   input: string,
-  decimals: number,
+  decimals: number
 ): bigint | null {
   // accept "12", "12.3", "0.0001" etc (no commas)
   if (!/^\d*(\.\d*)?$/.test(input.trim())) return null;
@@ -50,7 +50,7 @@ export function parseDecimalToWeiUnsafe(
 export function weiToDecimalString(
   wei: bigint,
   decimals: number,
-  maxFrac = 8,
+  maxFrac = 8
 ): string {
   const neg = wei < 0n;
   const value = neg ? -wei : wei;

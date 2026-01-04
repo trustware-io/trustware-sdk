@@ -1,17 +1,16 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChainDef, TokenDef, TokenWithBalance } from "src/types/";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import { Registry, NATIVE } from "src/registry";
 import { apiBase } from "src/core/http";
 import { getBalances, type BalanceRow } from "src/core/balances";
 import { walletManager } from "src/wallets";
-import { hexToRgba, formatTokenBalance, formatUsd, resolveChainLabel } from "src/utils";
+import {
+  hexToRgba,
+  formatTokenBalance,
+  formatUsd,
+  resolveChainLabel,
+} from "src/utils";
 
 type TokenChainSelectionProps = {
   onBack: () => void;
@@ -25,7 +24,7 @@ const NATIVE_ADDRESS = NATIVE.toLowerCase();
 function mergeTokensWithBalances(
   chain: ChainDef,
   registryTokens: TokenDef[],
-  balances: BalanceRow[],
+  balances: BalanceRow[]
 ): TokenWithBalance[] {
   const canonicalChainId = chain.chainId ?? chain.id;
   const tokens: TokenWithBalance[] = registryTokens
@@ -45,7 +44,9 @@ function mergeTokensWithBalances(
 
   if (nativeRow && canonicalChainId != null) {
     const nativeSymbol = nativeRow.symbol?.toUpperCase?.();
-    const chainType = (chain.type ?? chain.chainType ?? "evm") as TokenDef["type"];
+    const chainType = (chain.type ??
+      chain.chainType ??
+      "evm") as TokenDef["type"];
     const hasNativeToken = tokens.some((token) => {
       const tokenAddr = token.address?.toLowerCase?.();
       const tokenSymbol = token.symbol?.toUpperCase?.();
@@ -65,10 +66,7 @@ function mergeTokensWithBalances(
           nativeRow.name ??
           nativeRow.symbol ??
           "Native Token",
-        symbol:
-          chain.nativeCurrency?.symbol ??
-          nativeRow.symbol ??
-          "NATIVE",
+        symbol: chain.nativeCurrency?.symbol ?? nativeRow.symbol ?? "NATIVE",
         decimals,
         type: chainType,
         visible: true,
@@ -133,7 +131,7 @@ function mergeTokensWithBalances(
   }
 
   return Array.from(pick.values());
-};
+}
 
 export function TokenChainSelection({
   onBack,
@@ -146,10 +144,12 @@ export function TokenChainSelection({
   const radius = theme.radius ?? 16;
   const [activeTab, setActiveTab] = useState<"chains" | "tokens">("chains");
   const [supportedChains, setSupportedChains] = useState<ChainDef[]>([]);
-  const [supportedTokens, setSupportedTokens] = useState<TokenWithBalance[]>([]);
+  const [supportedTokens, setSupportedTokens] = useState<TokenWithBalance[]>(
+    []
+  );
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [selectedToken, setSelectedToken] = useState<TokenWithBalance | null>(
-    null,
+    null
   );
   const [loadingChains, setLoadingChains] = useState(true);
   const [loadingTokens, setLoadingTokens] = useState(false);
@@ -169,11 +169,14 @@ export function TokenChainSelection({
           .chains()
           .filter((chain) => chain.visible !== false)
           .filter((chain) => {
-            const type =
-              (chain.type ?? chain.chainType)?.toString().toLowerCase();
+            const type = (chain.type ?? chain.chainType)
+              ?.toString()
+              .toLowerCase();
             return !type || type === "evm";
           })
-          .sort((a, b) => resolveChainLabel(a).localeCompare(resolveChainLabel(b)));
+          .sort((a, b) =>
+            resolveChainLabel(a).localeCompare(resolveChainLabel(b))
+          );
         setSupportedChains(chains);
       } catch (error) {
         if (!cancelled) {
@@ -245,7 +248,7 @@ export function TokenChainSelection({
         }
       }
     },
-    [registry, onChainSelected],
+    [registry, onChainSelected]
   );
 
   const handleTokenSelected = useCallback(
@@ -253,15 +256,17 @@ export function TokenChainSelection({
       setSelectedToken(token);
       onTokenSelected(token);
     },
-    [onTokenSelected],
+    [onTokenSelected]
   );
 
   const totalCrossChainBalance = useMemo(() => {
     return supportedTokens.reduce((acc, token) => {
       if (token.balance === undefined) return acc;
-      if (token.usdPrice == null || !Number.isFinite(token.usdPrice)) return acc;
+      if (token.usdPrice == null || !Number.isFinite(token.usdPrice))
+        return acc;
       try {
-        const amount = Number(token.balance) / Math.pow(10, token.decimals ?? 18);
+        const amount =
+          Number(token.balance) / Math.pow(10, token.decimals ?? 18);
         if (!Number.isFinite(amount)) return acc;
         return acc + amount * token.usdPrice;
       } catch {
@@ -272,7 +277,7 @@ export function TokenChainSelection({
 
   const formattedTotal = useMemo(
     () => formatUsd(totalCrossChainBalance || 0),
-    [totalCrossChainBalance],
+    [totalCrossChainBalance]
   );
 
   const visibleTokens = useMemo(() => {
@@ -288,11 +293,7 @@ export function TokenChainSelection({
       const sym = t.symbol?.toLowerCase?.() ?? "";
       const name = t.name?.toLowerCase?.() ?? "";
       const addr = t.address?.toLowerCase?.() ?? "";
-      return (
-        sym.includes(q) ||
-        name.includes(q) ||
-        addr.includes(q)
-      );
+      return sym.includes(q) || name.includes(q) || addr.includes(q);
     };
 
     // Default = only tokens with balances
@@ -311,8 +312,10 @@ export function TokenChainSelection({
 
       // Optional: sort by (estimated) USD value when both non-zero
       if (a.balance && b.balance && a.usdPrice != null && b.usdPrice != null) {
-        const aVal = Number(a.balance) / Math.pow(10, a.decimals ?? 18) * a.usdPrice;
-        const bVal = Number(b.balance) / Math.pow(10, b.decimals ?? 18) * b.usdPrice;
+        const aVal =
+          (Number(a.balance) / Math.pow(10, a.decimals ?? 18)) * a.usdPrice;
+        const bVal =
+          (Number(b.balance) / Math.pow(10, b.decimals ?? 18)) * b.usdPrice;
         if (Number.isFinite(aVal) && Number.isFinite(bVal) && aVal !== bVal) {
           return bVal - aVal;
         }
@@ -469,13 +472,11 @@ export function TokenChainSelection({
                     ? String(chain.id)
                     : chain.chainId != null
                       ? String(chain.chainId)
-                      : chain.networkIdentifier ?? `chain-${idx}`;
+                      : (chain.networkIdentifier ?? `chain-${idx}`);
                 const isSelected =
-                  selectedChainKey !== null &&
-                  selectedChainKey === String(key);
-                const nativeToken =
-                  isSelected
-                    ? supportedTokens.find((token) => {
+                  selectedChainKey !== null && selectedChainKey === String(key);
+                const nativeToken = isSelected
+                  ? supportedTokens.find((token) => {
                       if (String(token.chainId ?? "") !== String(key)) {
                         return false;
                       }
@@ -488,7 +489,7 @@ export function TokenChainSelection({
                           token.symbol?.toUpperCase?.() === chainSymbol)
                       );
                     })
-                    : undefined;
+                  : undefined;
                 const priceLabel = nativeToken?.usdPrice;
 
                 return (
@@ -506,14 +507,16 @@ export function TokenChainSelection({
                       width: "100%",
                       padding: "12px 16px",
                       borderRadius: radius,
-                      border: `1px solid ${isSelected ? theme.primaryColor : theme.borderColor
-                        }`,
+                      border: `1px solid ${
+                        isSelected ? theme.primaryColor : theme.borderColor
+                      }`,
                       backgroundColor: isSelected
                         ? hexToRgba(theme.primaryColor, 0.12)
                         : hexToRgba(theme.borderColor, 0.08),
                       color: theme.textColor,
                       cursor: "pointer",
-                      transition: "border-color 0.2s ease, background-color 0.2s ease",
+                      transition:
+                        "border-color 0.2s ease, background-color 0.2s ease",
                     }}
                   >
                     <div
@@ -561,7 +564,7 @@ export function TokenChainSelection({
                           {resolveChainLabel(chain)}
                         </span>
                         <span style={{ color: mutedText, fontSize: 12 }}>
-                          Chain ID: {" "}
+                          Chain ID:{" "}
                           {chain.id ?? chain.chainId ?? chain.networkIdentifier}
                         </span>
                       </div>
@@ -593,13 +596,22 @@ export function TokenChainSelection({
         {activeTab === "tokens" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {!selectedChain ? (
-              <div style={{ color: mutedText }}>Select a chain to view available tokens.</div>
+              <div style={{ color: mutedText }}>
+                Select a chain to view available tokens.
+              </div>
             ) : loadingTokens ? (
               <div style={{ color: mutedText }}>Loading tokens…</div>
             ) : (
               <>
                 {/* NEW: Search input */}
-                <div style={{ position: "sticky", top: 0, background: theme.backgroundColor, paddingBottom: 8 }}>
+                <div
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    background: theme.backgroundColor,
+                    paddingBottom: 8,
+                  }}
+                >
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -635,7 +647,8 @@ export function TokenChainSelection({
                     const tokenKey = `${token.chainId}-${token.address}`;
                     const isSelected =
                       selectedToken?.address === token.address &&
-                      String(selectedToken.chainId ?? "") === String(token.chainId ?? "");
+                      String(selectedToken.chainId ?? "") ===
+                        String(token.chainId ?? "");
 
                     return (
                       <button
@@ -656,15 +669,27 @@ export function TokenChainSelection({
                             : hexToRgba(theme.borderColor, 0.08),
                           color: theme.textColor,
                           cursor: "pointer",
-                          transition: "border-color 0.2s ease, background-color 0.2s ease",
+                          transition:
+                            "border-color 0.2s ease, background-color 0.2s ease",
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
                           {token.logoURI ? (
                             <img
                               src={token.logoURI}
                               alt={token.symbol}
-                              style={{ width: 40, height: 40, borderRadius: 20, objectFit: "cover" }}
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                objectFit: "cover",
+                              }}
                             />
                           ) : (
                             <div
@@ -682,17 +707,36 @@ export function TokenChainSelection({
                               {(token.symbol || "?").slice(0, 2).toUpperCase()}
                             </div>
                           )}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
-                            <span style={{ fontWeight: 600 }}>{token.symbol}</span>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 4,
+                              textAlign: "left",
+                            }}
+                          >
+                            <span style={{ fontWeight: 600 }}>
+                              {token.symbol}
+                            </span>
                             <span style={{ color: mutedText, fontSize: 12 }}>
-                              {(token.name || "Unknown token")} · Chain ID: {token.chainId}
+                              {token.name || "Unknown token"} · Chain ID:{" "}
+                              {token.chainId}
                             </span>
                           </div>
                         </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-end",
+                            gap: 4,
+                          }}
+                        >
                           <span style={{ fontWeight: 600 }}>
-                            {token.usdPrice != null ? formatUsd(token.usdPrice) : "No price"}
+                            {token.usdPrice != null
+                              ? formatUsd(token.usdPrice)
+                              : "No price"}
                           </span>
                           <span style={{ color: mutedText, fontSize: 12 }}>
                             Balance: {formatTokenBalance(token)}

@@ -32,9 +32,9 @@ export async function assertOK(r: Response) {
 export async function validateSdkAccess() {
   const r = await fetch(`${apiBase()}/sdk/validate`, {
     method: "GET",
-    headers: jsonHeaders()
+    headers: jsonHeaders(),
   });
   await assertOK(r);
   const j = await r.json();
   return j.data;
-};
+}

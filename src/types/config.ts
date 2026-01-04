@@ -20,7 +20,6 @@ export type TrustwareConfigOptions = {
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
 };
 
-
 export type ResolvedTrustwareConfig = {
   apiKey: string;
   routes: {
@@ -42,4 +41,4 @@ export type ResolvedTrustwareConfig = {
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
-export const DEFAULT_AUTO_DETECT_PROVIDER = false; // Default auto-detect provider setting  
+export const DEFAULT_AUTO_DETECT_PROVIDER = false; // Default auto-detect provider setting

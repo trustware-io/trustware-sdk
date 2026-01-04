@@ -31,10 +31,10 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   const config = useTrustwareConfig();
   const [selectedWallet, setSelectedWallet] = useState<WalletMeta | null>(null);
   const [destinationChain, setDestinationChain] = useState(
-    () => config.routes.toChain,
+    () => config.routes.toChain
   );
   const [destinationToken, setDestinationToken] = useState(
-    () => config.routes.toToken,
+    () => config.routes.toToken
   );
   const [slippage, setSlippage] = useState(() => config.routes.defaultSlippage);
 
@@ -61,7 +61,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const currentUrl = useMemo(
     () => (typeof window !== "undefined" ? window.location.href : ""),
-    [],
+    []
   );
 
   useEffect(() => {
@@ -96,14 +96,14 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   const popularWallets = useMemo(() => {
     const map = new Map(WALLETS.map((meta) => [meta.id, meta]));
     return POPULAR_ORDER.map((id) => map.get(id)).filter(
-      (meta): meta is WalletMeta => Boolean(meta),
+      (meta): meta is WalletMeta => Boolean(meta)
     );
   }, []);
 
   const otherWallets = useMemo(() => {
     const popularIds = new Set(POPULAR_ORDER);
     return WALLETS.filter(
-      (wallet) => !popularIds.has(wallet.id) && !detectedIds.has(wallet.id),
+      (wallet) => !popularIds.has(wallet.id) && !detectedIds.has(wallet.id)
     );
   }, [detectedIds]);
 

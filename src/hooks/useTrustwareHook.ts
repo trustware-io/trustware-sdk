@@ -64,7 +64,7 @@ type UseTrustwareRouteArgs = {
 };
 
 function toRouteParam(
-  value: string | number | null | undefined,
+  value: string | number | null | undefined
 ): string | undefined {
   if (value == null) return undefined;
   const str = typeof value === "number" ? String(value) : value;
@@ -107,7 +107,7 @@ export function useTrustwareRoute({
       fromAddress,
       toAddress,
       slippage,
-    ],
+    ]
   );
 
   useEffect(() => {

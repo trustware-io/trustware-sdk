@@ -8,13 +8,13 @@ export type { BalanceRow };
 /** Map chainId -> backend chain_key and return balances */
 export async function getBalances(
   chainId: string | number,
-  address: string,
+  address: string
 ): Promise<BalanceRow[]> {
   const reg = await ensureRegistry();
   const meta = reg.chain(chainId);
   const chainKey = meta?.networkIdentifier || String(chainId);
   const url = `${apiBase()}/data/wallets/${encodeURIComponent(chainKey)}/${address}/balances`;
-  const r = await fetch(url, { 
+  const r = await fetch(url, {
     method: "GET",
     credentials: "omit",
     headers: jsonHeaders(),

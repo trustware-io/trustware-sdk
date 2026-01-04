@@ -65,7 +65,7 @@ export class Registry {
   chains(): ChainDef[] {
     return Array.from(this._chainsById.values());
   }
-  
+
   chain(chainId: string | number): ChainDef | undefined {
     return this._chainsById.get(String(chainId));
   }
@@ -76,7 +76,7 @@ export class Registry {
 
   resolveToken(
     chainId: string | number,
-    input?: string | null,
+    input?: string | null
   ): string | undefined {
     if (!input) return undefined;
     const s = String(input).trim();

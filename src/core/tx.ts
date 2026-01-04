@@ -12,7 +12,7 @@ function isUserRejected(e: any): boolean {
 
 export async function sendRouteTransaction(
   b: BuildRouteResult,
-  fallbackChainId?: number,
+  fallbackChainId?: number
 ): Promise<`0x${string}`> {
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
@@ -88,12 +88,12 @@ export async function runTopUp(params: {
   const fromToken =
     reg.resolveToken(
       fromChain,
-      params.fromToken ?? (cfg.routes.fromToken as string) ?? undefined,
+      params.fromToken ?? (cfg.routes.fromToken as string) ?? undefined
     ) ?? NATIVE;
   const toToken =
     reg.resolveToken(
       toChain,
-      params.toToken ?? (cfg.routes.toToken as string) ?? undefined,
+      params.toToken ?? (cfg.routes.toToken as string) ?? undefined
     ) ?? NATIVE;
 
   try {

@@ -1,7 +1,7 @@
 // Very lightweight deep link helper. Extend as needed per wallet.
 export function formatDeepLink(
   id: string,
-  currentUrl: string,
+  currentUrl: string
 ): string | undefined {
   const enc = encodeURIComponent(currentUrl);
 

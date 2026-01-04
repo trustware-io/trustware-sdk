@@ -7,12 +7,19 @@ function pickWagmiConnector(
   wagmi: WagmiBridge,
   metaName: string,
   metaId: string,
-  metaCategory: string,
+  metaCategory: string
 ) {
   const lower = metaName.toLowerCase();
   const cons = wagmi.connectors();
-  console.log("Picking wagmi connector for", { metaName, metaId, metaCategory });
-  console.debug("Available wagmi connectors:", cons.map((c) => c.name));
+  console.log("Picking wagmi connector for", {
+    metaName,
+    metaId,
+    metaCategory,
+  });
+  console.debug(
+    "Available wagmi connectors:",
+    cons.map((c) => c.name)
+  );
   return (
     cons.find((c) => c.name.toLowerCase().includes(lower)) ||
     (metaId === "coinbase" &&
@@ -28,7 +35,7 @@ function pickWagmiConnector(
 /** Try wagmi bridge first (if provided), otherwise return EIP-1193 adapter. */
 export async function connectDetectedWallet(
   dw: DetectedWallet,
-  opts?: { wagmi?: WagmiBridge; touchAddress?: boolean },
+  opts?: { wagmi?: WagmiBridge; touchAddress?: boolean }
 ): Promise<{ via: "wagmi" | "eip1193"; api: WalletInterFaceAPI | null }> {
   const { wagmi, touchAddress = true } = opts ?? {};
 
@@ -37,7 +44,7 @@ export async function connectDetectedWallet(
       wagmi,
       dw.meta.name,
       dw.meta.id,
-      dw.meta.category,
+      dw.meta.category
     );
     if (conn) {
       await wagmi.connect(conn);

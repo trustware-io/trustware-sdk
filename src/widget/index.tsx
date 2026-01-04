@@ -37,7 +37,7 @@ export function TrustwareWidget() {
   const config = useTrustwareConfig();
   const { theme, messages, routes } = config;
   const [widgetState, setWidgetState] = useState<WidgetState>(
-    WidgetState.Welcome,
+    WidgetState.Welcome
   );
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [selectedToken, setSelectedToken] = useState<TokenDef | null>(null);
@@ -204,7 +204,7 @@ export function TrustwareWidget() {
       setLastError(error ?? null);
       setWidgetState(WidgetState.PaymentFailure);
     },
-    [setLastError, setWidgetState],
+    [setLastError, setWidgetState]
   );
 
   const handleRetry = useCallback(() => {
@@ -456,7 +456,7 @@ export function TrustwareWidget() {
               borderRadius: 9999,
               background: `linear-gradient(90deg, transparent, ${hexToRgba(
                 theme?.textColor || "#9ca3af",
-                0.3,
+                0.3
               )}, transparent)`,
             }}
           />
