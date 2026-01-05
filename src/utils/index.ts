@@ -101,3 +101,45 @@ export function resolveChainLabel(chain: ChainDef) {
     "Chain"
   );
 }
+
+const ALLOWANCE_SELECTOR = "0xdd62ed3e";
+const APPROVE_SELECTOR = "0x095ea7b3";
+
+function stripHexPrefix(value: string) {
+  return value.startsWith("0x") ? value.slice(2) : value;
+}
+
+function padTo32Bytes(hex: string) {
+  return hex.padStart(64, "0");
+}
+
+function encodeAddress(address: string) {
+  return padTo32Bytes(stripHexPrefix(address).toLowerCase());
+}
+
+function encodeUint256(value: bigint) {
+  return padTo32Bytes(value.toString(16));
+}
+
+export function encodeAllowanceCallData(owner: string, spender: string) {
+  return `${ALLOWANCE_SELECTOR}${encodeAddress(owner)}${encodeAddress(
+    spender
+  )}` as `0x${string}`;
+}
+
+export function encodeApproveCallData(spender: string, amount: bigint) {
+  return `${APPROVE_SELECTOR}${encodeAddress(spender)}${encodeUint256(
+    amount
+  )}` as `0x${string}`;
+}
+
+export function hexToBigInt(value?: string | null) {
+  if (!value || typeof value !== "string") return null;
+  if (!value.startsWith("0x")) return null;
+  const normalized = value === "0x" ? "0x0" : value;
+  try {
+    return BigInt(normalized);
+  } catch {
+    return null;
+  }
+}

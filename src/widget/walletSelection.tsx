@@ -181,9 +181,8 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
           width: "100%",
           padding: "12px",
           borderRadius: `${theme.radius}px`,
-          border: `1px solid ${
-            isSelected ? theme.primaryColor : theme.borderColor
-          }`,
+          border: `1px solid ${isSelected ? theme.primaryColor : theme.borderColor
+            }`,
           backgroundColor: isSelected
             ? theme.primaryColor
             : theme.backgroundColor,
@@ -329,9 +328,10 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "16px",
                 width: "100%",
                 justifyContent: "center",
+                paddingLeft: "8px",
               }}
             >
               <div style={{ display: "flex" }}>
@@ -345,7 +345,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
                 ].map((asset) => (
                   <img
                     key={asset}
-                    src={`https://app=.trustware.io/assets/tokens/${asset}`}
+                    src={`https://app.trustware.io/assets/tokens/${asset}`}
                     alt={asset}
                     width={28}
                     height={28}
@@ -359,7 +359,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
                   />
                 ))}
               </div>
-              <span style={{ fontSize: "0.75rem", opacity: 0.7 }}>
+              <span style={{ fontSize: "0.75rem", opacity: 0.7, maxWidth: "200px", textAlign: "right" }}>
                 All tokens on all EVM networks accepted
               </span>
             </div>

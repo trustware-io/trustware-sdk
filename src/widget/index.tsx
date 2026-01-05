@@ -36,6 +36,10 @@ export function TrustwareWidget() {
   const { status, errors, core } = useTrustware();
   const config = useTrustwareConfig();
   const { theme, messages, routes } = config;
+  const routeRefreshMs =
+    typeof routes?.options?.routeRefreshMs === "number"
+      ? routes.options.routeRefreshMs
+      : 60_000; // default 60s
   const [widgetState, setWidgetState] = useState<WidgetState>(
     WidgetState.Welcome
   );
@@ -101,6 +105,7 @@ export function TrustwareWidget() {
     toAddress:
       routes?.toAddress ?? routes?.fromAddress ?? fromAddress ?? undefined,
     slippage: routes?.defaultSlippage,
+    refreshIntervalMs: routeRefreshMs,
   });
 
   const resetState = useCallback(() => {
@@ -366,6 +371,7 @@ export function TrustwareWidget() {
               selectedChain={selectedChain}
               selectedToken={selectedToken}
               routeState={routeState}
+              routeRefreshMs={routeRefreshMs}
               onBack={handleBack}
               onConfirm={handleNext}
             />
@@ -411,9 +417,8 @@ export function TrustwareWidget() {
           borderTop: `1px solid ${hexToRgba(theme?.borderColor || "#374151", 0.5)}`,
           backdropFilter: "blur(6px)",
           WebkitBackdropFilter: "blur(6px)",
-          background: `linear-gradient(90deg, ${theme?.backgroundColor || "#0b0b0c"} 0%, ${
-            theme?.backgroundColor || "#0b0b0c"
-          } 70%, ${hexToRgba(theme?.borderColor || "#374151", 0.1)} 100%)`, // bg-gradient-to-r ... to-muted/10
+          background: `linear-gradient(90deg, ${theme?.backgroundColor || "#0b0b0c"} 0%, ${theme?.backgroundColor || "#0b0b0c"
+            } 70%, ${hexToRgba(theme?.borderColor || "#374151", 0.1)} 100%)`, // bg-gradient-to-r ... to-muted/10
           zIndex: 5,
         }}
       >
@@ -543,7 +548,7 @@ function GroupRow({ theme }: { theme?: TrustwareWidgetTheme }) {
             }}
           >
             <img
-              src="https://app=.trustware.io/assets/trustware-logo.png"
+              src="https://app.trustware.io/assets/trustware-logo.png"
               alt="Trustware Logo"
               style={{ width: 16, height: 16 }}
             />
