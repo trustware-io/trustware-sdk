@@ -260,7 +260,7 @@ export function TokenChainSelection({
     [onTokenSelected]
   );
 
-  const scrollToContinueRef = useRef<HTMLDivElement | null>(null);
+  const scrollToContinueRef = useRef<HTMLButtonElement | null>(null);
 
   const scrollToContinue = useCallback(() => {
     if (scrollToContinueRef.current) {

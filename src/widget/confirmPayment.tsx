@@ -118,7 +118,7 @@ export function ConfirmPayment({
     );
     return () => clearInterval(t);
   }, [refreshSeconds, routeState.status, routeState.intentId]);
-  
+
   // Balance for selected token
   const [balanceWei, setBalanceWei] = useState<bigint>(0n);
   const [loadingBal, setLoadingBal] = useState(false);
@@ -256,13 +256,14 @@ export function ConfirmPayment({
   }, [selectedToken?.address, spender, isNative, amountWei]);
 
   useEffect(() => {
-    if (!approvalHash || walletManager.wallet?.type !== "eip1193") return;
+    const wallet = walletManager.wallet;
+    if (!approvalHash || wallet?.type !== "eip1193") return;
     let cancelled = false;
     setWaitingApproval(true);
     const poll = async () => {
       while (!cancelled) {
         try {
-          const receipt = await walletManager.wallet?.request({
+          const receipt = await wallet?.request({
             method: "eth_getTransactionReceipt",
             params: [approvalHash],
           });
@@ -337,10 +338,11 @@ export function ConfirmPayment({
         });
         setApprovalHash(hash as string);
       } else {
+        const chainId = Number(selectedChain?.chainId ?? selectedChain?.id);
         const { hash } = await wallet.sendTransaction({
           to: selectedToken.address as `0x${string}`,
           data: data as `0x${string}`,
-          chainId: selectedChain?.chainId ?? selectedChain?.id,
+          chainId: Number.isFinite(chainId) ? chainId : undefined,
         });
         setApprovalHash(hash);
         setAllowanceWei(amountToApprove);
