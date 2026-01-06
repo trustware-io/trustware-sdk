@@ -61,10 +61,11 @@ type UseTrustwareRouteArgs = {
   toAddress?: `0x${string}` | string | null;
   slippage?: number;
   debounceMs?: number;
+  refreshIntervalMs?: number;
 };
 
 function toRouteParam(
-  value: string | number | null | undefined,
+  value: string | number | null | undefined
 ): string | undefined {
   if (value == null) return undefined;
   const str = typeof value === "number" ? String(value) : value;
@@ -82,9 +83,11 @@ export function useTrustwareRoute({
   toAddress,
   slippage,
   debounceMs = 250,
+  refreshIntervalMs,
 }: UseTrustwareRouteArgs): TrustwareRouteState {
   const [state, setState] = useState<TrustwareRouteState>({ status: "idle" });
   const abortRef = useRef<AbortController | null>(null);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   const key = useMemo(
     () =>
@@ -97,6 +100,7 @@ export function useTrustwareRoute({
         fromAddress,
         toAddress,
         slippage,
+        refreshCounter,
       }),
     [
       fromChainId,
@@ -107,7 +111,8 @@ export function useTrustwareRoute({
       fromAddress,
       toAddress,
       slippage,
-    ],
+      refreshCounter,
+    ]
   );
 
   useEffect(() => {
@@ -206,6 +211,16 @@ export function useTrustwareRoute({
       ac.abort();
     };
   }, [key, core, debounceMs]);
+
+  useEffect(() => {
+    if (!refreshIntervalMs || refreshIntervalMs <= 0) return;
+    if (state.status !== "ready") return;
+    const timer = setInterval(
+      () => setRefreshCounter((value) => value + 1),
+      refreshIntervalMs
+    );
+    return () => clearInterval(timer);
+  }, [refreshIntervalMs, state.status, state.intentId]);
 
   return state;
 }

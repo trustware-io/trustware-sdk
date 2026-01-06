@@ -3,19 +3,23 @@ import type { ChainDef, TokenDef } from "src/types";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import { getBalances, type BalanceRow } from "src/core/balances";
 import { walletManager } from "src/wallets";
-import { hexToRgba, weiToDecimalString, parseDecimalToWeiUnsafe, divRoundDown } from "src/utils";
+import {
+  hexToRgba,
+  weiToDecimalString,
+  parseDecimalToWeiUnsafe,
+  divRoundDown,
+} from "src/utils";
 
 type Mode = "USD" | "TOKEN" | "WEI";
 
 export type AmountInputProps = {
   selectedChain: ChainDef | null;
   selectedToken: TokenDef | null;
-  amount: string;                         // prefer wei string; empty if none
-  onAmountChange: (weiOrEmpty: string) => void;  // will emit wei or ""
+  amount: string; // prefer wei string; empty if none
+  onAmountChange: (weiOrEmpty: string) => void; // will emit wei or ""
   onBack: () => void;
-  onNext: () => void;                    // fires only if valid; passes via onAmountChange already
+  onNext: () => void; // fires only if valid; passes via onAmountChange already
 };
-
 
 export function AmountInput({
   selectedChain,
@@ -38,7 +42,10 @@ export function AmountInput({
   const tokenDecimals = selectedToken?.decimals ?? 18;
   const tokenSymbol = selectedToken?.symbol ?? "TOKEN";
   const tokenPriceUSD = selectedToken?.usdPrice;
-  const hasUsdPrice = typeof tokenPriceUSD === "number" && isFinite(tokenPriceUSD) && tokenPriceUSD > 0;
+  const hasUsdPrice =
+    typeof tokenPriceUSD === "number" &&
+    isFinite(tokenPriceUSD) &&
+    tokenPriceUSD > 0;
 
   // if parent passes a new wei amount, reflect it only in WEI mode (avoids jarring switching)
   useEffect(() => {
@@ -63,7 +70,9 @@ export function AmountInput({
       if (!Number.isFinite(chainId)) return;
 
       const wallet = walletManager.simple;
-      const addr = wallet ? await wallet.getAddress().catch(() => undefined) : undefined;
+      const addr = wallet
+        ? await wallet.getAddress().catch(() => undefined)
+        : undefined;
       if (!addr) {
         setBalanceWei(0n);
         return;
@@ -76,8 +85,10 @@ export function AmountInput({
 
         // pick best matching balance row (erc20 by address OR native by symbol)
         let row =
-          rows.find((r) => r.category === "erc20" && r.contract?.toLowerCase() === addrLower) ||
-          rows.find((r) => r.category === "native");
+          rows.find(
+            (r) =>
+              r.category === "erc20" && r.contract?.toLowerCase() === addrLower
+          ) || rows.find((r) => r.category === "native");
 
         const b = row?.balance ? BigInt(row.balance) : 0n;
         if (!cancelled) setBalanceWei(b);
@@ -126,7 +137,9 @@ export function AmountInput({
 
   const amountUsdStr = useMemo(() => {
     if (amountWei == null || !hasUsdPrice) return "";
-    const tokenUnits = Number(weiToDecimalString(amountWei, tokenDecimals, Math.max(6, tokenDecimals)));
+    const tokenUnits = Number(
+      weiToDecimalString(amountWei, tokenDecimals, Math.max(6, tokenDecimals))
+    );
     if (!isFinite(tokenUnits)) return "";
     return (tokenUnits * tokenPriceUSD!).toFixed(2);
   }, [amountWei, tokenDecimals, tokenPriceUSD, hasUsdPrice]);
@@ -141,7 +154,7 @@ export function AmountInput({
     return (tokenUnits * tokenPriceUSD!).toFixed(2);
   }, [balanceTokenStr, hasUsdPrice, tokenPriceUSD]);
 
-  // dynamic font size based on input length 
+  // dynamic font size based on input length
   const dynamicFontSize = useMemo(() => {
     // What the user *sees* as the main value
     const raw = input || (mode === "WEI" ? "0" : "0.00");
@@ -175,7 +188,6 @@ export function AmountInput({
 
     return Math.max(MIN, size);
   }, [input, mode]);
-
 
   // validate
   const errors: string[] = useMemo(() => {
@@ -213,7 +225,9 @@ export function AmountInput({
     } else if (mode === "TOKEN") {
       setInput(weiToDecimalString(wei, tokenDecimals, 8));
     } else if (mode === "USD" && hasUsdPrice) {
-      const tokenUnits = Number(weiToDecimalString(wei, tokenDecimals, Math.max(6, tokenDecimals)));
+      const tokenUnits = Number(
+        weiToDecimalString(wei, tokenDecimals, Math.max(6, tokenDecimals))
+      );
       setInput((tokenUnits * (tokenPriceUSD as number)).toFixed(2));
     }
   };
@@ -221,9 +235,23 @@ export function AmountInput({
   const muted = (o = 0.6) => hexToRgba(theme.textColor, o);
 
   return (
-    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 16, color: theme.textColor }}>
+    <div
+      style={{
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        color: theme.textColor,
+      }}
+    >
       {/* Header */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <button
           type="button"
           onClick={onBack}
@@ -258,9 +286,13 @@ export function AmountInput({
         }}
       >
         <div style={{ fontSize: 12, color: muted() }}>
-          You’ll pay in{" "}
-          <b>{selectedToken?.symbol ?? "TOKEN"}</b>
-          {selectedChain?.networkName ? <> on <b>{selectedChain.networkName}</b></> : null}
+          You’ll pay in <b>{selectedToken?.symbol ?? "TOKEN"}</b>
+          {selectedChain?.networkName ? (
+            <>
+              {" "}
+              on <b>{selectedChain.networkName}</b>
+            </>
+          ) : null}
         </div>
 
         {/* Mode toggles */}
@@ -320,7 +352,15 @@ export function AmountInput({
 
         {/* Amount input */}
         {/* Amount input */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            marginTop: 8,
+          }}
+        >
           {mode === "USD" && (
             <span
               style={{
@@ -409,7 +449,16 @@ export function AmountInput({
         </div>
 
         {/* Summaries */}
-        <div style={{ fontSize: 13, color: muted(), display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+        <div
+          style={{
+            fontSize: 13,
+            color: muted(),
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            marginTop: 6,
+          }}
+        >
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>Available</span>
             <span>
@@ -422,7 +471,9 @@ export function AmountInput({
             <span>
               {amountTokenStr ? `${amountTokenStr} ${tokenSymbol}` : "—"}
               {hasUsdPrice && amountUsdStr ? ` (~$${amountUsdStr})` : ""}
-              {mode !== "WEI" && amountWei != null ? ` • ${amountWei.toString()} wei` : ""}
+              {mode !== "WEI" && amountWei != null
+                ? ` • ${amountWei.toString()} wei`
+                : ""}
             </span>
           </div>
           {errors.length > 0 && (
@@ -446,7 +497,9 @@ export function AmountInput({
           borderRadius: radius,
           border: "none",
           cursor: canProceed ? "pointer" : "not-allowed",
-          background: canProceed ? theme.primaryColor : hexToRgba(theme.borderColor, 0.6),
+          background: canProceed
+            ? theme.primaryColor
+            : hexToRgba(theme.borderColor, 0.6),
           color: theme.backgroundColor,
           fontWeight: 700,
           marginBottom: 8,
@@ -457,4 +510,3 @@ export function AmountInput({
     </div>
   );
 }
-

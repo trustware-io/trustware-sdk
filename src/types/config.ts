@@ -10,6 +10,7 @@ export type TrustwareConfigOptions = {
     toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
     defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
     options?: {
+      routeRefreshMs?: number; // Route refresh interval in milliseconds (optional)
       fixedFromAmount?: string | number;
       minAmountOut?: string | number;
       maxAmountOut?: string | number;
@@ -19,7 +20,6 @@ export type TrustwareConfigOptions = {
   theme?: TrustwareWidgetTheme; // Optional theme customization
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
 };
-
 
 export type ResolvedTrustwareConfig = {
   apiKey: string;
@@ -31,6 +31,7 @@ export type ResolvedTrustwareConfig = {
     toAddress?: string;
     defaultSlippage: number; // resolved
     options: {
+      routeRefreshMs?: number;
       fixedFromAmount?: string | number;
       minAmountOut?: string | number;
       maxAmountOut?: string | number;
@@ -42,4 +43,4 @@ export type ResolvedTrustwareConfig = {
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
-export const DEFAULT_AUTO_DETECT_PROVIDER = false; // Default auto-detect provider setting  
+export const DEFAULT_AUTO_DETECT_PROVIDER = false; // Default auto-detect provider setting

@@ -16,4 +16,3 @@ export const DEFAULT_MESSAGES: TrustwareWidgetMessages = {
   title: "Trustware SDK",
   description: "Seamlessly bridge assets across chains with Trustware.",
 };
-

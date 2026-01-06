@@ -1,4 +1,4 @@
-export type RouteParams = {
+export type RouteParams = { 
   fromChain: string;
   toChain: string;
   fromToken: string;
@@ -59,7 +59,7 @@ export type Transaction = {
 export type BuildRouteResult = {
   intentId: string;
   route: {
-    estimate: { 
+    estimate: {
       fromAmount: string;
       toAmount: string;
       fromAmountUSD?: string;

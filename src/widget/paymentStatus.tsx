@@ -5,7 +5,6 @@ import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import type { TrustwareRouteState } from "src/hooks";
 import { hexToRgba } from "src/utils";
 
-
 /* ─────────────────────────────────────────────────────────────
    Types / helpers to mirror FE behavior
    ──────────────────────────────────────────────────────────── */
@@ -43,8 +42,10 @@ const numOrUndef = (n: any): number | undefined => {
   const v = Number(n);
   return Number.isFinite(v) ? v : undefined;
 };
-const strOrUndef = (s: any): string | undefined => (s == null ? undefined : String(s));
-const shortHash = (h?: string | null, n = 6) => (!h ? "—" : h.length <= 2 * n ? h : `${h.slice(0, n)}…${h.slice(-n)}`);
+const strOrUndef = (s: any): string | undefined =>
+  s == null ? undefined : String(s);
+const shortHash = (h?: string | null, n = 6) =>
+  !h ? "—" : h.length <= 2 * n ? h : `${h.slice(0, n)}…${h.slice(-n)}`;
 const formatClock = (ms: number) => {
   const secs = Math.max(0, Math.ceil(ms / 1000));
   const m = Math.floor(secs / 60);
@@ -70,9 +71,19 @@ const tokenLabel = (t: any): string | undefined => {
   }
 };
 const pickLogo = (obj?: any): string | undefined =>
-  obj && typeof obj === "object" && typeof obj.logoURI === "string" ? obj.logoURI : undefined;
+  obj && typeof obj === "object" && typeof obj.logoURI === "string"
+    ? obj.logoURI
+    : undefined;
 const pickProviderName = (r: any): string | undefined => {
-  const cands = [r?.provider, r?.bridge, r?.protocol, r?.platform, r?.name, r?.title, r?.action];
+  const cands = [
+    r?.provider,
+    r?.bridge,
+    r?.protocol,
+    r?.platform,
+    r?.name,
+    r?.title,
+    r?.action,
+  ];
   for (const v of cands) {
     if (v == null) continue;
     const s = String(v).trim();
@@ -82,7 +93,8 @@ const pickProviderName = (r: any): string | undefined => {
 };
 const toLegStatus = (raw?: any): LegStatus => {
   const s =
-    (typeof raw === "string" ? raw : raw?.status)?.toString().toLowerCase?.() ?? "";
+    (typeof raw === "string" ? raw : raw?.status)?.toString().toLowerCase?.() ??
+    "";
   if (s.includes("success") || s === "done" || s === "ok") return "ok";
   if (s.includes("fail") || s.includes("error")) return "fail";
   return "pending";
@@ -92,12 +104,13 @@ const normalizeTxStatus = (raw?: any) => {
     typeof raw === "string"
       ? raw
       : typeof raw === "object" && raw
-        ? raw.status ?? raw.state ?? ""
-        : raw ?? "";
+        ? (raw.status ?? raw.state ?? "")
+        : (raw ?? "");
   const str = String(base).toLowerCase().trim();
   if (!str) return "submitted";
   if (str.includes("fail") || str.includes("error")) return "failed";
-  if (str.includes("success") || str.includes("complete") || str === "done") return "success";
+  if (str.includes("success") || str.includes("complete") || str === "done")
+    return "success";
   if (str.includes("submit")) return "submitted";
   if (
     str.includes("bridge") ||
@@ -121,18 +134,33 @@ const pickKind = (raw: string): LegKind => {
   const t = raw.trim().toLowerCase();
   if (!t) return "transfer";
   if (t === "swap" || t === "rfq" || t === "exchange") return "swap";
-  if (t === "bridge" || t === "axelar" || t === "cctp" || t === "send") return "bridge";
-  if (t === "call" || t === "execute" || t === "execution" || t === "wrap" || t === "transfer") return "transfer";
+  if (t === "bridge" || t === "axelar" || t === "cctp" || t === "send")
+    return "bridge";
+  if (
+    t === "call" ||
+    t === "execute" ||
+    t === "execution" ||
+    t === "wrap" ||
+    t === "transfer"
+  )
+    return "transfer";
   return "transfer";
 };
 const estimateRouteMs = (legs: RouteLeg[]) =>
-  legs.length ? legs.reduce((sum, l) => sum + (l.estimatedMs ?? DEFAULT_LEG_MS[l.kind] ?? 30_000), 0) : 90_000;
+  legs.length
+    ? legs.reduce(
+        (sum, l) => sum + (l.estimatedMs ?? DEFAULT_LEG_MS[l.kind] ?? 30_000),
+        0
+      )
+    : 90_000;
 const computeProgress = (legs: RouteLeg[]) => {
   if (!legs.length) return 10;
   const done = legs.filter((l) => l.status === "ok").length;
   const failed = legs.some((l) => l.status === "fail");
   const pending = legs.length - done - (failed ? 1 : 0);
-  const frac = failed ? done / legs.length : (done + (pending ? 0.35 : 0)) / legs.length;
+  const frac = failed
+    ? done / legs.length
+    : (done + (pending ? 0.35 : 0)) / legs.length;
   return Math.max(6, Math.min(100, Math.round(frac * 100)));
 };
 
@@ -141,11 +169,19 @@ function normalizeRoute(tx: Transaction): RouteLeg[] {
   if (Array.isArray((tx as any).route_path) && (tx as any).route_path.length) {
     return (tx as any).route_path.map((l: any) => {
       const rawType = (l.kind ?? l.type ?? "").toString().toLowerCase();
-      const kind = rawType === "swap" || rawType === "rfq" ? "swap" : rawType === "bridge" || rawType === "send" ? "bridge" : "transfer";
+      const kind =
+        rawType === "swap" || rawType === "rfq"
+          ? "swap"
+          : rawType === "bridge" || rawType === "send"
+            ? "bridge"
+            : "transfer";
       const tokenInObj = l.fromToken ?? l.tokenIn;
       const tokenOutObj = l.toToken ?? l.tokenOut;
       const estFillSec = Number(l?.data?.estimatedFillDuration);
-      const estimatedMs = Number.isFinite(estFillSec) && estFillSec > 0 ? estFillSec * 1000 : undefined;
+      const estimatedMs =
+        Number.isFinite(estFillSec) && estFillSec > 0
+          ? estFillSec * 1000
+          : undefined;
       return {
         kind,
         chainId: numOrUndef(l.chainId ?? l.toChain ?? l.fromChain),
@@ -165,7 +201,10 @@ function normalizeRoute(tx: Transaction): RouteLeg[] {
     });
   }
 
-  if (Array.isArray((tx as any).route_status) && (tx as any).route_status.length) {
+  if (
+    Array.isArray((tx as any).route_status) &&
+    (tx as any).route_status.length
+  ) {
     const fallbackSrc = numOrUndef((tx as any).from_chain_id);
     const fallbackDst = numOrUndef((tx as any).to_chain_id);
     return (tx as any).route_status.map((r: any) => {
@@ -174,23 +213,48 @@ function normalizeRoute(tx: Transaction): RouteLeg[] {
           .map((v) => (v == null ? "" : String(v).toLowerCase()))
           .find((v) => v.length) ?? "";
       const kind = pickKind(rawType);
-      const tokenInObj = r.tokenIn ?? r.fromToken ?? r.token ?? r.assetIn ?? r.asset;
-      const tokenOutObj = r.tokenOut ?? r.toToken ?? r.token ?? r.assetOut ?? r.asset;
+      const tokenInObj =
+        r.tokenIn ?? r.fromToken ?? r.token ?? r.assetIn ?? r.asset;
+      const tokenOutObj =
+        r.tokenOut ?? r.toToken ?? r.token ?? r.assetOut ?? r.asset;
 
       const srcChainId =
         numOrUndef(
-          r.srcChainId ?? r.sourceChainId ?? r.fromChainId ?? r.fromChain ?? r.src_chain_id ?? r.source_chain_id ?? r.chain?.srcChainId ?? r.chain?.fromChainId,
+          r.srcChainId ??
+            r.sourceChainId ??
+            r.fromChainId ??
+            r.fromChain ??
+            r.src_chain_id ??
+            r.source_chain_id ??
+            r.chain?.srcChainId ??
+            r.chain?.fromChainId
         ) ?? (kind === "bridge" ? fallbackSrc : undefined);
 
       const dstChainId =
         numOrUndef(
-          r.dstChainId ?? r.destinationChainId ?? r.toChainId ?? r.toChain ?? r.dst_chain_id ?? r.destination_chain_id ?? r.chain?.dstChainId ?? r.chain?.toChainId,
+          r.dstChainId ??
+            r.destinationChainId ??
+            r.toChainId ??
+            r.toChain ??
+            r.dst_chain_id ??
+            r.destination_chain_id ??
+            r.chain?.dstChainId ??
+            r.chain?.toChainId
         ) ?? (kind === "bridge" ? fallbackDst : undefined);
 
       const chainId =
         numOrUndef(
-          r.chainId ?? r.chainID ?? r.chain_id ?? r.chain ?? r.chain?.id ?? r.chain?.chainId ?? r.chain?.chainID,
-        ) ?? (kind === "transfer" ? dstChainId ?? srcChainId ?? fallbackDst ?? fallbackSrc : undefined);
+          r.chainId ??
+            r.chainID ??
+            r.chain_id ??
+            r.chain ??
+            r.chain?.id ??
+            r.chain?.chainId ??
+            r.chain?.chainID
+        ) ??
+        (kind === "transfer"
+          ? (dstChainId ?? srcChainId ?? fallbackDst ?? fallbackSrc)
+          : undefined);
 
       return {
         kind,
@@ -198,25 +262,47 @@ function normalizeRoute(tx: Transaction): RouteLeg[] {
         srcChainId,
         dstChainId,
         tokenIn: tokenLabel(r.tokenInSymbol ?? r.fromTokenSymbol ?? tokenInObj),
-        tokenOut: tokenLabel(r.tokenOutSymbol ?? r.toTokenSymbol ?? tokenOutObj),
+        tokenOut: tokenLabel(
+          r.tokenOutSymbol ?? r.toTokenSymbol ?? tokenOutObj
+        ),
         tokenInLogo: pickLogo(tokenInObj),
         tokenOutLogo: pickLogo(tokenOutObj),
         providerName: pickProviderName(r),
-        providerLogo: typeof r === "object" ? r.logoURI ?? r.providerLogo ?? r.logo ?? undefined : undefined,
+        providerLogo:
+          typeof r === "object"
+            ? (r.logoURI ?? r.providerLogo ?? r.logo ?? undefined)
+            : undefined,
         amountIn: strOrUndef(r.amountIn ?? r.fromAmount ?? r.amount ?? r.value),
-        amountOut: strOrUndef(r.amountOut ?? r.toAmount ?? r.estimatedAmount ?? r.minAmountOut),
+        amountOut: strOrUndef(
+          r.amountOut ?? r.toAmount ?? r.estimatedAmount ?? r.minAmountOut
+        ),
         status: toLegStatus(r.status ?? r.state),
       } as RouteLeg;
     });
   }
 
   // fallback legs
-  const src = (tx as any).from_chain_id ? Number((tx as any).from_chain_id) : undefined;
-  const dst = (tx as any).to_chain_id ? Number((tx as any).to_chain_id) : undefined;
-  const overall: LegStatus = (tx as any).status === "failed" ? "fail" : (tx as any).status === "success" ? "ok" : "pending";
+  const src = (tx as any).from_chain_id
+    ? Number((tx as any).from_chain_id)
+    : undefined;
+  const dst = (tx as any).to_chain_id
+    ? Number((tx as any).to_chain_id)
+    : undefined;
+  const overall: LegStatus =
+    (tx as any).status === "failed"
+      ? "fail"
+      : (tx as any).status === "success"
+        ? "ok"
+        : "pending";
   const legs: RouteLeg[] = [];
   legs.push({ kind: "transfer", chainId: src, status: overall });
-  if (src != null && dst != null && src !== dst) legs.push({ kind: "bridge", srcChainId: src, dstChainId: dst, status: overall });
+  if (src != null && dst != null && src !== dst)
+    legs.push({
+      kind: "bridge",
+      srcChainId: src,
+      dstChainId: dst,
+      status: overall,
+    });
   legs.push({ kind: "transfer", chainId: dst, status: overall });
   return legs;
 }
@@ -226,7 +312,7 @@ function normalizeRoute(tx: Transaction): RouteLeg[] {
    ──────────────────────────────────────────────────────────── */
 
 export type PaymentStatusProps = {
-  amount: string;                       // display only (already sent)
+  amount: string; // display only (already sent)
   selectedChain: ChainDef | null;
   selectedToken: TokenDef | null;
   routeState: TrustwareRouteState;
@@ -267,7 +353,11 @@ export function PaymentStatus({
   }, []);
 
   const tokenLabelUI = useMemo(
-    () => (selectedToken?.symbol || selectedToken?.name || selectedToken?.address || "token"),
+    () =>
+      selectedToken?.symbol ||
+      selectedToken?.name ||
+      selectedToken?.address ||
+      "token",
     [selectedToken]
   );
 
@@ -303,9 +393,7 @@ export function PaymentStatus({
         }
         setStage("sending");
         const fallbackChainId = Number(
-          selectedChain?.chainId ??
-          routeState.txReq?.chainId ??
-          0
+          selectedChain?.chainId ?? routeState.txReq?.chainId ?? 0
         );
         const hash = await core.sendRouteTransaction(
           routeState.raw,
@@ -341,45 +429,53 @@ export function PaymentStatus({
           routeState.raw?.route?.transactionRequest?.chainId;
         const toAmountWeiRaw =
           (polled as any).to_amount_wei ?? (polled as any).toAmountWei;
-        const requestIdRaw = (polled as any).request_id ?? (polled as any).requestId;
+        const requestIdRaw =
+          (polled as any).request_id ?? (polled as any).requestId;
         const fromChainBlockRaw =
           (polled as any).from_chain_block ?? (polled as any).fromChainBlock;
         const toChainBlockRaw =
           (polled as any).to_chain_block ?? (polled as any).toChainBlock;
         const isGmpRaw =
-          (polled as any).is_gmp_transaction ?? (polled as any).isGmpTransaction;
+          (polled as any).is_gmp_transaction ??
+          (polled as any).isGmpTransaction;
 
         const norm: Transaction = {
           id: strOrUndef((polled as any).id) ?? "",
           intentId:
-            strOrUndef((polled as any).intent_id ?? (polled as any).intentId ?? routeState.raw?.intentId) ??
-            "",
+            strOrUndef(
+              (polled as any).intent_id ??
+                (polled as any).intentId ??
+                routeState.raw?.intentId
+            ) ?? "",
           fromAddress:
             strOrUndef(
               (polled as any).from_address ??
-              (polled as any).fromAddress ??
-              (routeState.raw as any)?.fromAddress ??
-              (routeState.raw as any)?.route?.fromAddress ??
-              (routeState.raw as any)?.route?.transactionRequest?.from ??
-              (routeState.raw as any)?.route?.transactionRequest?.fromAddress,
+                (polled as any).fromAddress ??
+                (routeState.raw as any)?.fromAddress ??
+                (routeState.raw as any)?.route?.fromAddress ??
+                (routeState.raw as any)?.route?.transactionRequest?.from ??
+                (routeState.raw as any)?.route?.transactionRequest?.fromAddress
             ) ?? "",
           toAddress:
-            strOrUndef((polled as any).to_address ?? (polled as any).toAddress ?? routeState.txReq?.to) ??
-            "",
+            strOrUndef(
+              (polled as any).to_address ??
+                (polled as any).toAddress ??
+                routeState.txReq?.to
+            ) ?? "",
           fromChainId:
             numOrUndef(fromChainIdRaw) ?? strOrUndef(fromChainIdRaw) ?? "",
           toChainId: numOrUndef(toChainIdRaw) ?? strOrUndef(toChainIdRaw) ?? "",
           sourceTxHash:
             strOrUndef(
               (polled as any).source_tx_hash ??
-              (polled as any).from_hash ??
-              (polled as any).sourceHash,
+                (polled as any).from_hash ??
+                (polled as any).sourceHash
             ) ?? "",
           destTxHash:
             strOrUndef(
               (polled as any).dest_tx_hash ??
-              (polled as any).to_hash ??
-              (polled as any).destHash,
+                (polled as any).to_hash ??
+                (polled as any).destHash
             ) ?? "",
           requestId: strOrUndef(requestIdRaw) ?? "",
           transactionRequest:
@@ -388,17 +484,29 @@ export function PaymentStatus({
             routeState.txReq ??
             null,
           status: normalizeTxStatus(
-            (polled as any).status ?? (polled as any).status_raw ?? (polled as any).tx_status,
+            (polled as any).status ??
+              (polled as any).status_raw ??
+              (polled as any).tx_status
           ) as any,
-          statusRaw: (polled as any).status_raw ?? (polled as any).statusRaw ?? undefined,
+          statusRaw:
+            (polled as any).status_raw ??
+            (polled as any).statusRaw ??
+            undefined,
           routePath: (polled as any).route_path ?? routeState.actions ?? null,
-          routeStatus: (polled as any).route_status ?? routeState.actions ?? null,
+          routeStatus:
+            (polled as any).route_status ?? routeState.actions ?? null,
           toAmountWei: numOrUndef(toAmountWeiRaw) ?? strOrUndef(toAmountWeiRaw),
           fromChainBlock: numOrUndef(fromChainBlockRaw) ?? 0,
           toChainBlock: numOrUndef(toChainBlockRaw) ?? 0,
-          fromChainTxUrl: strOrUndef((polled as any).from_chain_tx_url ?? (polled as any).fromChainTxUrl),
-          toChainTxUrl: strOrUndef((polled as any).to_chain_tx_url ?? (polled as any).toChainTxUrl),
-          gasStatus: strOrUndef((polled as any).gas_status ?? (polled as any).gasStatus),
+          fromChainTxUrl: strOrUndef(
+            (polled as any).from_chain_tx_url ?? (polled as any).fromChainTxUrl
+          ),
+          toChainTxUrl: strOrUndef(
+            (polled as any).to_chain_tx_url ?? (polled as any).toChainTxUrl
+          ),
+          gasStatus: strOrUndef(
+            (polled as any).gas_status ?? (polled as any).gasStatus
+          ),
           isGMPTransaction:
             typeof isGmpRaw === "boolean"
               ? isGmpRaw
@@ -406,7 +514,8 @@ export function PaymentStatus({
                 ? undefined
                 : Boolean(isGmpRaw),
           axelarTransactionUrl: strOrUndef(
-            (polled as any).axelar_transaction_url ?? (polled as any).axelarTransactionUrl,
+            (polled as any).axelar_transaction_url ??
+              (polled as any).axelarTransactionUrl
           ),
           createdDate:
             (polled as any).create_date ??
@@ -416,10 +525,11 @@ export function PaymentStatus({
             (polled as any).update_date ??
             (polled as any).updateDate ??
             new Date().toISOString(),
-          timeSpentMs: numOrUndef((polled as any).time_spent_ms ?? (polled as any).timeSpentMs),
+          timeSpentMs: numOrUndef(
+            (polled as any).time_spent_ms ?? (polled as any).timeSpentMs
+          ),
         };
         setTx(norm);
-
 
         if (norm.status === "success") {
           if (flowId !== flowIdRef.current || !mountedRef.current) return;
@@ -444,7 +554,11 @@ export function PaymentStatus({
       } catch (err: unknown) {
         if (flowId !== flowIdRef.current || !mountedRef.current) return;
         const message =
-          err instanceof Error ? err.message : typeof err === "string" ? err : "Transaction failed";
+          err instanceof Error
+            ? err.message
+            : typeof err === "string"
+              ? err
+              : "Transaction failed";
         setError(message);
         setStage("error");
         if (!doneRef.current) {
@@ -470,14 +584,17 @@ export function PaymentStatus({
   const routeProgress = useMemo(() => computeProgress(legs), [legs]);
   useEffect(() => {
     if ((tx as any)?.status === "success") setProgress(100);
-    else if ((tx as any)?.status === "failed") setProgress((p) => Math.max(p, routeProgress));
+    else if ((tx as any)?.status === "failed")
+      setProgress((p) => Math.max(p, routeProgress));
     else setProgress(routeProgress);
   }, [routeProgress, tx]);
   const remainingMs = Math.max(0, targetMs - elapsedMs);
-  const timerLabel = (tx as any)?.status === "success" ? "00:00" : formatClock(remainingMs);
+  const timerLabel =
+    (tx as any)?.status === "success" ? "00:00" : formatClock(remainingMs);
 
   // logos
-  const mainTokenLogo = legs[0]?.tokenInLogo ?? legs[0]?.tokenOutLogo ?? selectedToken?.logoURI;
+  const mainTokenLogo =
+    legs[0]?.tokenInLogo ?? legs[0]?.tokenOutLogo ?? selectedToken?.logoURI;
   const cornerLogo =
     legs[legs.length - 1]?.tokenOutLogo ??
     legs[legs.length - 1]?.tokenInLogo ??
@@ -519,11 +636,11 @@ export function PaymentStatus({
   // hero metrics (kept numeric so alignment is exact)
   const CONTAINER_PAD = 16;
   const SECTION_GAP = 16;
-  const HERO_BOX = 136;         // full frame (fits 320px embeds)
-  const HERO_INNER = 96;        // token disc diameter
+  const HERO_BOX = 136; // full frame (fits 320px embeds)
+  const HERO_INNER = 96; // token disc diameter
   const HERO_INSET = (HERO_BOX - HERO_INNER) / 2; // 20px
-  const BADGE = 24;             // badge circle
-  const BADGE_INSET = 12;       // distance from frame edges
+  const BADGE = 24; // badge circle
+  const BADGE_INSET = 12; // distance from frame edges
 
   return (
     <div
@@ -546,7 +663,9 @@ export function PaymentStatus({
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: 17, fontWeight: 700 }}>Payment Confirmation</div>
+        <div style={{ fontSize: 17, fontWeight: 700 }}>
+          Payment Confirmation
+        </div>
         <button
           type="button"
           onClick={onClose}
@@ -568,10 +687,27 @@ export function PaymentStatus({
       </div>
 
       {/* Scrollable content */}
-      <div style={{ display: "flex", flexDirection: "column", gap: SECTION_GAP }}>
+      <div
+        style={{ display: "flex", flexDirection: "column", gap: SECTION_GAP }}
+      >
         {/* Token icon + chain/provider badges + animated ring */}
-        <div style={{ alignSelf: "center", position: "relative", width: HERO_BOX, height: HERO_BOX }}>
-          <svg style={{ position: "absolute", inset: 0, width: HERO_BOX, height: HERO_BOX }} viewBox="0 0 120 120">
+        <div
+          style={{
+            alignSelf: "center",
+            position: "relative",
+            width: HERO_BOX,
+            height: HERO_BOX,
+          }}
+        >
+          <svg
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: HERO_BOX,
+              height: HERO_BOX,
+            }}
+            viewBox="0 0 120 120"
+          >
             <circle
               cx="60"
               cy="60"
@@ -581,8 +717,13 @@ export function PaymentStatus({
               strokeWidth="4"
             />
             <circle
-              cx="60" cy="60" r="54" fill="none"
-              stroke={theme.primaryColor} strokeWidth="4" strokeLinecap="round"
+              cx="60"
+              cy="60"
+              r="54"
+              fill="none"
+              stroke={theme.primaryColor}
+              strokeWidth="4"
+              strokeLinecap="round"
               strokeDasharray={RING_DASH}
               strokeDashoffset={RING_DASH * (1 - Math.min(progress, 100) / 100)}
               transform="rotate(-90 60 60)"
@@ -608,7 +749,11 @@ export function PaymentStatus({
             }}
           >
             {mainTokenLogo ? (
-              <img src={mainTokenLogo} alt={selectedToken?.symbol ?? "token"} style={imgContain} />
+              <img
+                src={mainTokenLogo}
+                alt={selectedToken?.symbol ?? "token"}
+                style={imgContain}
+              />
             ) : (
               <span>{selectedToken?.symbol?.slice(0, 1) ?? "?"}</span>
             )}
@@ -632,7 +777,11 @@ export function PaymentStatus({
                 justifyContent: "center",
               }}
             >
-              <img src={cornerLogo} alt={selectedChain?.networkName ?? "chain"} style={imgContain} />
+              <img
+                src={cornerLogo}
+                alt={selectedChain?.networkName ?? "chain"}
+                style={imgContain}
+              />
             </div>
           )}
 
@@ -654,7 +803,11 @@ export function PaymentStatus({
                 justifyContent: "center",
               }}
             >
-              <img src={providerLogo} alt={providerName ?? "provider"} style={imgContain} />
+              <img
+                src={providerLogo}
+                alt={providerName ?? "provider"}
+                style={imgContain}
+              />
             </div>
           )}
         </div>
@@ -662,8 +815,24 @@ export function PaymentStatus({
         {/* Title + timer */}
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 18, fontWeight: 600 }}>{statusTitle}</div>
-          <div style={{ fontSize: 13, color: hexToRgba(theme.textColor, 0.7), marginTop: 4 }}>{statusSub}</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 }}>
+          <div
+            style={{
+              fontSize: 13,
+              color: hexToRgba(theme.textColor, 0.7),
+              marginTop: 4,
+            }}
+          >
+            {statusSub}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
             <div
               style={{
                 width: 16,
@@ -676,13 +845,18 @@ export function PaymentStatus({
               }}
             >
               <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  background: theme.primaryColor,
-                  animation: (tx as any)?.status === "success" || stage === "error" ? "none" : "pulse 1.5s infinite",
-                } as any}
+                style={
+                  {
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    background: theme.primaryColor,
+                    animation:
+                      (tx as any)?.status === "success" || stage === "error"
+                        ? "none"
+                        : "pulse 1.5s infinite",
+                  } as any
+                }
               />
             </div>
             <span style={{ fontSize: 14, fontWeight: 500 }}>{timerLabel}</span>
@@ -693,16 +867,29 @@ export function PaymentStatus({
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>
-              {(tx as any)?.status === "success" ? "Funds delivered" : "Bridging funds…"}
+              {(tx as any)?.status === "success"
+                ? "Funds delivered"
+                : "Bridging funds…"}
             </div>
-            <div style={{ fontSize: 12, color: hexToRgba(theme.textColor, 0.7) }}>
+            <div
+              style={{ fontSize: 12, color: hexToRgba(theme.textColor, 0.7) }}
+            >
               {Math.floor(Math.min(progress, 100))}% complete
             </div>
           </div>
 
           <div style={{ position: "relative", paddingLeft: 28 }}>
             {/* grey spine */}
-            <div style={{ position: "absolute", left: 8, top: 0, bottom: 0, width: 2, background: theme.borderColor }} />
+            <div
+              style={{
+                position: "absolute",
+                left: 8,
+                top: 0,
+                bottom: 0,
+                width: 2,
+                background: theme.borderColor,
+              }}
+            />
             {/* progress spine (coarse visual—height proportional to % complete) */}
             <div
               style={{
@@ -716,7 +903,11 @@ export function PaymentStatus({
               }}
             />
             {legs.length === 0 && (
-              <div style={{ fontSize: 13, color: hexToRgba(theme.textColor, 0.7) }}>Waiting for route details…</div>
+              <div
+                style={{ fontSize: 13, color: hexToRgba(theme.textColor, 0.7) }}
+              >
+                Waiting for route details…
+              </div>
             )}
             {legs.map((leg, i) => {
               const done = (leg.status ?? "pending") === "ok";
@@ -724,14 +915,24 @@ export function PaymentStatus({
               const pending = !done && !fail;
               const title =
                 leg.kind === "swap"
-                  ? leg.providerName ?? "Swap"
+                  ? (leg.providerName ?? "Swap")
                   : leg.kind === "bridge"
                     ? `Bridge ${leg.srcChainId ?? ""} → ${leg.dstChainId ?? ""}`
                     : "Transfer";
-              const nodeImg = leg.tokenOutLogo ?? leg.tokenInLogo ?? leg.providerLogo;
+              const nodeImg =
+                leg.tokenOutLogo ?? leg.tokenInLogo ?? leg.providerLogo;
 
               return (
-                <div key={i} style={{ position: "relative", marginBottom: 10, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div
+                  key={i}
+                  style={{
+                    position: "relative",
+                    marginBottom: 10,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                  }}
+                >
                   <div
                     style={{
                       position: "relative",
@@ -740,12 +941,13 @@ export function PaymentStatus({
                       height: 22,
                       borderRadius: 11,
                       overflow: "hidden",
-                      border: `1px solid ${done
-                        ? hexToRgba("#10b981", 0.4)
-                        : fail
-                          ? hexToRgba("#ef4444", 0.4)
-                          : theme.borderColor
-                        }`,
+                      border: `1px solid ${
+                        done
+                          ? hexToRgba("#10b981", 0.4)
+                          : fail
+                            ? hexToRgba("#ef4444", 0.4)
+                            : theme.borderColor
+                      }`,
                       background: done
                         ? hexToRgba("#10b981", 0.18)
                         : fail
@@ -760,7 +962,13 @@ export function PaymentStatus({
                     {nodeImg ? (
                       <img src={nodeImg} alt="step" style={imgContain} />
                     ) : (
-                      <span>{leg.kind === "swap" ? "🪙" : leg.kind === "bridge" ? "🌉" : "📦"}</span>
+                      <span>
+                        {leg.kind === "swap"
+                          ? "🪙"
+                          : leg.kind === "bridge"
+                            ? "🌉"
+                            : "📦"}
+                      </span>
                     )}
                     {(done || fail) && (
                       <div
@@ -786,12 +994,27 @@ export function PaymentStatus({
                   </div>
                   <div>
                     <div style={{ fontWeight: 600 }}>{title}</div>
-                    <div style={{ fontSize: 12, color: hexToRgba(theme.textColor, 0.7) }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: hexToRgba(theme.textColor, 0.7),
+                      }}
+                    >
                       {pending ? "Pending…" : done ? "Completed" : "Failed"}
                     </div>
                     {(leg.tokenIn || leg.tokenOut) && (
-                      <div style={{ fontSize: 11, color: hexToRgba(theme.textColor, 0.6), marginTop: 4 }}>
-                        {leg.tokenIn && <span style={{ marginRight: 8 }}>In: {leg.tokenIn}</span>}
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: hexToRgba(theme.textColor, 0.6),
+                          marginTop: 4,
+                        }}
+                      >
+                        {leg.tokenIn && (
+                          <span style={{ marginRight: 8 }}>
+                            In: {leg.tokenIn}
+                          </span>
+                        )}
                         {leg.tokenOut && <span>Out: {leg.tokenOut}</span>}
                       </div>
                     )}
@@ -803,7 +1026,13 @@ export function PaymentStatus({
 
           {/* Tx links */}
           {tx && (
-            <div style={{ paddingTop: 6, fontSize: 13, color: hexToRgba(theme.textColor, 0.7) }}>
+            <div
+              style={{
+                paddingTop: 6,
+                fontSize: 13,
+                color: hexToRgba(theme.textColor, 0.7),
+              }}
+            >
               {(tx as any).source_tx_hash && (
                 <div style={{ marginBottom: 4 }}>
                   Source tx:{" "}
@@ -812,12 +1041,17 @@ export function PaymentStatus({
                       href={(tx as any).from_chain_tx_url as string}
                       target="_blank"
                       rel="noreferrer"
-                      style={{ color: theme.textColor, textDecoration: "underline" }}
+                      style={{
+                        color: theme.textColor,
+                        textDecoration: "underline",
+                      }}
                     >
                       {shortHash((tx as any).source_tx_hash as string)}
                     </a>
                   ) : (
-                    <code>{shortHash((tx as any).source_tx_hash as string)}</code>
+                    <code>
+                      {shortHash((tx as any).source_tx_hash as string)}
+                    </code>
                   )}
                 </div>
               )}
@@ -829,7 +1063,10 @@ export function PaymentStatus({
                       href={(tx as any).to_chain_tx_url as string}
                       target="_blank"
                       rel="noreferrer"
-                      style={{ color: theme.textColor, textDecoration: "underline" }}
+                      style={{
+                        color: theme.textColor,
+                        textDecoration: "underline",
+                      }}
                     >
                       {shortHash((tx as any).dest_tx_hash as string)}
                     </a>
@@ -860,19 +1097,24 @@ export function PaymentStatus({
             }}
           >
             <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                background:
-                  (tx as any)?.status === "success"
-                    ? "#10b981"
-                    : (tx as any)?.status === "failed"
-                      ? "#ef4444"
-                      : theme.primaryColor,
-                animation:
-                  (tx as any)?.status === "success" || (tx as any)?.status === "failed" ? "none" : "pulse 1.3s infinite",
-              } as any}
+              style={
+                {
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background:
+                    (tx as any)?.status === "success"
+                      ? "#10b981"
+                      : (tx as any)?.status === "failed"
+                        ? "#ef4444"
+                        : theme.primaryColor,
+                  animation:
+                    (tx as any)?.status === "success" ||
+                    (tx as any)?.status === "failed"
+                      ? "none"
+                      : "pulse 1.3s infinite",
+                } as any
+              }
             />
             <span style={{ fontSize: 13 }}>
               {(tx as any)?.status === "success"
@@ -889,7 +1131,10 @@ export function PaymentStatus({
               gap: 8,
               padding: 10,
               borderRadius: 12,
-              background: (tx as any)?.status === "success" ? hexToRgba("#10b981", 0.15) : hexToRgba(theme.borderColor, 0.2),
+              background:
+                (tx as any)?.status === "success"
+                  ? hexToRgba("#10b981", 0.15)
+                  : hexToRgba(theme.borderColor, 0.2),
             }}
           >
             <div
@@ -897,17 +1142,37 @@ export function PaymentStatus({
                 width: 8,
                 height: 8,
                 borderRadius: 4,
-                background: (tx as any)?.status === "success" ? "#10b981" : hexToRgba(theme.textColor, 0.4),
+                background:
+                  (tx as any)?.status === "success"
+                    ? "#10b981"
+                    : hexToRgba(theme.textColor, 0.4),
               }}
             />
-            <span style={{ fontSize: 13, color: (tx as any)?.status === "success" ? theme.textColor : hexToRgba(theme.textColor, 0.7) }}>
-              {(tx as any)?.status === "success" ? "Confirmation complete" : "Waiting for confirmation"}
+            <span
+              style={{
+                fontSize: 13,
+                color:
+                  (tx as any)?.status === "success"
+                    ? theme.textColor
+                    : hexToRgba(theme.textColor, 0.7),
+              }}
+            >
+              {(tx as any)?.status === "success"
+                ? "Confirmation complete"
+                : "Waiting for confirmation"}
             </span>
           </div>
         </div>
 
         {/* Footer buttons */}
-        <div style={{ display: "flex", gap: 8, justifyContent: "center", paddingTop: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            justifyContent: "center",
+            paddingTop: 4,
+          }}
+        >
           <button
             type="button"
             onClick={onClose}
@@ -952,12 +1217,26 @@ export function PaymentStatus({
         </div>
 
         {/* Tiny footer note */}
-        <div style={{ textAlign: "center", fontSize: 12, color: hexToRgba(theme.textColor, 0.6), paddingBottom: 4 }}>
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: 12,
+            color: hexToRgba(theme.textColor, 0.6),
+            paddingBottom: 4,
+          }}
+        >
           Sending {amount || "0"} {tokenLabelUI}
-          {txHash ? <> • Tx: <span style={{ fontFamily: "monospace" }}>{shortHash(txHash)}</span></> : null}
+          {txHash ? (
+            <>
+              {" "}
+              • Tx:{" "}
+              <span style={{ fontFamily: "monospace" }}>
+                {shortHash(txHash)}
+              </span>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
   );
 }
-

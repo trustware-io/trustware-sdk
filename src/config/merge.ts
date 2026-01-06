@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { TrustwareConfigOptions, ResolvedTrustwareConfig } from "../types/";
+import type {
+  TrustwareConfigOptions,
+  ResolvedTrustwareConfig,
+} from "../types/";
 import {
   DEFAULT_AUTO_DETECT_PROVIDER,
   DEFAULT_SLIPPAGE,
@@ -10,7 +13,7 @@ import {
 // tiny deep merge for plain objects
 function deepMerge<T extends Record<string, any>>(
   base: T,
-  patch?: Partial<T>,
+  patch?: Partial<T>
 ): T {
   if (!patch) return { ...base };
   const out: any = Array.isArray(base) ? [...(base as any)] : { ...base };
@@ -34,14 +37,14 @@ function normalizeSlippage(v: unknown): number {
 }
 
 export function resolveConfig(
-  input: TrustwareConfigOptions,
+  input: TrustwareConfigOptions
 ): ResolvedTrustwareConfig {
   if (!input?.apiKey) {
     throw new Error("TrustwareConfig: 'apiKey' is required.");
   }
   if (!input.routes?.toChain || !input.routes?.toToken) {
     throw new Error(
-      "TrustwareConfig: 'routes.toChain' and 'routes.toToken' are required.",
+      "TrustwareConfig: 'routes.toChain' and 'routes.toToken' are required."
     );
   }
 
@@ -57,7 +60,7 @@ export function resolveConfig(
     fromAddress: input.routes.fromAddress,
     toAddress: input.routes.toAddress,
     defaultSlippage: normalizeSlippage(
-      input.routes.defaultSlippage ?? DEFAULT_SLIPPAGE,
+      input.routes.defaultSlippage ?? DEFAULT_SLIPPAGE
     ),
     options: {
       ...input.routes.options,
