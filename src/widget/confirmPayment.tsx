@@ -4,7 +4,10 @@ import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import { getBalances, type BalanceRow } from "src/core/balances";
 import { walletManager } from "src/wallets";
 import {
+  encodeAllowanceCallData,
+  encodeApproveCallData,
   formatUsd,
+  hexToBigInt,
   hexToRgba,
   resolveChainLabel,
   weiToDecimalString,
@@ -16,6 +19,7 @@ export type ConfirmPaymentProps = {
   selectedChain: ChainDef | null;
   selectedToken: TokenDef | null;
   routeState: TrustwareRouteState;
+  routeRefreshMs?: number;
   onBack: () => void;
   onConfirm: () => void; // parent advances flow; this component doesn't send tx
 };
@@ -27,24 +31,14 @@ function pickSpender(txReq: any, chain: ChainDef | null): string | null {
   return c.squidRouter ?? c.squidMulticall ?? c.squidCoralMulticall ?? null;
 }
 
-// Minimal ERC20 allowance read if walletManager exposes a readContract.
-// We guard calls so SDK works even when this isn’t available.
-const ERC20_ALLOWANCE = {
-  name: "allowance",
-  type: "function",
-  stateMutability: "view",
-  inputs: [
-    { name: "owner", type: "address" },
-    { name: "spender", type: "address" },
-  ],
-  outputs: [{ name: "", type: "uint256" }],
-} as const;
+const MAX_UINT256 = (1n << 256n) - 1n;
 
 export function ConfirmPayment({
   amount,
   selectedChain,
   selectedToken,
   routeState,
+  routeRefreshMs,
   onBack,
   onConfirm,
 }: ConfirmPaymentProps) {
@@ -69,7 +63,7 @@ export function ConfirmPayment({
   const tokenDecimals = selectedToken?.decimals ?? 18;
   const tokenPriceUSD =
     typeof selectedToken?.usdPrice === "number" &&
-    isFinite(selectedToken.usdPrice!)
+      isFinite(selectedToken.usdPrice!)
       ? (selectedToken!.usdPrice as number)
       : null;
 
@@ -107,11 +101,23 @@ export function ConfirmPayment({
   }, [routeState]);
 
   // Timer (to mimic frontend UX)
-  const [timeLeft, setTimeLeft] = useState(60);
+  const refreshSeconds = Math.max(
+    1,
+    Math.ceil((routeRefreshMs ?? 60_000) / 1000)
+  );
+  const [timeLeft, setTimeLeft] = useState(refreshSeconds);
   useEffect(() => {
-    const t = setInterval(() => setTimeLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
+    if (routeState.status !== "ready") {
+      setTimeLeft(refreshSeconds);
+      return;
+    }
+    setTimeLeft(refreshSeconds);
+    const t = setInterval(
+      () => setTimeLeft((s) => (s > 0 ? s - 1 : 0)),
+      1000
+    );
     return () => clearInterval(t);
-  }, []);
+  }, [refreshSeconds, routeState.status, routeState.intentId]);
 
   // Balance for selected token
   const [balanceWei, setBalanceWei] = useState<bigint>(0n);
@@ -193,51 +199,92 @@ export function ConfirmPayment({
     isNative ? amountWei : null
   );
   const [readingAllowance, setReadingAllowance] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [approvalHash, setApprovalHash] = useState<string | null>(null);
+  const [waitingApproval, setWaitingApproval] = useState(false);
+
+  const readAllowance = async () => {
+    if (isNative) {
+      setAllowanceWei(amountWei);
+      return;
+    }
+    if (!selectedToken?.address || !spender) {
+      setAllowanceWei(null);
+      return;
+    }
+    const wallet = walletManager.wallet;
+    if (!wallet || wallet.type !== "eip1193") {
+      setAllowanceWei(null);
+      return;
+    }
+    const owner = await wallet.getAddress().catch(() => undefined);
+    if (!owner) {
+      setAllowanceWei(null);
+      return;
+    }
+    setReadingAllowance(true);
+    try {
+      const data = encodeAllowanceCallData(owner, spender);
+      const result = await wallet.request({
+        method: "eth_call",
+        params: [
+          {
+            to: selectedToken.address,
+            data,
+          },
+          "latest",
+        ],
+      });
+      const parsed = hexToBigInt(result);
+      setAllowanceWei(parsed ?? 0n);
+    } catch {
+      setAllowanceWei(null);
+    } finally {
+      setReadingAllowance(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (isNative) {
-        setAllowanceWei(amountWei);
-        return;
-      }
-      if (!selectedToken?.address || !spender) {
-        setAllowanceWei(null);
-        return;
-      }
-      const reader = (walletManager as any)?.simple?.readContract;
-      if (typeof reader !== "function") {
-        setAllowanceWei(null); // unknown in this environment
-        return;
-      }
-      // Try read allowance(owner -> spender)
-      const owner = await (walletManager as any)?.simple
-        ?.getAddress?.()
-        .catch(() => undefined);
-      if (!owner) {
-        setAllowanceWei(null);
-        return;
-      }
-      setReadingAllowance(true);
-      try {
-        const res = await reader({
-          address: selectedToken.address,
-          abi: [ERC20_ALLOWANCE],
-          functionName: "allowance",
-          args: [owner, spender],
-        });
-        if (!cancelled)
-          setAllowanceWei(typeof res === "bigint" ? res : BigInt(res ?? 0));
-      } catch {
-        if (!cancelled) setAllowanceWei(null);
-      } finally {
-        if (!cancelled) setReadingAllowance(false);
-      }
+      if (cancelled) return;
+      await readAllowance();
     })();
     return () => {
       cancelled = true;
     };
   }, [selectedToken?.address, spender, isNative, amountWei]);
+
+  useEffect(() => {
+    const wallet = walletManager.wallet;
+    if (!approvalHash || wallet?.type !== "eip1193") return;
+    let cancelled = false;
+    setWaitingApproval(true);
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const receipt = await wallet?.request({
+            method: "eth_getTransactionReceipt",
+            params: [approvalHash],
+          });
+          if (receipt?.blockNumber) {
+            break;
+          }
+        } catch {
+          // ignore polling errors
+        }
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+      }
+      if (!cancelled) {
+        setWaitingApproval(false);
+        await readAllowance();
+      }
+    };
+    poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [approvalHash]);
 
   const needsApproval =
     !isNative &&
@@ -265,10 +312,57 @@ export function ConfirmPayment({
     routeState.status === "ready" &&
     amountWei > 0n &&
     errors.filter((x) => !/Building route|Waiting/.test(x)).length === 0 &&
-    // if we *know* allowance and it's insufficient, block; if unknown, allow (SDK cannot approve here)
     !(needsApproval === true);
 
   const muted = (o = 0.6) => hexToRgba(theme.textColor, o);
+
+  const approve = async (amountToApprove: bigint) => {
+    if (!selectedToken?.address || !spender) return;
+    const wallet = walletManager.wallet;
+    if (!wallet) return;
+    setIsApproving(true);
+    setApprovalHash(null);
+    try {
+      const data = encodeApproveCallData(spender, amountToApprove);
+      if (wallet.type === "eip1193") {
+        const from = await wallet.getAddress();
+        const hash = await wallet.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from,
+              to: selectedToken.address,
+              data,
+            },
+          ],
+        });
+        setApprovalHash(hash as string);
+      } else {
+        const chainId = Number(selectedChain?.chainId ?? selectedChain?.id);
+        const { hash } = await wallet.sendTransaction({
+          to: selectedToken.address as `0x${string}`,
+          data: data as `0x${string}`,
+          chainId: Number.isFinite(chainId) ? chainId : undefined,
+        });
+        setApprovalHash(hash);
+        setAllowanceWei(amountToApprove);
+        await readAllowance();
+      }
+    } catch {
+      setWaitingApproval(false);
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const approveExact = async () => {
+    if (amountWei <= 0n) return;
+    await approve(amountWei);
+  };
+
+  const approveMax = async () => {
+    await approve(MAX_UINT256);
+  };
 
   return (
     <div
@@ -401,12 +495,14 @@ export function ConfirmPayment({
           <div
             style={{
               marginTop: 6,
-              borderTop: `1px dashed ${hexToRgba(theme.borderColor, 0.7)}`,
-              paddingTop: 8,
+              border: `1px solid ${hexToRgba(theme.borderColor, 0.8)}`,
+              borderRadius: radius,
+              padding: 10,
               display: "flex",
               flexDirection: "column",
-              gap: 6,
+              gap: 8,
               fontSize: 12,
+              background: hexToRgba(theme.backgroundColor, 0.6),
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -419,18 +515,100 @@ export function ConfirmPayment({
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: muted() }}>Allowance</span>
-              <span>
-                {readingAllowance
-                  ? "Checking…"
-                  : allowanceWei == null
-                    ? "Unknown"
-                    : `${weiToDecimalString(allowanceWei, tokenDecimals, 6)} ${tokenSymbol}`}
-              </span>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  justifyContent: "flex-end",
+                  maxWidth: "60%",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "monospace",
+                    color: needsApproval ? "#b91c1c" : theme.textColor,
+                    maxWidth: 200,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {readingAllowance
+                    ? "Checking…"
+                    : allowanceWei == null
+                      ? "Unknown"
+                      : allowanceWei === MAX_UINT256
+                        ? `Unlimited ${tokenSymbol}`
+                        : `${weiToDecimalString(allowanceWei, tokenDecimals, 6)}`}
+                </span>
+                <span> {tokenSymbol}</span>
+              </div>
             </div>
+            <div
+              style={{
+                color: needsApproval
+                  ? hexToRgba(theme.textColor, 0.9)
+                  : theme.primaryColor,
+                fontWeight: 600,
+              }}
+            >
+              {readingAllowance
+                ? "Checking allowance…"
+                : needsApproval
+                  ? "Approval required"
+                  : "Allowance sufficient ✓"}
+            </div>
+
             {needsApproval && (
-              <div style={{ color: "#ef4444" }}>
-                Allowance insufficient for this amount. Approve in your wallet
-                first.
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  disabled={isApproving || waitingApproval || !spender}
+                  onClick={approveExact}
+                  style={{
+                    flex: 1,
+                    padding: "8px 10px",
+                    borderRadius: radius,
+                    border: "none",
+                    cursor:
+                      isApproving || waitingApproval ? "not-allowed" : "pointer",
+                    background: theme.primaryColor,
+                    color: theme.backgroundColor,
+                    fontWeight: 600,
+                  }}
+                >
+                  {isApproving || waitingApproval
+                    ? "Approving…"
+                    : "Approve Exact"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isApproving || waitingApproval || !spender}
+                  onClick={approveMax}
+                  style={{
+                    flex: 1,
+                    padding: "8px 10px",
+                    borderRadius: radius,
+                    border: `1px solid ${theme.borderColor}`,
+                    cursor:
+                      isApproving || waitingApproval ? "not-allowed" : "pointer",
+                    background: "transparent",
+                    color: theme.textColor,
+                    fontWeight: 600,
+                  }}
+                >
+                  Approve Max
+                </button>
+              </div>
+            )}
+            {approvalHash && (
+              <div style={{ color: muted(0.75) }}>
+                {waitingApproval
+                  ? "Waiting for approval confirmation…"
+                  : "Approval submitted."}
               </div>
             )}
           </div>

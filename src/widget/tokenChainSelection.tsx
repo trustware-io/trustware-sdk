@@ -255,9 +255,18 @@ export function TokenChainSelection({
     (token: TokenWithBalance) => {
       setSelectedToken(token);
       onTokenSelected(token);
+      scrollToContinue();
     },
     [onTokenSelected]
   );
+
+  const scrollToContinueRef = useRef<HTMLButtonElement | null>(null);
+
+  const scrollToContinue = useCallback(() => {
+    if (scrollToContinueRef.current) {
+      scrollToContinueRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
 
   const totalCrossChainBalance = useMemo(() => {
     return supportedTokens.reduce((acc, token) => {
@@ -653,6 +662,7 @@ export function TokenChainSelection({
                     return (
                       <button
                         key={tokenKey}
+                        ref={scrollToContinueRef}
                         type="button"
                         onClick={() => handleTokenSelected(token)}
                         style={{
