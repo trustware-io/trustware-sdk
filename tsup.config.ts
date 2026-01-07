@@ -1,5 +1,6 @@
 // tsup.config.ts
 import { defineConfig } from "tsup";
+import pkg from "./package.json";
 
 export default defineConfig({
   entry: [
@@ -32,5 +33,10 @@ export default defineConfig({
   // Make esbuild use the automatic React runtime too (mirrors tsconfig "react-jsx")
   esbuildOptions(options) {
     options.jsx = "automatic";
+  },
+
+  // Inject package.json version at build time
+  define: {
+    __SDK_VERSION__: JSON.stringify(pkg.version),
   },
 });
