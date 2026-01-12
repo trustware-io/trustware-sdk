@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { DetectedWallet, WalletInterFaceAPI } from "../types";
 import type { WagmiBridge } from "./bridges";
 import { toWalletInterfaceFromDetected } from "./adapters";
@@ -11,15 +10,6 @@ function pickWagmiConnector(
 ) {
   const lower = metaName.toLowerCase();
   const cons = wagmi.connectors();
-  console.log("Picking wagmi connector for", {
-    metaName,
-    metaId,
-    metaCategory,
-  });
-  console.debug(
-    "Available wagmi connectors:",
-    cons.map((c) => c.name)
-  );
   return (
     cons.find((c) => c.name.toLowerCase().includes(lower)) ||
     (metaId === "coinbase" &&

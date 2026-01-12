@@ -352,7 +352,13 @@ function Step({
   );
 }
 
-function Badge({ children, c }: { children: any; c: any }) {
+function _Badge({
+  children,
+  c,
+}: {
+  children: React.ReactNode;
+  c: { glass: (opacity: number) => string };
+}) {
   return (
     <span
       aria-hidden

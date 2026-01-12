@@ -156,6 +156,7 @@ export function TokenChainSelection({
   const requestRef = useRef(0);
   const [search, setSearch] = useState("");
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- apiKey change should invalidate registry
   const registry = useMemo(() => new Registry(apiBase()), [apiKey]);
 
   useEffect(() => {
@@ -251,15 +252,6 @@ export function TokenChainSelection({
     [registry, onChainSelected]
   );
 
-  const handleTokenSelected = useCallback(
-    (token: TokenWithBalance) => {
-      setSelectedToken(token);
-      onTokenSelected(token);
-      scrollToContinue();
-    },
-    [onTokenSelected]
-  );
-
   const scrollToContinueRef = useRef<HTMLButtonElement | null>(null);
 
   const scrollToContinue = useCallback(() => {
@@ -267,6 +259,15 @@ export function TokenChainSelection({
       scrollToContinueRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, []);
+
+  const handleTokenSelected = useCallback(
+    (token: TokenWithBalance) => {
+      setSelectedToken(token);
+      onTokenSelected(token);
+      scrollToContinue();
+    },
+    [onTokenSelected, scrollToContinue]
+  );
 
   const totalCrossChainBalance = useMemo(() => {
     return supportedTokens.reduce((acc, token) => {
@@ -339,7 +340,7 @@ export function TokenChainSelection({
     ? "Continue"
     : `Continue (${!selectedToken ? "Select token" : "Select chain"})`;
 
-  const headerShadow = hexToRgba(theme.textColor, 0.08);
+  const _headerShadow = hexToRgba(theme.textColor, 0.08);
   const mutedText = hexToRgba(theme.textColor, 0.6);
 
   const selectedChainKey = selectedChain

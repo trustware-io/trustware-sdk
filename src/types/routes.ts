@@ -1,4 +1,4 @@
-export type RouteParams = { 
+export type RouteParams = {
   fromChain: string;
   toChain: string;
   fromToken: string;
@@ -21,7 +21,7 @@ export type RouteIntent = {
   quoteToAmountWei: string | number;
   minToAmountWei: string | number;
   requestId?: string;
-  routeRaw?: any;
+  routeRaw?: unknown;
   status: "created" | "submitted" | "bridging" | "success" | "failed";
   createdDate: Date | string;
   updatedDate: Date | string;
@@ -37,11 +37,11 @@ export type Transaction = {
   sourceTxHash: string;
   destTxHash: string;
   requestId: string;
-  transactionRequest: any;
+  transactionRequest: unknown;
   status: "submitted" | "bridging" | "success" | "failed";
-  statusRaw?: any;
-  routePath?: any;
-  routeStatus?: any;
+  statusRaw?: unknown;
+  routePath?: unknown;
+  routeStatus?: unknown;
   toAmountWei?: string | number;
   fromChainBlock: number;
   toChainBlock: number;
@@ -66,8 +66,8 @@ export type BuildRouteResult = {
       toAmountUSD?: string;
       toAmountMinUSD?: string;
       minimumReceived?: string;
-      fees?: any;
-      route?: any;
+      fees?: unknown;
+      route?: unknown;
     };
     transactionRequest: {
       to: string;

@@ -1,10 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type {
-  ChainDef,
-  TokenDef,
-  TrustwareWidgetMessages,
-  TrustwareWidgetTheme,
-} from "src/types/";
+import type { ChainDef, TokenDef, TrustwareWidgetTheme } from "src/types/";
 import { useTrustware } from "src/provider";
 import { walletManager } from "src/wallets/";
 import { TrustwareConfig } from "src/config";
@@ -51,7 +46,7 @@ export function TrustwareWidget() {
   const [fromAddress, setFromAddress] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = TrustwareConfig.subscribe((cfg) => {
+    const unsubscribe = TrustwareConfig.subscribe((_cfg) => {
       //setTheme(cfg.theme);
       //setMessages(cfg.messages);
     });
@@ -194,7 +189,6 @@ export function TrustwareWidget() {
     widgetState,
     selectedChain,
     selectedToken,
-    amount,
     routeState,
     resetState,
     setWidgetState,
@@ -417,8 +411,9 @@ export function TrustwareWidget() {
           borderTop: `1px solid ${hexToRgba(theme?.borderColor || "#374151", 0.5)}`,
           backdropFilter: "blur(6px)",
           WebkitBackdropFilter: "blur(6px)",
-          background: `linear-gradient(90deg, ${theme?.backgroundColor || "#0b0b0c"} 0%, ${theme?.backgroundColor || "#0b0b0c"
-            } 70%, ${hexToRgba(theme?.borderColor || "#374151", 0.1)} 100%)`, // bg-gradient-to-r ... to-muted/10
+          background: `linear-gradient(90deg, ${theme?.backgroundColor || "#0b0b0c"} 0%, ${
+            theme?.backgroundColor || "#0b0b0c"
+          } 70%, ${hexToRgba(theme?.borderColor || "#374151", 0.1)} 100%)`, // bg-gradient-to-r ... to-muted/10
           zIndex: 5,
         }}
       >

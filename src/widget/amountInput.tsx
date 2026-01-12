@@ -37,7 +37,7 @@ export function AmountInput({
 
   const [balanceWei, setBalanceWei] = useState<bigint>(0n);
   const [isLoadingBal, setIsLoadingBal] = useState<boolean>(false);
-  const hadErrorsRef = useRef(false);
+  const _hadErrorsRef = useRef(false);
 
   const tokenDecimals = selectedToken?.decimals ?? 18;
   const tokenSymbol = selectedToken?.symbol ?? "TOKEN";
@@ -84,7 +84,7 @@ export function AmountInput({
         const addrLower = (selectedToken.address || "").toLowerCase();
 
         // pick best matching balance row (erc20 by address OR native by symbol)
-        let row =
+        const row =
           rows.find(
             (r) =>
               r.category === "erc20" && r.contract?.toLowerCase() === addrLower

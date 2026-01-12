@@ -23,8 +23,14 @@ class ConfigStore {
       ...this._cfg,
       ...patch,
       routes: { ...this._cfg.routes, ...(patch.routes ?? {}) },
-      theme: { ...this._cfg.theme, ...(patch.theme ?? {}) } as any,
-      messages: { ...this._cfg.messages, ...(patch.messages ?? {}) } as any,
+      theme: {
+        ...this._cfg.theme,
+        ...(patch.theme ?? {}),
+      } as TrustwareConfigOptions["theme"],
+      messages: {
+        ...this._cfg.messages,
+        ...(patch.messages ?? {}),
+      } as TrustwareConfigOptions["messages"],
       rateLimit: { ...this._cfg.rateLimit, ...(patch.rateLimit ?? {}) },
     } as TrustwareConfigOptions);
     this._cfg = next;

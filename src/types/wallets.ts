@@ -38,7 +38,10 @@ export type WalletMeta = {
 };
 
 export type EIP1193 = {
-  request(args: { method: string; params?: any[] | object }): Promise<any>;
+  request(args: {
+    method: string;
+    params?: unknown[] | Record<string, unknown>;
+  }): Promise<unknown>;
 };
 
 // Details of a provider detected via EIP-6963 standard including metadata and supported methods/events
@@ -52,8 +55,7 @@ export type EIP6963ProviderDetail = {
     wallets?: { name: string; version?: string }[]; // for aggregators
     features?: string[]; // e.g., ['signTypedData', 'eth_sendTransaction']
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  provider: any; // EIP-1193 Provider
+  provider: EIP1193; // EIP-1193 Provider
   methods: string[];
   events: string[];
 };
@@ -63,8 +65,7 @@ export type DetectedWallet = {
   meta: WalletMeta;
   via: "eip6963" | "injected-flag";
   detail?: EIP6963ProviderDetail;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  provider?: any;
+  provider?: EIP1193;
 };
 
 // Comprehensive wallet interface with transaction sending capabilities
@@ -76,7 +77,10 @@ export type WalletInterFaceAPI = {
 } & (
   | {
       type: "eip1193";
-      request(args: { method: string; params?: any[] | object }): Promise<any>;
+      request(args: {
+        method: string;
+        params?: unknown[] | Record<string, unknown>;
+      }): Promise<unknown>;
     }
   | {
       type: "wagmi";

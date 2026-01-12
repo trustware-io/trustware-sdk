@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChainDef, TokenDef } from "src/types";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import { getBalances, type BalanceRow } from "src/core/balances";
@@ -24,10 +24,15 @@ export type ConfirmPaymentProps = {
   onConfirm: () => void; // parent advances flow; this component doesn't send tx
 };
 // Try to pick spender from txReq (routeState) or optional chain contracts shape if present.
-function pickSpender(txReq: any, chain: ChainDef | null): string | null {
-  const fromRoute = (txReq?.to || txReq?.target) as string | undefined;
+function pickSpender(
+  txReq: { to?: string; target?: string } | undefined,
+  chain: ChainDef | null
+): string | null {
+  const fromRoute = txReq?.to || txReq?.target;
   if (fromRoute) return fromRoute;
-  const c: any = (chain as any)?.squidContracts ?? {};
+  const c =
+    (chain as ChainDef & { squidContracts?: Record<string, string> })
+      ?.squidContracts ?? {};
   return c.squidRouter ?? c.squidMulticall ?? c.squidCoralMulticall ?? null;
 }
 
@@ -63,7 +68,7 @@ export function ConfirmPayment({
   const tokenDecimals = selectedToken?.decimals ?? 18;
   const tokenPriceUSD =
     typeof selectedToken?.usdPrice === "number" &&
-      isFinite(selectedToken.usdPrice!)
+    isFinite(selectedToken.usdPrice!)
       ? (selectedToken!.usdPrice as number)
       : null;
 
@@ -86,8 +91,11 @@ export function ConfirmPayment({
   const routeInfo = useMemo(() => {
     if (routeState.status !== "ready") return null;
     const exchange = routeState.finalExchangeRate ?? {};
-    const rawEstimate: any = routeState.raw?.route?.estimate ?? {};
-    const fees: any = rawEstimate?.fees ?? {};
+    const rawEstimate = routeState.raw?.route?.estimate ?? {};
+    const fees =
+      ((rawEstimate as Record<string, unknown>)?.fees as
+        | Record<string, string>
+        | undefined) ?? {};
     return {
       toAmount: exchange.toAmount ?? rawEstimate?.toAmount ?? null,
       minAmount:
@@ -112,10 +120,7 @@ export function ConfirmPayment({
       return;
     }
     setTimeLeft(refreshSeconds);
-    const t = setInterval(
-      () => setTimeLeft((s) => (s > 0 ? s - 1 : 0)),
-      1000
-    );
+    const t = setInterval(() => setTimeLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(t);
   }, [refreshSeconds, routeState.status, routeState.intentId]);
 
@@ -143,7 +148,7 @@ export function ConfirmPayment({
       try {
         const rows: BalanceRow[] = await getBalances(canonical, address);
         const addrLower = (selectedToken.address || "").toLowerCase();
-        let row =
+        const row =
           rows.find(
             (r) =>
               r.category === "erc20" && r.contract?.toLowerCase() === addrLower
@@ -169,7 +174,7 @@ export function ConfirmPayment({
     if (!(tokenPriceUSD && balanceWei >= 0n)) return "";
     const units = Number(balanceTokStr || "0");
     return formatUsd(units * tokenPriceUSD);
-  }, [balanceTokStr, tokenPriceUSD]);
+  }, [balanceTokStr, tokenPriceUSD, balanceWei]);
 
   const remainingWei = useMemo(
     () => balanceWei - amountWei,
@@ -235,7 +240,7 @@ export function ConfirmPayment({
           "latest",
         ],
       });
-      const parsed = hexToBigInt(result);
+      const parsed = hexToBigInt(result as string | null | undefined);
       setAllowanceWei(parsed ?? 0n);
     } catch {
       setAllowanceWei(null);
@@ -253,6 +258,7 @@ export function ConfirmPayment({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readAllowance is stable
   }, [selectedToken?.address, spender, isNative, amountWei]);
 
   useEffect(() => {
@@ -267,7 +273,7 @@ export function ConfirmPayment({
             method: "eth_getTransactionReceipt",
             params: [approvalHash],
           });
-          if (receipt?.blockNumber) {
+          if ((receipt as { blockNumber?: string })?.blockNumber) {
             break;
           }
         } catch {
@@ -284,6 +290,7 @@ export function ConfirmPayment({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readAllowance is stable
   }, [approvalHash]);
 
   const needsApproval =
@@ -574,7 +581,9 @@ export function ConfirmPayment({
                     borderRadius: radius,
                     border: "none",
                     cursor:
-                      isApproving || waitingApproval ? "not-allowed" : "pointer",
+                      isApproving || waitingApproval
+                        ? "not-allowed"
+                        : "pointer",
                     background: theme.primaryColor,
                     color: theme.backgroundColor,
                     fontWeight: 600,
@@ -594,7 +603,9 @@ export function ConfirmPayment({
                     borderRadius: radius,
                     border: `1px solid ${theme.borderColor}`,
                     cursor:
-                      isApproving || waitingApproval ? "not-allowed" : "pointer",
+                      isApproving || waitingApproval
+                        ? "not-allowed"
+                        : "pointer",
                     background: "transparent",
                     color: theme.textColor,
                     fontWeight: 600,

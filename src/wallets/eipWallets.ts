@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/wallet.ts
 import type { WalletInterFaceAPI, EIP1193 } from "../types/";
@@ -56,7 +54,10 @@ export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
   return {
     type: "eip1193",
     async getAddress() {
-      const [a] = await eth.request({ method: "eth_requestAccounts" });
+      const result = (await eth.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+      const [a] = result;
       if (!a) throw new Error("No connected address");
       return a;
     },
