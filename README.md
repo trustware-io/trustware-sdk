@@ -235,6 +235,86 @@ Events:
 - Add retry logic for transients.
 - Guard calls: Ensure provider mounted and wallet connected.
 
+## Rate Limiting
+
+The SDK automatically handles API rate limits with retry logic. The backend enforces per-API-key limits and returns standard rate limit headers.
+
+### Default Behavior
+
+Rate limiting is **enabled by default**. When a 429 (Too Many Requests) response is received:
+1. The SDK waits for the time specified in the `Retry-After` header
+2. Automatically retries the request (up to 3 times by default)
+3. Uses exponential backoff if `Retry-After` is not provided
+
+### Configuration
+
+Customize rate limit handling in your config:
+
+```ts
+const config = {
+  apiKey: "...",
+  routes: { toChain: "8453", toToken: "0x..." },
+  rateLimit: {
+    enabled: true,           // Enable/disable auto-retry (default: true)
+    maxRetries: 3,           // Max retry attempts (default: 3)
+    baseDelayMs: 1000,       // Base delay for exponential backoff (default: 1000)
+    approachingThreshold: 5, // Trigger warning when remaining < threshold (default: 5)
+
+    // Callbacks for monitoring
+    onRateLimitInfo: (info) => {
+      console.log(`${info.remaining}/${info.limit} requests remaining`);
+    },
+    onRateLimited: (info, retryCount) => {
+      console.warn(`Rate limited! Retry ${retryCount}, waiting ${info.retryAfter}s`);
+    },
+    onRateLimitApproaching: (info, threshold) => {
+      console.warn(`Approaching limit: ${info.remaining} remaining`);
+    },
+  },
+};
+```
+
+### Rate Limit Info
+
+The `RateLimitInfo` object contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `limit` | number | Maximum requests allowed in the window |
+| `remaining` | number | Requests remaining in current window |
+| `reset` | number | Unix timestamp when window resets |
+| `retryAfter` | number? | Seconds to wait (only on 429) |
+
+### Handling RateLimitError
+
+If retries are exhausted, a `RateLimitError` is thrown:
+
+```ts
+import { Trustware, RateLimitError } from "@trustware/sdk";
+
+try {
+  await Trustware.buildRoute({ ... });
+} catch (err) {
+  if (err instanceof RateLimitError) {
+    console.error(`Rate limited: ${err.message}`);
+    console.log(`Try again in ${err.rateLimitInfo.retryAfter}s`);
+  }
+}
+```
+
+### Disabling Rate Limit Handling
+
+To handle rate limits manually:
+
+```ts
+const config = {
+  // ...
+  rateLimit: {
+    enabled: false, // Disable auto-retry; 429s will throw immediately
+  },
+};
+```
+
 ## Troubleshooting
 
 - Mount `TrustwareProvider` once at app root.

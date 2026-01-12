@@ -19,6 +19,7 @@ export type TrustwareConfigOptions = {
   autoDetectProvider?: boolean; // Whether to auto-detect wallet provider (optional, default: false.)
   theme?: TrustwareWidgetTheme; // Optional theme customization
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
+  rateLimit?: RateLimitConfig; // Optional rate limit configuration
 };
 
 export type ResolvedTrustwareConfig = {
@@ -40,7 +41,54 @@ export type ResolvedTrustwareConfig = {
   autoDetectProvider: boolean;
   theme: TrustwareWidgetTheme;
   messages: TrustwareWidgetMessages;
+  rateLimit: ResolvedRateLimitConfig;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
 export const DEFAULT_AUTO_DETECT_PROVIDER = false; // Default auto-detect provider setting
+
+// Rate limit types for SDK rate limit handling
+export type RateLimitInfo = {
+  /** Maximum requests allowed in the current window */
+  limit: number;
+  /** Requests remaining in the current window */
+  remaining: number;
+  /** Unix timestamp when the rate limit window resets */
+  reset: number;
+  /** Seconds until rate limit resets (only present on 429 responses) */
+  retryAfter?: number;
+};
+
+export type RateLimitConfig = {
+  /** Enable automatic retry on 429 responses (default: true) */
+  enabled?: boolean;
+  /** Maximum number of retries on 429 (default: 3) */
+  maxRetries?: number;
+  /** Base delay in ms for exponential backoff (default: 1000) */
+  baseDelayMs?: number;
+  /** Callback when rate limit info is received */
+  onRateLimitInfo?: (info: RateLimitInfo) => void;
+  /** Callback when rate limit is hit (429 received) */
+  onRateLimited?: (info: RateLimitInfo, retryCount: number) => void;
+  /** Callback when remaining requests fall below threshold */
+  onRateLimitApproaching?: (info: RateLimitInfo, threshold: number) => void;
+  /** Threshold for onRateLimitApproaching callback (default: 5) */
+  approachingThreshold?: number;
+};
+
+export type ResolvedRateLimitConfig = {
+  enabled: boolean;
+  maxRetries: number;
+  baseDelayMs: number;
+  approachingThreshold: number;
+  onRateLimitInfo?: (info: RateLimitInfo) => void;
+  onRateLimited?: (info: RateLimitInfo, retryCount: number) => void;
+  onRateLimitApproaching?: (info: RateLimitInfo, threshold: number) => void;
+};
+
+export const DEFAULT_RATE_LIMIT_CONFIG: ResolvedRateLimitConfig = {
+  enabled: true,
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  approachingThreshold: 5,
+};

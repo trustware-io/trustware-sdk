@@ -9,6 +9,7 @@ import {
   DEFAULT_THEME,
   DEFAULT_MESSAGES,
 } from "./defaults";
+import { DEFAULT_RATE_LIMIT_CONFIG } from "../types/config";
 
 // tiny deep merge for plain objects
 function deepMerge<T extends Record<string, any>>(
@@ -70,11 +71,27 @@ export function resolveConfig(
   const theme = deepMerge(DEFAULT_THEME, input.theme);
   const messages = deepMerge(DEFAULT_MESSAGES, input.messages);
 
+  // Merge rate limit config with defaults
+  const rateLimit = {
+    enabled: input.rateLimit?.enabled ?? DEFAULT_RATE_LIMIT_CONFIG.enabled,
+    maxRetries:
+      input.rateLimit?.maxRetries ?? DEFAULT_RATE_LIMIT_CONFIG.maxRetries,
+    baseDelayMs:
+      input.rateLimit?.baseDelayMs ?? DEFAULT_RATE_LIMIT_CONFIG.baseDelayMs,
+    approachingThreshold:
+      input.rateLimit?.approachingThreshold ??
+      DEFAULT_RATE_LIMIT_CONFIG.approachingThreshold,
+    onRateLimitInfo: input.rateLimit?.onRateLimitInfo,
+    onRateLimited: input.rateLimit?.onRateLimited,
+    onRateLimitApproaching: input.rateLimit?.onRateLimitApproaching,
+  };
+
   return {
     apiKey: input.apiKey,
     routes,
     autoDetectProvider,
     theme,
     messages,
+    rateLimit,
   };
 }
