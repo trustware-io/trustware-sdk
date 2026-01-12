@@ -32,6 +32,12 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           title: "Trustware SDK",
           description: "Seamlessly bridge assets across chains with Trustware.",
         },
+        rateLimit: {
+          enabled: true,
+          maxRetries: 3,
+          baseDelayMs: 1000,
+          approachingThreshold: 5,
+        },
       };
     }
   });

@@ -1,5 +1,5 @@
 /* core/routes.ts */
-import { apiBase, jsonHeaders, assertOK } from "./http";
+import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import type { BuildRouteResult, RouteParams, Transaction } from "../types";
 
 // @title Build Route
@@ -27,7 +27,7 @@ import type { BuildRouteResult, RouteParams, Transaction } from "../types";
 //   slippage: 0.5, // Optional
 //   };
 export async function buildRoute(p: RouteParams): Promise<BuildRouteResult> {
-  const r = await fetch(`${apiBase()}/squid/route`, {
+  const r = await rateLimitedFetch(`${apiBase()}/squid/route`, {
     method: "POST",
     headers: jsonHeaders(),
     credentials: "omit",
@@ -49,11 +49,14 @@ export async function buildRoute(p: RouteParams): Promise<BuildRouteResult> {
 // const txHash = '0xYourTransactionHash';
 // const receiptResponse = await submitReceipt(intentId, txHash);
 export async function submitReceipt(intentId: string, txHash: string) {
-  const r = await fetch(`${apiBase()}/route-intent/${intentId}/receipt`, {
-    method: "POST",
-    headers: jsonHeaders({ "Idempotency-Key": txHash }),
-    body: JSON.stringify({ txHash }),
-  });
+  const r = await rateLimitedFetch(
+    `${apiBase()}/route-intent/${intentId}/receipt`,
+    {
+      method: "POST",
+      headers: jsonHeaders({ "Idempotency-Key": txHash }),
+      body: JSON.stringify({ txHash }),
+    }
+  );
   await assertOK(r);
   const j = await r.json();
   return j.data;
@@ -68,9 +71,12 @@ export async function submitReceipt(intentId: string, txHash: string) {
 // const intentId = 'your-route-intent-id';
 // const transactionStatus = await getStatus(intentId);
 export async function getStatus(intentId: string): Promise<Transaction> {
-  const r = await fetch(`${apiBase()}/route-intent/${intentId}/status`, {
-    headers: jsonHeaders(),
-  });
+  const r = await rateLimitedFetch(
+    `${apiBase()}/route-intent/${intentId}/status`,
+    {
+      headers: jsonHeaders(),
+    }
+  );
   await assertOK(r);
   const j = await r.json();
   return j.data as Transaction;
