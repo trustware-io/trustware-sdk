@@ -10,7 +10,6 @@ import React, {
 import { Trustware } from "./core"; // <-- the facade above
 import type { TrustwareConfigOptions } from "./types";
 import type { WalletInterFaceAPI } from "./types";
-import { walletManager } from "./wallets/manager";
 import { useWireDetectionIntoManager } from "./wallets/manager";
 
 export type Status = "idle" | "initializing" | "ready" | "error";
@@ -53,6 +52,7 @@ export function TrustwareProvider({
 
         if (wallet) {
           // If caller gives us a wallet, attach it directly
+          // eslint-disable-next-line react-hooks/rules-of-hooks -- not a hook, it's a method on the Trustware facade
           Trustware.useWallet(wallet);
           if (!cancelled) setStatus("ready");
           return;
@@ -63,10 +63,10 @@ export function TrustwareProvider({
         }
 
         if (!cancelled) setStatus("ready");
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) {
           setStatus("error");
-          setErrors(e?.message || String(e));
+          setErrors(e instanceof Error ? e.message : String(e));
         }
       }
     })();

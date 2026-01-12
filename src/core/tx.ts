@@ -3,10 +3,15 @@ import type { BuildRouteResult } from "../types";
 import { walletManager } from "../wallets/";
 import { buildRoute, submitReceipt, pollStatus } from "./routes";
 
-function isUserRejected(e: any): boolean {
-  const code = e?.code ?? e?.data?.code;
+function isUserRejected(e: unknown): boolean {
+  const err = e as {
+    code?: number;
+    data?: { code?: number };
+    message?: string;
+  } | null;
+  const code = err?.code ?? err?.data?.code;
   if (code === 4001) return true;
-  const msg = String(e?.message || e)?.toLowerCase?.() || "";
+  const msg = String(err?.message || e)?.toLowerCase?.() || "";
   return msg.includes("user rejected") || msg.includes("user denied");
 }
 
@@ -36,7 +41,7 @@ export async function sendRouteTransaction(
   if (w.type === "eip1193") {
     const from = await w.getAddress();
     const hexValue = value ? `0x${value.toString(16)}` : "0x0";
-    const params: any = { from, to, data, value: hexValue };
+    const params: Record<string, string> = { from, to, data, value: hexValue };
     if (Number.isFinite(target)) params.chainId = `0x${target!.toString(16)}`;
 
     const hash = await w.request({
@@ -116,7 +121,7 @@ export async function runTopUp(params: {
     await submitReceipt(build.intentId, hash);
     const tx = await pollStatus(build.intentId);
     return tx;
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isUserRejected(e)) throw new Error("Transaction cancelled by user");
     throw e;
   } finally {

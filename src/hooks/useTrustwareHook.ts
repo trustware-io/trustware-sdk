@@ -161,20 +161,31 @@ export function useTrustwareRoute({
         if (ac.signal.aborted) return;
 
         const txReq = build?.route?.transactionRequest;
-        const hasTarget = Boolean((txReq as any)?.to ?? (txReq as any)?.target);
-        if (!txReq || !txReq.data || !hasTarget) {
+        type TxReqWithTarget = { to?: string; target?: string; data?: string };
+        const hasTarget = Boolean(
+          (txReq as TxReqWithTarget)?.to ?? (txReq as TxReqWithTarget)?.target
+        );
+        if (!txReq?.data || !hasTarget) {
           throw new Error("Invalid route response");
         }
 
+        type RouteWithActions = {
+          route?: {
+            estimate?: { route?: { actions?: unknown[] }; actions?: unknown[] };
+            actions?: unknown[];
+          };
+        };
+        const buildWithActions = build as RouteWithActions;
         const actionsRaw =
-          (build as any)?.route?.estimate?.route?.actions ??
-          (build as any)?.route?.estimate?.actions ??
-          (build as any)?.route?.actions ??
+          buildWithActions?.route?.estimate?.route?.actions ??
+          buildWithActions?.route?.estimate?.actions ??
+          buildWithActions?.route?.actions ??
           [];
         const actions = Array.isArray(actionsRaw) ? actionsRaw : [];
 
         const estimate = build?.route?.estimate ?? {};
-        const fees = (estimate as any)?.fees ?? {};
+        const fees =
+          (estimate as { fees?: Record<string, string> })?.fees ?? {};
         const finalExchangeRate: ExchangeRate = {
           fromAmount: estimate?.fromAmount,
           toAmount: estimate?.toAmount,

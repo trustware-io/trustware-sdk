@@ -142,7 +142,7 @@ function createGenericWalletMeta(name: string): WalletMeta {
 // Do NOT walk provider.providers – that caused Rabby/MM
 // flags to "bleed" into other providers like Taho.
 function hasFlagOnProvider(provider: any, flag: string): boolean {
-  return Boolean(provider && provider[flag]);
+  return Boolean(provider?.[flag]);
 }
 
 type FlagMatch = {

@@ -9,11 +9,7 @@ import { walletManager } from "../wallets/manager";
 import { buildRoute, submitReceipt, getStatus, pollStatus } from "./routes";
 import { getBalances } from "./balances";
 import { sendRouteTransaction, runTopUp } from "./tx";
-import {
-  validateSdkAccess,
-  RateLimitError,
-  parseRateLimitHeaders,
-} from "./http";
+import { validateSdkAccess } from "./http";
 
 // simple memo to avoid re-validating same key repeatedly
 let _lastValidatedKey: string | null = null;
@@ -28,9 +24,9 @@ export const Trustware = {
       try {
         await validateSdkAccess();
         _lastValidatedKey = key;
-      } catch (err: any) {
+      } catch (err: unknown) {
         // surface a helpful message while preserving original error
-        const reason = err?.message ? `: ${err.message}` : "";
+        const reason = err instanceof Error ? `: ${err.message}` : "";
         throw new Error(`Trustware.init: API key validation failed${reason}`);
         return {};
       }

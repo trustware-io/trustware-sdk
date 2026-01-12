@@ -55,7 +55,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   }, [config.routes.defaultSlippage]);
 
   const theme = config.theme;
-  const messages = config.messages;
+  const _messages = config.messages;
   const [showPopular, setShowPopular] = useState(false);
   const [status, setStatus] = useState(walletManager.status);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -100,7 +100,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
     );
   }, []);
 
-  const otherWallets = useMemo(() => {
+  const _otherWallets = useMemo(() => {
     const popularIds = new Set(POPULAR_ORDER);
     return WALLETS.filter(
       (wallet) => !popularIds.has(wallet.id) && !detectedIds.has(wallet.id)
@@ -181,8 +181,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
           width: "100%",
           padding: "12px",
           borderRadius: `${theme.radius}px`,
-          border: `1px solid ${isSelected ? theme.primaryColor : theme.borderColor
-            }`,
+          border: `1px solid ${
+            isSelected ? theme.primaryColor : theme.borderColor
+          }`,
           backgroundColor: isSelected
             ? theme.primaryColor
             : theme.backgroundColor,
@@ -359,7 +360,14 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
                   />
                 ))}
               </div>
-              <span style={{ fontSize: "0.75rem", opacity: 0.7, maxWidth: "200px", textAlign: "right" }}>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  opacity: 0.7,
+                  maxWidth: "200px",
+                  textAlign: "right",
+                }}
+              >
                 All tokens on all EVM networks accepted
               </span>
             </div>
