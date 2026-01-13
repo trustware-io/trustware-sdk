@@ -19,7 +19,7 @@ export type TrustwareConfigOptions = {
   autoDetectProvider?: boolean; // Whether to auto-detect wallet provider (optional, default: false.)
   theme?: TrustwareWidgetTheme; // Optional theme customization
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
-  rateLimit?: RateLimitConfig; // Optional rate limit configuration
+  retry?: RetryConfig; // Optional retry configuration for rate-limited requests
 };
 
 export type ResolvedTrustwareConfig = {
@@ -41,7 +41,7 @@ export type ResolvedTrustwareConfig = {
   autoDetectProvider: boolean;
   theme: TrustwareWidgetTheme;
   messages: TrustwareWidgetMessages;
-  rateLimit: ResolvedRateLimitConfig;
+  retry: ResolvedRetryConfig;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
@@ -59,14 +59,14 @@ export type RateLimitInfo = {
   retryAfter?: number;
 };
 
-export type RateLimitConfig = {
-  /** Enable automatic retry on 429 responses (default: true) */
-  enabled?: boolean;
+export type RetryConfig = {
+  /** Enable automatic retry on 429 responses (default: true). Note: This does NOT disable backend rate limits, only client-side retry behavior. */
+  autoRetry?: boolean;
   /** Maximum number of retries on 429 (default: 3) */
   maxRetries?: number;
   /** Base delay in ms for exponential backoff (default: 1000) */
   baseDelayMs?: number;
-  /** Callback when rate limit info is received */
+  /** Callback when rate limit info is received from server */
   onRateLimitInfo?: (info: RateLimitInfo) => void;
   /** Callback when rate limit is hit (429 received) */
   onRateLimited?: (info: RateLimitInfo, retryCount: number) => void;
@@ -76,8 +76,8 @@ export type RateLimitConfig = {
   approachingThreshold?: number;
 };
 
-export type ResolvedRateLimitConfig = {
-  enabled: boolean;
+export type ResolvedRetryConfig = {
+  autoRetry: boolean;
   maxRetries: number;
   baseDelayMs: number;
   approachingThreshold: number;
@@ -86,8 +86,8 @@ export type ResolvedRateLimitConfig = {
   onRateLimitApproaching?: (info: RateLimitInfo, threshold: number) => void;
 };
 
-export const DEFAULT_RATE_LIMIT_CONFIG: ResolvedRateLimitConfig = {
-  enabled: true,
+export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
+  autoRetry: true,
   maxRetries: 3,
   baseDelayMs: 1000,
   approachingThreshold: 5,

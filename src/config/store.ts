@@ -25,7 +25,7 @@ class ConfigStore {
       routes: { ...this._cfg.routes, ...(patch.routes ?? {}) },
       theme: { ...this._cfg.theme, ...(patch.theme ?? {}) } as any,
       messages: { ...this._cfg.messages, ...(patch.messages ?? {}) } as any,
-      rateLimit: { ...this._cfg.rateLimit, ...(patch.rateLimit ?? {}) },
+      retry: { ...this._cfg.retry, ...(patch.retry ?? {}) },
     } as TrustwareConfigOptions);
     this._cfg = next;
     this.emit();
