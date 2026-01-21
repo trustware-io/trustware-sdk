@@ -9,11 +9,7 @@ import { walletManager } from "../wallets/manager";
 import { buildRoute, submitReceipt, getStatus, pollStatus } from "./routes";
 import { getBalances } from "./balances";
 import { sendRouteTransaction, runTopUp } from "./tx";
-import {
-  validateSdkAccess,
-  RateLimitError,
-  parseRateLimitHeaders,
-} from "./http";
+import { validateSdkAccess } from "./http";
 
 // simple memo to avoid re-validating same key repeatedly
 let _lastValidatedKey: string | null = null;
