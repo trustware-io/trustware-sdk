@@ -3,6 +3,7 @@ import { cn } from "../lib/utils";
 import { useDeposit } from "../context/DepositContext";
 import { useRouteBuilder } from "../hooks/useRouteBuilder";
 import { useTokens } from "../hooks/useTokens";
+import { useTransactionSubmit } from "../hooks/useTransactionSubmit";
 import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
 import { AmountSlider } from "../components/AmountSlider";
@@ -35,7 +36,10 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
   const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Get route info with fees
-  const { isLoadingRoute, networkFees, estimatedReceive, error: routeError } = useRouteBuilder();
+  const { isLoadingRoute, networkFees, estimatedReceive, error: routeError, routeResult } = useRouteBuilder();
+
+  // Transaction submission hook
+  const { isSubmitting, submitTransaction } = useTransactionSubmit();
 
   // Get available tokens for the selected chain
   const { tokens } = useTokens(selectedChain?.chainId ?? null);
@@ -127,14 +131,27 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
   };
 
   /**
-   * Handle swipe confirmation
+   * Handle swipe confirmation - submit transaction to wallet
    */
-  const handleConfirm = () => {
-    setCurrentStep("processing");
+  const handleConfirm = async () => {
+    if (!routeResult) {
+      // No route result available, show error
+      return;
+    }
+
+    // Submit the transaction to the wallet for signing
+    // The hook handles all state updates (confirming -> processing or error)
+    await submitTransaction(routeResult);
   };
 
   const isWalletConnected = walletStatus === "connected";
-  const canConfirm = parsedAmount > 0 && selectedToken && isWalletConnected && !isLoadingRoute;
+  const canConfirm =
+    parsedAmount > 0 &&
+    selectedToken &&
+    isWalletConnected &&
+    !isLoadingRoute &&
+    !isSubmitting &&
+    !!routeResult;
 
   return (
     <div className={cn("tw-flex tw-flex-col tw-min-h-[500px]", className)}>

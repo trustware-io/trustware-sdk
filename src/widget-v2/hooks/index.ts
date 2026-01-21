@@ -6,3 +6,6 @@ export type { UseChainsResult } from "./useChains";
 
 export { useTokens } from "./useTokens";
 export type { UseTokensResult } from "./useTokens";
+
+export { useTransactionSubmit } from "./useTransactionSubmit";
+export type { TransactionSubmitState } from "./useTransactionSubmit";
