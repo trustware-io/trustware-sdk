@@ -71,9 +71,18 @@ export function useTokens(chainId: number | null): UseTokensResult {
         // Get tokens for the selected chain
         const tokenDefs = registry.tokens(chainId);
 
-        // Filter and sort tokens
+        // Filter, dedupe by address, and sort tokens
+        const seenAddresses = new Set<string>();
         const loadedTokens = tokenDefs
           .filter((token) => token.visible !== false && token.active !== false)
+          .filter((token) => {
+            const lowerAddr = token.address.toLowerCase();
+            if (seenAddresses.has(lowerAddr)) {
+              return false;
+            }
+            seenAddresses.add(lowerAddr);
+            return true;
+          })
           .map(mapTokenDefToToken)
           .sort((a, b) => {
             // Sort stablecoins first (USDC, USDT, DAI), then by symbol
