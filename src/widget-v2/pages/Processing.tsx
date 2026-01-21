@@ -3,18 +3,11 @@ import { cn } from "../lib/utils";
 import { useDeposit, type TransactionStatus } from "../context/DepositContext";
 import { useTransactionPolling } from "../hooks/useTransactionPolling";
 import { CircularProgress } from "../components/CircularProgress";
+import { TransactionSteps } from "../components/TransactionSteps";
 
 export interface ProcessingProps {
   /** Additional CSS classes */
   className?: string;
-}
-
-/**
- * Step configuration for the transaction progress display
- */
-interface Step {
-  label: string;
-  status: "pending" | "active" | "complete";
 }
 
 /**
@@ -58,58 +51,6 @@ function getStepText(status: TransactionStatus): string {
 }
 
 /**
- * Generates steps array based on current transaction status
- */
-function getSteps(status: TransactionStatus): Step[] {
-  const statusOrder: TransactionStatus[] = [
-    "confirming",
-    "processing",
-    "bridging",
-    "success",
-  ];
-  const currentIndex = statusOrder.indexOf(status);
-
-  return [
-    {
-      label: "Confirming in wallet",
-      status:
-        currentIndex > 0
-          ? "complete"
-          : currentIndex === 0
-            ? "active"
-            : "pending",
-    },
-    {
-      label: "Processing on network",
-      status:
-        currentIndex > 1
-          ? "complete"
-          : currentIndex === 1
-            ? "active"
-            : "pending",
-    },
-    {
-      label: "Bridging to destination",
-      status:
-        currentIndex > 2
-          ? "complete"
-          : currentIndex === 2
-            ? "active"
-            : "pending",
-    },
-    {
-      label: "Complete",
-      status:
-        currentIndex >= 3
-          ? "complete"
-          : currentIndex === 3
-            ? "active"
-            : "pending",
-    },
-  ];
-}
-
-/**
  * Truncates a transaction hash for display
  */
 function truncateHash(hash: string): string {
@@ -147,9 +88,6 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
     () => getStepText(transactionStatus),
     [transactionStatus]
   );
-
-  // Generate steps
-  const steps = useMemo(() => getSteps(transactionStatus), [transactionStatus]);
 
   // Get block explorer URL from transaction data or construct fallback
   const explorerUrl = useMemo(() => {
@@ -245,74 +183,10 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
         )}
 
         {/* Transaction Steps */}
-        <div className="tw-w-full tw-max-w-xs tw-space-y-3 tw-mb-6">
-          {steps.map((step, index) => (
-            <div key={index} className="tw-flex tw-items-center tw-gap-3">
-              {/* Step indicator */}
-              <div
-                className={cn(
-                  "tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-transition-all tw-shrink-0",
-                  step.status === "complete" &&
-                    "tw-bg-green-500 tw-text-white",
-                  step.status === "active" &&
-                    "tw-bg-primary tw-text-primary-foreground",
-                  step.status === "pending" &&
-                    "tw-bg-muted tw-text-muted-foreground"
-                )}
-              >
-                {step.status === "complete" ? (
-                  <svg
-                    className="tw-w-4 tw-h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={3}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                ) : step.status === "active" ? (
-                  <svg
-                    className="tw-w-4 tw-h-4 tw-animate-spin"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="tw-opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="tw-opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
-                ) : (
-                  <span className="tw-text-xs tw-font-medium">{index + 1}</span>
-                )}
-              </div>
-
-              {/* Step label */}
-              <span
-                className={cn(
-                  "tw-text-sm tw-font-medium",
-                  step.status === "pending"
-                    ? "tw-text-muted-foreground"
-                    : "tw-text-foreground"
-                )}
-              >
-                {step.label}
-              </span>
-            </div>
-          ))}
-        </div>
+        <TransactionSteps
+          transactionStatus={transactionStatus}
+          className="tw-w-full tw-max-w-xs tw-mb-6"
+        />
 
         {/* Transaction Hash Link */}
         {transactionHash && (
