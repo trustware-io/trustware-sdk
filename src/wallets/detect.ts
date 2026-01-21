@@ -7,7 +7,6 @@ import type {
   WalletId,
 } from "../types/";
 import { WALLETS } from "./metadata";
-import { isWalletConnectConfigured } from "./walletconnect";
 
 type AnnounceEvent = CustomEvent<{
   info: EIP6963ProviderDetail["info"];
@@ -143,7 +142,7 @@ function createGenericWalletMeta(name: string): WalletMeta {
 // Do NOT walk provider.providers – that caused Rabby/MM
 // flags to "bleed" into other providers like Taho.
 function hasFlagOnProvider(provider: any, flag: string): boolean {
-  return Boolean(provider?.[flag]);
+  return Boolean(provider && provider[flag]);
 }
 
 type FlagMatch = {
@@ -236,26 +235,6 @@ function resolveWalletMeta(
 }
 
 // ────────────────────────────────────────────────────────────
-// WalletConnect virtual entry
-// ────────────────────────────────────────────────────────────
-
-/**
- * Create a "virtual" WalletConnect detected wallet entry.
- * This is shown when WalletConnect is configured but not an injected wallet.
- */
-export function createWalletConnectEntry(): DetectedWallet {
-  const wcMeta = WALLET_BY_ID.get("walletconnect");
-  if (!wcMeta) {
-    throw new Error("WalletConnect metadata not found");
-  }
-  return {
-    meta: wcMeta,
-    via: "walletconnect",
-    provider: undefined, // No provider until connected
-  };
-}
-
-// ────────────────────────────────────────────────────────────
 // Ranking + conversion
 // ────────────────────────────────────────────────────────────
 
@@ -340,22 +319,8 @@ export function useWalletDetection(timeoutMs = 400) {
       }
 
       const out: DetectedWallet[] = [];
-      const seenIds = new Set<string>();
-
       for (const [provider] of candidates) {
-        const wallet = buildDetectedWalletFromProvider(provider, providerDetailMap);
-        // Deduplicate by wallet ID (same wallet can be detected via multiple methods)
-        if (!seenIds.has(wallet.meta.id)) {
-          seenIds.add(wallet.meta.id);
-          out.push(wallet);
-        }
-      }
-
-      // Always add WalletConnect as an option (built-in, enabled by default)
-      // Only skip if explicitly disabled via config
-      const hasWalletConnect = seenIds.has("walletconnect");
-      if (!hasWalletConnect && isWalletConnectConfigured()) {
-        out.push(createWalletConnectEntry());
+        out.push(buildDetectedWalletFromProvider(provider, providerDetailMap));
       }
 
       setDetected(rankDetected(out));

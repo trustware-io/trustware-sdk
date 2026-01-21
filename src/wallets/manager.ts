@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   DetectedWallet,
   WalletInterFaceAPI,
@@ -64,21 +64,15 @@ class WalletManager {
     target: DetectedWallet,
     opts?: { wagmi?: WagmiBridge }
   ) {
-    console.log("[TW Manager] connectDetected called for:", target.meta.id);
-    console.log("[TW Manager] target.provider:", target.provider);
     this._status = "connecting";
     this.emit();
     try {
       const { via, api } = await connectDetectedWallet(target, {
         wagmi: opts?.wagmi,
       });
-      console.log("[TW Manager] connectDetectedWallet returned:", { via, hasApi: !!api });
-      // Set wallet for both eip1193 and walletconnect (api is returned for both)
-      if (api) this._wallet = api;
+      if (via === "eip1193") this._wallet = api!;
       this._status = "connected";
-      console.log("[TW Manager] Status set to connected");
     } catch (e) {
-      console.error("[TW Manager] connectDetected error:", e);
       this._error = e;
       this._status = "error";
     } finally {
