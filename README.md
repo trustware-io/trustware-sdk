@@ -315,6 +315,26 @@ const config = {
 };
 ```
 
+## Bundle Size
+
+The SDK is optimized for minimal bundle impact:
+
+| Bundle | Gzipped Size |
+|--------|--------------|
+| Full SDK (ESM) | ~49 KB |
+| CSS Styles | ~5 KB |
+| **Total** | **~54 KB** |
+
+*Sizes exclude React peer dependency*
+
+Key optimizations:
+- Tree-shaking enabled via ES modules
+- ConfettiEffect lazy-loaded (only imported on success page)
+- Minimal Radix UI usage (only react-dialog)
+- CSS scoped with `tw-` prefix to avoid conflicts
+
+Run `npm run size` to check current bundle sizes.
+
 ## Troubleshooting
 
 - Mount `TrustwareProvider` once at app root.
