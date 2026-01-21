@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { submitReceipt, getStatus } from "../../core/routes";
+import { getStatus } from "../../core/routes";
 import { useDeposit } from "../context/DepositContext";
 import type { Transaction } from "../../types";
 
@@ -61,6 +61,7 @@ export function useTransactionPolling() {
    * Clear all timers and stop polling
    */
   const clearPolling = useCallback(() => {
+    console.log("[TW Polling] clearPolling() called - stack:", new Error().stack?.split('\n').slice(1, 4).join(' <- '));
     abortRef.current = true;
     if (pollingRef.current) {
       clearTimeout(pollingRef.current);
@@ -73,13 +74,14 @@ export function useTransactionPolling() {
   }, []);
 
   /**
-   * Start monitoring a transaction by submitting the receipt and polling status.
+   * Start monitoring a transaction by polling status.
+   * Note: Receipt submission is handled by useTransactionSubmit.
    *
    * @param intentId - The route intent ID from buildRoute
-   * @param txHash - The transaction hash from wallet submission
+   * @param _txHash - The transaction hash (unused, kept for API compatibility)
    */
   const startPolling = useCallback(
-    async (intentId: string, txHash: string) => {
+    async (intentId: string, _txHash: string) => {
       // Clear any existing polling
       clearPolling();
       abortRef.current = false;
@@ -90,25 +92,11 @@ export function useTransactionPolling() {
         apiStatus: null,
         error: null,
         transaction: null,
-        receiptSubmitted: false,
+        receiptSubmitted: true, // Receipt already submitted by useTransactionSubmit
       });
 
       try {
-        // Step 1: Submit the receipt to register the transaction
-        await submitReceipt(intentId, txHash);
-
-        // Check if aborted
-        if (abortRef.current) return;
-
-        setState((prev) => ({
-          ...prev,
-          receiptSubmitted: true,
-        }));
-
-        // Set status to 'processing' after receipt submission
-        setTransactionStatus("processing");
-
-        // Step 2: Set up the 5-minute timeout
+        // Set up the 5-minute timeout
         timeoutRef.current = setTimeout(() => {
           if (abortRef.current) return;
 
@@ -128,10 +116,16 @@ export function useTransactionPolling() {
 
         // Step 3: Start polling loop
         const poll = async () => {
-          if (abortRef.current) return;
+          console.log("[TW Polling] poll() called, abortRef:", abortRef.current);
+          if (abortRef.current) {
+            console.log("[TW Polling] ABORTED - exiting poll loop");
+            return;
+          }
 
           try {
+            console.log("[TW Polling] Fetching status for intent:", intentId);
             const tx = await getStatus(intentId);
+            console.log("[TW Polling] API response - status:", tx.status, "| id:", tx.id, "| full:", JSON.stringify(tx));
 
             // Check if aborted after async call
             if (abortRef.current) return;
@@ -145,6 +139,7 @@ export function useTransactionPolling() {
 
             // Handle terminal states
             if (tx.status === "success") {
+              console.log("[TW Polling] SUCCESS detected! Navigating to success page...");
               clearPolling();
               setState((prev) => ({
                 ...prev,
@@ -156,8 +151,9 @@ export function useTransactionPolling() {
             }
 
             if (tx.status === "failed") {
-              clearPolling();
               const failError = mapFailedTransactionError(tx);
+              console.log("[TW Polling] FAILED detected! Error:", failError, "| Navigating to error page...");
+              clearPolling();
               setState((prev) => ({
                 ...prev,
                 isPolling: false,
@@ -171,11 +167,14 @@ export function useTransactionPolling() {
 
             // Handle bridging phase
             if (tx.status === "bridging") {
+              console.log("[TW Polling] BRIDGING phase detected");
               setTransactionStatus("bridging");
             }
 
             // Schedule next poll if not terminal
+            console.log("[TW Polling] Status is", tx.status, "- scheduling next poll in", POLL_INTERVAL_MS, "ms");
             pollingRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+            console.log("[TW Polling] Next poll scheduled, pollingRef:", pollingRef.current !== null);
           } catch (pollErr) {
             if (abortRef.current) return;
 
@@ -253,12 +252,15 @@ export function useTransactionPolling() {
     });
   }, [clearPolling]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount only - use ref to avoid dependency issues
+  const clearPollingRef = useRef(clearPolling);
+  clearPollingRef.current = clearPolling;
+
   useEffect(() => {
     return () => {
-      clearPolling();
+      clearPollingRef.current();
     };
-  }, [clearPolling]);
+  }, []); // Empty deps - only run cleanup on actual unmount
 
   return {
     ...state,

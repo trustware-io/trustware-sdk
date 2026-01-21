@@ -7,6 +7,7 @@ import React, {
   useEffect,
 } from "react";
 import { walletManager } from "../../wallets/manager";
+import { useWalletDetection } from "../../wallets/detect";
 import type { DetectedWallet, WalletInterFaceAPI } from "../../types";
 
 /**
@@ -145,6 +146,10 @@ export interface DepositContextValue {
   errorMessage: string | null;
   /** Set the error message */
   setErrorMessage: (message: string | null) => void;
+  /** Route intent ID for transaction tracking */
+  intentId: string | null;
+  /** Set the intent ID */
+  setIntentId: (id: string | null) => void;
 
   // Payment method state
   /** Selected payment method type */
@@ -190,6 +195,14 @@ export function DepositProvider({
     walletManager.status as WalletStatus
   );
 
+  // Wire wallet detection into manager (detection only, no auto-connect)
+  const { detected } = useWalletDetection();
+
+  // Feed detected wallets into manager for display in UI
+  useEffect(() => {
+    walletManager.setDetected(detected);
+  }, [detected]);
+
   // Token and chain state
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
   const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
@@ -200,6 +213,7 @@ export function DepositProvider({
     useState<TransactionStatus>("idle");
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [intentId, setIntentId] = useState<string | null>(null);
 
   // Payment method state (defaults to crypto)
   const [paymentMethod, setPaymentMethod] =
@@ -319,6 +333,7 @@ export function DepositProvider({
     setTransactionStatus("idle");
     setTransactionHash(null);
     setErrorMessage(null);
+    setIntentId(null);
     // Reset payment method to crypto
     setPaymentMethod("crypto");
   }, []);
@@ -366,6 +381,8 @@ export function DepositProvider({
       setTransactionHash,
       errorMessage,
       setErrorMessage,
+      intentId,
+      setIntentId,
       // Payment method state
       paymentMethod,
       setPaymentMethod,
@@ -390,6 +407,7 @@ export function DepositProvider({
       transactionStatus,
       transactionHash,
       errorMessage,
+      intentId,
       paymentMethod,
       resolvedTheme,
       toggleTheme,

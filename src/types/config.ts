@@ -1,5 +1,43 @@
 import { TrustwareWidgetTheme, TrustwareWidgetMessages } from "./theme";
 
+/** WalletConnect configuration options (all optional - SDK has built-in defaults) */
+export type WalletConnectConfig = {
+  /** Override the built-in WalletConnect project ID (optional - SDK includes one) */
+  projectId?: string;
+  /** Chain IDs to support (defaults to [1] for Ethereum mainnet) */
+  chains?: number[];
+  /** Optional chain IDs (chains that can be switched to) */
+  optionalChains?: number[];
+  /** dApp metadata shown in wallet */
+  metadata?: {
+    name: string;
+    description?: string;
+    url: string;
+    icons?: string[];
+  };
+  /** Custom relay URL (defaults to WalletConnect's relay) */
+  relayUrl?: string;
+  /** Whether to show our custom QR modal (default: true) */
+  showQrModal?: boolean;
+  /** Disable WalletConnect entirely (default: false) */
+  disabled?: boolean;
+};
+
+/** Resolved WalletConnect config with defaults applied */
+export type ResolvedWalletConnectConfig = {
+  projectId: string;
+  chains: number[];
+  optionalChains: number[];
+  metadata: {
+    name: string;
+    description: string;
+    url: string;
+    icons: string[];
+  };
+  relayUrl?: string;
+  showQrModal: boolean;
+};
+
 export type TrustwareConfigOptions = {
   apiKey: string; // Required API key for authentication
   routes: {
@@ -20,6 +58,7 @@ export type TrustwareConfigOptions = {
   theme?: TrustwareWidgetTheme; // Optional theme customization
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
   rateLimit?: RateLimitConfig; // Optional rate limit configuration
+  walletConnect?: WalletConnectConfig; // Optional WalletConnect configuration
 };
 
 export type ResolvedTrustwareConfig = {
@@ -42,6 +81,7 @@ export type ResolvedTrustwareConfig = {
   theme: TrustwareWidgetTheme;
   messages: TrustwareWidgetMessages;
   rateLimit: ResolvedRateLimitConfig;
+  walletConnect?: ResolvedWalletConnectConfig; // Optional WalletConnect config
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage

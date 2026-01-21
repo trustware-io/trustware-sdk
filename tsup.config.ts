@@ -41,8 +41,15 @@ const baseConfig: Options = {
   clean: true,
   splitting: false,
 
-  // Don't bundle peer libs:
-  external: ["react", "react-dom", "wagmi", "@rainbow-me/rainbowkit"],
+  // Don't bundle peer libs or optional heavy deps (WalletConnect lazy-loaded):
+  external: [
+    "react",
+    "react-dom",
+    "wagmi",
+    "@rainbow-me/rainbowkit",
+    "@walletconnect/ethereum-provider",
+    "qrcode",
+  ],
 
   // Ensure ESM files end with .mjs to match your package.json "module"/exports
   outExtension({ format }) {

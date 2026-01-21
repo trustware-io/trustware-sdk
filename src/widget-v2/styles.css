@@ -4,45 +4,102 @@
 
 /* CSS Variables for theming - scoped to widget */
 .trustware-widget {
-  /* Light theme (default) */
-  --tw-background: 0 0% 100%;
-  --tw-foreground: 222.2 84% 4.9%;
+  /* Light theme (default) - New design system with bright blue primary */
+  --tw-background: 0 0% 98%;
+  --tw-foreground: 220 15% 20%;
   --tw-card: 0 0% 100%;
-  --tw-card-foreground: 222.2 84% 4.9%;
-  --tw-primary: 222.2 47.4% 11.2%;
-  --tw-primary-foreground: 210 40% 98%;
-  --tw-secondary: 210 40% 96.1%;
-  --tw-secondary-foreground: 222.2 47.4% 11.2%;
-  --tw-muted: 210 40% 96.1%;
-  --tw-muted-foreground: 215.4 16.3% 46.9%;
-  --tw-accent: 210 40% 96.1%;
-  --tw-accent-foreground: 222.2 47.4% 11.2%;
-  --tw-destructive: 0 84.2% 60.2%;
-  --tw-destructive-foreground: 210 40% 98%;
-  --tw-border: 214.3 31.8% 91.4%;
-  --tw-input: 214.3 31.8% 91.4%;
-  --tw-ring: 222.2 84% 4.9%;
-  --tw-radius: 0.5rem;
+  --tw-card-foreground: 220 15% 20%;
+  --tw-primary: 217 91% 60%;
+  --tw-primary-foreground: 0 0% 100%;
+  --tw-secondary: 220 14% 96%;
+  --tw-secondary-foreground: 220 15% 20%;
+  --tw-muted: 220 14% 96%;
+  --tw-muted-foreground: 220 10% 50%;
+  --tw-accent: 217 91% 60%;
+  --tw-accent-foreground: 0 0% 100%;
+  --tw-destructive: 0 84% 60%;
+  --tw-destructive-foreground: 0 0% 100%;
+  --tw-border: 220 13% 91%;
+  --tw-input: 220 13% 91%;
+  --tw-ring: 217 91% 60%;
+  --tw-radius: 1rem;
+
+  /* Shadow system */
+  --tw-shadow-soft: 0 2px 8px -2px hsl(220 15% 20% / 0.08);
+  --tw-shadow-medium: 0 4px 16px -4px hsl(220 15% 20% / 0.12);
+  --tw-shadow-large: 0 8px 32px -8px hsl(220 15% 20% / 0.16);
+
+  /* Transitions */
+  --tw-transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --tw-transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Font stack - SF Pro system fonts */
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Dark theme */
 .trustware-widget[data-theme="dark"],
 .trustware-widget.dark {
-  --tw-background: 222.2 84% 4.9%;
-  --tw-foreground: 210 40% 98%;
-  --tw-card: 222.2 84% 4.9%;
-  --tw-card-foreground: 210 40% 98%;
-  --tw-primary: 210 40% 98%;
-  --tw-primary-foreground: 222.2 47.4% 11.2%;
-  --tw-secondary: 217.2 32.6% 17.5%;
-  --tw-secondary-foreground: 210 40% 98%;
-  --tw-muted: 217.2 32.6% 17.5%;
-  --tw-muted-foreground: 215 20.2% 65.1%;
-  --tw-accent: 217.2 32.6% 17.5%;
-  --tw-accent-foreground: 210 40% 98%;
-  --tw-destructive: 0 62.8% 30.6%;
-  --tw-destructive-foreground: 210 40% 98%;
-  --tw-border: 217.2 32.6% 17.5%;
-  --tw-input: 217.2 32.6% 17.5%;
-  --tw-ring: 212.7 26.8% 83.9%;
+  --tw-background: 220 15% 10%;
+  --tw-foreground: 0 0% 98%;
+  --tw-card: 220 15% 12%;
+  --tw-card-foreground: 0 0% 98%;
+  --tw-primary: 217 91% 60%;
+  --tw-primary-foreground: 0 0% 100%;
+  --tw-secondary: 220 15% 18%;
+  --tw-secondary-foreground: 0 0% 98%;
+  --tw-muted: 220 15% 18%;
+  --tw-muted-foreground: 220 10% 60%;
+  --tw-accent: 217 91% 60%;
+  --tw-accent-foreground: 0 0% 100%;
+  --tw-destructive: 0 84% 60%;
+  --tw-destructive-foreground: 0 0% 100%;
+  --tw-border: 220 15% 20%;
+  --tw-input: 220 15% 20%;
+  --tw-ring: 217 91% 60%;
+
+  /* Dark mode shadows (slightly more visible) */
+  --tw-shadow-soft: 0 2px 8px -2px hsl(0 0% 0% / 0.2);
+  --tw-shadow-medium: 0 4px 16px -4px hsl(0 0% 0% / 0.3);
+  --tw-shadow-large: 0 8px 32px -8px hsl(0 0% 0% / 0.4);
+}
+
+/* Utility classes */
+.tw-touch-none {
+  touch-action: none;
+}
+
+.tw-scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tw-scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.tw-safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tw-safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Confetti animation */
+@keyframes tw-confetti-fall {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.tw-animate-confetti {
+  animation: tw-confetti-fall 2s ease-out forwards;
 }

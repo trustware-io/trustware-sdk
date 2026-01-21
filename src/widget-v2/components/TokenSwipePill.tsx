@@ -214,7 +214,7 @@ export function TokenSwipePill({
 
               return (
                 <div
-                  key={`${token.address}-${token.symbol}`}
+                  key={`carousel-${index}-${token.address}`}
                   className={cn(
                     "tw-absolute tw-transition-all",
                     isDragging ? "tw-duration-75" : "tw-duration-200 tw-ease-out"
@@ -279,7 +279,7 @@ export function TokenSwipePill({
           <div className="tw-flex tw-items-center tw-gap-1.5 tw-mt-1">
             {tokens.map((token, index) => (
               <button
-                key={`dot-${token.address}-${token.symbol}`}
+                key={`dot-${index}-${token.address}`}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();

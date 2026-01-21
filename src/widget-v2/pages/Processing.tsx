@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { cn } from "../lib/utils";
 import { useDeposit, type TransactionStatus } from "../context/DepositContext";
 import { useTransactionPolling } from "../hooks/useTransactionPolling";
@@ -72,10 +72,45 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
     amount,
     resetState,
     setCurrentStep,
+    intentId,
   } = useDeposit();
 
   // Get transaction details from polling hook
-  const { transaction } = useTransactionPolling();
+  const { transaction, startPolling, isPolling } = useTransactionPolling();
+
+  // Track if we've already started polling to avoid duplicate calls
+  const hasStartedPolling = useRef(false);
+
+  // Reset hasStartedPolling on unmount (needed for React StrictMode compatibility)
+  useEffect(() => {
+    return () => {
+      hasStartedPolling.current = false;
+    };
+  }, []);
+
+  // Start polling when we have intentId and transactionHash
+  useEffect(() => {
+    console.log("[TW Processing] useEffect check:", {
+      intentId,
+      transactionHash: transactionHash ? transactionHash.slice(0, 10) + "..." : null,
+      isPolling,
+      hasStartedPolling: hasStartedPolling.current,
+      transactionStatus,
+    });
+
+    if (
+      intentId &&
+      transactionHash &&
+      !isPolling &&
+      !hasStartedPolling.current &&
+      transactionStatus !== "success" &&
+      transactionStatus !== "error"
+    ) {
+      console.log("[TW Processing] Starting polling for intent:", intentId);
+      hasStartedPolling.current = true;
+      startPolling(intentId, transactionHash);
+    }
+  }, [intentId, transactionHash, isPolling, transactionStatus, startPolling]);
 
   // Calculate progress based on actual status
   const progress = useMemo(

@@ -1,7 +1,7 @@
 import { ChainDef, TokenWithBalance } from "src/types/";
 
 export function hexToRgba(hex: string, alpha = 1) {
-  if (!hex || !hex.startsWith("#")) return `rgba(0,0,0,${alpha})`;
+  if (!hex?.startsWith("#")) return `rgba(0,0,0,${alpha})`;
   const h = hex.replace("#", "");
   const isShort = h.length === 3;
   const r = parseInt(isShort ? h[0] + h[0] : h.slice(0, 2), 16);

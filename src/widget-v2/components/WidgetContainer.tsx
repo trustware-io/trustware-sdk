@@ -46,8 +46,9 @@ export function WidgetContainer({
         "trustware-widget",
         "tw-max-w-[420px] tw-w-full",
         "tw-overflow-y-auto tw-overflow-x-hidden",
-        "tw-bg-background tw-text-foreground",
-        "tw-rounded-lg tw-shadow-lg",
+        "tw-bg-card tw-text-foreground",
+        "tw-rounded-[20px] tw-shadow-large",
+        "tw-border tw-border-border/30",
         "tw-font-sans",
         "tw-relative",
         className

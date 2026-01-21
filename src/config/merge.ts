@@ -2,6 +2,8 @@
 import type {
   TrustwareConfigOptions,
   ResolvedTrustwareConfig,
+  ResolvedWalletConnectConfig,
+  WalletConnectConfig,
 } from "../types/";
 import {
   DEFAULT_AUTO_DETECT_PROVIDER,
@@ -10,6 +12,37 @@ import {
   DEFAULT_MESSAGES,
 } from "./defaults";
 import { DEFAULT_RATE_LIMIT_CONFIG } from "../types/config";
+import { WALLETCONNECT_PROJECT_ID } from "../constants";
+
+/**
+ * Resolve WalletConnect config with built-in defaults.
+ * WalletConnect is ENABLED by default - no user configuration required.
+ */
+function resolveWalletConnectConfig(
+  input?: WalletConnectConfig
+): ResolvedWalletConnectConfig | undefined {
+  // Allow users to explicitly disable WalletConnect
+  if (input?.disabled) return undefined;
+
+  // Use built-in project ID by default, allow override
+  const projectId = input?.projectId ?? WALLETCONNECT_PROJECT_ID;
+
+  return {
+    projectId,
+    chains: input?.chains ?? [1], // Default to Ethereum mainnet
+    optionalChains: input?.optionalChains ?? [
+      1, 10, 56, 137, 8453, 42161, 43114,
+    ], // ETH, OP, BSC, Polygon, Base, Arbitrum, Avalanche
+    metadata: {
+      name: input?.metadata?.name ?? "Trustware",
+      description: input?.metadata?.description ?? "Cross-chain bridge & top-up",
+      url: input?.metadata?.url ?? "https://trustware.io",
+      icons: input?.metadata?.icons ?? ["https://app.trustware.io/icon.png"],
+    },
+    relayUrl: input?.relayUrl,
+    showQrModal: input?.showQrModal ?? true,
+  };
+}
 
 // tiny deep merge for plain objects
 function deepMerge<T extends Record<string, any>>(
@@ -86,6 +119,9 @@ export function resolveConfig(
     onRateLimitApproaching: input.rateLimit?.onRateLimitApproaching,
   };
 
+  // Resolve WalletConnect config (optional)
+  const walletConnect = resolveWalletConnectConfig(input.walletConnect);
+
   return {
     apiKey: input.apiKey,
     routes,
@@ -93,5 +129,6 @@ export function resolveConfig(
     theme,
     messages,
     rateLimit,
+    walletConnect,
   };
 }

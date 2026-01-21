@@ -71,10 +71,19 @@ export function useRouteBuilder(
       return null;
     }
 
+    // Convert amount to smallest unit (e.g., wei for ETH)
+    // Use BigInt math to avoid floating point precision issues
+    const decimals = selectedToken.decimals || 18;
+    const [whole, fraction = ""] = amount.split(".");
+    const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
+    const amountInSmallestUnit = whole + paddedFraction;
+    // Remove leading zeros but keep at least one digit
+    const fromAmountWei = amountInSmallestUnit.replace(/^0+/, "") || "0";
+
     return JSON.stringify({
       fromChain: selectedChain.chainId,
       fromToken: selectedToken.address,
-      fromAmount: amount,
+      fromAmount: fromAmountWei,
       fromAddress: walletAddress,
     });
   }, [enabled, selectedToken, selectedChain, amount, walletAddress]);

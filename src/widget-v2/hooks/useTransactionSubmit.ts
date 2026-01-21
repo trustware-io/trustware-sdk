@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { Trustware } from "../../core";
+import { submitReceipt } from "../../core/routes";
 import { useDeposit } from "../context/DepositContext";
 import type { BuildRouteResult } from "../../types";
 
@@ -29,6 +30,7 @@ export function useTransactionSubmit() {
     setTransactionHash,
     setErrorMessage,
     setCurrentStep,
+    setIntentId,
   } = useDeposit();
 
   const [state, setState] = useState<TransactionSubmitState>({
@@ -79,16 +81,29 @@ export function useTransactionSubmit() {
         );
 
         // Transaction was signed and submitted
+        console.log("[TW Submit] Transaction signed! Hash:", hash);
         setState({
           isSubmitting: false,
           txHash: hash,
           error: null,
         });
 
-        // Update context with the transaction hash
+        // Update context with the transaction hash and intent ID
+        console.log("[TW Submit] Setting context - hash:", hash, "intentId:", routeResult.intentId);
         setTransactionHash(hash);
+        setIntentId(routeResult.intentId);
 
-        // Transition to processing step (polling will be handled by US-021)
+        // Notify backend of the transaction receipt
+        try {
+          await submitReceipt(routeResult.intentId, hash);
+        } catch (receiptErr) {
+          console.warn("Failed to submit receipt to backend:", receiptErr);
+          // Don't fail the transaction if receipt submission fails
+          // The backend poller will eventually pick it up
+        }
+
+        // Transition to processing step (polling will be handled by Processing page)
+        setTransactionStatus("processing");
         setCurrentStep("processing");
 
         return hash;
@@ -116,6 +131,7 @@ export function useTransactionSubmit() {
       setTransactionHash,
       setErrorMessage,
       setCurrentStep,
+      setIntentId,
     ]
   );
 
