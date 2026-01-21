@@ -89,11 +89,20 @@ export function useRouteBuilder(
   }, [enabled, selectedToken, selectedChain, amount, walletAddress]);
 
   useEffect(() => {
+    console.log("[useRouteBuilder] Effect triggered, routeKey:", routeKey ? "exists" : "null");
+
     // Abort any pending request
     abortRef.current?.abort();
 
     // Clear state if we don't have all required params
     if (!routeKey) {
+      console.log("[useRouteBuilder] No routeKey - missing params:", {
+        enabled,
+        hasToken: !!selectedToken,
+        hasChain: !!selectedChain,
+        amount,
+        hasWallet: !!walletAddress,
+      });
       setState({
         isLoadingRoute: false,
         networkFees: null,
@@ -107,6 +116,7 @@ export function useRouteBuilder(
 
     // Parse the route key to get params
     const params = JSON.parse(routeKey);
+    console.log("[useRouteBuilder] Building route with params:", params);
 
     // Create new abort controller
     const ac = new AbortController();
@@ -114,6 +124,7 @@ export function useRouteBuilder(
 
     // Debounce the route building
     const timeout = setTimeout(async () => {
+      console.log("[useRouteBuilder] Debounce complete, calling API...");
       try {
         setState((prev) => ({
           ...prev,
@@ -123,6 +134,7 @@ export function useRouteBuilder(
 
         // Get destination config from SDK config
         const config = TrustwareConfigStore.get();
+        console.log("[useRouteBuilder] Config routes:", config.routes);
         const { toChain, toToken, toAddress, defaultSlippage } = config.routes;
 
         // Ensure we have a destination address
@@ -150,6 +162,11 @@ export function useRouteBuilder(
         const estimate = result?.route?.estimate;
         const fees = estimate?.fees;
 
+        // Debug: log the full estimate object
+        console.log("[useRouteBuilder] Route result:", result);
+        console.log("[useRouteBuilder] Estimate:", estimate);
+        console.log("[useRouteBuilder] Fees:", fees);
+
         // Calculate network fees (gas + bridge fees in USD)
         let networkFeesUSD: string | null = null;
         if (estimate?.fromAmountUSD && estimate?.toAmountMinUSD) {
@@ -161,12 +178,34 @@ export function useRouteBuilder(
           }
         }
 
+        // Try to get gas cost from fees object
+        if (!networkFeesUSD && fees) {
+          const gasCost = (fees as any).gasCostUSD || (fees as any).totalGasCostUSD;
+          if (gasCost) {
+            networkFeesUSD = parseFloat(gasCost).toFixed(2);
+          }
+        }
+
         // Get estimated receive amount
-        const estimatedReceive =
-          estimate?.toAmount ||
-          estimate?.minimumReceived ||
-          (fees as any)?.minimumReceived ||
-          null;
+        // Priority: USD value > formatted token amount > raw amount converted
+        let estimatedReceive: string | null = null;
+
+        if (estimate?.toAmountUSD) {
+          estimatedReceive = estimate.toAmountUSD;
+        } else if (estimate?.toAmountMinUSD) {
+          estimatedReceive = estimate.toAmountMinUSD;
+        } else if (estimate?.toAmount) {
+          // Convert from smallest unit - assume 6 decimals for stablecoins, 18 for others
+          const toToken = config.routes.toToken?.toLowerCase() || "";
+          const isStablecoin = toToken.includes("usdc") || toToken.includes("usdt") || toToken.includes("dai");
+          const decimals = isStablecoin ? 6 : 18;
+          const raw = BigInt(estimate.toAmount);
+          const divisor = BigInt(10 ** decimals);
+          const whole = raw / divisor;
+          const fraction = raw % divisor;
+          const fractionStr = fraction.toString().padStart(decimals, "0").slice(0, 2);
+          estimatedReceive = `${whole}.${fractionStr}`;
+        }
 
         setState({
           isLoadingRoute: false,

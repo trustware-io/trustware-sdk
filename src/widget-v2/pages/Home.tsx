@@ -184,7 +184,7 @@ export function Home({ className }: HomeProps): React.ReactElement {
             <span className="tw-relative tw-inline-block tw-min-w-[1ch]">
               <span
                 className={
-                  parsedAmount > 0
+                  isEditing || parsedAmount > 0
                     ? "tw-text-foreground"
                     : "tw-text-muted-foreground/40"
                 }

@@ -331,7 +331,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
                 <span className="tw-text-muted-foreground tw-text-sm">You&apos;ll receive</span>
                 <span className="tw-font-semibold tw-text-foreground">
                   {estimatedReceive
-                    ? `~${parseFloat(estimatedReceive).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                    ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                     : parsedAmount > 0
                       ? `~$${(parsedAmount * 0.99).toFixed(2)}`
                       : "—"}

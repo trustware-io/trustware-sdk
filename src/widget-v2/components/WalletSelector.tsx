@@ -82,7 +82,16 @@ export function WalletSelector({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleWalletClick = async (wallet: DetectedWallet) => {
-    if (walletStatus === "connecting") return;
+    console.log("[WalletSelector] handleWalletClick called", {
+      walletId: wallet.meta.id,
+      walletName: wallet.meta.name,
+      walletStatus,
+      hasProvider: !!wallet.provider,
+    });
+    if (walletStatus === "connecting") {
+      console.log("[WalletSelector] Already connecting, ignoring click");
+      return;
+    }
 
     // Special handling for WalletConnect - show QR modal
     if (wallet.meta.id === "walletconnect" || wallet.via === "walletconnect") {
@@ -106,10 +115,13 @@ export function WalletSelector({
     }
 
     setConnectingWalletId(wallet.meta.id);
+    console.log("[WalletSelector] Starting EIP-1193 connection...");
     try {
       await connectWallet(wallet);
+      console.log("[WalletSelector] connectWallet returned successfully");
       onWalletSelect?.(wallet);
     } catch (error) {
+      console.error("[WalletSelector] connectWallet threw:", error);
       setConnectingWalletId(null);
       // Show error toast with user-friendly message
       const message =

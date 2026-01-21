@@ -277,7 +277,17 @@ export function DepositProvider({
    * Connect to a detected wallet
    */
   const connectWallet = useCallback(async (wallet: DetectedWallet) => {
-    await walletManager.connectDetected(wallet);
+    console.log("[DepositContext] connectWallet called", {
+      walletId: wallet.meta.id,
+      hasProvider: !!wallet.provider,
+    });
+    try {
+      await walletManager.connectDetected(wallet);
+      console.log("[DepositContext] connectWallet succeeded");
+    } catch (error) {
+      console.error("[DepositContext] connectWallet error:", error);
+      throw error;
+    }
   }, []);
 
   /**
