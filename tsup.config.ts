@@ -63,9 +63,12 @@ const baseConfig: Options = {
     options.jsx = "automatic";
   },
 
-  // Inject package.json version at build time
+  // Inject package.json version and API root at build time
   define: {
     __SDK_VERSION__: JSON.stringify(pkg.version),
+    __API_ROOT__: JSON.stringify(
+      process.env.TRUSTWARE_API_ROOT || "https://api.trustware.io"
+    ),
   },
 };
 

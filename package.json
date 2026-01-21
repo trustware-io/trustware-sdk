@@ -54,6 +54,7 @@
   ],
   "scripts": {
     "build": "tsup --config tsup.config.ts",
+    "build:staging": "TRUSTWARE_API_ROOT=https://bv-staging-api.trustware.io npm run build",
     "dev": "tsup --config tsup.config.ts --watch",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
