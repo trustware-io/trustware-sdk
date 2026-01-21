@@ -30,6 +30,44 @@ export type WalletStatus =
   | "connected"
   | "error";
 
+/**
+ * Token information for deposit selection
+ */
+export interface Token {
+  /** Token contract address (or 'native' for native tokens) */
+  address: string;
+  /** Token symbol (e.g., 'USDC', 'ETH') */
+  symbol: string;
+  /** Token display name (e.g., 'USD Coin', 'Ethereum') */
+  name: string;
+  /** Number of decimals for the token */
+  decimals: number;
+  /** URL to token icon/logo */
+  iconUrl?: string;
+  /** Token balance if wallet connected (as string to preserve precision) */
+  balance?: string;
+}
+
+/**
+ * Blockchain network information for deposit selection
+ */
+export interface Chain {
+  /** Chain ID (e.g., 1 for Ethereum mainnet) */
+  chainId: number;
+  /** Chain display name (e.g., 'Ethereum', 'Polygon') */
+  name: string;
+  /** Short name or symbol (e.g., 'ETH', 'MATIC') */
+  shortName: string;
+  /** URL to chain icon/logo */
+  iconUrl?: string;
+  /** Whether this is a popular/featured chain */
+  isPopular?: boolean;
+  /** Native token symbol */
+  nativeToken: string;
+  /** Block explorer URL */
+  explorerUrl?: string;
+}
+
 export interface DepositContextValue {
   /** Current navigation step */
   currentStep: NavigationStep;
@@ -53,6 +91,20 @@ export interface DepositContextValue {
   connectWallet: (wallet: DetectedWallet) => Promise<void>;
   /** Disconnect the current wallet */
   disconnectWallet: () => Promise<void>;
+
+  // Token and chain state
+  /** Currently selected token for deposit */
+  selectedToken: Token | null;
+  /** Set the selected token */
+  setSelectedToken: (token: Token | null) => void;
+  /** Currently selected blockchain network */
+  selectedChain: Chain | null;
+  /** Set the selected chain */
+  setSelectedChain: (chain: Chain | null) => void;
+  /** Deposit amount as string (to preserve decimal precision) */
+  amount: string;
+  /** Set the deposit amount */
+  setAmount: (amount: string) => void;
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -85,6 +137,11 @@ export function DepositProvider({
   const [walletStatus, setWalletStatus] = useState<WalletStatus>(
     walletManager.status as WalletStatus
   );
+
+  // Token and chain state
+  const [selectedToken, setSelectedToken] = useState<Token | null>(null);
+  const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
+  const [amount, setAmount] = useState<string>("");
 
   /**
    * Subscribe to walletManager state changes
@@ -173,6 +230,9 @@ export function DepositProvider({
   const resetState = useCallback(() => {
     setCurrentStepInternal("home");
     setStepHistory(["home"]);
+    setSelectedToken(null);
+    setSelectedChain(null);
+    setAmount("");
   }, []);
 
   const value = useMemo<DepositContextValue>(
@@ -188,6 +248,13 @@ export function DepositProvider({
       walletStatus,
       connectWallet,
       disconnectWallet,
+      // Token and chain state
+      selectedToken,
+      setSelectedToken,
+      selectedChain,
+      setSelectedChain,
+      amount,
+      setAmount,
     }),
     [
       currentStep,
@@ -200,6 +267,9 @@ export function DepositProvider({
       walletStatus,
       connectWallet,
       disconnectWallet,
+      selectedToken,
+      selectedChain,
+      amount,
     ]
   );
 
