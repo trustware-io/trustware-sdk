@@ -10,6 +10,16 @@ import { walletManager } from "../../wallets/manager";
 import type { DetectedWallet, WalletInterFaceAPI } from "../../types";
 
 /**
+ * localStorage key for persisting theme preference
+ */
+const THEME_STORAGE_KEY = "trustware-widget-theme";
+
+/**
+ * Resolved theme type (light or dark, not system)
+ */
+export type ResolvedTheme = "light" | "dark";
+
+/**
  * Navigation states for the deposit widget flow
  */
 export type NavigationStep =
@@ -141,6 +151,12 @@ export interface DepositContextValue {
   paymentMethod: PaymentMethodType;
   /** Set the payment method type */
   setPaymentMethod: (method: PaymentMethodType) => void;
+
+  // Theme state
+  /** Current resolved theme (light or dark) */
+  resolvedTheme: ResolvedTheme;
+  /** Toggle between light and dark themes */
+  toggleTheme: () => void;
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -188,6 +204,26 @@ export function DepositProvider({
   // Payment method state (defaults to crypto)
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethodType>("crypto");
+
+  // Theme state - load from localStorage or use system preference
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => {
+    // Try to load from localStorage
+    try {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      if (stored === "light" || stored === "dark") {
+        return stored;
+      }
+    } catch {
+      // localStorage not available
+    }
+    // Fall back to system preference
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+    }
+    return "light";
+  });
 
   /**
    * Subscribe to walletManager state changes
@@ -287,6 +323,22 @@ export function DepositProvider({
     setPaymentMethod("crypto");
   }, []);
 
+  /**
+   * Toggle between light and dark themes
+   */
+  const toggleTheme = useCallback(() => {
+    setResolvedTheme((current) => {
+      const newTheme = current === "light" ? "dark" : "light";
+      // Persist to localStorage
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+      } catch {
+        // localStorage not available
+      }
+      return newTheme;
+    });
+  }, []);
+
   const value = useMemo<DepositContextValue>(
     () => ({
       currentStep,
@@ -317,6 +369,9 @@ export function DepositProvider({
       // Payment method state
       paymentMethod,
       setPaymentMethod,
+      // Theme state
+      resolvedTheme,
+      toggleTheme,
     }),
     [
       currentStep,
@@ -336,6 +391,8 @@ export function DepositProvider({
       transactionHash,
       errorMessage,
       paymentMethod,
+      resolvedTheme,
+      toggleTheme,
     ]
   );
 

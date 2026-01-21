@@ -13,7 +13,9 @@ import {
   useDeposit,
   type NavigationStep,
   type TransactionStatus,
+  type ResolvedTheme,
 } from "./context/DepositContext";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { WidgetContainer, type Theme } from "./components/WidgetContainer";
 import { Home } from "./pages/Home";
 import { SelectToken } from "./pages/SelectToken";
@@ -120,6 +122,8 @@ const ACTIVE_TRANSACTION_STATUSES: TransactionStatus[] = [
 interface WidgetContentProps {
   className?: string;
   onStateChange?: (state: PersistedState) => void;
+  /** Whether to show the theme toggle button */
+  showThemeToggle: boolean;
 }
 
 /**
@@ -128,6 +132,7 @@ interface WidgetContentProps {
 function WidgetContent({
   className,
   onStateChange,
+  showThemeToggle,
 }: WidgetContentProps): React.ReactElement {
   const {
     currentStep,
@@ -137,6 +142,8 @@ function WidgetContent({
     selectedToken,
     transactionHash,
     transactionStatus,
+    resolvedTheme,
+    toggleTheme,
   } = useDeposit();
   const [displayedStep, setDisplayedStep] = useState<NavigationStep>(currentStep);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -220,6 +227,12 @@ function WidgetContent({
         className
       )}
     >
+      {/* Theme toggle button - positioned in top-right corner */}
+      {showThemeToggle && (
+        <div className="tw-absolute tw-top-3 tw-right-3 tw-z-10">
+          <ThemeToggle theme={resolvedTheme} onToggle={toggleTheme} />
+        </div>
+      )}
       <div
         className={cn(
           "tw-w-full tw-h-full tw-transition-all tw-duration-150 tw-ease-out",
@@ -260,7 +273,7 @@ export interface TrustwareWidgetV2Ref {
 }
 
 export interface TrustwareWidgetV2Props {
-  /** Widget theme - light, dark, or system preference */
+  /** Widget theme - light, dark, or system preference (used as initial theme) */
   theme?: Theme;
   /** Additional CSS classes */
   className?: string;
@@ -272,6 +285,8 @@ export interface TrustwareWidgetV2Props {
   onClose?: () => void;
   /** Callback when the widget is opened */
   onOpen?: () => void;
+  /** Whether to show the theme toggle button (defaults to true) */
+  showThemeToggle?: boolean;
 }
 
 /**
@@ -281,29 +296,53 @@ interface ConfirmCloseDialogProps {
   open: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Current theme for styling */
+  theme: ResolvedTheme;
 }
 
 function ConfirmCloseDialog({
   open,
   onConfirm,
   onCancel,
+  theme,
 }: ConfirmCloseDialogProps): React.ReactElement {
+  const isDark = theme === "dark";
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <Dialog.Portal>
         <Dialog.Overlay className="tw-fixed tw-inset-0 tw-bg-black/50 tw-z-50 tw-animate-fade-in" />
-        <Dialog.Content className="tw-fixed tw-left-1/2 tw-top-1/2 tw--translate-x-1/2 tw--translate-y-1/2 tw-z-50 tw-w-[90%] tw-max-w-[340px] tw-rounded-xl tw-bg-white tw-p-6 tw-shadow-xl tw-animate-fade-in dark:tw-bg-zinc-900">
-          <Dialog.Title className="tw-text-lg tw-font-semibold tw-text-zinc-900 dark:tw-text-white">
+        <Dialog.Content
+          className={cn(
+            "tw-fixed tw-left-1/2 tw-top-1/2 tw--translate-x-1/2 tw--translate-y-1/2 tw-z-50 tw-w-[90%] tw-max-w-[340px] tw-rounded-xl tw-p-6 tw-shadow-xl tw-animate-fade-in",
+            isDark ? "tw-bg-zinc-900" : "tw-bg-white"
+          )}
+        >
+          <Dialog.Title
+            className={cn(
+              "tw-text-lg tw-font-semibold",
+              isDark ? "tw-text-white" : "tw-text-zinc-900"
+            )}
+          >
             Transaction in Progress
           </Dialog.Title>
-          <Dialog.Description className="tw-mt-2 tw-text-sm tw-text-zinc-600 dark:tw-text-zinc-400">
+          <Dialog.Description
+            className={cn(
+              "tw-mt-2 tw-text-sm",
+              isDark ? "tw-text-zinc-400" : "tw-text-zinc-600"
+            )}
+          >
             You have an active transaction. Closing the widget will not cancel
             your transaction, but you will lose visibility of its progress.
           </Dialog.Description>
           <div className="tw-mt-6 tw-flex tw-gap-3">
             <button
               onClick={onCancel}
-              className="tw-flex-1 tw-rounded-lg tw-border tw-border-zinc-200 tw-px-4 tw-py-2.5 tw-text-sm tw-font-medium tw-text-zinc-700 tw-transition-colors hover:tw-bg-zinc-50 dark:tw-border-zinc-700 dark:tw-text-zinc-300 dark:hover:tw-bg-zinc-800"
+              className={cn(
+                "tw-flex-1 tw-rounded-lg tw-border tw-px-4 tw-py-2.5 tw-text-sm tw-font-medium tw-transition-colors",
+                isDark
+                  ? "tw-border-zinc-700 tw-text-zinc-300 hover:tw-bg-zinc-800"
+                  : "tw-border-zinc-200 tw-text-zinc-700 hover:tw-bg-zinc-50"
+              )}
             >
               Keep Open
             </button>
@@ -329,6 +368,8 @@ interface WidgetInnerProps {
   onClose?: () => void;
   onStateChange?: (state: PersistedState) => void;
   closeRequestRef: React.MutableRefObject<(() => void) | null>;
+  /** Whether to show the theme toggle button */
+  showThemeToggle: boolean;
 }
 
 function WidgetInner({
@@ -337,8 +378,9 @@ function WidgetInner({
   onClose,
   onStateChange,
   closeRequestRef,
+  showThemeToggle,
 }: WidgetInnerProps): React.ReactElement {
-  const { transactionStatus, resetState } = useDeposit();
+  const { transactionStatus, resetState, resolvedTheme } = useDeposit();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   /**
@@ -377,15 +419,19 @@ function WidgetInner({
     setShowConfirmDialog(false);
   }, []);
 
+  // Use resolved theme from context for the container (allows toggle to work)
+  const effectiveTheme = resolvedTheme as Theme;
+
   return (
     <>
-      <WidgetContainer theme={theme} className={className}>
-        <WidgetContent onStateChange={onStateChange} />
+      <WidgetContainer theme={effectiveTheme} className={className}>
+        <WidgetContent onStateChange={onStateChange} showThemeToggle={showThemeToggle} />
       </WidgetContainer>
       <ConfirmCloseDialog
         open={showConfirmDialog}
         onConfirm={handleConfirmClose}
         onCancel={handleCancelClose}
+        theme={resolvedTheme}
       />
     </>
   );
@@ -433,6 +479,7 @@ export const TrustwareWidgetV2 = forwardRef<
     defaultOpen = true,
     onClose,
     onOpen,
+    showThemeToggle = true,
   }: TrustwareWidgetV2Props,
   ref
 ): React.ReactElement | null {
@@ -496,6 +543,7 @@ export const TrustwareWidgetV2 = forwardRef<
         className={className}
         onClose={handleClose}
         closeRequestRef={closeRequestRef}
+        showThemeToggle={showThemeToggle}
       />
     </DepositProvider>
   );
