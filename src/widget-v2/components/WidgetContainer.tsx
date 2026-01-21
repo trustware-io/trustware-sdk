@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
+import { ToastContainer } from "./Toast";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -48,11 +49,13 @@ export function WidgetContainer({
         "tw-bg-background tw-text-foreground",
         "tw-rounded-lg tw-shadow-lg",
         "tw-font-sans",
+        "tw-relative",
         className
       )}
       data-theme={resolvedTheme}
     >
       {children}
+      <ToastContainer />
     </div>
   );
 }

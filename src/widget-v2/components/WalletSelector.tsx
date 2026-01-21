@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { cn } from "../lib/utils";
 import { useWalletDetection } from "../../wallets/detect";
 import { useDeposit } from "../context/DepositContext";
+import { toast } from "./Toast";
 import type { DetectedWallet } from "../../types";
 
 export interface WalletSelectorProps {
@@ -20,36 +21,61 @@ export function WalletSelector({
   className,
 }: WalletSelectorProps): React.ReactElement {
   const { detected } = useWalletDetection();
-  const { walletStatus, walletAddress, connectWallet, selectedWallet } =
+  const { walletStatus, walletAddress, connectWallet, disconnectWallet } =
     useDeposit();
 
-  const [isDetecting, setIsDetecting] = useState(true);
   const [connectingWalletId, setConnectingWalletId] = useState<string | null>(
     null
   );
+  const [connectedWalletId, setConnectedWalletId] = useState<string | null>(
+    null
+  );
+  const [detectionTimerExpired, setDetectionTimerExpired] = useState(false);
 
-  // Detection completes after useWalletDetection populates detected array
+  // Track previous wallet status to detect transitions
+  const prevWalletStatusRef = useRef(walletStatus);
+
+  // Detection timer - give wallet detection time to complete
   useEffect(() => {
-    // Give detection time to complete (matches useWalletDetection timeout)
     const timer = setTimeout(() => {
-      setIsDetecting(false);
+      setDetectionTimerExpired(true);
     }, 450);
     return () => clearTimeout(timer);
   }, []);
 
-  // Update detection state when wallets are found
-  useEffect(() => {
-    if (detected.length > 0) {
-      setIsDetecting(false);
-    }
-  }, [detected]);
+  // Derive detection state: detecting if no wallets found AND timer hasn't expired
+  const isDetecting = detected.length === 0 && !detectionTimerExpired;
 
-  // Reset connecting state when wallet status changes
+  // Track wallet status transitions using ref comparison
+  // This effect correctly synchronizes local state with external wallet status changes
+  // The setState calls here are intentional: we're responding to wallet manager state changes
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (walletStatus === "connected" || walletStatus === "error") {
-      setConnectingWalletId(null);
+    const prevStatus = prevWalletStatusRef.current;
+    const currentStatus = walletStatus;
+
+    // Only handle transitions, not initial mount
+    if (prevStatus !== currentStatus) {
+      // Connection completed: connecting -> connected
+      if (prevStatus === "connecting" && currentStatus === "connected") {
+        if (connectingWalletId) {
+          setConnectedWalletId(connectingWalletId);
+        }
+        setConnectingWalletId(null);
+      }
+      // Connection failed: connecting -> error
+      else if (prevStatus === "connecting" && currentStatus === "error") {
+        setConnectingWalletId(null);
+      }
+      // Wallet disconnected: connected -> idle
+      else if (prevStatus === "connected" && currentStatus === "idle") {
+        setConnectedWalletId(null);
+      }
+
+      prevWalletStatusRef.current = currentStatus;
     }
-  }, [walletStatus]);
+  }, [walletStatus, connectingWalletId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleWalletClick = async (wallet: DetectedWallet) => {
     if (walletStatus === "connecting") return;
@@ -58,8 +84,38 @@ export function WalletSelector({
     try {
       await connectWallet(wallet);
       onWalletSelect?.(wallet);
-    } catch {
+    } catch (error) {
       setConnectingWalletId(null);
+      // Show error toast with user-friendly message
+      const message =
+        error instanceof Error ? error.message : "Failed to connect wallet";
+      // Check for common wallet rejection errors
+      if (
+        message.toLowerCase().includes("rejected") ||
+        message.toLowerCase().includes("denied") ||
+        message.toLowerCase().includes("cancelled") ||
+        message.toLowerCase().includes("user refused")
+      ) {
+        toast.error("Connection Declined", "You declined the connection request.");
+      } else if (message.toLowerCase().includes("already pending")) {
+        toast.error(
+          "Connection Pending",
+          "Please check your wallet for a pending request."
+        );
+      } else {
+        toast.error("Connection Failed", message);
+      }
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectWallet();
+      toast.success("Wallet Disconnected", "Your wallet has been disconnected.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to disconnect wallet";
+      toast.error("Disconnect Failed", message);
     }
   };
 
@@ -129,24 +185,16 @@ export function WalletSelector({
       <div className="tw-flex tw-flex-col tw-gap-3">
         {detected.map((wallet) => {
           const isConnecting = connectingWalletId === wallet.meta.id;
-          const isConnected =
-            selectedWallet &&
-            walletStatus === "connected" &&
-            selectedWallet.type !== undefined;
-
-          // Check if this wallet is the connected one
           const isThisWalletConnected =
-            isConnected && connectingWalletId === null;
+            walletStatus === "connected" &&
+            connectedWalletId === wallet.meta.id;
 
           return (
-            <button
+            <div
               key={wallet.meta.id}
-              onClick={() => handleWalletClick(wallet)}
-              disabled={isConnecting || walletStatus === "connecting"}
               className={cn(
                 "tw-w-full tw-flex tw-items-center tw-gap-4 tw-p-4 tw-rounded-2xl tw-transition-all tw-duration-200",
-                "tw-bg-card hover:tw-bg-muted/50 tw-border tw-border-border",
-                "active:tw-scale-[0.98] disabled:tw-opacity-70 disabled:tw-cursor-not-allowed",
+                "tw-bg-card tw-border tw-border-border",
                 isThisWalletConnected &&
                   "tw-ring-2 tw-ring-primary tw-border-primary"
               )}
@@ -184,21 +232,26 @@ export function WalletSelector({
                 )}
               </div>
 
-              {/* Status */}
+              {/* Status / Actions */}
               {isConnecting ? (
                 <div className="tw-w-5 tw-h-5 tw-border-2 tw-border-muted-foreground tw-border-t-transparent tw-rounded-full tw-animate-spin" />
               ) : isThisWalletConnected ? (
-                <div className="tw-flex tw-items-center tw-gap-1.5 tw-px-2.5 tw-py-1 tw-rounded-full tw-bg-green-500/10 tw-text-green-600">
-                  <div className="tw-w-1.5 tw-h-1.5 tw-rounded-full tw-bg-green-500" />
-                  <span className="tw-text-xs tw-font-medium">Connected</span>
-                </div>
+                <button
+                  onClick={handleDisconnect}
+                  className="tw-flex tw-items-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-full tw-bg-red-500/10 tw-text-red-600 hover:tw-bg-red-500/20 tw-transition-colors tw-text-xs tw-font-medium"
+                >
+                  Disconnect
+                </button>
               ) : (
-                <div className="tw-flex tw-items-center tw-gap-1.5 tw-px-2.5 tw-py-1 tw-rounded-full tw-bg-green-500/10 tw-text-green-600">
-                  <div className="tw-w-1.5 tw-h-1.5 tw-rounded-full tw-bg-green-500" />
-                  <span className="tw-text-xs tw-font-medium">Ready</span>
-                </div>
+                <button
+                  onClick={() => handleWalletClick(wallet)}
+                  disabled={walletStatus === "connecting"}
+                  className="tw-flex tw-items-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-full tw-bg-primary/10 tw-text-primary hover:tw-bg-primary/20 tw-transition-colors tw-text-xs tw-font-medium disabled:tw-opacity-50 disabled:tw-cursor-not-allowed"
+                >
+                  Connect
+                </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
