@@ -61,7 +61,7 @@ export type EIP6963ProviderDetail = {
 // Detected wallet with metadata and detection method
 export type DetectedWallet = {
   meta: WalletMeta;
-  via: "eip6963" | "injected-flag";
+  via: "eip6963" | "injected-flag" | "walletconnect";
   detail?: EIP6963ProviderDetail;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   provider?: any;

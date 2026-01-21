@@ -162,7 +162,7 @@ export function useTrustwareRoute({
 
         const txReq = build?.route?.transactionRequest;
         const hasTarget = Boolean((txReq as any)?.to ?? (txReq as any)?.target);
-        if (!txReq || !txReq.data || !hasTarget) {
+        if (!txReq?.data || !hasTarget) {
           throw new Error("Invalid route response");
         }
 

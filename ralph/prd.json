@@ -1,0 +1,498 @@
+{
+  "project": "Trustware SDK",
+  "branchName": "ralph/new-sdk-design-integration",
+  "description": "Replace current widget with modern UI design from ui-ideas/newsdk-main - shadcn-ui, Tailwind CSS, swipe-to-confirm, and enhanced UX while maintaining backend API integration",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Set up Tailwind CSS with prefix in SDK build",
+      "description": "As a developer, I need Tailwind CSS configured with a prefix to avoid style conflicts with host applications.",
+      "acceptanceCriteria": [
+        "Add Tailwind CSS 3.x to SDK dependencies",
+        "Configure tailwind.config.js with prefix 'tw-' for all utility classes",
+        "Update tsup.config.ts to process and output CSS",
+        "Existing SDK exports continue to work unchanged",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Completed: Tailwind CSS 3.4.19 with tw- prefix, PostCSS config, CSS output in build"
+    },
+    {
+      "id": "US-002",
+      "title": "Add shadcn-ui dependencies to SDK",
+      "description": "As a developer, I need shadcn-ui component dependencies installed so I can use Radix UI primitives with Tailwind styling.",
+      "acceptanceCriteria": [
+        "Add @radix-ui/react-slot, @radix-ui/react-dialog, @radix-ui/react-dropdown-menu to dependencies",
+        "Add class-variance-authority, clsx, tailwind-merge utilities",
+        "Create src/widget-v2/lib/utils.ts with cn() helper function",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Completed: Radix UI primitives and utility libraries installed, cn() helper created"
+    },
+    {
+      "id": "US-003",
+      "title": "Create WidgetContainer component",
+      "description": "As a developer, I need a responsive container component that wraps the widget and handles embedding concerns.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/components/WidgetContainer.tsx",
+        "Container has max-width of 420px suitable for embedding",
+        "Support theme prop: 'light' | 'dark' | 'system'",
+        "Apply appropriate background and text colors based on theme",
+        "Container is scrollable when content exceeds height",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Completed: WidgetContainer with theme support (light/dark/system), max-width 420px, scrollable overflow"
+    },
+    {
+      "id": "US-004",
+      "title": "Create DepositContext with navigation state",
+      "description": "As a developer, I need a React context to manage widget navigation and basic state.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/context/DepositContext.tsx",
+        "Define navigation states: 'home' | 'select-token' | 'crypto-pay' | 'processing' | 'success' | 'error'",
+        "Expose currentStep and setCurrentStep",
+        "Expose goBack() function that navigates to previous step",
+        "Expose resetState() function that returns to home",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Completed: DepositContext with NavigationStep type, currentStep/setCurrentStep, goBack() with history tracking, resetState()"
+    },
+    {
+      "id": "US-005",
+      "title": "Add wallet state to DepositContext",
+      "description": "As a developer, I need wallet state in the context connected to the existing walletManager.",
+      "acceptanceCriteria": [
+        "Import walletManager from core SDK",
+        "Expose selectedWallet and walletAddress in context",
+        "Subscribe to walletManager.onChange() for state updates",
+        "Expose connectWallet(walletType) function",
+        "Expose disconnectWallet() function",
+        "Cleanup subscription on unmount",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Completed: Wallet state added with selectedWallet, walletAddress, walletStatus; connectWallet/disconnectWallet functions; subscription cleanup in useEffect"
+    },
+    {
+      "id": "US-006",
+      "title": "Add token and chain state to DepositContext",
+      "description": "As a developer, I need token/chain selection state in the context.",
+      "acceptanceCriteria": [
+        "Expose selectedToken and setSelectedToken in context",
+        "Expose selectedChain and setSelectedChain in context",
+        "Expose amount and setAmount for deposit amount",
+        "Define Token and Chain TypeScript interfaces",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Completed: Token interface (address, symbol, name, decimals, iconUrl, balance), Chain interface (chainId, name, shortName, iconUrl, isPopular, nativeToken, explorerUrl), state for selectedToken/selectedChain/amount with setters, resetState clears token/chain/amount"
+    },
+    {
+      "id": "US-007",
+      "title": "Add transaction lifecycle state to DepositContext",
+      "description": "As a developer, I need transaction status tracking in the context.",
+      "acceptanceCriteria": [
+        "Define transactionStatus: 'idle' | 'confirming' | 'processing' | 'bridging' | 'success' | 'error'",
+        "Expose transactionStatus and setTransactionStatus",
+        "Expose transactionHash and setTransactionHash",
+        "Expose errorMessage and setErrorMessage for error details",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Completed: TransactionStatus type with 6 states, transactionStatus/setTransactionStatus, transactionHash/setTransactionHash, errorMessage/setErrorMessage; resetState clears transaction state"
+    },
+    {
+      "id": "US-008",
+      "title": "Implement route building for fee calculation",
+      "description": "As a user, I want to see accurate fees based on actual route quotes from the API.",
+      "acceptanceCriteria": [
+        "Create useRouteBuilder hook that calls Trustware.buildRoute()",
+        "Expose networkFees, estimatedReceive, and isLoadingRoute",
+        "Call buildRoute when amount, token, and chain are all selected",
+        "Handle route building errors with user-friendly message",
+        "Debounce route building calls (300ms)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Completed: useRouteBuilder hook with debouncing (300ms), exposes isLoadingRoute, networkFees, estimatedReceive, error; integrates with DepositContext for token/chain/amount/wallet state; maps API errors to user-friendly messages"
+    },
+    {
+      "id": "US-009",
+      "title": "Port wallet detection UI",
+      "description": "As a user, I want to see available wallets so I can choose which one to connect.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/components/WalletSelector.tsx",
+        "Call Trustware.autoDetect() to get available wallets",
+        "Display wallet icons and names in a list",
+        "Show loading state while detecting",
+        "Handle case when no wallets detected",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Completed: WalletSelector component using useWalletDetection hook; displays loading skeleton, wallet list with icons (from meta.logo or EIP-6963 icon), and no-wallets-found state with install links; integrates with DepositContext for wallet connection"
+    },
+    {
+      "id": "US-010",
+      "title": "Implement wallet connection flow",
+      "description": "As a user, I want to connect my wallet by clicking on it in the list.",
+      "acceptanceCriteria": [
+        "Clicking a wallet calls connectWallet() from context",
+        "Show connecting spinner while connection in progress",
+        "Display connected wallet address (truncated) after success",
+        "Show error toast if connection fails",
+        "Support disconnecting current wallet",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Completed: Toast component for notifications; error toasts for connection failures; disconnect button with confirmation toast; connecting spinner; truncated address display; user-friendly error messages for rejection/pending"
+    },
+    {
+      "id": "US-011",
+      "title": "Port Home page with amount input",
+      "description": "As a user, I want to enter my deposit amount on the home screen.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/pages/Home.tsx",
+        "Port amount input field from ui-ideas/newsdk-main",
+        "Amount input supports numeric entry with decimal handling",
+        "Display selected token symbol next to amount",
+        "Continue button navigates to select-token step",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Completed: Home page with large amount input, decimal handling, selected token display, continue button navigation to select-token step"
+    },
+    {
+      "id": "US-012",
+      "title": "Port payment method selection to Home page",
+      "description": "As a user, I want to choose between crypto and fiat payment methods.",
+      "acceptanceCriteria": [
+        "Add payment method selector to Home page",
+        "Crypto option is selectable and highlighted by default",
+        "Fiat options (Apple Pay, M-Pesa, etc.) shown with 'Coming Soon' badge",
+        "Selecting fiat shows informational message",
+        "Continue button only enabled when crypto is selected",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Completed: Added PaymentMethodType to DepositContext, payment method selector UI with crypto (default selected) and fiat options; fiat shows Coming Soon badge and informational message; continue button disabled when fiat selected"
+    },
+    {
+      "id": "US-013",
+      "title": "Port SelectToken chain selector column",
+      "description": "As a user, I want to select which blockchain to deposit from.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/pages/SelectToken.tsx with two-column layout",
+        "Left column shows available chains from API",
+        "Popular chains section at top (Ethereum, Polygon, Base)",
+        "Clicking a chain highlights it and filters tokens",
+        "Chain icons displayed next to names",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "Completed: Created SelectToken.tsx with two-column layout; useChains hook fetches chains from Registry API; Popular chains (Ethereum, Polygon, Base) shown at top; Chain selection updates context and highlights selected chain; Chain icons displayed with fallback initials"
+    },
+    {
+      "id": "US-014",
+      "title": "Port SelectToken token selector column",
+      "description": "As a user, I want to select which token to deposit.",
+      "acceptanceCriteria": [
+        "Right column shows tokens available on selected chain",
+        "Search input filters tokens by name or symbol",
+        "Display token icon, symbol, and name",
+        "Show token balance if wallet connected",
+        "Clicking a token updates context and navigates to crypto-pay",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "Completed: useTokens hook fetches tokens for selected chain; search input filters by name/symbol/address; token list shows icon, symbol, name with balance support; token selection navigates to crypto-pay; stablecoins sorted first for UX"
+    },
+    {
+      "id": "US-015",
+      "title": "Port SwipeToConfirmTokens component",
+      "description": "As a user, I want to swipe to confirm my transaction for a secure confirmation experience.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/components/SwipeToConfirmTokens.tsx",
+        "Implement horizontal drag interaction using mouse/touch events",
+        "Show progress feedback during swipe (fill effect)",
+        "Trigger onConfirm callback when drag reaches threshold (80%)",
+        "Reset position smoothly if swipe cancelled",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "Completed: SwipeToConfirmTokens component with horizontal drag interaction (mouse/touch), gradient fill progress effect, 80% threshold confirmation with haptic feedback, smooth spring-back on cancel, token icon display with fallback initials"
+    },
+    {
+      "id": "US-016",
+      "title": "Add accessibility fallback to SwipeToConfirm",
+      "description": "As a user who cannot swipe, I want an alternative way to confirm.",
+      "acceptanceCriteria": [
+        "Add long-press (1.5s) as alternative confirmation trigger",
+        "Show visual countdown during long-press",
+        "Add aria-label describing the interaction",
+        "Keyboard accessible via Enter key after focus",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": "Completed: Long-press (1.5s) with circular countdown indicator; comprehensive aria-labels with dynamic state updates; keyboard support (Enter/Space to hold for confirmation); focus ring styling for keyboard navigation"
+    },
+    {
+      "id": "US-017",
+      "title": "Port TokenSwipePill carousel component",
+      "description": "As a user, I want to quickly switch between tokens using a horizontal carousel.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/components/TokenSwipePill.tsx",
+        "Horizontal scrollable list of token pills",
+        "Display token icon and symbol in each pill",
+        "Highlight currently selected token",
+        "Tapping a pill updates selectedToken in context",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": "Completed: TokenSwipePill component with horizontal swipe/drag carousel; token icons with fallback initials; pagination dots for direct token selection; chain icon overlay; expand button for dropdown navigation; haptic feedback on swipe"
+    },
+    {
+      "id": "US-018",
+      "title": "Port AmountSlider component",
+      "description": "As a user, I want to quickly adjust my deposit amount using a slider.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/components/AmountSlider.tsx",
+        "Range slider from min to max deposit amount",
+        "Display current value above slider track",
+        "Slider value syncs bidirectionally with amount input",
+        "Smooth drag interaction with step increments",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": "Completed: AmountSlider component with smart tick marks based on max value; snap-to-tick behavior; bidirectional value/onChange sync; current value display below slider; disabled state support; accessible ARIA attributes"
+    },
+    {
+      "id": "US-019",
+      "title": "Port CryptoPay confirmation page",
+      "description": "As a user, I want to review my transaction details before confirming.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/pages/CryptoPay.tsx",
+        "Display transaction summary: amount, token, chain",
+        "Display fees and estimated receive amount from route",
+        "Include TokenSwipePill for last-minute token changes",
+        "Include SwipeToConfirmTokens at bottom",
+        "Back button returns to previous step",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": "Completed: CryptoPay page with amount display, token conversion, fee summary from useRouteBuilder, TokenSwipePill for token switching, AmountSlider for quick adjustment, SwipeToConfirmTokens for secure confirmation, back navigation"
+    },
+    {
+      "id": "US-020",
+      "title": "Implement transaction submission to wallet",
+      "description": "As a user, I want my transaction submitted to my wallet for signing after I confirm.",
+      "acceptanceCriteria": [
+        "On swipe confirm, set transactionStatus to 'confirming'",
+        "Call Trustware.runTopUp() or equivalent with route data",
+        "Open wallet for user to sign transaction",
+        "Handle user rejection (wallet declined) with error message",
+        "On wallet approval, capture transaction hash",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": "Completed: Created useTransactionSubmit hook that calls Trustware.sendRouteTransaction() with routeResult from useRouteBuilder; handles user rejection (code 4001) and maps wallet errors to friendly messages; updates context transactionStatus and transactionHash"
+    },
+    {
+      "id": "US-021",
+      "title": "Implement transaction status polling",
+      "description": "As a user, I want my transaction monitored until it completes.",
+      "acceptanceCriteria": [
+        "After getting tx hash, call submitReceipt() with intent ID",
+        "Set transactionStatus to 'processing'",
+        "Poll pollStatus() every 3 seconds until terminal state",
+        "Update status to 'bridging' when bridge phase detected",
+        "Set status to 'success' or 'error' on completion",
+        "Timeout after 5 minutes with error state",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": "Completed: useTransactionPolling hook with submitReceipt call, 3-second polling via getStatus(), bridge phase detection, 5-minute timeout, user-friendly error messages"
+    },
+    {
+      "id": "US-022",
+      "title": "Port Processing page with progress animation",
+      "description": "As a user, I want to see real-time progress of my transaction.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/pages/Processing.tsx",
+        "Port CircularProgress animation component",
+        "Display current step text based on transactionStatus",
+        "Show transaction hash with link to block explorer (URL from API)",
+        "Progress reflects actual status, not just time",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "Completed: Created CircularProgress component with determinate/indeterminate modes; Processing page with real-time status display from useTransactionPolling hook; transaction steps with checkmark/spinner/pending states; block explorer link from API (fromChainTxUrl) or chain explorerUrl fallback"
+    },
+    {
+      "id": "US-023",
+      "title": "Port TransactionSteps component",
+      "description": "As a user, I want to see which steps are complete and which are pending.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/components/TransactionSteps.tsx",
+        "Display vertical list of steps: Confirming, Processing, Bridging, Complete",
+        "Show checkmark for completed steps",
+        "Show spinner for current step",
+        "Show dimmed style for pending steps",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": "Completed: Created reusable TransactionSteps component with checkmark/spinner/number indicators; supports custom step labels via stepLabels prop; refactored Processing page to use new component"
+    },
+    {
+      "id": "US-024",
+      "title": "Port success state with confetti effect",
+      "description": "As a user, I want to see a celebratory success screen when my deposit completes.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/pages/Success.tsx",
+        "Port ConfettiEffect component (lazy loaded)",
+        "Display success message with final deposited amount",
+        "Show transaction hash with block explorer link",
+        "Done button calls resetState() and returns to home",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": "Completed: Created ConfettiEffect component (lazy loaded with React.lazy) and Success page with celebratory UI; shows deposited amount, token/chain info, transaction hash with explorer link; Done button resets state and returns to home"
+    },
+    {
+      "id": "US-025",
+      "title": "Implement error handling UI",
+      "description": "As a user, I want clear error messages and recovery options when something goes wrong.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/pages/Error.tsx",
+        "Display user-friendly error message from context",
+        "Map API errors to friendly messages (wallet rejected, insufficient balance, etc.)",
+        "Try Again button resets to appropriate step based on error type",
+        "Log errors via SDK error callback if configured",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": "Completed: Error.tsx with categorized errors (wallet_rejected, insufficient_funds, network_error, route_error, transaction_failed, timeout), appropriate icons, user-friendly messages with suggestions, Try Again navigation to appropriate step, Start Over reset, transaction hash link, console error logging"
+    },
+    {
+      "id": "US-026",
+      "title": "Wire up page navigation in widget",
+      "description": "As a developer, I need all pages connected through the navigation state machine.",
+      "acceptanceCriteria": [
+        "Create src/widget-v2/TrustwareWidgetV2.tsx as main component",
+        "Render correct page based on currentStep from context",
+        "Wrap with DepositProvider and WidgetContainer",
+        "Animated transitions between pages (fade or slide)",
+        "Navigation state resets on widget remount",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": "Completed: Created TrustwareWidgetV2 main component with page routing based on currentStep; wrapped with DepositProvider and WidgetContainer; added slide animations via tailwind keyframes; state resets on remount via context initialStep"
+    },
+    {
+      "id": "US-027",
+      "title": "Implement widget open/close API",
+      "description": "As a host app developer, I want to programmatically control the widget.",
+      "acceptanceCriteria": [
+        "Expose ref with open() and close() methods via forwardRef",
+        "Support onClose callback prop",
+        "Closing during transaction shows confirmation dialog",
+        "Widget state persists in sessionStorage during session",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": "Completed: Added forwardRef with TrustwareWidgetV2Ref type (open, close, isOpen methods); onClose and onOpen callback props; ConfirmCloseDialog using Radix UI Dialog for closing during active transaction; sessionStorage persistence for currentStep, amount, chain, token, and transaction state"
+    },
+    {
+      "id": "US-028",
+      "title": "Add dark/light mode toggle",
+      "description": "As a user, I want to toggle between dark and light modes.",
+      "acceptanceCriteria": [
+        "Add theme toggle button in widget header (sun/moon icon)",
+        "Toggle can be hidden via showThemeToggle prop (default true)",
+        "Theme persists in localStorage",
+        "All components properly styled for both themes",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": true,
+      "notes": "Completed: Created ThemeToggle component with animated sun/moon icons; added theme state to DepositContext with localStorage persistence; showThemeToggle prop added to widget (default true); toggle button positioned in top-right corner; ConfirmCloseDialog updated for proper theme styling"
+    },
+    {
+      "id": "US-029",
+      "title": "Replace old widget exports",
+      "description": "As an SDK consumer, I want to use the new widget via the same import path.",
+      "acceptanceCriteria": [
+        "Export TrustwareWidgetV2 as TrustwareWidget from src/widget/index.ts",
+        "Remove old widget component files",
+        "Update package.json exports if needed",
+        "Document breaking changes in CHANGELOG",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": true,
+      "notes": "Completed: Exported TrustwareWidgetV2 as TrustwareWidget from src/widget/index.tsx; removed old widget component files; added CHANGELOG.md with breaking changes and migration guide; typecheck passes"
+    },
+    {
+      "id": "US-030",
+      "title": "Bundle size optimization",
+      "description": "As a host app developer, I want the widget bundle to be reasonably sized.",
+      "acceptanceCriteria": [
+        "Audit bundle size with bundlephobia or size-limit",
+        "Lazy load ConfettiEffect (only imported on success page)",
+        "Tree-shake unused Radix UI components",
+        "Target under 150KB gzipped (excluding React peer dep)",
+        "Document final bundle size in README",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": "Completed: Added size-limit with 50KB JS / 10KB CSS limits; removed unused @radix-ui dependencies; documented bundle sizes in README (~49KB JS + ~5KB CSS = ~54KB total gzipped, well under 150KB target); typecheck passes"
+    }
+  ]
+}

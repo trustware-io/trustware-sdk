@@ -1,5 +1,6 @@
 // src/index.ts
 export { Trustware, TrustwareCore } from "./core";
+export { RateLimitError } from "./core/http";
 export {
   connectDetectedWallet,
   useWalletDetection,

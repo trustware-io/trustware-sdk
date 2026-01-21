@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/wallet.ts
 import type { WalletInterFaceAPI, EIP1193 } from "../types/";

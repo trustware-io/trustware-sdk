@@ -1,0 +1,174 @@
+# Ralph Progress Log
+# Feature: new-sdk-design-integration
+# Started: 2026-01-20
+
+## Codebase Patterns
+- tsup build uses onSuccess hook for post-processing (like CSS compilation)
+- CSS is output to dist/widget-v2.css and exported via package.json exports
+- All Tailwind utility classes use 'tw-' prefix to avoid conflicts with host apps
+- Theme CSS variables scoped to .trustware-widget class
+- Use cn() from widget-v2/lib/utils for merging Tailwind classes (handles conflicts)
+
+---
+
+## 2026-01-20 - US-001
+- What was implemented:
+  - Added Tailwind CSS 3.4.19, PostCSS 8.5.6, and autoprefixer dependencies
+  - Created tailwind.config.js with 'tw-' prefix for all utility classes
+  - Created postcss.config.js for PostCSS processing
+  - Updated tsup.config.ts with custom onSuccess hook to process CSS via PostCSS
+  - Created src/widget-v2/styles.css with Tailwind directives and theme variables (light/dark)
+  - Updated package.json: added CSS export, marked CSS files as sideEffects
+- Files changed:
+  - package.json, package-lock.json
+  - tsup.config.ts
+  - tailwind.config.js (new)
+  - postcss.config.js (new)
+  - src/widget-v2/styles.css (new)
+- **Learnings for future iterations:**
+  - tsup doesn't have native PostCSS support, use onSuccess async hook instead
+  - CSS is processed after JS build completes
+  - Theme variables use CSS custom properties with HSL values for flexibility
+  - Lint warnings in existing SDK code are pre-existing (175 warnings, 0 errors)
+---
+
+## 2026-01-20 - US-002
+- What was implemented:
+  - Added @radix-ui/react-slot, @radix-ui/react-dialog, @radix-ui/react-dropdown-menu dependencies
+  - Added class-variance-authority, clsx, tailwind-merge utilities
+  - Created src/widget-v2/lib/utils.ts with cn() helper function
+- Files changed:
+  - package.json, package-lock.json
+  - src/widget-v2/lib/utils.ts (new)
+- **Learnings for future iterations:**
+  - cn() function combines clsx for conditional classes and tailwind-merge for deduplication
+  - shadcn-ui pattern: import { cn } from "@/lib/utils" for class merging
+  - Radix UI primitives are headless - styling comes from Tailwind classes
+---
+
+## 2026-01-20 - US-003
+- What was implemented:
+  - Created src/widget-v2/components/WidgetContainer.tsx
+  - Container with max-width of 420px for embedding
+  - Theme support: 'light' | 'dark' | 'system' prop
+  - System theme detects user preference via matchMedia and listens for changes
+  - Applies background/foreground colors via Tailwind theme variables
+  - Scrollable overflow for content that exceeds height
+  - Uses `data-theme` attribute for CSS variable switching
+- Files changed:
+  - src/widget-v2/components/WidgetContainer.tsx (new)
+- **Learnings for future iterations:**
+  - Theme is applied via data-theme attribute which CSS variables respond to
+  - System preference uses matchMedia('(prefers-color-scheme: dark)')
+  - WidgetContainer applies the 'trustware-widget' class which scopes theme CSS variables
+---
+
+## 2026-01-20 - US-004
+- What was implemented:
+  - Created src/widget-v2/context/DepositContext.tsx
+  - Defined NavigationStep type: 'home' | 'select-token' | 'crypto-pay' | 'processing' | 'success' | 'error'
+  - Implemented DepositProvider with currentStep and setCurrentStep (tracks step history)
+  - Implemented goBack() function using step history for proper back navigation
+  - Implemented resetState() function to clear state and return to home
+  - Created useDeposit() hook with proper error handling for use outside provider
+- Files changed:
+  - src/widget-v2/context/DepositContext.tsx (new)
+- **Learnings for future iterations:**
+  - Context uses history-based navigation (stepHistory array) for proper goBack() behavior
+  - setCurrentStep tracks visited steps to enable back navigation
+  - useDeposit() throws descriptive error if used outside DepositProvider
+  - Future stories (US-005, US-006, US-007) will extend this context with wallet, token, and transaction state
+---
+
+## 2026-01-20 - US-013
+- What was implemented:
+  - Created src/widget-v2/pages/SelectToken.tsx with two-column layout
+  - Created src/widget-v2/hooks/useChains.ts hook for fetching chains from Registry API
+  - Left column displays chain selector with icons and names
+  - Popular chains (Ethereum, Polygon, Base) shown at top in "Popular" section
+  - Other chains shown below in "All Chains" section
+  - Clicking a chain highlights it and updates selectedChain in context
+  - Chain icons with fallback to initials when no icon available
+  - Loading skeleton state while chains load from API
+  - Error state with retry button if API fails
+  - Right column prepared for token selector (placeholder for US-014)
+- Files changed:
+  - src/widget-v2/pages/SelectToken.tsx (new)
+  - src/widget-v2/hooks/useChains.ts (new)
+  - src/widget-v2/hooks/index.ts (updated - exported useChains)
+- **Learnings for future iterations:**
+  - Registry class in src/registry.ts provides chains() and tokens() after ensureLoaded()
+  - Popular chain IDs: Ethereum=1, Polygon=137, Base=8453
+  - ChainDef uses chainId or id for the canonical chain identifier
+  - resolveChainLabel() from utils provides display name for chains
+  - Pages go in src/widget-v2/pages/ directory (established in US-011)
+---
+
+## 2026-01-20 - US-017
+- What was implemented:
+  - Created src/widget-v2/components/TokenSwipePill.tsx
+  - Horizontal carousel with drag/swipe gesture support
+  - Token icons with fallback initials when no iconUrl
+  - Adjacent tokens shown at reduced scale (0.6x) and blur (1px) for 3D carousel effect
+  - Pagination dots under carousel for direct token selection
+  - Chain icon overlay on the centered/selected token
+  - Expand button with dropdown chevron for navigating to full token selector
+  - Optional wallet address display
+  - Haptic feedback (navigator.vibrate) when swiping between tokens
+- Files changed:
+  - src/widget-v2/components/TokenSwipePill.tsx (new)
+- **Learnings for future iterations:**
+  - Carousel position calculation uses modular arithmetic for continuous looping
+  - Visual drag offset clamped to [-40, 40] for smooth visual feedback
+  - Global mouse listeners (mousemove/mouseup) needed for tracking outside component bounds
+  - Use tw-touch-none to prevent native scroll while dragging on mobile
+  - Token identity comparison uses both address and symbol (for multi-chain same tokens)
+---
+
+## 2026-01-20 - US-020
+- What was implemented: Transaction submission to wallet
+  - Created src/widget-v2/hooks/useTransactionSubmit.ts hook
+  - Hook calls Trustware.sendRouteTransaction() with routeResult from useRouteBuilder
+  - Sets transactionStatus to 'confirming' before wallet prompt
+  - Captures transaction hash on successful wallet approval
+  - Transitions to 'processing' step after submission
+  - Comprehensive error mapping for user rejection (code 4001) and common wallet errors
+  - Updated CryptoPay page to call submitTransaction on swipe confirm
+  - Added canConfirm check for routeResult and isSubmitting state
+- Files changed:
+  - src/widget-v2/hooks/useTransactionSubmit.ts (new)
+  - src/widget-v2/hooks/index.ts (updated)
+  - src/widget-v2/pages/CryptoPay.tsx (updated)
+- **Learnings for future iterations:**
+  - Trustware.sendRouteTransaction(routeResult, fallbackChainId) is the key API for wallet submission
+  - User rejection code is 4001 (EIP-1193 standard)
+  - Transaction flow: useRouteBuilder builds route -> user confirms -> useTransactionSubmit sends to wallet
+  - Error message patterns: "user rejected", "user denied", "rejected the request" all indicate user cancellation
+  - Keep submitTransaction async in handleConfirm since it waits for wallet interaction
+---
+
+## 2026-01-20 - US-029
+- What was implemented: Replaced old widget exports with new v2 widget
+  - Updated src/widget/index.tsx to re-export TrustwareWidgetV2 as TrustwareWidget
+  - Added type aliases: TrustwareWidgetProps and TrustwareWidgetRef for backwards compatibility
+  - Also exports v2 names explicitly (TrustwareWidgetV2, TrustwareWidgetV2Props, TrustwareWidgetV2Ref)
+  - Removed all old widget component files (amountInput, confirmPayment, paymentFailure, paymentStatus, paymentSuccuess, provider, tokenChainSelection, walletSelection, welcome)
+  - Created CHANGELOG.md with breaking changes and migration guide
+- Files changed:
+  - src/widget/index.tsx (rewritten as re-export module)
+  - src/widget/amountInput.tsx (deleted)
+  - src/widget/confirmPayment.tsx (deleted)
+  - src/widget/paymentFailure.tsx (deleted)
+  - src/widget/paymentStatus.tsx (deleted)
+  - src/widget/paymentSuccuess.tsx (deleted)
+  - src/widget/provider.tsx (deleted)
+  - src/widget/tokenChainSelection.tsx (deleted)
+  - src/widget/walletSelection.tsx (deleted)
+  - src/widget/welcome.tsx (deleted)
+  - CHANGELOG.md (new)
+- **Learnings for future iterations:**
+  - Re-exporting with type aliases (e.g., `type TrustwareWidgetV2Props as TrustwareWidgetProps`) maintains backwards compatibility
+  - Package.json exports already pointed to dist/widget which uses src/widget/index.tsx, so no updates needed
+  - Old widget had inline CSS styles; new widget uses Tailwind CSS with tw- prefix requiring CSS import
+  - Breaking changes should document: removed props, added props, changed behavior, new requirements (like CSS import)
+---

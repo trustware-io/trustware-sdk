@@ -235,6 +235,109 @@ Events:
 - Add retry logic for transients.
 - Guard calls: Ensure provider mounted and wallet connected.
 
+## Rate Limiting
+
+The SDK automatically handles API rate limits with retry logic. The backend enforces per-API-key limits and returns standard rate limit headers.
+
+### Default Behavior
+
+Rate limiting is **enabled by default**. When a 429 (Too Many Requests) response is received:
+1. The SDK waits for the time specified in the `Retry-After` header
+2. Automatically retries the request (up to 3 times by default)
+3. Uses exponential backoff if `Retry-After` is not provided
+
+### Configuration
+
+Customize rate limit handling in your config:
+
+```ts
+const config = {
+  apiKey: "...",
+  routes: { toChain: "8453", toToken: "0x..." },
+  retry: {
+    autoRetry: true,         // Enable/disable auto-retry on 429 (default: true)
+                             // Note: This does NOT disable backend rate limits,
+                             // only client-side retry behavior
+    maxRetries: 3,           // Max retry attempts (default: 3)
+    baseDelayMs: 1000,       // Base delay for exponential backoff (default: 1000)
+    approachingThreshold: 5, // Trigger warning when remaining < threshold (default: 5)
+
+    // Callbacks for monitoring
+    onRateLimitInfo: (info) => {
+      console.log(`${info.remaining}/${info.limit} requests remaining`);
+    },
+    onRateLimited: (info, retryCount) => {
+      console.warn(`Rate limited! Retry ${retryCount}, waiting ${info.retryAfter}s`);
+    },
+    onRateLimitApproaching: (info, threshold) => {
+      console.warn(`Approaching limit: ${info.remaining} remaining`);
+    },
+  },
+};
+```
+
+### Rate Limit Info
+
+The `RateLimitInfo` object contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `limit` | number | Maximum requests allowed in the window |
+| `remaining` | number | Requests remaining in current window |
+| `reset` | number | Unix timestamp when window resets |
+| `retryAfter` | number? | Seconds to wait (only on 429) |
+
+### Handling RateLimitError
+
+If retries are exhausted, a `RateLimitError` is thrown:
+
+```ts
+import { Trustware, RateLimitError } from "@trustware/sdk";
+
+try {
+  await Trustware.buildRoute({ ... });
+} catch (err) {
+  if (err instanceof RateLimitError) {
+    console.error(`Rate limited: ${err.message}`);
+    console.log(`Try again in ${err.rateLimitInfo.retryAfter}s`);
+  }
+}
+```
+
+### Disabling Auto-Retry
+
+To handle rate limits manually (disable client-side retry):
+
+```ts
+const config = {
+  // ...
+  retry: {
+    autoRetry: false, // Disable auto-retry; 429s will throw immediately
+                      // Note: Backend rate limits still apply
+  },
+};
+```
+
+## Bundle Size
+
+The SDK is optimized for minimal bundle impact:
+
+| Bundle | Gzipped Size |
+|--------|--------------|
+| Full SDK (ESM) | ~49 KB |
+| CSS Styles | ~5 KB |
+| **Total** | **~54 KB** |
+
+*Sizes exclude React peer dependency*
+
+Key optimizations:
+- Tree-shaking enabled via ES modules
+- ConfettiEffect lazy-loaded (only imported on success page)
+- Minimal Radix UI usage (only react-dialog)
+- CSS scoped with `tw-` prefix to avoid conflicts
+
+Run `npm run size` to check current bundle sizes.
+
 ## Troubleshooting
 
 - Mount `TrustwareProvider` once at app root.
