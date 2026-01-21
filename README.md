@@ -254,8 +254,10 @@ Customize rate limit handling in your config:
 const config = {
   apiKey: "...",
   routes: { toChain: "8453", toToken: "0x..." },
-  rateLimit: {
-    enabled: true,           // Enable/disable auto-retry (default: true)
+  retry: {
+    autoRetry: true,         // Enable/disable auto-retry on 429 (default: true)
+                             // Note: This does NOT disable backend rate limits,
+                             // only client-side retry behavior
     maxRetries: 3,           // Max retry attempts (default: 3)
     baseDelayMs: 1000,       // Base delay for exponential backoff (default: 1000)
     approachingThreshold: 5, // Trigger warning when remaining < threshold (default: 5)
@@ -302,15 +304,16 @@ try {
 }
 ```
 
-### Disabling Rate Limit Handling
+### Disabling Auto-Retry
 
-To handle rate limits manually:
+To handle rate limits manually (disable client-side retry):
 
 ```ts
 const config = {
   // ...
-  rateLimit: {
-    enabled: false, // Disable auto-retry; 429s will throw immediately
+  retry: {
+    autoRetry: false, // Disable auto-retry; 429s will throw immediately
+                      // Note: Backend rate limits still apply
   },
 };
 ```

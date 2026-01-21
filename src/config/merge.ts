@@ -11,7 +11,7 @@ import {
   DEFAULT_THEME,
   DEFAULT_MESSAGES,
 } from "./defaults";
-import { DEFAULT_RATE_LIMIT_CONFIG } from "../types/config";
+import { DEFAULT_RETRY_CONFIG } from "../types/config";
 import { WALLETCONNECT_PROJECT_ID } from "../constants";
 
 /**
@@ -104,19 +104,17 @@ export function resolveConfig(
   const theme = deepMerge(DEFAULT_THEME, input.theme);
   const messages = deepMerge(DEFAULT_MESSAGES, input.messages);
 
-  // Merge rate limit config with defaults
-  const rateLimit = {
-    enabled: input.rateLimit?.enabled ?? DEFAULT_RATE_LIMIT_CONFIG.enabled,
-    maxRetries:
-      input.rateLimit?.maxRetries ?? DEFAULT_RATE_LIMIT_CONFIG.maxRetries,
-    baseDelayMs:
-      input.rateLimit?.baseDelayMs ?? DEFAULT_RATE_LIMIT_CONFIG.baseDelayMs,
+  // Merge retry config with defaults
+  const retry = {
+    autoRetry: input.retry?.autoRetry ?? DEFAULT_RETRY_CONFIG.autoRetry,
+    maxRetries: input.retry?.maxRetries ?? DEFAULT_RETRY_CONFIG.maxRetries,
+    baseDelayMs: input.retry?.baseDelayMs ?? DEFAULT_RETRY_CONFIG.baseDelayMs,
     approachingThreshold:
-      input.rateLimit?.approachingThreshold ??
-      DEFAULT_RATE_LIMIT_CONFIG.approachingThreshold,
-    onRateLimitInfo: input.rateLimit?.onRateLimitInfo,
-    onRateLimited: input.rateLimit?.onRateLimited,
-    onRateLimitApproaching: input.rateLimit?.onRateLimitApproaching,
+      input.retry?.approachingThreshold ??
+      DEFAULT_RETRY_CONFIG.approachingThreshold,
+    onRateLimitInfo: input.retry?.onRateLimitInfo,
+    onRateLimited: input.retry?.onRateLimited,
+    onRateLimitApproaching: input.retry?.onRateLimitApproaching,
   };
 
   // Resolve WalletConnect config (optional)
@@ -128,7 +126,7 @@ export function resolveConfig(
     autoDetectProvider,
     theme,
     messages,
-    rateLimit,
+    retry,
     walletConnect,
   };
 }

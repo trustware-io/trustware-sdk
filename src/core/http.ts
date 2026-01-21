@@ -72,25 +72,25 @@ function notifyRateLimitCallbacks(
   retryCount: number
 ) {
   const cfg = TrustwareConfigStore.get();
-  const { rateLimit } = cfg;
+  const { retry } = cfg;
 
   // Always notify onRateLimitInfo if configured
-  if (rateLimit.onRateLimitInfo) {
-    rateLimit.onRateLimitInfo(info);
+  if (retry.onRateLimitInfo) {
+    retry.onRateLimitInfo(info);
   }
 
   // Notify when rate limited
-  if (isRateLimited && rateLimit.onRateLimited) {
-    rateLimit.onRateLimited(info, retryCount);
+  if (isRateLimited && retry.onRateLimited) {
+    retry.onRateLimited(info, retryCount);
   }
 
   // Notify when approaching limit
   if (
     !isRateLimited &&
-    rateLimit.onRateLimitApproaching &&
-    info.remaining <= rateLimit.approachingThreshold
+    retry.onRateLimitApproaching &&
+    info.remaining <= retry.approachingThreshold
   ) {
-    rateLimit.onRateLimitApproaching(info, rateLimit.approachingThreshold);
+    retry.onRateLimitApproaching(info, retry.approachingThreshold);
   }
 }
 
@@ -144,13 +144,13 @@ export async function rateLimitedFetch(
 ): Promise<Response> {
   const { skipRateLimit, ...fetchOptions } = options;
 
-  // If rate limiting is disabled or skipped, just do a normal fetch
+  // If auto-retry is disabled or skipped, just do a normal fetch
   const cfg = TrustwareConfigStore.get();
-  if (!cfg.rateLimit.enabled || skipRateLimit) {
+  if (!cfg.retry.autoRetry || skipRateLimit) {
     return fetch(url, fetchOptions);
   }
 
-  const { maxRetries, baseDelayMs } = cfg.rateLimit;
+  const { maxRetries, baseDelayMs } = cfg.retry;
   let retryCount = 0;
 
   while (true) {
