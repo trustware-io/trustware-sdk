@@ -9,3 +9,6 @@ export type { UseTokensResult } from "./useTokens";
 
 export { useTransactionSubmit } from "./useTransactionSubmit";
 export type { TransactionSubmitState } from "./useTransactionSubmit";
+
+export { useTransactionPolling } from "./useTransactionPolling";
+export type { TransactionPollingState } from "./useTransactionPolling";
