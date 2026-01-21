@@ -41,6 +41,25 @@ export default {
         md: "calc(var(--tw-radius) - 2px)",
         sm: "calc(var(--tw-radius) - 4px)",
       },
+      keyframes: {
+        "slide-in-right": {
+          "0%": { opacity: "0", transform: "translateX(1rem)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        "slide-in-left": {
+          "0%": { opacity: "0", transform: "translateX(-1rem)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+      },
+      animation: {
+        "slide-in-right": "slide-in-right 150ms ease-out",
+        "slide-in-left": "slide-in-left 150ms ease-out",
+        "fade-in": "fade-in 150ms ease-out",
+      },
     },
   },
   plugins: [],
