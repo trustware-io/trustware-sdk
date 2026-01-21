@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Variables for theming - scoped to widget */
+.trustware-widget {
+  /* Light theme (default) */
+  --tw-background: 0 0% 100%;
+  --tw-foreground: 222.2 84% 4.9%;
+  --tw-card: 0 0% 100%;
+  --tw-card-foreground: 222.2 84% 4.9%;
+  --tw-primary: 222.2 47.4% 11.2%;
+  --tw-primary-foreground: 210 40% 98%;
+  --tw-secondary: 210 40% 96.1%;
+  --tw-secondary-foreground: 222.2 47.4% 11.2%;
+  --tw-muted: 210 40% 96.1%;
+  --tw-muted-foreground: 215.4 16.3% 46.9%;
+  --tw-accent: 210 40% 96.1%;
+  --tw-accent-foreground: 222.2 47.4% 11.2%;
+  --tw-destructive: 0 84.2% 60.2%;
+  --tw-destructive-foreground: 210 40% 98%;
+  --tw-border: 214.3 31.8% 91.4%;
+  --tw-input: 214.3 31.8% 91.4%;
+  --tw-ring: 222.2 84% 4.9%;
+  --tw-radius: 0.5rem;
+}
+
+/* Dark theme */
+.trustware-widget[data-theme="dark"],
+.trustware-widget.dark {
+  --tw-background: 222.2 84% 4.9%;
+  --tw-foreground: 210 40% 98%;
+  --tw-card: 222.2 84% 4.9%;
+  --tw-card-foreground: 210 40% 98%;
+  --tw-primary: 210 40% 98%;
+  --tw-primary-foreground: 222.2 47.4% 11.2%;
+  --tw-secondary: 217.2 32.6% 17.5%;
+  --tw-secondary-foreground: 210 40% 98%;
+  --tw-muted: 217.2 32.6% 17.5%;
+  --tw-muted-foreground: 215 20.2% 65.1%;
+  --tw-accent: 217.2 32.6% 17.5%;
+  --tw-accent-foreground: 210 40% 98%;
+  --tw-destructive: 0 62.8% 30.6%;
+  --tw-destructive-foreground: 210 40% 98%;
+  --tw-border: 217.2 32.6% 17.5%;
+  --tw-input: 217.2 32.6% 17.5%;
+  --tw-ring: 212.7 26.8% 83.9%;
+}
