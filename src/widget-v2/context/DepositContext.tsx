@@ -4,7 +4,10 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useEffect,
 } from "react";
+import { walletManager } from "../../wallets/manager";
+import type { DetectedWallet, WalletInterFaceAPI } from "../../types";
 
 /**
  * Navigation states for the deposit widget flow
@@ -15,6 +18,16 @@ export type NavigationStep =
   | "crypto-pay"
   | "processing"
   | "success"
+  | "error";
+
+/**
+ * Wallet connection status
+ */
+export type WalletStatus =
+  | "idle"
+  | "detecting"
+  | "connecting"
+  | "connected"
   | "error";
 
 export interface DepositContextValue {
@@ -28,6 +41,18 @@ export interface DepositContextValue {
   resetState: () => void;
   /** History of visited steps for back navigation */
   stepHistory: NavigationStep[];
+
+  // Wallet state
+  /** Currently connected wallet interface */
+  selectedWallet: WalletInterFaceAPI | null;
+  /** Current wallet address (null if not connected) */
+  walletAddress: string | null;
+  /** Current wallet connection status */
+  walletStatus: WalletStatus;
+  /** Connect to a detected wallet */
+  connectWallet: (wallet: DetectedWallet) => Promise<void>;
+  /** Disconnect the current wallet */
+  disconnectWallet: () => Promise<void>;
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -52,6 +77,62 @@ export function DepositProvider({
   const [stepHistory, setStepHistory] = useState<NavigationStep[]>([
     initialStep,
   ]);
+
+  // Wallet state
+  const [selectedWallet, setSelectedWallet] =
+    useState<WalletInterFaceAPI | null>(walletManager.wallet);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletStatus, setWalletStatus] = useState<WalletStatus>(
+    walletManager.status as WalletStatus
+  );
+
+  /**
+   * Subscribe to walletManager state changes
+   */
+  useEffect(() => {
+    const unsubscribe = walletManager.onChange((status) => {
+      setWalletStatus(status as WalletStatus);
+      setSelectedWallet(walletManager.wallet);
+
+      // Update wallet address when connected
+      if (status === "connected" && walletManager.wallet) {
+        walletManager.wallet.getAddress().then((address) => {
+          setWalletAddress(address);
+        }).catch(() => {
+          setWalletAddress(null);
+        });
+      } else if (status !== "connected") {
+        setWalletAddress(null);
+      }
+    });
+
+    // Initialize wallet address if already connected
+    if (walletManager.status === "connected" && walletManager.wallet) {
+      walletManager.wallet.getAddress().then((address) => {
+        setWalletAddress(address);
+      }).catch(() => {
+        setWalletAddress(null);
+      });
+    }
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  /**
+   * Connect to a detected wallet
+   */
+  const connectWallet = useCallback(async (wallet: DetectedWallet) => {
+    await walletManager.connectDetected(wallet);
+  }, []);
+
+  /**
+   * Disconnect the current wallet
+   */
+  const disconnectWallet = useCallback(async () => {
+    await walletManager.disconnect();
+  }, []);
 
   /**
    * Set the current step and track history
@@ -101,8 +182,25 @@ export function DepositProvider({
       goBack,
       resetState,
       stepHistory,
+      // Wallet state
+      selectedWallet,
+      walletAddress,
+      walletStatus,
+      connectWallet,
+      disconnectWallet,
     }),
-    [currentStep, setCurrentStep, goBack, resetState, stepHistory]
+    [
+      currentStep,
+      setCurrentStep,
+      goBack,
+      resetState,
+      stepHistory,
+      selectedWallet,
+      walletAddress,
+      walletStatus,
+      connectWallet,
+      disconnectWallet,
+    ]
   );
 
   return (
