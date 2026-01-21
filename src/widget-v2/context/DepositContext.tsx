@@ -42,6 +42,11 @@ export type TransactionStatus =
   | "error";
 
 /**
+ * Payment method type for deposit selection
+ */
+export type PaymentMethodType = "crypto" | "fiat";
+
+/**
  * Token information for deposit selection
  */
 export interface Token {
@@ -130,6 +135,12 @@ export interface DepositContextValue {
   errorMessage: string | null;
   /** Set the error message */
   setErrorMessage: (message: string | null) => void;
+
+  // Payment method state
+  /** Selected payment method type */
+  paymentMethod: PaymentMethodType;
+  /** Set the payment method type */
+  setPaymentMethod: (method: PaymentMethodType) => void;
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -173,6 +184,10 @@ export function DepositProvider({
     useState<TransactionStatus>("idle");
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Payment method state (defaults to crypto)
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethodType>("crypto");
 
   /**
    * Subscribe to walletManager state changes
@@ -268,6 +283,8 @@ export function DepositProvider({
     setTransactionStatus("idle");
     setTransactionHash(null);
     setErrorMessage(null);
+    // Reset payment method to crypto
+    setPaymentMethod("crypto");
   }, []);
 
   const value = useMemo<DepositContextValue>(
@@ -297,6 +314,9 @@ export function DepositProvider({
       setTransactionHash,
       errorMessage,
       setErrorMessage,
+      // Payment method state
+      paymentMethod,
+      setPaymentMethod,
     }),
     [
       currentStep,
@@ -315,6 +335,7 @@ export function DepositProvider({
       transactionStatus,
       transactionHash,
       errorMessage,
+      paymentMethod,
     ]
   );
 
