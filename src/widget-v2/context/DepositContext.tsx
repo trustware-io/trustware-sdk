@@ -31,6 +31,17 @@ export type WalletStatus =
   | "error";
 
 /**
+ * Transaction lifecycle status for deposit flow
+ */
+export type TransactionStatus =
+  | "idle"
+  | "confirming"
+  | "processing"
+  | "bridging"
+  | "success"
+  | "error";
+
+/**
  * Token information for deposit selection
  */
 export interface Token {
@@ -105,6 +116,20 @@ export interface DepositContextValue {
   amount: string;
   /** Set the deposit amount */
   setAmount: (amount: string) => void;
+
+  // Transaction lifecycle state
+  /** Current transaction status */
+  transactionStatus: TransactionStatus;
+  /** Set the transaction status */
+  setTransactionStatus: (status: TransactionStatus) => void;
+  /** Transaction hash after submission (null if not yet submitted) */
+  transactionHash: string | null;
+  /** Set the transaction hash */
+  setTransactionHash: (hash: string | null) => void;
+  /** Error message for failed transactions */
+  errorMessage: string | null;
+  /** Set the error message */
+  setErrorMessage: (message: string | null) => void;
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -142,6 +167,12 @@ export function DepositProvider({
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
   const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
   const [amount, setAmount] = useState<string>("");
+
+  // Transaction lifecycle state
+  const [transactionStatus, setTransactionStatus] =
+    useState<TransactionStatus>("idle");
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   /**
    * Subscribe to walletManager state changes
@@ -233,6 +264,10 @@ export function DepositProvider({
     setSelectedToken(null);
     setSelectedChain(null);
     setAmount("");
+    // Reset transaction state
+    setTransactionStatus("idle");
+    setTransactionHash(null);
+    setErrorMessage(null);
   }, []);
 
   const value = useMemo<DepositContextValue>(
@@ -255,6 +290,13 @@ export function DepositProvider({
       setSelectedChain,
       amount,
       setAmount,
+      // Transaction lifecycle state
+      transactionStatus,
+      setTransactionStatus,
+      transactionHash,
+      setTransactionHash,
+      errorMessage,
+      setErrorMessage,
     }),
     [
       currentStep,
@@ -270,6 +312,9 @@ export function DepositProvider({
       selectedToken,
       selectedChain,
       amount,
+      transactionStatus,
+      transactionHash,
+      errorMessage,
     ]
   );
 
