@@ -3,3 +3,6 @@ export type { RouteBuilderState, UseRouteBuilderOptions } from "./useRouteBuilde
 
 export { useChains } from "./useChains";
 export type { UseChainsResult } from "./useChains";
+
+export { useTokens } from "./useTokens";
+export type { UseTokensResult } from "./useTokens";
