@@ -278,9 +278,9 @@ export function Home({ className }: HomeProps): React.ReactElement {
                           className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-2 tw-rounded-lg hover:tw-bg-muted/50 tw-transition-colors tw-border-0 tw-bg-transparent"
                         >
                           <div className="tw-flex tw-items-center tw-gap-2">
-                            {wallet.meta.icon ? (
+                            {wallet.meta.logo ? (
                               <img
-                                src={wallet.meta.icon}
+                                src={wallet.meta.logo}
                                 alt={wallet.meta.name}
                                 className="tw-w-8 tw-h-8 tw-rounded-lg tw-object-cover"
                               />

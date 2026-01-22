@@ -204,8 +204,8 @@ export function Error({ className }: ErrorProps): React.ReactElement {
         const config = TrustwareConfigStore.get();
         // Check for rate limit callback as a proxy for error logging
         // This notifies the host app of issues
-        if (config.rateLimit?.onRateLimited && errorMessage.includes("rate limit")) {
-          config.rateLimit.onRateLimited(
+        if (config.retry?.onRateLimited && errorMessage.includes("rate limit")) {
+          config.retry.onRateLimited(
             { limit: 0, remaining: 0, reset: Date.now() + 60000 },
             0
           );
