@@ -1,6 +1,6 @@
 {
   "name": "@trustware/sdk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
   "license": "MIT",
   "author": "Trustware",
