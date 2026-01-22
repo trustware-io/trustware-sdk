@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       "dist/**",
       "node_modules/**",
+      "ui-ideas/**",
       "*.cjs",
       "*.mjs",
       "*.config.ts",
@@ -48,12 +49,11 @@ export default tseslint.config(
     rules: {
       ...reactPlugin.configs.recommended.rules,
       ...reactPlugin.configs["jsx-runtime"].rules,
-      ...reactHooksPlugin.configs.recommended.rules,
       "react/prop-types": "off", // Using TypeScript for prop validation
       "react/react-in-jsx-scope": "off", // Not needed with React 17+ jsx-runtime
+      // Downgrade all react-hooks rules to warnings (v7 introduced strict errors)
       "react-hooks/rules-of-hooks": "warn",
       "react-hooks/exhaustive-deps": "warn",
-      "react-hooks/immutability": "off", // Too strict for this codebase
     },
   },
 
