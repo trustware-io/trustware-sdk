@@ -140,7 +140,9 @@ async function initWalletConnectProvider(): Promise<EIP1193 | null> {
  */
 export async function connectWalletConnect(): Promise<WalletInterFaceAPI | null> {
   if (isConnecting) {
-    console.warn("[Trustware SDK] WalletConnect connection already in progress");
+    console.warn(
+      "[Trustware SDK] WalletConnect connection already in progress"
+    );
     return null;
   }
 

@@ -46,7 +46,12 @@ export async function connectDetectedWallet(
   if (dw.meta.id === "walletconnect" || dw.via === "walletconnect") {
     // First try wagmi if available (host may have WC configured in wagmi)
     if (wagmi) {
-      const conn = pickWagmiConnector(wagmi, dw.meta.name, dw.meta.id, dw.meta.category);
+      const conn = pickWagmiConnector(
+        wagmi,
+        dw.meta.name,
+        dw.meta.id,
+        dw.meta.category
+      );
       if (conn) {
         await wagmi.connect(conn);
         return { via: "wagmi", api: null };
@@ -81,7 +86,9 @@ export async function connectDetectedWallet(
   console.log("[TW Connect] Using EIP-1193 fallback for:", dw.meta.id);
   console.log("[TW Connect] dw.provider:", dw.provider);
   const api = toWalletInterfaceFromDetected(dw);
-  console.log("[TW Connect] Created API, calling getAddress to trigger prompt...");
+  console.log(
+    "[TW Connect] Created API, calling getAddress to trigger prompt..."
+  );
   if (touchAddress) await api.getAddress(); // triggers permission prompt
   console.log("[TW Connect] getAddress succeeded");
   return { via: "eip1193", api };

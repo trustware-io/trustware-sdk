@@ -35,7 +35,8 @@ function resolveWalletConnectConfig(
     ], // ETH, OP, BSC, Polygon, Base, Arbitrum, Avalanche
     metadata: {
       name: input?.metadata?.name ?? "Trustware",
-      description: input?.metadata?.description ?? "Cross-chain bridge & top-up",
+      description:
+        input?.metadata?.description ?? "Cross-chain bridge & top-up",
       url: input?.metadata?.url ?? "https://trustware.io",
       icons: input?.metadata?.icons ?? ["https://app.trustware.io/icon.png"],
     },

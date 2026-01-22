@@ -21,8 +21,8 @@ const fiatOptions: FiatOption[] = [
     name: "Apple Pay",
     icon: (
       <svg className="tw-w-8 tw-h-5" viewBox="0 0 50 20" fill="currentColor">
-        <path d="M9.6 4.8c-.6.7-1.5 1.3-2.4 1.2-.1-.9.3-1.9.9-2.5.6-.7 1.6-1.2 2.4-1.2.1 1-.3 1.9-.9 2.5zm.9 1.3c-1.3-.1-2.5.8-3.1.8-.6 0-1.6-.7-2.7-.7-1.4 0-2.6.8-3.4 2-.7 1.2-.5 3.5.6 5.5.5.9 1.2 1.9 2.1 1.9.8 0 1.2-.5 2.3-.5s1.4.5 2.4.5c.9 0 1.5-.9 2-1.8.4-.6.5-1.2.7-1.8-1.6-.6-2-2.6-1.4-4-.4-.5-1-1.3-1.5-1.9z"/>
-        <path d="M18.4 2.1c2.3 0 4 1.6 4 3.9s-1.7 3.9-4.1 3.9h-2.6v4h-1.8V2.1h4.5zm-2.7 6.2h2.2c1.6 0 2.5-.9 2.5-2.4s-.9-2.4-2.5-2.4h-2.2v4.8zm6.4 3.2c0-1.5 1.2-2.5 3.3-2.6l2.4-.1v-.7c0-1-.7-1.6-1.8-1.6-1 0-1.7.5-1.8 1.3h-1.6c.1-1.5 1.4-2.7 3.5-2.7 2.1 0 3.4 1.1 3.4 2.9v6h-1.6v-1.4c-.5 1-1.5 1.6-2.7 1.6-1.7 0-2.9-1-2.9-2.7h-.2zm5.7-.8v-.7l-2.2.1c-1.1.1-1.8.6-1.8 1.4 0 .8.6 1.3 1.6 1.3 1.3 0 2.4-.9 2.4-2.1zm3.2 5.8v-1.4c.1 0 .5.1.7.1 1 0 1.5-.4 1.8-1.5l.2-.6-3.1-8.6h1.9l2.2 6.9 2.2-6.9h1.8l-3.2 9c-.7 2-1.5 2.7-3.3 2.7-.2 0-.6 0-.8-.1l-.4.4z"/>
+        <path d="M9.6 4.8c-.6.7-1.5 1.3-2.4 1.2-.1-.9.3-1.9.9-2.5.6-.7 1.6-1.2 2.4-1.2.1 1-.3 1.9-.9 2.5zm.9 1.3c-1.3-.1-2.5.8-3.1.8-.6 0-1.6-.7-2.7-.7-1.4 0-2.6.8-3.4 2-.7 1.2-.5 3.5.6 5.5.5.9 1.2 1.9 2.1 1.9.8 0 1.2-.5 2.3-.5s1.4.5 2.4.5c.9 0 1.5-.9 2-1.8.4-.6.5-1.2.7-1.8-1.6-.6-2-2.6-1.4-4-.4-.5-1-1.3-1.5-1.9z" />
+        <path d="M18.4 2.1c2.3 0 4 1.6 4 3.9s-1.7 3.9-4.1 3.9h-2.6v4h-1.8V2.1h4.5zm-2.7 6.2h2.2c1.6 0 2.5-.9 2.5-2.4s-.9-2.4-2.5-2.4h-2.2v4.8zm6.4 3.2c0-1.5 1.2-2.5 3.3-2.6l2.4-.1v-.7c0-1-.7-1.6-1.8-1.6-1 0-1.7.5-1.8 1.3h-1.6c.1-1.5 1.4-2.7 3.5-2.7 2.1 0 3.4 1.1 3.4 2.9v6h-1.6v-1.4c-.5 1-1.5 1.6-2.7 1.6-1.7 0-2.9-1-2.9-2.7h-.2zm5.7-.8v-.7l-2.2.1c-1.1.1-1.8.6-1.8 1.4 0 .8.6 1.3 1.6 1.3 1.3 0 2.4-.9 2.4-2.1zm3.2 5.8v-1.4c.1 0 .5.1.7.1 1 0 1.5-.4 1.8-1.5l.2-.6-3.1-8.6h1.9l2.2 6.9 2.2-6.9h1.8l-3.2 9c-.7 2-1.5 2.7-3.3 2.7-.2 0-.6 0-.8-.1l-.4.4z" />
       </svg>
     ),
   },
@@ -65,7 +65,8 @@ export interface HomeProps {
  * Displays a large amount input and dropdown buttons for payment method selection.
  */
 export function Home({ className }: HomeProps): React.ReactElement {
-  const { amount, setAmount, setCurrentStep, walletAddress, connectWallet } = useDeposit();
+  const { amount, setAmount, setCurrentStep, walletAddress, connectWallet } =
+    useDeposit();
   const { detected: detectedWallets } = useWalletDetection();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -79,15 +80,21 @@ export function Home({ className }: HomeProps): React.ReactElement {
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (cryptoDropdownRef.current && !cryptoDropdownRef.current.contains(event.target as Node)) {
+      if (
+        cryptoDropdownRef.current &&
+        !cryptoDropdownRef.current.contains(event.target as Node)
+      ) {
         setIsCryptoDropdownOpen(false);
       }
-      if (fiatDropdownRef.current && !fiatDropdownRef.current.contains(event.target as Node)) {
+      if (
+        fiatDropdownRef.current &&
+        !fiatDropdownRef.current.contains(event.target as Node)
+      ) {
         setIsFiatDropdownOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Parse amount for display
@@ -124,8 +131,12 @@ export function Home({ className }: HomeProps): React.ReactElement {
   /**
    * Handle wallet selection from dropdown
    */
-  const handleWalletSelect = async (wallet: typeof detectedWallets[0]) => {
-    console.log("[TW Home] handleWalletSelect called with:", wallet.meta.id, wallet.meta.name);
+  const handleWalletSelect = async (wallet: (typeof detectedWallets)[0]) => {
+    console.log(
+      "[TW Home] handleWalletSelect called with:",
+      wallet.meta.id,
+      wallet.meta.name
+    );
     console.log("[TW Home] wallet.provider:", wallet.provider);
     setIsCryptoDropdownOpen(false);
 
@@ -140,7 +151,9 @@ export function Home({ className }: HomeProps): React.ReactElement {
     try {
       console.log("[TW Home] Calling connectWallet...");
       await connectWallet(wallet);
-      console.log("[TW Home] connectWallet succeeded, navigating to select-token");
+      console.log(
+        "[TW Home] connectWallet succeeded, navigating to select-token"
+      );
       setCurrentStep("select-token");
     } catch (err) {
       console.error("[TW Home] Failed to connect wallet:", err);
@@ -156,7 +169,9 @@ export function Home({ className }: HomeProps): React.ReactElement {
   };
 
   // Filter out WalletConnect for the detected wallets list
-  const browserWallets = detectedWallets.filter(w => w.meta.id !== 'walletconnect');
+  const browserWallets = detectedWallets.filter(
+    (w) => w.meta.id !== "walletconnect"
+  );
 
   return (
     <div className={cn("tw-flex tw-flex-col tw-min-h-[500px]", className)}>
@@ -236,7 +251,11 @@ export function Home({ className }: HomeProps): React.ReactElement {
                 stroke="currentColor"
                 strokeWidth={2}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                />
               </svg>
               <span className="tw-font-medium tw-text-sm tw-text-foreground tw-flex-1 tw-text-left">
                 Pay with crypto
@@ -252,7 +271,11 @@ export function Home({ className }: HomeProps): React.ReactElement {
                 stroke="currentColor"
                 strokeWidth={2}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </button>
 
@@ -264,7 +287,9 @@ export function Home({ className }: HomeProps): React.ReactElement {
                   <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
                     <div className="tw-w-1.5 tw-h-1.5 tw-rounded-full tw-bg-green-500" />
                     <span className="tw-text-xs tw-font-medium tw-text-primary">
-                      {browserWallets.length > 0 ? "Detected Wallets" : "No Wallets Detected"}
+                      {browserWallets.length > 0
+                        ? "Detected Wallets"
+                        : "No Wallets Detected"}
                     </span>
                   </div>
 
@@ -314,23 +339,39 @@ export function Home({ className }: HomeProps): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => {
-                      const wcWallet = detectedWallets.find(w => w.meta.id === 'walletconnect');
+                      const wcWallet = detectedWallets.find(
+                        (w) => w.meta.id === "walletconnect"
+                      );
                       if (wcWallet) handleWalletSelect(wcWallet);
                     }}
                     className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-2 tw-rounded-lg hover:tw-bg-muted/50 tw-transition-colors tw-border-0 tw-bg-transparent"
                   >
                     <div className="tw-flex tw-items-center tw-gap-2">
                       <div className="tw-w-8 tw-h-8 tw-rounded-lg tw-bg-blue-500/10 tw-flex tw-items-center tw-justify-center">
-                        <svg className="tw-w-5 tw-h-5 tw-text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M6.09 10.56c3.26-3.2 8.56-3.2 11.82 0l.39.39a.4.4 0 010 .58l-1.34 1.31a.21.21 0 01-.3 0l-.54-.53c-2.28-2.23-5.97-2.23-8.24 0l-.58.56a.21.21 0 01-.3 0L5.66 11.6a.4.4 0 010-.58l.43-.46zm14.6 2.72l1.2 1.17a.4.4 0 010 .58l-5.38 5.27a.43.43 0 01-.6 0l-3.82-3.74a.11.11 0 00-.15 0l-3.82 3.74a.43.43 0 01-.6 0L2.15 15.03a.4.4 0 010-.58l1.2-1.17a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0z"/>
+                        <svg
+                          className="tw-w-5 tw-h-5 tw-text-blue-500"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M6.09 10.56c3.26-3.2 8.56-3.2 11.82 0l.39.39a.4.4 0 010 .58l-1.34 1.31a.21.21 0 01-.3 0l-.54-.53c-2.28-2.23-5.97-2.23-8.24 0l-.58.56a.21.21 0 01-.3 0L5.66 11.6a.4.4 0 010-.58l.43-.46zm14.6 2.72l1.2 1.17a.4.4 0 010 .58l-5.38 5.27a.43.43 0 01-.6 0l-3.82-3.74a.11.11 0 00-.15 0l-3.82 3.74a.43.43 0 01-.6 0L2.15 15.03a.4.4 0 010-.58l1.2-1.17a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0z" />
                         </svg>
                       </div>
                       <span className="tw-font-medium tw-text-sm tw-text-foreground">
                         WalletConnect
                       </span>
                     </div>
-                    <svg className="tw-w-4 tw-h-4 tw-text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    <svg
+                      className="tw-w-4 tw-h-4 tw-text-muted-foreground"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 5l7 7-7 7"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -373,7 +414,11 @@ export function Home({ className }: HomeProps): React.ReactElement {
                 stroke="currentColor"
                 strokeWidth={2}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </button>
 
@@ -391,7 +436,9 @@ export function Home({ className }: HomeProps): React.ReactElement {
                 <div className="tw-p-3">
                   <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
                     <div className="tw-w-1.5 tw-h-1.5 tw-rounded-full tw-bg-primary" />
-                    <span className="tw-text-xs tw-font-medium tw-text-primary">Payment Methods</span>
+                    <span className="tw-text-xs tw-font-medium tw-text-primary">
+                      Payment Methods
+                    </span>
                   </div>
 
                   <div className="tw-space-y-1">
@@ -404,7 +451,9 @@ export function Home({ className }: HomeProps): React.ReactElement {
                         className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-2 tw-rounded-lg tw-opacity-50 tw-cursor-not-allowed tw-border-0 tw-bg-transparent"
                       >
                         <div className="tw-flex tw-items-center tw-gap-2">
-                          <span className="tw-text-muted-foreground">{method.icon}</span>
+                          <span className="tw-text-muted-foreground">
+                            {method.icon}
+                          </span>
                           <span className="tw-font-medium tw-text-sm tw-text-foreground">
                             {method.name}
                           </span>

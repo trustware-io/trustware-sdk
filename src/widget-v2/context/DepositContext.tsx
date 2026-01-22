@@ -249,11 +249,14 @@ export function DepositProvider({
 
       // Update wallet address when connected
       if (status === "connected" && walletManager.wallet) {
-        walletManager.wallet.getAddress().then((address) => {
-          setWalletAddress(address);
-        }).catch(() => {
-          setWalletAddress(null);
-        });
+        walletManager.wallet
+          .getAddress()
+          .then((address) => {
+            setWalletAddress(address);
+          })
+          .catch(() => {
+            setWalletAddress(null);
+          });
       } else if (status !== "connected") {
         setWalletAddress(null);
       }
@@ -261,11 +264,14 @@ export function DepositProvider({
 
     // Initialize wallet address if already connected
     if (walletManager.status === "connected" && walletManager.wallet) {
-      walletManager.wallet.getAddress().then((address) => {
-        setWalletAddress(address);
-      }).catch(() => {
-        setWalletAddress(null);
-      });
+      walletManager.wallet
+        .getAddress()
+        .then((address) => {
+          setWalletAddress(address);
+        })
+        .catch(() => {
+          setWalletAddress(null);
+        });
     }
 
     return () => {

@@ -343,7 +343,10 @@ export function useWalletDetection(timeoutMs = 400) {
       const seenIds = new Set<string>();
 
       for (const [provider] of candidates) {
-        const wallet = buildDetectedWalletFromProvider(provider, providerDetailMap);
+        const wallet = buildDetectedWalletFromProvider(
+          provider,
+          providerDetailMap
+        );
         // Deduplicate by wallet ID (same wallet can be detected via multiple methods)
         if (!seenIds.has(wallet.meta.id)) {
           seenIds.add(wallet.meta.id);

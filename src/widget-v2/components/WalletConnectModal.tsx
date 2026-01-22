@@ -2,9 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cn } from "../lib/utils";
 import { walletConnectEvents } from "../../wallets/walletconnect";
-import {
-  formatWalletConnectDeepLink,
-} from "../../wallets/deepLink";
+import { formatWalletConnectDeepLink } from "../../wallets/deepLink";
 import { useIsMobile } from "../../wallets/detect";
 
 interface WalletConnectModalProps {

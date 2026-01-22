@@ -40,7 +40,8 @@ export function TokenSwipePill({
 
   // Find current index in tokens array
   const currentIndex = tokens.findIndex(
-    (t) => t.address === selectedToken.address && t.symbol === selectedToken.symbol
+    (t) =>
+      t.address === selectedToken.address && t.symbol === selectedToken.symbol
   );
 
   const swipeThreshold = 30;
@@ -89,7 +90,8 @@ export function TokenSwipePill({
     if (Math.abs(dragOffset) > swipeThreshold) {
       // Swipe left (positive delta) = next token, swipe right (negative delta) = prev token
       const direction = dragOffset > 0 ? 1 : -1;
-      const newIndex = (currentIndex + direction + tokens.length) % tokens.length;
+      const newIndex =
+        (currentIndex + direction + tokens.length) % tokens.length;
 
       onTokenChange(tokens[newIndex]);
       if (navigator.vibrate) {
@@ -217,7 +219,9 @@ export function TokenSwipePill({
                   key={`carousel-${index}-${token.address}`}
                   className={cn(
                     "tw-absolute tw-transition-all",
-                    isDragging ? "tw-duration-75" : "tw-duration-200 tw-ease-out"
+                    isDragging
+                      ? "tw-duration-75"
+                      : "tw-duration-200 tw-ease-out"
                   )}
                   style={{
                     transform: `translateX(${currentOffset}px) scale(${scale})`,

@@ -158,14 +158,12 @@ function notifyListeners() {
 /**
  * Show a toast notification
  */
-export function toast(
-  data: Omit<ToastData, "id"> | string
-): { dismiss: () => void } {
+export function toast(data: Omit<ToastData, "id"> | string): {
+  dismiss: () => void;
+} {
   const id = String(++toastId);
   const toastData: ToastData =
-    typeof data === "string"
-      ? { id, title: data }
-      : { ...data, id };
+    typeof data === "string" ? { id, title: data } : { ...data, id };
 
   toasts = [toastData, ...toasts].slice(0, 3); // Limit to 3 toasts
   notifyListeners();
@@ -219,7 +217,11 @@ export function ToastContainer(): React.ReactElement | null {
   return (
     <div className="tw-fixed tw-bottom-4 tw-left-1/2 tw--translate-x-1/2 tw-z-50 tw-flex tw-flex-col tw-gap-2 tw-w-full tw-max-w-[380px] tw-px-4 tw-pointer-events-none">
       {activeToasts.map((toastData) => (
-        <ToastItem key={toastData.id} {...toastData} onDismiss={handleDismiss} />
+        <ToastItem
+          key={toastData.id}
+          {...toastData}
+          onDismiss={handleDismiss}
+        />
       ))}
     </div>
   );

@@ -1,4 +1,4 @@
-export type RouteParams = { 
+export type RouteParams = {
   fromChain: string;
   toChain: string;
   fromToken: string;

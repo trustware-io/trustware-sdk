@@ -145,7 +145,8 @@ function WidgetContent({
     resolvedTheme,
     toggleTheme,
   } = useDeposit();
-  const [displayedStep, setDisplayedStep] = useState<NavigationStep>(currentStep);
+  const [displayedStep, setDisplayedStep] =
+    useState<NavigationStep>(currentStep);
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationDirection, setAnimationDirection] =
     useState<AnimationDirection>("forward");
@@ -161,7 +162,8 @@ function WidgetContent({
       selectedChainId: selectedChain?.chainId,
       selectedTokenAddress: selectedToken?.address,
       transactionHash: transactionHash ?? undefined,
-      transactionStatus: transactionStatus !== "idle" ? transactionStatus : undefined,
+      transactionStatus:
+        transactionStatus !== "idle" ? transactionStatus : undefined,
     };
     savePersistedState(state);
     onStateChange?.(state);
@@ -425,7 +427,10 @@ function WidgetInner({
   return (
     <>
       <WidgetContainer theme={effectiveTheme} className={className}>
-        <WidgetContent onStateChange={onStateChange} showThemeToggle={showThemeToggle} />
+        <WidgetContent
+          onStateChange={onStateChange}
+          showThemeToggle={showThemeToggle}
+        />
       </WidgetContainer>
       <ConfirmCloseDialog
         open={showConfirmDialog}

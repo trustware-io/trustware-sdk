@@ -127,8 +127,10 @@ export function TransactionSteps({
             className={cn(
               "tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-transition-all tw-shrink-0",
               step.status === "complete" && "tw-bg-green-500 tw-text-white",
-              step.status === "active" && "tw-bg-primary tw-text-primary-foreground",
-              step.status === "pending" && "tw-bg-muted tw-text-muted-foreground"
+              step.status === "active" &&
+                "tw-bg-primary tw-text-primary-foreground",
+              step.status === "pending" &&
+                "tw-bg-muted tw-text-muted-foreground"
             )}
           >
             {step.status === "complete" ? (

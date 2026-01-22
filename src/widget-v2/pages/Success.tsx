@@ -24,13 +24,8 @@ function truncateHash(hash: string): string {
  * Displays a celebratory success screen with confetti when the deposit completes.
  */
 export function Success({ className }: SuccessProps): React.ReactElement {
-  const {
-    transactionHash,
-    selectedToken,
-    selectedChain,
-    amount,
-    resetState,
-  } = useDeposit();
+  const { transactionHash, selectedToken, selectedChain, amount, resetState } =
+    useDeposit();
 
   // Get transaction details for explorer URL
   const { transaction } = useTransactionPolling();
@@ -111,7 +106,8 @@ export function Success({ className }: SuccessProps): React.ReactElement {
               Amount Deposited
             </p>
             <p className="tw-text-3xl tw-font-bold tw-text-foreground">
-              ${parsedAmount.toLocaleString(undefined, {
+              $
+              {parsedAmount.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}

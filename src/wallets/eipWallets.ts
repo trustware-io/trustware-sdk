@@ -1,5 +1,3 @@
- 
- 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/wallet.ts
 import type { WalletInterFaceAPI, EIP1193 } from "../types/";

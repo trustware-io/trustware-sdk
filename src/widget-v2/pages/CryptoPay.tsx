@@ -36,7 +36,13 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
   const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Get route info with fees
-  const { isLoadingRoute, networkFees, estimatedReceive, error: routeError, routeResult } = useRouteBuilder();
+  const {
+    isLoadingRoute,
+    networkFees,
+    estimatedReceive,
+    error: routeError,
+    routeResult,
+  } = useRouteBuilder();
 
   // Transaction submission hook
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
@@ -163,8 +169,18 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
           className="tw-p-1 tw-mr-2 tw-rounded-lg hover:tw-bg-muted/50 tw-transition-colors"
           aria-label="Go back"
         >
-          <svg className="tw-w-5 tw-h-5 tw-text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          <svg
+            className="tw-w-5 tw-h-5 tw-text-foreground"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
         </button>
         <h1 className="tw-flex-1 tw-text-lg tw-font-semibold tw-text-foreground tw-text-center tw-mr-7">
@@ -226,7 +242,9 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
           <div className="tw-flex tw-items-center tw-gap-2 tw-mt-2">
             <span className="tw-text-lg tw-text-muted-foreground">
               {tokenAmount > 0
-                ? tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 5 })
+                ? tokenAmount.toLocaleString(undefined, {
+                    maximumFractionDigits: 5,
+                  })
                 : "0"}{" "}
               {selectedToken.symbol}
             </span>
@@ -237,7 +255,11 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
               stroke="currentColor"
               strokeWidth={2}
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+              />
             </svg>
           </div>
         )}
@@ -246,7 +268,10 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
         {selectedToken?.balance && (
           <div className="tw-flex tw-items-center tw-gap-3 tw-mt-2">
             <span className="tw-text-sm tw-font-semibold tw-text-primary">
-              Balance {parseFloat(selectedToken.balance).toLocaleString(undefined, { maximumFractionDigits: 8 })}
+              Balance{" "}
+              {parseFloat(selectedToken.balance).toLocaleString(undefined, {
+                maximumFractionDigits: 8,
+              })}
             </span>
             <button
               type="button"
@@ -328,7 +353,9 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
 
               {/* You'll receive */}
               <div className="tw-flex tw-justify-between">
-                <span className="tw-text-muted-foreground tw-text-sm">You&apos;ll receive</span>
+                <span className="tw-text-muted-foreground tw-text-sm">
+                  You&apos;ll receive
+                </span>
                 <span className="tw-font-semibold tw-text-foreground">
                   {estimatedReceive
                     ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`

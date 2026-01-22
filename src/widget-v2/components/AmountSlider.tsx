@@ -92,7 +92,10 @@ export function AmountSlider({
     return ticks;
   }, []);
 
-  const tickMarks = useMemo(() => generateTickMarks(max), [generateTickMarks, max]);
+  const tickMarks = useMemo(
+    () => generateTickMarks(max),
+    [generateTickMarks, max]
+  );
 
   // Snap threshold - 5% of max value for noticeable snap effect
   const snapThreshold = max * 0.05;
@@ -175,7 +178,9 @@ export function AmountSlider({
           <span className="tw-text-xs tw-text-zinc-500 tw-font-medium">
             ${min}
           </span>
-          <span className="tw-text-xs tw-text-zinc-500 tw-font-medium">Max</span>
+          <span className="tw-text-xs tw-text-zinc-500 tw-font-medium">
+            Max
+          </span>
         </div>
 
         {/* Track Container */}
@@ -213,9 +218,7 @@ export function AmountSlider({
                 <div
                   className={cn(
                     "tw-w-0.5 tw-h-2.5 tw-rounded-full tw-transition-colors tw--translate-x-1/2",
-                    isActive
-                      ? "tw-bg-emerald-500/50"
-                      : "tw-bg-zinc-500/20"
+                    isActive ? "tw-bg-emerald-500/50" : "tw-bg-zinc-500/20"
                   )}
                 />
               </button>
@@ -287,7 +290,11 @@ export function AmountSlider({
               : "tw-bg-emerald-500/10 tw-text-emerald-400"
           )}
         >
-          ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          $
+          {value.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
         </div>
       </div>
     </div>

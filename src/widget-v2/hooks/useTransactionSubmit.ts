@@ -89,7 +89,12 @@ export function useTransactionSubmit() {
         });
 
         // Update context with the transaction hash and intent ID
-        console.log("[TW Submit] Setting context - hash:", hash, "intentId:", routeResult.intentId);
+        console.log(
+          "[TW Submit] Setting context - hash:",
+          hash,
+          "intentId:",
+          routeResult.intentId
+        );
         setTransactionHash(hash);
         setIntentId(routeResult.intentId);
 
@@ -162,8 +167,7 @@ function mapTransactionError(err: unknown): string {
   }
 
   // Check for user rejection (code 4001)
-  const errorCode =
-    (err as any)?.code ?? (err as any)?.data?.code;
+  const errorCode = (err as any)?.code ?? (err as any)?.data?.code;
   if (errorCode === 4001) {
     return "Transaction cancelled. You rejected the request in your wallet.";
   }
@@ -199,10 +203,7 @@ function mapTransactionError(err: unknown): string {
   }
 
   // Gas estimation failed
-  if (
-    msgLower.includes("gas") ||
-    msgLower.includes("execution reverted")
-  ) {
+  if (msgLower.includes("gas") || msgLower.includes("execution reverted")) {
     return "Transaction would fail. Please try a different amount or token.";
   }
 
@@ -216,10 +217,7 @@ function mapTransactionError(err: unknown): string {
   }
 
   // Chain switching errors
-  if (
-    msgLower.includes("chain") ||
-    msgLower.includes("switch")
-  ) {
+  if (msgLower.includes("chain") || msgLower.includes("switch")) {
     return "Please switch to the correct network in your wallet.";
   }
 
@@ -229,10 +227,7 @@ function mapTransactionError(err: unknown): string {
   }
 
   // Pending request
-  if (
-    msgLower.includes("pending") ||
-    msgLower.includes("already processing")
-  ) {
+  if (msgLower.includes("pending") || msgLower.includes("already processing")) {
     return "Please check your wallet for a pending request.";
   }
 

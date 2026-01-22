@@ -61,7 +61,13 @@ export function useRouteBuilder(
 
   // Build a cache key from the route parameters
   const routeKey = useMemo(() => {
-    if (!enabled || !selectedToken || !selectedChain || !amount || !walletAddress) {
+    if (
+      !enabled ||
+      !selectedToken ||
+      !selectedChain ||
+      !amount ||
+      !walletAddress
+    ) {
       return null;
     }
 
@@ -89,7 +95,10 @@ export function useRouteBuilder(
   }, [enabled, selectedToken, selectedChain, amount, walletAddress]);
 
   useEffect(() => {
-    console.log("[useRouteBuilder] Effect triggered, routeKey:", routeKey ? "exists" : "null");
+    console.log(
+      "[useRouteBuilder] Effect triggered, routeKey:",
+      routeKey ? "exists" : "null"
+    );
 
     // Abort any pending request
     abortRef.current?.abort();
@@ -180,7 +189,8 @@ export function useRouteBuilder(
 
         // Try to get gas cost from fees object
         if (!networkFeesUSD && fees) {
-          const gasCost = (fees as any).gasCostUSD || (fees as any).totalGasCostUSD;
+          const gasCost =
+            (fees as any).gasCostUSD || (fees as any).totalGasCostUSD;
           if (gasCost) {
             networkFeesUSD = parseFloat(gasCost).toFixed(2);
           }
@@ -197,13 +207,19 @@ export function useRouteBuilder(
         } else if (estimate?.toAmount) {
           // Convert from smallest unit - assume 6 decimals for stablecoins, 18 for others
           const toToken = config.routes.toToken?.toLowerCase() || "";
-          const isStablecoin = toToken.includes("usdc") || toToken.includes("usdt") || toToken.includes("dai");
+          const isStablecoin =
+            toToken.includes("usdc") ||
+            toToken.includes("usdt") ||
+            toToken.includes("dai");
           const decimals = isStablecoin ? 6 : 18;
           const raw = BigInt(estimate.toAmount);
           const divisor = BigInt(10 ** decimals);
           const whole = raw / divisor;
           const fraction = raw % divisor;
-          const fractionStr = fraction.toString().padStart(decimals, "0").slice(0, 2);
+          const fractionStr = fraction
+            .toString()
+            .padStart(decimals, "0")
+            .slice(0, 2);
           estimatedReceive = `${whole}.${fractionStr}`;
         }
 

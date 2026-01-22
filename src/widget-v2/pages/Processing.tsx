@@ -92,7 +92,9 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
   useEffect(() => {
     console.log("[TW Processing] useEffect check:", {
       intentId,
-      transactionHash: transactionHash ? transactionHash.slice(0, 10) + "..." : null,
+      transactionHash: transactionHash
+        ? transactionHash.slice(0, 10) + "..."
+        : null,
       isPolling,
       hasStartedPolling: hasStartedPolling.current,
       transactionStatus,

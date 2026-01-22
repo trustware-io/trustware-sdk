@@ -133,7 +133,10 @@ export function WalletSelector({
         message.toLowerCase().includes("cancelled") ||
         message.toLowerCase().includes("user refused")
       ) {
-        toast.error("Connection Declined", "You declined the connection request.");
+        toast.error(
+          "Connection Declined",
+          "You declined the connection request."
+        );
       } else if (message.toLowerCase().includes("already pending")) {
         toast.error(
           "Connection Pending",
@@ -158,21 +161,29 @@ export function WalletSelector({
   const handleWalletConnectSuccess = useCallback(() => {
     setShowWalletConnectModal(false);
     setConnectingWalletId(null);
-    toast.success("Wallet Connected", "Successfully connected via WalletConnect.");
+    toast.success(
+      "Wallet Connected",
+      "Successfully connected via WalletConnect."
+    );
   }, []);
 
   // Handle WalletConnect connection error
   const handleWalletConnectError = useCallback((error: unknown) => {
     setConnectingWalletId(null);
     const message =
-      error instanceof Error ? error.message : "WalletConnect connection failed";
+      error instanceof Error
+        ? error.message
+        : "WalletConnect connection failed";
     toast.error("Connection Failed", message);
   }, []);
 
   const handleDisconnect = async () => {
     try {
       await disconnectWallet();
-      toast.success("Wallet Disconnected", "Your wallet has been disconnected.");
+      toast.success(
+        "Wallet Disconnected",
+        "Your wallet has been disconnected."
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to disconnect wallet";

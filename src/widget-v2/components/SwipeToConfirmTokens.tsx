@@ -301,7 +301,9 @@ export function SwipeToConfirmTokens({
   };
 
   return (
-    <div className={cn("tw-flex tw-flex-col tw-items-center tw-gap-3", className)}>
+    <div
+      className={cn("tw-flex tw-flex-col tw-items-center tw-gap-3", className)}
+    >
       {/* Swipe Track */}
       <div
         ref={trackRef}
@@ -344,10 +346,7 @@ export function SwipeToConfirmTokens({
           <div className="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center">
             <div className="tw-flex tw-items-center tw-gap-2">
               {/* Circular countdown indicator */}
-              <svg
-                className="tw-w-8 tw-h-8 tw--rotate-90"
-                viewBox="0 0 36 36"
-              >
+              <svg className="tw-w-8 tw-h-8 tw--rotate-90" viewBox="0 0 36 36">
                 <circle
                   className="tw-text-zinc-600"
                   strokeWidth="3"
@@ -370,7 +369,10 @@ export function SwipeToConfirmTokens({
                 />
               </svg>
               <span className="tw-text-sm tw-text-white tw-font-bold">
-                {Math.ceil((1 - longPressProgress) * (LONG_PRESS_DURATION / 1000) * 10) / 10}s
+                {Math.ceil(
+                  (1 - longPressProgress) * (LONG_PRESS_DURATION / 1000) * 10
+                ) / 10}
+                s
               </span>
             </div>
           </div>

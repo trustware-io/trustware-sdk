@@ -1,4 +1,3 @@
- 
 import type {
   DetectedWallet,
   WalletInterFaceAPI,
@@ -72,7 +71,10 @@ class WalletManager {
       const { via, api } = await connectDetectedWallet(target, {
         wagmi: opts?.wagmi,
       });
-      console.log("[TW Manager] connectDetectedWallet returned:", { via, hasApi: !!api });
+      console.log("[TW Manager] connectDetectedWallet returned:", {
+        via,
+        hasApi: !!api,
+      });
       // Set wallet for both eip1193 and walletconnect (api is returned for both)
       if (api) this._wallet = api;
       this._status = "connected";

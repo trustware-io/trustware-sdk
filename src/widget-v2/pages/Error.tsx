@@ -136,7 +136,9 @@ function getErrorSuggestion(category: ErrorCategory): string {
 /**
  * Determines which step to return to based on error category
  */
-function getRetryStep(category: ErrorCategory): "home" | "select-token" | "crypto-pay" {
+function getRetryStep(
+  category: ErrorCategory
+): "home" | "select-token" | "crypto-pay" {
   switch (category) {
     case "wallet_rejected":
       // User just needs to approve again
@@ -192,10 +194,7 @@ export function Error({ className }: ErrorProps): React.ReactElement {
     [errorCategory]
   );
 
-  const retryStep = useMemo(
-    () => getRetryStep(errorCategory),
-    [errorCategory]
-  );
+  const retryStep = useMemo(() => getRetryStep(errorCategory), [errorCategory]);
 
   // Log error via SDK callback if configured
   useEffect(() => {
@@ -204,7 +203,10 @@ export function Error({ className }: ErrorProps): React.ReactElement {
         const config = TrustwareConfigStore.get();
         // Check for rate limit callback as a proxy for error logging
         // This notifies the host app of issues
-        if (config.retry?.onRateLimited && errorMessage.includes("rate limit")) {
+        if (
+          config.retry?.onRateLimited &&
+          errorMessage.includes("rate limit")
+        ) {
           config.retry.onRateLimited(
             { limit: 0, remaining: 0, reset: Date.now() + 60000 },
             0
