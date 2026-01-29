@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+"use client";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   useIsMobile,
   useWalletDetection,
@@ -9,7 +10,8 @@ import {
 } from "../wallets/";
 import { WalletMeta } from "../types/";
 import { useTrustwareConfig } from "../hooks/useTrustwareConfig";
-
+import { WalletConnectSDK } from "src/config/walletconnect";
+import { QRCodeModal } from "./qrcodeModal";
 // =============================================
 // Notes & Integration
 // =============================================
@@ -123,7 +125,12 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
     }
   };
 
+  const [wc, setWC] = useState<WalletConnectSDK | null>(null);
+  const [uri, setUri] = useState<string | null>("");
+  const [connecting, setConnecting] = useState(false);
+
   const attemptConnection = async (wallet: WalletMeta) => {
+    console.log({ wallet });
     setSelectedWallet(wallet);
     setErrorMessage(null);
     if (walletManager.status === "connecting") return;
@@ -146,6 +153,22 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
         }
         return;
       }
+    }
+
+    if (wallet.name === "WalletConnect") {
+      const wc = new WalletConnectSDK();
+      await wc.init();
+
+      // Start the connection
+      const connectionPromise = wc.connect();
+
+      const uri = await wc.waitForUri();
+      // console.log("Received WalletConnect URI:", { uri });
+      setUri(uri);
+
+      // Now wait for the connection to complete
+      const accounts = await connectionPromise;
+      console.log("Connected accounts:", accounts);
     }
 
     openInstallOrDeepLink(wallet);
@@ -181,8 +204,9 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
           width: "100%",
           padding: "12px",
           borderRadius: `${theme.radius}px`,
-          border: `1px solid ${isSelected ? theme.primaryColor : theme.borderColor
-            }`,
+          border: `1px solid ${
+            isSelected ? theme.primaryColor : theme.borderColor
+          }`,
           backgroundColor: isSelected
             ? theme.primaryColor
             : theme.backgroundColor,
@@ -275,6 +299,8 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
 
   return (
     <>
+      {uri && <QRCodeModal uri={uri || ""} onClose={() => setUri(null)} />}
+
       {errorMessage && (
         <div
           style={{
@@ -359,7 +385,14 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
                   />
                 ))}
               </div>
-              <span style={{ fontSize: "0.75rem", opacity: 0.7, maxWidth: "200px", textAlign: "right" }}>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  opacity: 0.7,
+                  maxWidth: "200px",
+                  textAlign: "right",
+                }}
+              >
                 All tokens on all EVM networks accepted
               </span>
             </div>
