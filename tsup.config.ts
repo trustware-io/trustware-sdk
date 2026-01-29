@@ -1,34 +1,6 @@
 // tsup.config.ts
 import { defineConfig, type Options } from "tsup";
-import postcss from "postcss";
-import tailwindcss from "tailwindcss";
-import autoprefixer from "autoprefixer";
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { dirname, join } from "path";
 import pkg from "./package.json";
-
-// Custom plugin to process CSS with PostCSS/Tailwind
-const processCss = async () => {
-  const cssPath = "src/widget-v2/styles.css";
-  const outPath = "dist/widget-v2.css";
-
-  try {
-    const css = await readFile(cssPath, "utf8");
-    const result = await postcss([tailwindcss, autoprefixer]).process(css, {
-      from: cssPath,
-      to: outPath,
-    });
-
-    await mkdir(dirname(outPath), { recursive: true });
-    await writeFile(outPath, result.css);
-    if (result.map) {
-      await writeFile(`${outPath}.map`, result.map.toString());
-    }
-    console.log("✓ CSS processed successfully");
-  } catch (error) {
-    console.error("CSS processing error:", error);
-  }
-};
 
 const baseConfig: Options = {
   format: ["esm", "cjs"],
@@ -82,8 +54,5 @@ export default defineConfig([
       "src/widget.tsx",
       "src/constants.ts",
     ],
-    onSuccess: async () => {
-      await processCss();
-    },
   },
 ]);

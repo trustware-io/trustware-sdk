@@ -7,7 +7,8 @@ import React, {
   forwardRef,
 } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { cn } from "./lib/utils";
+import { cn, mergeStyles } from "./lib/utils";
+import { colors, spacing, fontSize, fontWeight, borderRadius, zIndex } from "./styles/tokens";
 import {
   DepositProvider,
   useDeposit,
@@ -116,11 +117,94 @@ const ACTIVE_TRANSACTION_STATUSES: TransactionStatus[] = [
   "bridging",
 ];
 
+// Styles for WidgetContent
+const widgetContentContainerStyle: React.CSSProperties = {
+  position: "relative",
+  width: "100%",
+  height: "100%",
+  overflow: "visible",
+};
+
+const themeToggleContainerStyle: React.CSSProperties = {
+  position: "absolute",
+  top: spacing[3],
+  right: spacing[3],
+  zIndex: 10,
+};
+
+const pageContainerBaseStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  transition: "all 0.15s ease-out",
+};
+
+// Styles for ConfirmCloseDialog
+const dialogOverlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.5)",
+  zIndex: zIndex[50],
+  animation: "tw-fade-in 0.2s ease-out",
+};
+
+const dialogContentBaseStyle: React.CSSProperties = {
+  position: "fixed",
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  zIndex: zIndex[50],
+  width: "90%",
+  maxWidth: "340px",
+  borderRadius: borderRadius.xl,
+  padding: spacing[6],
+  boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
+  animation: "tw-fade-in 0.2s ease-out",
+};
+
+const dialogTitleBaseStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+};
+
+const dialogDescriptionBaseStyle: React.CSSProperties = {
+  marginTop: spacing[2],
+  fontSize: fontSize.sm,
+};
+
+const dialogButtonsContainerStyle: React.CSSProperties = {
+  marginTop: spacing[6],
+  display: "flex",
+  gap: spacing[3],
+};
+
+const cancelButtonBaseStyle: React.CSSProperties = {
+  flex: 1,
+  borderRadius: borderRadius.lg,
+  padding: `${spacing[2.5]} ${spacing[4]}`,
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.medium,
+  transition: "background-color 0.2s",
+  cursor: "pointer",
+};
+
+const confirmButtonStyle: React.CSSProperties = {
+  flex: 1,
+  borderRadius: borderRadius.lg,
+  backgroundColor: colors.red[500],
+  padding: `${spacing[2.5]} ${spacing[4]}`,
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.medium,
+  color: colors.white,
+  transition: "background-color 0.2s",
+  border: 0,
+  cursor: "pointer",
+};
+
 /**
  * Props for the internal widget content
  */
 interface WidgetContentProps {
-  className?: string;
+  style?: React.CSSProperties;
   onStateChange?: (state: PersistedState) => void;
   /** Whether to show the theme toggle button */
   showThemeToggle: boolean;
@@ -130,7 +214,7 @@ interface WidgetContentProps {
  * Internal widget content that handles page rendering and transitions
  */
 function WidgetContent({
-  className,
+  style,
   onStateChange,
   showThemeToggle,
 }: WidgetContentProps): React.ReactElement {
@@ -222,39 +306,46 @@ function WidgetContent({
 
   const PageComponent = PAGE_COMPONENTS[displayedStep];
 
+  // Calculate page container animation styles
+  const getPageAnimationStyle = (): React.CSSProperties => {
+    if (!isAnimating) return {};
+
+    if (displayedStep !== currentStep) {
+      // Exit animation
+      if (animationDirection === "forward") {
+        return { opacity: 0, transform: "translateX(-1rem)" };
+      } else {
+        return { opacity: 0, transform: "translateX(1rem)" };
+      }
+    } else {
+      // Enter animation - use CSS animation class
+      return {};
+    }
+  };
+
+  // Determine animation class for enter animation
+  const getAnimationClass = (): string => {
+    if (isAnimating && displayedStep === currentStep) {
+      if (animationDirection === "forward") {
+        return "tw-animate-slide-in-right";
+      } else {
+        return "tw-animate-slide-in-left";
+      }
+    }
+    return "";
+  };
+
   return (
-    <div
-      className={cn(
-        "tw-relative tw-w-full tw-h-full tw-overflow-hidden",
-        className
-      )}
-    >
+    <div style={mergeStyles(widgetContentContainerStyle, style)}>
       {/* Theme toggle button - positioned in top-right corner */}
       {showThemeToggle && (
-        <div className="tw-absolute tw-top-3 tw-right-3 tw-z-10">
+        <div style={themeToggleContainerStyle}>
           <ThemeToggle theme={resolvedTheme} onToggle={toggleTheme} />
         </div>
       )}
       <div
-        className={cn(
-          "tw-w-full tw-h-full tw-transition-all tw-duration-150 tw-ease-out",
-          isAnimating &&
-            animationDirection === "forward" &&
-            displayedStep !== currentStep &&
-            "tw-opacity-0 tw--translate-x-4",
-          isAnimating &&
-            animationDirection === "backward" &&
-            displayedStep !== currentStep &&
-            "tw-opacity-0 tw-translate-x-4",
-          isAnimating &&
-            displayedStep === currentStep &&
-            animationDirection === "forward" &&
-            "tw-animate-slide-in-right",
-          isAnimating &&
-            displayedStep === currentStep &&
-            animationDirection === "backward" &&
-            "tw-animate-slide-in-left"
-        )}
+        className={getAnimationClass()}
+        style={mergeStyles(pageContainerBaseStyle, getPageAnimationStyle())}
       >
         <PageComponent />
       </div>
@@ -277,8 +368,8 @@ export interface TrustwareWidgetV2Ref {
 export interface TrustwareWidgetV2Props {
   /** Widget theme - light, dark, or system preference (used as initial theme) */
   theme?: Theme;
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
   /** Initial navigation step (defaults to 'home') */
   initialStep?: NavigationStep;
   /** Whether the widget is initially open (defaults to true for inline usage) */
@@ -309,49 +400,46 @@ function ConfirmCloseDialog({
   theme,
 }: ConfirmCloseDialogProps): React.ReactElement {
   const isDark = theme === "dark";
+
+  const contentStyle = mergeStyles(
+    dialogContentBaseStyle,
+    { backgroundColor: isDark ? colors.zinc[900] : colors.white }
+  );
+
+  const titleStyle = mergeStyles(
+    dialogTitleBaseStyle,
+    { color: isDark ? colors.white : colors.zinc[900] }
+  );
+
+  const descriptionStyle = mergeStyles(
+    dialogDescriptionBaseStyle,
+    { color: isDark ? colors.zinc[400] : colors.zinc[600] }
+  );
+
+  const cancelButtonStyle = mergeStyles(
+    cancelButtonBaseStyle,
+    isDark
+      ? { border: `1px solid ${colors.zinc[700]}`, color: colors.zinc[300], backgroundColor: "transparent" }
+      : { border: `1px solid ${colors.zinc[200]}`, color: colors.zinc[700], backgroundColor: "transparent" }
+  );
+
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="tw-fixed tw-inset-0 tw-bg-black/50 tw-z-50 tw-animate-fade-in" />
-        <Dialog.Content
-          className={cn(
-            "tw-fixed tw-left-1/2 tw-top-1/2 tw--translate-x-1/2 tw--translate-y-1/2 tw-z-50 tw-w-[90%] tw-max-w-[340px] tw-rounded-xl tw-p-6 tw-shadow-xl tw-animate-fade-in",
-            isDark ? "tw-bg-zinc-900" : "tw-bg-white"
-          )}
-        >
-          <Dialog.Title
-            className={cn(
-              "tw-text-lg tw-font-semibold",
-              isDark ? "tw-text-white" : "tw-text-zinc-900"
-            )}
-          >
+        <Dialog.Overlay style={dialogOverlayStyle} />
+        <Dialog.Content style={contentStyle}>
+          <Dialog.Title style={titleStyle}>
             Transaction in Progress
           </Dialog.Title>
-          <Dialog.Description
-            className={cn(
-              "tw-mt-2 tw-text-sm",
-              isDark ? "tw-text-zinc-400" : "tw-text-zinc-600"
-            )}
-          >
+          <Dialog.Description style={descriptionStyle}>
             You have an active transaction. Closing the widget will not cancel
             your transaction, but you will lose visibility of its progress.
           </Dialog.Description>
-          <div className="tw-mt-6 tw-flex tw-gap-3">
-            <button
-              onClick={onCancel}
-              className={cn(
-                "tw-flex-1 tw-rounded-lg tw-border tw-px-4 tw-py-2.5 tw-text-sm tw-font-medium tw-transition-colors",
-                isDark
-                  ? "tw-border-zinc-700 tw-text-zinc-300 hover:tw-bg-zinc-800"
-                  : "tw-border-zinc-200 tw-text-zinc-700 hover:tw-bg-zinc-50"
-              )}
-            >
+          <div style={dialogButtonsContainerStyle}>
+            <button onClick={onCancel} style={cancelButtonStyle}>
               Keep Open
             </button>
-            <button
-              onClick={onConfirm}
-              className="tw-flex-1 tw-rounded-lg tw-bg-red-500 tw-px-4 tw-py-2.5 tw-text-sm tw-font-medium tw-text-white tw-transition-colors hover:tw-bg-red-600"
-            >
+            <button onClick={onConfirm} style={confirmButtonStyle}>
               Close Anyway
             </button>
           </div>
@@ -366,7 +454,7 @@ function ConfirmCloseDialog({
  */
 interface WidgetInnerProps {
   theme: Theme;
-  className?: string;
+  style?: React.CSSProperties;
   onClose?: () => void;
   onStateChange?: (state: PersistedState) => void;
   closeRequestRef: React.MutableRefObject<(() => void) | null>;
@@ -376,7 +464,7 @@ interface WidgetInnerProps {
 
 function WidgetInner({
   theme,
-  className,
+  style,
   onClose,
   onStateChange,
   closeRequestRef,
@@ -426,7 +514,7 @@ function WidgetInner({
 
   return (
     <>
-      <WidgetContainer theme={effectiveTheme} className={className}>
+      <WidgetContainer theme={effectiveTheme} style={style}>
         <WidgetContent
           onStateChange={onStateChange}
           showThemeToggle={showThemeToggle}
@@ -479,7 +567,7 @@ export const TrustwareWidgetV2 = forwardRef<
 >(function TrustwareWidgetV2(
   {
     theme = "system",
-    className,
+    style,
     initialStep = "home",
     defaultOpen = true,
     onClose,
@@ -545,7 +633,7 @@ export const TrustwareWidgetV2 = forwardRef<
     <DepositProvider initialStep={effectiveInitialStep}>
       <WidgetInner
         theme={theme}
-        className={className}
+        style={style}
         onClose={handleClose}
         closeRequestRef={closeRequestRef}
         showThemeToggle={showThemeToggle}

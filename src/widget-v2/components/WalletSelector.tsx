@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles/tokens";
 import { useWalletDetection } from "../../wallets/detect";
 import { useDeposit } from "../context/DepositContext";
 import { toast } from "./Toast";
@@ -11,9 +12,202 @@ import { walletManager } from "../../wallets/manager";
 export interface WalletSelectorProps {
   /** Optional callback when a wallet is selected */
   onWalletSelect?: (wallet: DetectedWallet) => void;
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
 }
+
+const containerStyle: React.CSSProperties = {
+  padding: spacing[4],
+};
+
+const walletListStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[3],
+};
+
+const skeletonItemStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[4],
+  padding: spacing[4],
+  borderRadius: borderRadius["2xl"],
+  backgroundColor: colors.muted,
+  animation: "tw-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+};
+
+const skeletonIconStyle: React.CSSProperties = {
+  width: "3rem",
+  height: "3rem",
+  borderRadius: borderRadius.xl,
+  backgroundColor: "rgba(161, 161, 170, 0.2)",
+};
+
+const skeletonTextStyle: React.CSSProperties = {
+  height: "1rem",
+  width: "6rem",
+  borderRadius: borderRadius.md,
+  backgroundColor: "rgba(161, 161, 170, 0.2)",
+};
+
+const detectingTextStyle: React.CSSProperties = {
+  textAlign: "center",
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+  marginTop: spacing[4],
+};
+
+const emptyStateContainerStyle: React.CSSProperties = {
+  textAlign: "center",
+  paddingTop: spacing[8],
+  paddingBottom: spacing[8],
+};
+
+const emptyStateEmojiStyle: React.CSSProperties = {
+  fontSize: "2.5rem",
+  marginBottom: spacing[4],
+};
+
+const emptyStateTitleStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+  marginBottom: spacing[2],
+};
+
+const emptyStateDescStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+  marginBottom: spacing[4],
+};
+
+const emptyStateLinksStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[2],
+};
+
+const installLinkPrimaryStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+  padding: `${spacing[2]} ${spacing[4]}`,
+  borderRadius: borderRadius.lg,
+  backgroundColor: colors.primary,
+  color: colors.primaryForeground,
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.medium,
+  textDecoration: "none",
+  transition: "opacity 0.2s",
+};
+
+const installLinkSecondaryStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+  padding: `${spacing[2]} ${spacing[4]}`,
+  borderRadius: borderRadius.lg,
+  backgroundColor: colors.secondary,
+  color: colors.secondaryForeground,
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.medium,
+  textDecoration: "none",
+  transition: "opacity 0.2s",
+};
+
+const walletCardStyle: React.CSSProperties = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[4],
+  padding: spacing[4],
+  borderRadius: borderRadius["2xl"],
+  transition: "all 0.2s",
+  backgroundColor: colors.card,
+  border: `1px solid ${colors.border}`,
+};
+
+const walletIconContainerStyle: React.CSSProperties = {
+  width: "3rem",
+  height: "3rem",
+  borderRadius: borderRadius.xl,
+  backgroundColor: colors.muted,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  overflow: "hidden",
+};
+
+const walletIconImgStyle: React.CSSProperties = {
+  width: "2rem",
+  height: "2rem",
+  objectFit: "contain",
+};
+
+const walletEmojiStyle: React.CSSProperties = {
+  fontSize: "1.5rem",
+};
+
+const walletInfoStyle: React.CSSProperties = {
+  flex: 1,
+  textAlign: "left",
+};
+
+const walletNameStyle: React.CSSProperties = {
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
+const walletSubtextStyle: React.CSSProperties = {
+  fontSize: fontSize.xs,
+  color: colors.mutedForeground,
+};
+
+const walletAddressStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const spinnerStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+  border: `2px solid ${colors.mutedForeground}`,
+  borderTopColor: "transparent",
+  borderRadius: "9999px",
+  animation: "tw-spin 1s linear infinite",
+};
+
+const disconnectButtonStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[1.5],
+  padding: `${spacing[1.5]} ${spacing[3]}`,
+  borderRadius: "9999px",
+  backgroundColor: "rgba(239, 68, 68, 0.1)",
+  color: colors.red[600],
+  transition: "background-color 0.2s",
+  fontSize: fontSize.xs,
+  fontWeight: fontWeight.medium,
+  border: 0,
+  cursor: "pointer",
+};
+
+const connectButtonStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[1.5],
+  padding: `${spacing[1.5]} ${spacing[3]}`,
+  borderRadius: "9999px",
+  backgroundColor: "rgba(59, 130, 246, 0.1)",
+  color: colors.primary,
+  transition: "background-color 0.2s",
+  fontSize: fontSize.xs,
+  fontWeight: fontWeight.medium,
+  border: 0,
+  cursor: "pointer",
+};
 
 /**
  * WalletSelector displays available wallets for connection.
@@ -21,7 +215,7 @@ export interface WalletSelectorProps {
  */
 export function WalletSelector({
   onWalletSelect,
-  className,
+  style,
 }: WalletSelectorProps): React.ReactElement {
   const { detected } = useWalletDetection();
   const { walletStatus, walletAddress, connectWallet, disconnectWallet } =
@@ -194,24 +388,19 @@ export function WalletSelector({
   // Loading state
   if (isDetecting) {
     return (
-      <div className={cn("tw-p-4", className)}>
-        <div className="tw-flex tw-flex-col tw-gap-3">
+      <div style={mergeStyles(containerStyle, style)}>
+        <div style={walletListStyle}>
           {/* Loading skeleton */}
           {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="tw-flex tw-items-center tw-gap-4 tw-p-4 tw-rounded-2xl tw-bg-muted tw-animate-pulse"
-            >
-              <div className="tw-w-12 tw-h-12 tw-rounded-xl tw-bg-muted-foreground/20" />
-              <div className="tw-flex-1">
-                <div className="tw-h-4 tw-w-24 tw-rounded tw-bg-muted-foreground/20" />
+            <div key={i} style={skeletonItemStyle}>
+              <div style={skeletonIconStyle} />
+              <div style={{ flex: 1 }}>
+                <div style={skeletonTextStyle} />
               </div>
             </div>
           ))}
         </div>
-        <p className="tw-text-center tw-text-sm tw-text-muted-foreground tw-mt-4">
-          Detecting wallets...
-        </p>
+        <p style={detectingTextStyle}>Detecting wallets...</p>
       </div>
     );
   }
@@ -219,21 +408,19 @@ export function WalletSelector({
   // No wallets detected
   if (detected.length === 0) {
     return (
-      <div className={cn("tw-p-4", className)}>
-        <div className="tw-text-center tw-py-8">
-          <div className="tw-text-4xl tw-mb-4">👛</div>
-          <h3 className="tw-text-lg tw-font-semibold tw-text-foreground tw-mb-2">
-            No Wallets Found
-          </h3>
-          <p className="tw-text-sm tw-text-muted-foreground tw-mb-4">
+      <div style={mergeStyles(containerStyle, style)}>
+        <div style={emptyStateContainerStyle}>
+          <div style={emptyStateEmojiStyle}>👛</div>
+          <h3 style={emptyStateTitleStyle}>No Wallets Found</h3>
+          <p style={emptyStateDescStyle}>
             Please install a web3 wallet to continue.
           </p>
-          <div className="tw-flex tw-flex-col tw-gap-2">
+          <div style={emptyStateLinksStyle}>
             <a
               href="https://metamask.io/download/"
               target="_blank"
               rel="noopener noreferrer"
-              className="tw-inline-flex tw-items-center tw-justify-center tw-gap-2 tw-px-4 tw-py-2 tw-rounded-lg tw-bg-primary tw-text-primary-foreground tw-text-sm tw-font-medium hover:tw-opacity-90 tw-transition-opacity"
+              style={installLinkPrimaryStyle}
             >
               Install MetaMask
             </a>
@@ -241,7 +428,7 @@ export function WalletSelector({
               href="https://rainbow.me/"
               target="_blank"
               rel="noopener noreferrer"
-              className="tw-inline-flex tw-items-center tw-justify-center tw-gap-2 tw-px-4 tw-py-2 tw-rounded-lg tw-bg-secondary tw-text-secondary-foreground tw-text-sm tw-font-medium hover:tw-opacity-90 tw-transition-opacity"
+              style={installLinkSecondaryStyle}
             >
               Install Rainbow
             </a>
@@ -254,8 +441,8 @@ export function WalletSelector({
   // Wallet list
   return (
     <>
-      <div className={cn("tw-p-4", className)}>
-        <div className="tw-flex tw-flex-col tw-gap-3">
+      <div style={mergeStyles(containerStyle, style)}>
+        <div style={walletListStyle}>
           {detected.map((wallet) => {
             const isConnecting = connectingWalletId === wallet.meta.id;
             const isThisWalletConnected =
@@ -268,46 +455,43 @@ export function WalletSelector({
             return (
               <div
                 key={wallet.meta.id}
-                className={cn(
-                  "tw-w-full tw-flex tw-items-center tw-gap-4 tw-p-4 tw-rounded-2xl tw-transition-all tw-duration-200",
-                  "tw-bg-card tw-border tw-border-border",
-                  isThisWalletConnected &&
-                    "tw-ring-2 tw-ring-primary tw-border-primary"
+                style={mergeStyles(
+                  walletCardStyle,
+                  isThisWalletConnected && {
+                    boxShadow: `0 0 0 2px ${colors.primary}`,
+                    borderColor: colors.primary,
+                  }
                 )}
               >
                 {/* Wallet Icon */}
-                <div className="tw-w-12 tw-h-12 tw-rounded-xl tw-bg-muted tw-flex tw-items-center tw-justify-center tw-overflow-hidden">
+                <div style={walletIconContainerStyle}>
                   {wallet.meta.logo ? (
                     <img
                       src={wallet.meta.logo}
                       alt={wallet.meta.name}
-                      className="tw-w-8 tw-h-8 tw-object-contain"
+                      style={walletIconImgStyle}
                     />
                   ) : wallet.detail?.info?.icon ? (
                     <img
                       src={wallet.detail.info.icon}
                       alt={wallet.meta.name}
-                      className="tw-w-8 tw-h-8 tw-object-contain"
+                      style={walletIconImgStyle}
                     />
                   ) : (
-                    <span className="tw-text-2xl">
+                    <span style={walletEmojiStyle}>
                       {wallet.meta.emoji || "👛"}
                     </span>
                   )}
                 </div>
 
                 {/* Wallet Info */}
-                <div className="tw-flex-1 tw-text-left">
-                  <p className="tw-font-semibold tw-text-foreground">
-                    {wallet.meta.name}
-                  </p>
+                <div style={walletInfoStyle}>
+                  <p style={walletNameStyle}>{wallet.meta.name}</p>
                   {isWalletConnect && !isThisWalletConnected && (
-                    <p className="tw-text-xs tw-text-muted-foreground">
-                      Scan QR code
-                    </p>
+                    <p style={walletSubtextStyle}>Scan QR code</p>
                   )}
                   {isThisWalletConnected && walletAddress && (
-                    <p className="tw-text-sm tw-text-muted-foreground">
+                    <p style={walletAddressStyle}>
                       {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                     </p>
                   )}
@@ -315,19 +499,22 @@ export function WalletSelector({
 
                 {/* Status / Actions */}
                 {isConnecting ? (
-                  <div className="tw-w-5 tw-h-5 tw-border-2 tw-border-muted-foreground tw-border-t-transparent tw-rounded-full tw-animate-spin" />
+                  <div style={spinnerStyle} />
                 ) : isThisWalletConnected ? (
-                  <button
-                    onClick={handleDisconnect}
-                    className="tw-flex tw-items-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-full tw-bg-red-500/10 tw-text-red-600 hover:tw-bg-red-500/20 tw-transition-colors tw-text-xs tw-font-medium"
-                  >
+                  <button onClick={handleDisconnect} style={disconnectButtonStyle}>
                     Disconnect
                   </button>
                 ) : (
                   <button
                     onClick={() => handleWalletClick(wallet)}
                     disabled={walletStatus === "connecting"}
-                    className="tw-flex tw-items-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-full tw-bg-primary/10 tw-text-primary hover:tw-bg-primary/20 tw-transition-colors tw-text-xs tw-font-medium disabled:tw-opacity-50 disabled:tw-cursor-not-allowed"
+                    style={mergeStyles(
+                      connectButtonStyle,
+                      walletStatus === "connecting" && {
+                        opacity: 0.5,
+                        cursor: "not-allowed",
+                      }
+                    )}
                   >
                     Connect
                   </button>

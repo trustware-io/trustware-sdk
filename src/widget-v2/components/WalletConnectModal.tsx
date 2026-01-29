@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import { colors, spacing, fontSize, fontWeight, borderRadius, zIndex } from "../styles/tokens";
 import { walletConnectEvents } from "../../wallets/walletconnect";
 import { formatWalletConnectDeepLink } from "../../wallets/deepLink";
 import { useIsMobile } from "../../wallets/detect";
@@ -15,6 +16,152 @@ interface WalletConnectModalProps {
   /** Optional callback when connection fails */
   onError?: (error: unknown) => void;
 }
+
+const overlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.5)",
+  backdropFilter: "blur(4px)",
+  zIndex: zIndex[50],
+};
+
+const contentStyle: React.CSSProperties = {
+  position: "fixed",
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  width: "90vw",
+  maxWidth: "360px",
+  maxHeight: "85vh",
+  backgroundColor: colors.background,
+  borderRadius: borderRadius["2xl"],
+  boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
+  zIndex: zIndex[50],
+  padding: spacing[6],
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  border: `1px solid ${colors.border}`,
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+  marginBottom: spacing[2],
+};
+
+const descriptionStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+  textAlign: "center",
+  marginBottom: spacing[4],
+};
+
+const qrContainerStyle: React.CSSProperties = {
+  width: "280px",
+  height: "280px",
+  backgroundColor: colors.white,
+  borderRadius: borderRadius.xl,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: spacing[4],
+  overflow: "hidden",
+};
+
+const errorContainerStyle: React.CSSProperties = {
+  textAlign: "center",
+  padding: spacing[4],
+};
+
+const errorIconStyle: React.CSSProperties = {
+  color: colors.red[500],
+  fontSize: "1.875rem",
+  marginBottom: spacing[2],
+};
+
+const errorTextStyle: React.CSSProperties = {
+  color: colors.red[600],
+  fontSize: fontSize.sm,
+};
+
+const loadingContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: spacing[2],
+};
+
+const loadingSpinnerStyle: React.CSSProperties = {
+  width: "2rem",
+  height: "2rem",
+  border: `2px solid ${colors.primary}`,
+  borderTopColor: "transparent",
+  borderRadius: "9999px",
+  animation: "tw-spin 1s linear infinite",
+};
+
+const loadingTextStyle: React.CSSProperties = {
+  color: colors.mutedForeground,
+  fontSize: fontSize.sm,
+};
+
+const qrImageStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+};
+
+const actionsContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[2],
+  width: "100%",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: `${spacing[3]} ${spacing[4]}`,
+  borderRadius: borderRadius.xl,
+  backgroundColor: colors.primary,
+  color: colors.primaryForeground,
+  fontWeight: fontWeight.medium,
+  fontSize: fontSize.sm,
+  transition: "opacity 0.2s",
+  border: 0,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: `${spacing[3]} ${spacing[4]}`,
+  borderRadius: borderRadius.xl,
+  backgroundColor: colors.secondary,
+  color: colors.secondaryForeground,
+  fontWeight: fontWeight.medium,
+  fontSize: fontSize.sm,
+  transition: "opacity 0.2s",
+  border: 0,
+  cursor: "pointer",
+};
+
+const closeButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  top: spacing[4],
+  right: spacing[4],
+  width: "2rem",
+  height: "2rem",
+  borderRadius: "9999px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: colors.mutedForeground,
+  transition: "background-color 0.2s",
+  backgroundColor: "transparent",
+  border: 0,
+  cursor: "pointer",
+};
 
 /**
  * Modal component for WalletConnect QR code display.
@@ -164,56 +311,43 @@ export function WalletConnectModal({
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="tw-fixed tw-inset-0 tw-bg-black/50 tw-backdrop-blur-sm tw-z-50" />
-        <Dialog.Content
-          className={cn(
-            "tw-fixed tw-left-1/2 tw-top-1/2 tw--translate-x-1/2 tw--translate-y-1/2",
-            "tw-w-[90vw] tw-max-w-[360px] tw-max-h-[85vh]",
-            "tw-bg-background tw-rounded-2xl tw-shadow-xl tw-z-50",
-            "tw-p-6 tw-flex tw-flex-col tw-items-center",
-            "tw-border tw-border-border"
-          )}
-        >
-          <Dialog.Title className="tw-text-lg tw-font-semibold tw-text-foreground tw-mb-2">
+        <Dialog.Overlay style={overlayStyle} />
+        <Dialog.Content style={contentStyle}>
+          <Dialog.Title style={titleStyle}>
             Connect with WalletConnect
           </Dialog.Title>
 
-          <Dialog.Description className="tw-text-sm tw-text-muted-foreground tw-text-center tw-mb-4">
+          <Dialog.Description style={descriptionStyle}>
             {isMobile
               ? "Tap the button below to open your wallet app"
               : "Scan this QR code with your wallet app"}
           </Dialog.Description>
 
           {/* QR Code Display */}
-          <div className="tw-w-[280px] tw-h-[280px] tw-bg-white tw-rounded-xl tw-flex tw-items-center tw-justify-center tw-mb-4 tw-overflow-hidden">
+          <div style={qrContainerStyle}>
             {error ? (
-              <div className="tw-text-center tw-p-4">
-                <div className="tw-text-red-500 tw-text-3xl tw-mb-2">!</div>
-                <p className="tw-text-red-600 tw-text-sm">{error}</p>
+              <div style={errorContainerStyle}>
+                <div style={errorIconStyle}>!</div>
+                <p style={errorTextStyle}>{error}</p>
               </div>
             ) : isGeneratingQr || !qrDataUrl ? (
-              <div className="tw-flex tw-flex-col tw-items-center tw-gap-2">
-                <div className="tw-w-8 tw-h-8 tw-border-2 tw-border-primary tw-border-t-transparent tw-rounded-full tw-animate-spin" />
-                <p className="tw-text-muted-foreground tw-text-sm">
-                  Generating QR code...
-                </p>
+              <div style={loadingContainerStyle}>
+                <div style={loadingSpinnerStyle} />
+                <p style={loadingTextStyle}>Generating QR code...</p>
               </div>
             ) : (
               <img
                 src={qrDataUrl}
                 alt="WalletConnect QR Code"
-                className="tw-w-full tw-h-full tw-object-contain"
+                style={qrImageStyle}
               />
             )}
           </div>
 
           {/* Actions */}
-          <div className="tw-flex tw-flex-col tw-gap-2 tw-w-full">
+          <div style={actionsContainerStyle}>
             {isMobile && wcUri && (
-              <button
-                onClick={handleOpenInWallet}
-                className="tw-w-full tw-py-3 tw-px-4 tw-rounded-xl tw-bg-primary tw-text-primary-foreground tw-font-medium tw-text-sm hover:tw-opacity-90 tw-transition-opacity"
-              >
+              <button onClick={handleOpenInWallet} style={primaryButtonStyle}>
                 Open in Wallet
               </button>
             )}
@@ -221,7 +355,10 @@ export function WalletConnectModal({
             <button
               onClick={handleCopyUri}
               disabled={!wcUri}
-              className="tw-w-full tw-py-3 tw-px-4 tw-rounded-xl tw-bg-secondary tw-text-secondary-foreground tw-font-medium tw-text-sm hover:tw-opacity-90 tw-transition-opacity disabled:tw-opacity-50 disabled:tw-cursor-not-allowed"
+              style={mergeStyles(
+                secondaryButtonStyle,
+                !wcUri && { opacity: 0.5, cursor: "not-allowed" }
+              )}
             >
               Copy Link
             </button>
@@ -229,10 +366,7 @@ export function WalletConnectModal({
 
           {/* Close button */}
           <Dialog.Close asChild>
-            <button
-              className="tw-absolute tw-top-4 tw-right-4 tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-text-muted-foreground hover:tw-bg-muted tw-transition-colors"
-              aria-label="Close"
-            >
+            <button style={closeButtonStyle} aria-label="Close">
               <svg
                 width="15"
                 height="15"

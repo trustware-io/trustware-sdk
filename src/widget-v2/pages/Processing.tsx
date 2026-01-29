@@ -1,13 +1,20 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+} from "../styles/tokens";
 import { useDeposit, type TransactionStatus } from "../context/DepositContext";
 import { useTransactionPolling } from "../hooks/useTransactionPolling";
 import { CircularProgress } from "../components/CircularProgress";
 import { TransactionSteps } from "../components/TransactionSteps";
 
 export interface ProcessingProps {
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
 }
 
 /**
@@ -58,12 +65,163 @@ function truncateHash(hash: string): string {
   return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
 }
 
+// Styles
+const containerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  minHeight: "500px",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: `${spacing[4]} ${spacing[4]}`,
+  borderBottom: `1px solid ${colors.border}`,
+};
+
+const headerSpacerStyle: React.CSSProperties = {
+  width: "2.5rem",
+};
+
+const headerTitleStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
+const closeButtonStyle: React.CSSProperties = {
+  width: "2.5rem",
+  height: "2.5rem",
+  borderRadius: "9999px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  transition: "background-color 0.2s",
+  border: 0,
+  backgroundColor: "transparent",
+  cursor: "pointer",
+};
+
+const closeIconStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+  color: colors.foreground,
+};
+
+const contentStyle: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `${spacing[8]} ${spacing[6]}`,
+};
+
+const progressContainerStyle: React.CSSProperties = {
+  marginBottom: spacing[6],
+};
+
+const stepTextStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.medium,
+  color: colors.foreground,
+  textAlign: "center",
+  marginBottom: spacing[2],
+};
+
+const amountTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+  textAlign: "center",
+  marginBottom: spacing[6],
+};
+
+const stepsContainerStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: "20rem",
+  marginBottom: spacing[6],
+};
+
+const hashContainerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[2],
+  fontSize: fontSize.sm,
+};
+
+const hashLabelStyle: React.CSSProperties = {
+  color: colors.mutedForeground,
+};
+
+const hashLinkStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[1],
+  color: colors.primary,
+  textDecoration: "none",
+};
+
+const hashTextStyle: React.CSSProperties = {
+  fontFamily: "monospace",
+};
+
+const hashPlainStyle: React.CSSProperties = {
+  fontFamily: "monospace",
+  color: colors.foreground,
+};
+
+const externalIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+};
+
+const errorButtonStyle: React.CSSProperties = {
+  marginTop: spacing[4],
+  padding: `${spacing[2]} ${spacing[6]}`,
+  borderRadius: borderRadius.xl,
+  backgroundColor: colors.destructive,
+  color: colors.destructiveForeground,
+  fontWeight: fontWeight.medium,
+  transition: "background-color 0.2s",
+  border: 0,
+  cursor: "pointer",
+};
+
+const footerStyle: React.CSSProperties = {
+  padding: `${spacing[4]} ${spacing[6]}`,
+  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+};
+
+const footerContentStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+};
+
+const lockIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+  color: colors.mutedForeground,
+};
+
+const footerTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const footerBrandStyle: React.CSSProperties = {
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
 /**
  * Processing page component.
  * Displays real-time progress of a transaction based on actual status from the API.
  * Shows circular progress animation and step indicators.
  */
-export function Processing({ className }: ProcessingProps): React.ReactElement {
+export function Processing({ style }: ProcessingProps): React.ReactElement {
   const {
     transactionStatus,
     transactionHash,
@@ -160,26 +318,28 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
   const isIndeterminate =
     transactionStatus === "confirming" || transactionStatus === "idle";
 
+  // Determine header title based on status
+  const headerTitle =
+    transactionStatus === "success"
+      ? "Complete"
+      : transactionStatus === "error"
+        ? "Failed"
+        : "Processing";
+
   return (
-    <div className={cn("tw-flex tw-flex-col tw-min-h-[500px]", className)}>
+    <div style={mergeStyles(containerStyle, style)}>
       {/* Header */}
-      <div className="tw-flex tw-items-center tw-justify-between tw-px-4 tw-py-4 tw-border-b tw-border-border">
-        <div className="tw-w-10" />
-        <h1 className="tw-text-lg tw-font-semibold tw-text-foreground">
-          {transactionStatus === "success"
-            ? "Complete"
-            : transactionStatus === "error"
-              ? "Failed"
-              : "Processing"}
-        </h1>
+      <div style={headerStyle}>
+        <div style={headerSpacerStyle} />
+        <h1 style={headerTitleStyle}>{headerTitle}</h1>
         <button
           type="button"
           onClick={handleClose}
-          className="tw-w-10 tw-h-10 tw-rounded-full tw-flex tw-items-center tw-justify-center hover:tw-bg-muted tw-transition-colors tw-border-0 tw-bg-transparent"
+          style={closeButtonStyle}
           aria-label="Close"
         >
           <svg
-            className="tw-w-5 tw-h-5 tw-text-foreground"
+            style={closeIconStyle}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -195,9 +355,9 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
       </div>
 
       {/* Content */}
-      <div className="tw-flex-1 tw-flex tw-flex-col tw-items-center tw-justify-center tw-px-6 tw-py-8">
+      <div style={contentStyle}>
         {/* Progress Circle */}
-        <div className="tw-mb-6">
+        <div style={progressContainerStyle}>
           <CircularProgress
             progress={progress}
             size={120}
@@ -208,13 +368,11 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
         </div>
 
         {/* Current Step Text */}
-        <p className="tw-text-lg tw-font-medium tw-text-foreground tw-text-center tw-mb-2">
-          {stepText}
-        </p>
+        <p style={stepTextStyle}>{stepText}</p>
 
         {/* Amount Display */}
         {selectedToken && parsedAmount > 0 && (
-          <p className="tw-text-sm tw-text-muted-foreground tw-text-center tw-mb-6">
+          <p style={amountTextStyle}>
             ${parsedAmount.toFixed(2)} {selectedToken.symbol}
           </p>
         )}
@@ -222,25 +380,25 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
         {/* Transaction Steps */}
         <TransactionSteps
           transactionStatus={transactionStatus}
-          className="tw-w-full tw-max-w-xs tw-mb-6"
+          style={stepsContainerStyle}
         />
 
         {/* Transaction Hash Link */}
         {transactionHash && (
-          <div className="tw-flex tw-items-center tw-gap-2 tw-text-sm">
-            <span className="tw-text-muted-foreground">Transaction:</span>
+          <div style={hashContainerStyle}>
+            <span style={hashLabelStyle}>Transaction:</span>
             {explorerUrl ? (
               <a
                 href={explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tw-flex tw-items-center tw-gap-1 tw-text-primary hover:tw-underline"
+                style={hashLinkStyle}
               >
-                <span className="tw-font-mono">
+                <span style={hashTextStyle}>
                   {truncateHash(transactionHash)}
                 </span>
                 <svg
-                  className="tw-w-3.5 tw-h-3.5"
+                  style={externalIconStyle}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -254,30 +412,24 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
                 </svg>
               </a>
             ) : (
-              <span className="tw-font-mono tw-text-foreground">
-                {truncateHash(transactionHash)}
-              </span>
+              <span style={hashPlainStyle}>{truncateHash(transactionHash)}</span>
             )}
           </div>
         )}
 
         {/* Error State Action */}
         {transactionStatus === "error" && (
-          <button
-            type="button"
-            onClick={handleViewError}
-            className="tw-mt-4 tw-px-6 tw-py-2 tw-rounded-xl tw-bg-destructive tw-text-destructive-foreground tw-font-medium hover:tw-bg-destructive/90 tw-transition-colors tw-border-0"
-          >
+          <button type="button" onClick={handleViewError} style={errorButtonStyle}>
             View Details
           </button>
         )}
       </div>
 
       {/* Footer */}
-      <div className="tw-px-6 tw-py-4 tw-border-t tw-border-border/30">
-        <div className="tw-flex tw-items-center tw-justify-center tw-gap-2">
+      <div style={footerStyle}>
+        <div style={footerContentStyle}>
           <svg
-            className="tw-w-3.5 tw-h-3.5 tw-text-muted-foreground"
+            style={lockIconStyle}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -289,11 +441,8 @@ export function Processing({ className }: ProcessingProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span className="tw-text-sm tw-text-muted-foreground">
-            Secured by{" "}
-            <span className="tw-font-semibold tw-text-foreground">
-              Trustware
-            </span>
+          <span style={footerTextStyle}>
+            Secured by <span style={footerBrandStyle}>Trustware</span>
           </span>
         </div>
       </div>

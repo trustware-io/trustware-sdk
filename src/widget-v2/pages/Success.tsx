@@ -1,5 +1,12 @@
 import React, { lazy, Suspense, useMemo } from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+} from "../styles/tokens";
 import { useDeposit } from "../context/DepositContext";
 import { useTransactionPolling } from "../hooks/useTransactionPolling";
 
@@ -7,8 +14,8 @@ import { useTransactionPolling } from "../hooks/useTransactionPolling";
 const ConfettiEffect = lazy(() => import("../components/ConfettiEffect"));
 
 export interface SuccessProps {
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
 }
 
 /**
@@ -19,11 +26,190 @@ function truncateHash(hash: string): string {
   return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
 }
 
+// Styles
+const containerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  minHeight: "500px",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `${spacing[4]} ${spacing[4]}`,
+  borderBottom: `1px solid ${colors.border}`,
+};
+
+const headerTitleStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
+const contentStyle: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `${spacing[8]} ${spacing[6]}`,
+};
+
+const successIconContainerStyle: React.CSSProperties = {
+  width: "5rem",
+  height: "5rem",
+  borderRadius: "9999px",
+  backgroundColor: "rgba(34, 197, 94, 0.1)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: spacing[6],
+};
+
+const successIconStyle: React.CSSProperties = {
+  width: "2.5rem",
+  height: "2.5rem",
+  color: colors.green[500],
+};
+
+const successTitleStyle: React.CSSProperties = {
+  fontSize: fontSize["2xl"],
+  fontWeight: fontWeight.bold,
+  color: colors.foreground,
+  textAlign: "center",
+  marginBottom: spacing[2],
+};
+
+const successMessageStyle: React.CSSProperties = {
+  color: colors.mutedForeground,
+  textAlign: "center",
+  marginBottom: spacing[6],
+};
+
+const amountBoxStyle: React.CSSProperties = {
+  backgroundColor: "rgba(63, 63, 70, 0.5)",
+  borderRadius: borderRadius.xl,
+  padding: `${spacing[4]} ${spacing[6]}`,
+  marginBottom: spacing[6],
+  textAlign: "center",
+};
+
+const amountLabelStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+  marginBottom: spacing[1],
+};
+
+const amountValueStyle: React.CSSProperties = {
+  fontSize: fontSize["3xl"],
+  fontWeight: fontWeight.bold,
+  color: colors.foreground,
+};
+
+const tokenInfoStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+  marginTop: spacing[2],
+};
+
+const tokenIconStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+  borderRadius: "9999px",
+};
+
+const tokenTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const hashContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: spacing[1],
+  marginBottom: spacing[8],
+};
+
+const hashLabelStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const hashLinkStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[1.5],
+  color: colors.primary,
+  textDecoration: "none",
+};
+
+const hashTextStyle: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: fontSize.sm,
+};
+
+const hashPlainStyle: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: fontSize.sm,
+  color: colors.foreground,
+};
+
+const externalIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+};
+
+const doneButtonStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: "20rem",
+  padding: `${spacing[3]} ${spacing[6]}`,
+  borderRadius: borderRadius.xl,
+  backgroundColor: colors.primary,
+  color: colors.primaryForeground,
+  fontWeight: fontWeight.semibold,
+  fontSize: fontSize.base,
+  transition: "background-color 0.2s",
+  border: 0,
+  cursor: "pointer",
+};
+
+const footerStyle: React.CSSProperties = {
+  padding: `${spacing[4]} ${spacing[6]}`,
+  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+};
+
+const footerContentStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+};
+
+const lockIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+  color: colors.mutedForeground,
+};
+
+const footerTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const footerBrandStyle: React.CSSProperties = {
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
 /**
  * Success page component.
  * Displays a celebratory success screen with confetti when the deposit completes.
  */
-export function Success({ className }: SuccessProps): React.ReactElement {
+export function Success({ style }: SuccessProps): React.ReactElement {
   const { transactionHash, selectedToken, selectedChain, amount, resetState } =
     useDeposit();
 
@@ -58,25 +244,23 @@ export function Success({ className }: SuccessProps): React.ReactElement {
   };
 
   return (
-    <div className={cn("tw-flex tw-flex-col tw-min-h-[500px]", className)}>
+    <div style={mergeStyles(containerStyle, style)}>
       {/* Confetti effect - lazy loaded */}
       <Suspense fallback={null}>
         <ConfettiEffect isActive={true} pieceCount={60} clearDelay={4000} />
       </Suspense>
 
       {/* Header */}
-      <div className="tw-flex tw-items-center tw-justify-center tw-px-4 tw-py-4 tw-border-b tw-border-border">
-        <h1 className="tw-text-lg tw-font-semibold tw-text-foreground">
-          Deposit Complete
-        </h1>
+      <div style={headerStyle}>
+        <h1 style={headerTitleStyle}>Deposit Complete</h1>
       </div>
 
       {/* Content */}
-      <div className="tw-flex-1 tw-flex tw-flex-col tw-items-center tw-justify-center tw-px-6 tw-py-8">
+      <div style={contentStyle}>
         {/* Success Icon */}
-        <div className="tw-w-20 tw-h-20 tw-rounded-full tw-bg-green-500/10 tw-flex tw-items-center tw-justify-center tw-mb-6">
+        <div style={successIconContainerStyle}>
           <svg
-            className="tw-w-10 tw-h-10 tw-text-green-500"
+            style={successIconStyle}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -92,35 +276,27 @@ export function Success({ className }: SuccessProps): React.ReactElement {
         </div>
 
         {/* Success Message */}
-        <h2 className="tw-text-2xl tw-font-bold tw-text-foreground tw-text-center tw-mb-2">
-          Success!
-        </h2>
-        <p className="tw-text-muted-foreground tw-text-center tw-mb-6">
+        <h2 style={successTitleStyle}>Success!</h2>
+        <p style={successMessageStyle}>
           Your deposit has been completed successfully.
         </p>
 
         {/* Deposited Amount */}
         {selectedToken && parsedAmount > 0 && (
-          <div className="tw-bg-muted/50 tw-rounded-xl tw-px-6 tw-py-4 tw-mb-6 tw-text-center">
-            <p className="tw-text-sm tw-text-muted-foreground tw-mb-1">
-              Amount Deposited
-            </p>
-            <p className="tw-text-3xl tw-font-bold tw-text-foreground">
+          <div style={amountBoxStyle}>
+            <p style={amountLabelStyle}>Amount Deposited</p>
+            <p style={amountValueStyle}>
               $
               {parsedAmount.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
             </p>
-            <div className="tw-flex tw-items-center tw-justify-center tw-gap-2 tw-mt-2">
+            <div style={tokenInfoStyle}>
               {selectedToken.iconUrl && (
-                <img
-                  src={selectedToken.iconUrl}
-                  alt=""
-                  className="tw-w-5 tw-h-5 tw-rounded-full"
-                />
+                <img src={selectedToken.iconUrl} alt="" style={tokenIconStyle} />
               )}
-              <span className="tw-text-sm tw-text-muted-foreground">
+              <span style={tokenTextStyle}>
                 {selectedToken.symbol}
                 {selectedChain && ` on ${selectedChain.name}`}
               </span>
@@ -130,22 +306,20 @@ export function Success({ className }: SuccessProps): React.ReactElement {
 
         {/* Transaction Hash Link */}
         {transactionHash && (
-          <div className="tw-flex tw-flex-col tw-items-center tw-gap-1 tw-mb-8">
-            <span className="tw-text-sm tw-text-muted-foreground">
-              Transaction ID
-            </span>
+          <div style={hashContainerStyle}>
+            <span style={hashLabelStyle}>Transaction ID</span>
             {explorerUrl ? (
               <a
                 href={explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tw-flex tw-items-center tw-gap-1.5 tw-text-primary hover:tw-underline"
+                style={hashLinkStyle}
               >
-                <span className="tw-font-mono tw-text-sm">
+                <span style={hashTextStyle}>
                   {truncateHash(transactionHash)}
                 </span>
                 <svg
-                  className="tw-w-3.5 tw-h-3.5"
+                  style={externalIconStyle}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -160,28 +334,22 @@ export function Success({ className }: SuccessProps): React.ReactElement {
                 </svg>
               </a>
             ) : (
-              <span className="tw-font-mono tw-text-sm tw-text-foreground">
-                {truncateHash(transactionHash)}
-              </span>
+              <span style={hashPlainStyle}>{truncateHash(transactionHash)}</span>
             )}
           </div>
         )}
 
         {/* Done Button */}
-        <button
-          type="button"
-          onClick={handleDone}
-          className="tw-w-full tw-max-w-xs tw-py-3 tw-px-6 tw-rounded-xl tw-bg-primary tw-text-primary-foreground tw-font-semibold tw-text-base hover:tw-bg-primary/90 tw-transition-colors tw-border-0 tw-cursor-pointer"
-        >
+        <button type="button" onClick={handleDone} style={doneButtonStyle}>
           Done
         </button>
       </div>
 
       {/* Footer */}
-      <div className="tw-px-6 tw-py-4 tw-border-t tw-border-border/30">
-        <div className="tw-flex tw-items-center tw-justify-center tw-gap-2">
+      <div style={footerStyle}>
+        <div style={footerContentStyle}>
           <svg
-            className="tw-w-3.5 tw-h-3.5 tw-text-muted-foreground"
+            style={lockIconStyle}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -194,11 +362,8 @@ export function Success({ className }: SuccessProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span className="tw-text-sm tw-text-muted-foreground">
-            Secured by{" "}
-            <span className="tw-font-semibold tw-text-foreground">
-              Trustware
-            </span>
+          <span style={footerTextStyle}>
+            Secured by <span style={footerBrandStyle}>Trustware</span>
           </span>
         </div>
       </div>

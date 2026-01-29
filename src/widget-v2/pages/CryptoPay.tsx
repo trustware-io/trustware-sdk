@@ -1,5 +1,12 @@
 import React, { useState, useRef, useMemo } from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+} from "../styles/tokens";
 import { useDeposit } from "../context/DepositContext";
 import { useRouteBuilder } from "../hooks/useRouteBuilder";
 import { useTokens } from "../hooks/useTokens";
@@ -10,16 +17,272 @@ import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
 
 export interface CryptoPayProps {
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
 }
+
+// Styles
+const containerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  minHeight: "500px",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  padding: `${spacing[4]} ${spacing[4]}`,
+  borderBottom: `1px solid ${colors.border}`,
+};
+
+const backButtonStyle: React.CSSProperties = {
+  padding: spacing[1],
+  marginRight: spacing[2],
+  borderRadius: borderRadius.lg,
+  transition: "background-color 0.2s",
+  backgroundColor: "transparent",
+  border: 0,
+  cursor: "pointer",
+};
+
+const backIconStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+  color: colors.foreground,
+};
+
+const headerTitleStyle: React.CSSProperties = {
+  flex: 1,
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+  textAlign: "center",
+  marginRight: "1.75rem",
+};
+
+const contentStyle: React.CSSProperties = {
+  flex: 1,
+  padding: `0 ${spacing[6]}`,
+  overflowY: "auto",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+};
+
+const enterAmountLabelStyle: React.CSSProperties = {
+  fontSize: fontSize.base,
+  color: colors.mutedForeground,
+  marginBottom: spacing[4],
+  marginTop: spacing[4],
+};
+
+const amountDisplayContainerStyle: React.CSSProperties = {
+  textAlign: "center",
+  position: "relative",
+  marginBottom: spacing[4],
+};
+
+const amountDisplayStyle: React.CSSProperties = {
+  fontSize: "3.75rem",
+  fontWeight: fontWeight.bold,
+  letterSpacing: "-0.025em",
+  cursor: "pointer",
+};
+
+const dollarSignStyle: React.CSSProperties = {
+  color: colors.foreground,
+};
+
+const amountValueContainerStyle: React.CSSProperties = {
+  position: "relative",
+  display: "inline-block",
+  minWidth: "1ch",
+};
+
+const amountInputStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  backgroundColor: "transparent",
+  border: "none",
+  outline: "none",
+  padding: 0,
+  margin: 0,
+  textAlign: "center",
+  color: "transparent",
+  fontSize: "3.75rem",
+  fontWeight: fontWeight.bold,
+  letterSpacing: "-0.025em",
+  caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
+};
+
+const tokenConversionStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[2],
+  marginTop: spacing[2],
+};
+
+const tokenAmountStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  color: colors.mutedForeground,
+};
+
+const conversionIconStyle: React.CSSProperties = {
+  width: "1rem",
+  height: "1rem",
+  color: colors.mutedForeground,
+};
+
+const balanceContainerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[3],
+  marginTop: spacing[2],
+};
+
+const balanceTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.semibold,
+  color: colors.primary,
+};
+
+const maxButtonStyle: React.CSSProperties = {
+  padding: `${spacing[1]} ${spacing[3]}`,
+  fontSize: fontSize.xs,
+  fontWeight: fontWeight.medium,
+  color: colors.mutedForeground,
+  backgroundColor: colors.muted,
+  borderRadius: "9999px",
+  transition: "background-color 0.2s",
+  border: 0,
+  cursor: "pointer",
+};
+
+const tokenPillContainerStyle: React.CSSProperties = {
+  marginTop: spacing[6],
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[3],
+};
+
+const sliderContainerStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: spacing[8],
+  padding: `0 ${spacing[2]}`,
+};
+
+const feeSummaryStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: spacing[6],
+  padding: spacing[4],
+  borderRadius: borderRadius.xl,
+  backgroundColor: "rgba(63, 63, 70, 0.5)",
+};
+
+const feeLoadingStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `${spacing[2]} 0`,
+};
+
+const spinnerStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+  color: colors.mutedForeground,
+};
+
+const feeLoadingTextStyle: React.CSSProperties = {
+  marginLeft: spacing[2],
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const feeErrorStyle: React.CSSProperties = {
+  textAlign: "center",
+  padding: `${spacing[2]} 0`,
+};
+
+const feeErrorTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.destructive,
+};
+
+const feeRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  fontSize: fontSize.sm,
+};
+
+const feeLabelStyle: React.CSSProperties = {
+  color: colors.mutedForeground,
+};
+
+const feeValueStyle: React.CSSProperties = {
+  fontWeight: fontWeight.medium,
+  color: colors.foreground,
+};
+
+const feeDividerStyle: React.CSSProperties = {
+  height: "1px",
+  backgroundColor: colors.border,
+  margin: `${spacing[2]} 0`,
+};
+
+const receiveRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+};
+
+const receiveLabelStyle: React.CSSProperties = {
+  color: colors.mutedForeground,
+  fontSize: fontSize.sm,
+};
+
+const receiveValueStyle: React.CSSProperties = {
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
+const actionContainerStyle: React.CSSProperties = {
+  padding: `${spacing[4]} ${spacing[6]}`,
+};
+
+const footerStyle: React.CSSProperties = {
+  padding: `${spacing[4]} ${spacing[6]}`,
+  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+};
+
+const footerContentStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+};
+
+const lockIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+  color: colors.mutedForeground,
+};
+
+const footerTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const footerBrandStyle: React.CSSProperties = {
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
 
 /**
  * CryptoPay confirmation page.
  * Displays transaction summary with fees and allows last-minute token changes.
  * Includes SwipeToConfirmTokens for secure transaction confirmation.
  */
-export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
+export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
   const {
     amount,
     setAmount,
@@ -160,17 +423,17 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
     !!routeResult;
 
   return (
-    <div className={cn("tw-flex tw-flex-col tw-min-h-[500px]", className)}>
+    <div style={mergeStyles(containerStyle, style)}>
       {/* Header */}
-      <div className="tw-flex tw-items-center tw-px-4 tw-py-4 tw-border-b tw-border-border">
+      <div style={headerStyle}>
         <button
           type="button"
           onClick={goBack}
-          className="tw-p-1 tw-mr-2 tw-rounded-lg hover:tw-bg-muted/50 tw-transition-colors"
+          style={backButtonStyle}
           aria-label="Go back"
         >
           <svg
-            className="tw-w-5 tw-h-5 tw-text-foreground"
+            style={backIconStyle}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -183,32 +446,26 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
             />
           </svg>
         </button>
-        <h1 className="tw-flex-1 tw-text-lg tw-font-semibold tw-text-foreground tw-text-center tw-mr-7">
-          Confirm Deposit
-        </h1>
+        <h1 style={headerTitleStyle}>Confirm Deposit</h1>
       </div>
 
       {/* Content */}
-      <div className="tw-flex-1 tw-px-6 tw-overflow-y-auto tw-flex tw-flex-col tw-items-center">
+      <div style={contentStyle}>
         {/* Enter Amount Label */}
-        <p className="tw-text-base tw-text-muted-foreground tw-mb-4 tw-mt-4">
-          Enter an amount
-        </p>
+        <p style={enterAmountLabelStyle}>Enter an amount</p>
 
         {/* Large Amount Display */}
-        <div className="tw-text-center tw-relative tw-mb-4">
-          <span
-            className="tw-text-6xl tw-font-bold tw-tracking-tight tw-cursor-pointer"
-            onClick={handleAmountClick}
-          >
-            <span className="tw-text-foreground">$</span>
-            <span className="tw-relative tw-inline-block tw-min-w-[1ch]">
+        <div style={amountDisplayContainerStyle}>
+          <span style={amountDisplayStyle} onClick={handleAmountClick}>
+            <span style={dollarSignStyle}>$</span>
+            <span style={amountValueContainerStyle}>
               <span
-                className={
-                  parsedAmount > 0
-                    ? "tw-text-foreground"
-                    : "tw-text-muted-foreground/40"
-                }
+                style={{
+                  color:
+                    parsedAmount > 0
+                      ? colors.foreground
+                      : "rgba(161, 161, 170, 0.4)",
+                }}
               >
                 {isEditing
                   ? amount || "0"
@@ -220,7 +477,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
                     : "0"}
               </span>
               {!isEditing && parsedAmount === 0 && (
-                <span className="tw-text-muted-foreground/40">.00</span>
+                <span style={{ color: "rgba(161, 161, 170, 0.4)" }}>.00</span>
               )}
               <input
                 ref={amountInputRef}
@@ -229,8 +486,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
                 value={amount}
                 onChange={handleAmountChange}
                 onBlur={() => setIsEditing(false)}
-                className="tw-absolute tw-inset-0 tw-w-full tw-bg-transparent tw-border-none tw-outline-none tw-p-0 tw-m-0 tw-text-center tw-text-transparent tw-text-6xl tw-font-bold tw-tracking-tight"
-                style={{ caretColor: "hsl(var(--tw-muted-foreground) / 0.5)" }}
+                style={amountInputStyle}
                 aria-label="Deposit amount"
               />
             </span>
@@ -239,8 +495,8 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
 
         {/* Token Amount Conversion */}
         {selectedToken && (
-          <div className="tw-flex tw-items-center tw-gap-2 tw-mt-2">
-            <span className="tw-text-lg tw-text-muted-foreground">
+          <div style={tokenConversionStyle}>
+            <span style={tokenAmountStyle}>
               {tokenAmount > 0
                 ? tokenAmount.toLocaleString(undefined, {
                     maximumFractionDigits: 5,
@@ -249,7 +505,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
               {selectedToken.symbol}
             </span>
             <svg
-              className="tw-w-4 tw-h-4 tw-text-muted-foreground"
+              style={conversionIconStyle}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -266,8 +522,8 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
 
         {/* Balance + Max Button */}
         {selectedToken?.balance && (
-          <div className="tw-flex tw-items-center tw-gap-3 tw-mt-2">
-            <span className="tw-text-sm tw-font-semibold tw-text-primary">
+          <div style={balanceContainerStyle}>
+            <span style={balanceTextStyle}>
               Balance{" "}
               {parseFloat(selectedToken.balance).toLocaleString(undefined, {
                 maximumFractionDigits: 8,
@@ -276,7 +532,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
             <button
               type="button"
               onClick={() => handleSliderChange(maxAmount)}
-              className="tw-px-3 tw-py-1 tw-text-xs tw-font-medium tw-text-muted-foreground tw-bg-muted tw-rounded-full hover:tw-bg-muted/80 tw-transition-colors tw-border-0"
+              style={maxButtonStyle}
             >
               Max
             </button>
@@ -285,7 +541,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
 
         {/* Token Swipe Pill */}
         {selectedToken && tokens.length > 0 && (
-          <div className="tw-mt-6 tw-flex tw-flex-col tw-gap-3">
+          <div style={tokenPillContainerStyle}>
             <TokenSwipePill
               tokens={tokens}
               selectedToken={selectedToken}
@@ -298,7 +554,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
         )}
 
         {/* Amount Slider */}
-        <div className="tw-w-full tw-mt-8 tw-px-2">
+        <div style={sliderContainerStyle}>
           <AmountSlider
             value={parsedAmount}
             onChange={handleSliderChange}
@@ -308,16 +564,17 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
         </div>
 
         {/* Fee Summary */}
-        <div className="tw-w-full tw-mt-6 tw-p-4 tw-rounded-xl tw-bg-muted/50 tw-space-y-2">
+        <div style={feeSummaryStyle}>
           {isLoadingRoute ? (
-            <div className="tw-flex tw-items-center tw-justify-center tw-py-2">
+            <div style={feeLoadingStyle}>
               <svg
-                className="tw-w-5 tw-h-5 tw-text-muted-foreground tw-animate-spin"
+                style={spinnerStyle}
                 viewBox="0 0 24 24"
                 fill="none"
+                className="tw-animate-spin"
               >
                 <circle
-                  className="tw-opacity-25"
+                  style={{ opacity: 0.25 }}
                   cx="12"
                   cy="12"
                   r="10"
@@ -325,38 +582,34 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
                   strokeWidth="4"
                 />
                 <path
-                  className="tw-opacity-75"
+                  style={{ opacity: 0.75 }}
                   fill="currentColor"
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              <span className="tw-ml-2 tw-text-sm tw-text-muted-foreground">
-                Calculating fees...
-              </span>
+              <span style={feeLoadingTextStyle}>Calculating fees...</span>
             </div>
           ) : routeError ? (
-            <div className="tw-text-center tw-py-2">
-              <p className="tw-text-sm tw-text-destructive">{routeError}</p>
+            <div style={feeErrorStyle}>
+              <p style={feeErrorTextStyle}>{routeError}</p>
             </div>
           ) : (
             <>
               {/* Network Fee */}
-              <div className="tw-flex tw-justify-between tw-text-sm">
-                <span className="tw-text-muted-foreground">Network fee</span>
-                <span className="tw-font-medium tw-text-foreground">
+              <div style={feeRowStyle}>
+                <span style={feeLabelStyle}>Network fee</span>
+                <span style={feeValueStyle}>
                   {networkFees ? `$${networkFees}` : "—"}
                 </span>
               </div>
 
               {/* Divider */}
-              <div className="tw-h-px tw-bg-border tw-my-2" />
+              <div style={feeDividerStyle} />
 
               {/* You'll receive */}
-              <div className="tw-flex tw-justify-between">
-                <span className="tw-text-muted-foreground tw-text-sm">
-                  You&apos;ll receive
-                </span>
-                <span className="tw-font-semibold tw-text-foreground">
+              <div style={receiveRowStyle}>
+                <span style={receiveLabelStyle}>You&apos;ll receive</span>
+                <span style={receiveValueStyle}>
                   {estimatedReceive
                     ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                     : parsedAmount > 0
@@ -370,7 +623,7 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
       </div>
 
       {/* Bottom Action - Swipe to Confirm */}
-      <div className="tw-px-6 tw-py-4">
+      <div style={actionContainerStyle}>
         {selectedToken && (
           <SwipeToConfirmTokens
             fromToken={selectedToken}
@@ -384,10 +637,10 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
       </div>
 
       {/* Footer */}
-      <div className="tw-px-6 tw-py-4 tw-border-t tw-border-border/30">
-        <div className="tw-flex tw-items-center tw-justify-center tw-gap-2">
+      <div style={footerStyle}>
+        <div style={footerContentStyle}>
           <svg
-            className="tw-w-3.5 tw-h-3.5 tw-text-muted-foreground"
+            style={lockIconStyle}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -399,11 +652,8 @@ export function CryptoPay({ className }: CryptoPayProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span className="tw-text-sm tw-text-muted-foreground">
-            Secured by{" "}
-            <span className="tw-font-semibold tw-text-foreground">
-              Trustware
-            </span>
+          <span style={footerTextStyle}>
+            Secured by <span style={footerBrandStyle}>Trustware</span>
           </span>
         </div>
       </div>

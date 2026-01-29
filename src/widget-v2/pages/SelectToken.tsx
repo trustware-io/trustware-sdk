@@ -1,5 +1,12 @@
 import React from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+} from "../styles/tokens";
 import { useDeposit } from "../context/DepositContext";
 import type { Token } from "../context/DepositContext";
 import { useChains } from "../hooks/useChains";
@@ -8,8 +15,8 @@ import { resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 
 export interface SelectTokenProps {
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
 }
 
 /**
@@ -30,14 +37,502 @@ function formatTokenBalance(balance: string, decimals: number): string {
   }
 }
 
+// Styles
+const containerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  minHeight: "500px",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  padding: `${spacing[4]} ${spacing[4]}`,
+  borderBottom: `1px solid ${colors.border}`,
+};
+
+const backButtonStyle: React.CSSProperties = {
+  padding: spacing[1],
+  marginRight: spacing[2],
+  borderRadius: borderRadius.lg,
+  transition: "background-color 0.2s",
+  backgroundColor: "transparent",
+  border: 0,
+  cursor: "pointer",
+};
+
+const backIconStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+  color: colors.foreground,
+};
+
+const headerTitleStyle: React.CSSProperties = {
+  flex: 1,
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+  textAlign: "center",
+  marginRight: "1.75rem",
+};
+
+const contentStyle: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  overflow: "hidden",
+};
+
+// Left column styles
+const leftColumnStyle: React.CSSProperties = {
+  width: "140px",
+  borderRight: `1px solid ${colors.border}`,
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+const columnHeaderStyle: React.CSSProperties = {
+  padding: `${spacing[2]} ${spacing[3]}`,
+  borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
+};
+
+const columnLabelStyle: React.CSSProperties = {
+  fontSize: fontSize.xs,
+  fontWeight: fontWeight.medium,
+  color: colors.mutedForeground,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
+
+const chainListContainerStyle: React.CSSProperties = {
+  flex: 1,
+  overflowY: "auto",
+  padding: `${spacing[2]} ${spacing[1]}`,
+};
+
+const skeletonContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[2],
+  padding: `0 ${spacing[2]}`,
+};
+
+const skeletonRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[3],
+  padding: `${spacing[2]} 0`,
+};
+
+const skeletonCircleStyle: React.CSSProperties = {
+  width: "2rem",
+  height: "2rem",
+  borderRadius: "9999px",
+  backgroundColor: colors.muted,
+};
+
+const skeletonTextStyle: React.CSSProperties = {
+  flex: 1,
+  height: "1rem",
+  backgroundColor: colors.muted,
+  borderRadius: borderRadius.md,
+};
+
+const errorTextStyle: React.CSSProperties = {
+  padding: `${spacing[3]} ${spacing[4]}`,
+  textAlign: "center",
+};
+
+const errorMessageStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.destructive,
+};
+
+const retryLinkStyle: React.CSSProperties = {
+  marginTop: spacing[2],
+  fontSize: fontSize.xs,
+  color: colors.primary,
+  backgroundColor: "transparent",
+  border: 0,
+  cursor: "pointer",
+  textDecoration: "underline",
+};
+
+const sectionStyle: React.CSSProperties = {
+  marginBottom: spacing[2],
+};
+
+const sectionHeaderStyle: React.CSSProperties = {
+  padding: `${spacing[1.5]} ${spacing[3]}`,
+};
+
+const sectionLabelStyle: React.CSSProperties = {
+  fontSize: "10px",
+  fontWeight: fontWeight.medium,
+  color: "rgba(161, 161, 170, 0.7)",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
+
+const chainButtonStyle: React.CSSProperties = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[3],
+  padding: `${spacing[2.5]} ${spacing[3]}`,
+  borderRadius: borderRadius.lg,
+  border: "1px solid transparent",
+  transition: "all 0.2s",
+  backgroundColor: "transparent",
+  cursor: "pointer",
+};
+
+const chainButtonSelectedStyle: React.CSSProperties = {
+  borderColor: colors.primary,
+  backgroundColor: "rgba(59, 130, 246, 0.1)",
+};
+
+const chainIconStyle: React.CSSProperties = {
+  width: "2rem",
+  height: "2rem",
+  borderRadius: "9999px",
+  objectFit: "cover",
+  flexShrink: 0,
+};
+
+const chainIconFallbackStyle: React.CSSProperties = {
+  width: "2rem",
+  height: "2rem",
+  borderRadius: "9999px",
+  backgroundColor: colors.muted,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const chainIconFallbackTextStyle: React.CSSProperties = {
+  fontSize: fontSize.xs,
+  fontWeight: fontWeight.semibold,
+  color: colors.mutedForeground,
+};
+
+const chainNameContainerStyle: React.CSSProperties = {
+  flex: 1,
+  textAlign: "left",
+  minWidth: 0,
+};
+
+const chainNameStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.medium,
+  color: colors.foreground,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  display: "block",
+};
+
+const selectionIndicatorStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+  borderRadius: "9999px",
+  backgroundColor: colors.primary,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const checkIconStyle: React.CSSProperties = {
+  width: "0.75rem",
+  height: "0.75rem",
+  color: colors.primaryForeground,
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  padding: `${spacing[3]} ${spacing[4]}`,
+  textAlign: "center",
+};
+
+const emptyTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+// Right column styles
+const rightColumnStyle: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+const tokenHeaderStyle: React.CSSProperties = {
+  padding: `${spacing[2]} ${spacing[3]}`,
+  borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
+};
+
+const tokenHeaderRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[2],
+  marginBottom: spacing[2],
+};
+
+const walletBadgeStyle: React.CSSProperties = {
+  fontSize: "10px",
+  color: colors.primary,
+  backgroundColor: "rgba(59, 130, 246, 0.1)",
+  padding: `${spacing[0.5]} ${spacing[1.5]}`,
+  borderRadius: borderRadius.md,
+};
+
+const searchContainerStyle: React.CSSProperties = {
+  position: "relative",
+};
+
+const searchIconStyle: React.CSSProperties = {
+  position: "absolute",
+  left: spacing[2.5],
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "1rem",
+  height: "1rem",
+  color: colors.mutedForeground,
+};
+
+const searchInputStyle: React.CSSProperties = {
+  width: "100%",
+  paddingLeft: spacing[8],
+  paddingRight: spacing[3],
+  paddingTop: spacing[2],
+  paddingBottom: spacing[2],
+  fontSize: fontSize.sm,
+  backgroundColor: "rgba(63, 63, 70, 0.5)",
+  border: `1px solid rgba(63, 63, 70, 0.5)`,
+  borderRadius: borderRadius.lg,
+  color: colors.foreground,
+  outline: "none",
+  transition: "all 0.2s",
+};
+
+const clearSearchButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  right: spacing[2.5],
+  top: "50%",
+  transform: "translateY(-50%)",
+  padding: spacing[0.5],
+  borderRadius: "9999px",
+  backgroundColor: "transparent",
+  border: 0,
+  cursor: "pointer",
+  transition: "background-color 0.2s",
+};
+
+const clearIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+  color: colors.mutedForeground,
+};
+
+const tokenListContainerStyle: React.CSSProperties = {
+  flex: 1,
+  overflowY: "auto",
+  padding: `${spacing[2]} ${spacing[1]}`,
+};
+
+const centeredContainerStyle: React.CSSProperties = {
+  height: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `0 ${spacing[4]}`,
+};
+
+const centeredContentStyle: React.CSSProperties = {
+  textAlign: "center",
+};
+
+const placeholderIconStyle: React.CSSProperties = {
+  width: "3rem",
+  height: "3rem",
+  margin: `0 auto ${spacing[3]}`,
+  color: "rgba(161, 161, 170, 0.5)",
+};
+
+const smallIconStyle: React.CSSProperties = {
+  width: "2.5rem",
+  height: "2.5rem",
+  margin: `0 auto ${spacing[2]}`,
+};
+
+const tokenSkeletonRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[3],
+  padding: `${spacing[2.5]} ${spacing[2]}`,
+};
+
+const tokenSkeletonCircleStyle: React.CSSProperties = {
+  width: "2.25rem",
+  height: "2.25rem",
+  borderRadius: "9999px",
+  backgroundColor: colors.muted,
+};
+
+const tokenSkeletonTextContainerStyle: React.CSSProperties = {
+  flex: 1,
+};
+
+const tokenSkeletonTextSmStyle: React.CSSProperties = {
+  height: "1rem",
+  width: "4rem",
+  backgroundColor: colors.muted,
+  borderRadius: borderRadius.md,
+  marginBottom: spacing[1.5],
+};
+
+const tokenSkeletonTextLgStyle: React.CSSProperties = {
+  height: "0.75rem",
+  width: "6rem",
+  backgroundColor: colors.muted,
+  borderRadius: borderRadius.md,
+};
+
+const tokenSkeletonBalanceStyle: React.CSSProperties = {
+  height: "1rem",
+  width: "3.5rem",
+  backgroundColor: colors.muted,
+  borderRadius: borderRadius.md,
+};
+
+const tokenListStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[0.5],
+};
+
+const tokenButtonStyle: React.CSSProperties = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[3],
+  padding: `${spacing[2.5]} ${spacing[3]}`,
+  borderRadius: borderRadius.lg,
+  transition: "all 0.2s",
+  backgroundColor: "transparent",
+  border: 0,
+  cursor: "pointer",
+};
+
+const tokenIconStyle: React.CSSProperties = {
+  width: "2.25rem",
+  height: "2.25rem",
+  borderRadius: "9999px",
+  objectFit: "cover",
+  flexShrink: 0,
+};
+
+const tokenIconFallbackStyle: React.CSSProperties = {
+  width: "2.25rem",
+  height: "2.25rem",
+  borderRadius: "9999px",
+  backgroundColor: "rgba(59, 130, 246, 0.1)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const tokenIconFallbackTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.semibold,
+  color: colors.primary,
+};
+
+const tokenInfoStyle: React.CSSProperties = {
+  flex: 1,
+  textAlign: "left",
+  minWidth: 0,
+};
+
+const tokenSymbolContainerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[1.5],
+};
+
+const tokenSymbolStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const tokenNameStyle: React.CSSProperties = {
+  fontSize: fontSize.xs,
+  color: colors.mutedForeground,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  display: "block",
+};
+
+const tokenBalanceContainerStyle: React.CSSProperties = {
+  textAlign: "right",
+  flexShrink: 0,
+};
+
+const tokenBalanceStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.medium,
+  color: colors.foreground,
+};
+
+const chevronStyle: React.CSSProperties = {
+  width: "1rem",
+  height: "1rem",
+  color: colors.mutedForeground,
+  flexShrink: 0,
+};
+
+const footerStyle: React.CSSProperties = {
+  padding: `${spacing[4]} ${spacing[6]}`,
+  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+};
+
+const footerContentStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+};
+
+const lockIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+  color: colors.mutedForeground,
+};
+
+const footerTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const footerBrandStyle: React.CSSProperties = {
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
 /**
  * SelectToken page with two-column layout.
  * Left column displays available chains for selection.
  * Right column displays tokens for the selected chain with search functionality.
  */
-export function SelectToken({
-  className,
-}: SelectTokenProps): React.ReactElement {
+export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   const {
     selectedChain,
     setSelectedChain,
@@ -95,7 +590,6 @@ export function SelectToken({
    * Render a single chain item
    */
   const renderChainItem = (chain: ChainDef, index: number) => {
-    const chainId = Number(chain.chainId ?? chain.id);
     const key =
       chain.id ?? chain.chainId ?? chain.networkIdentifier ?? `chain-${index}`;
     const isSelected = isChainSelected(chain);
@@ -106,45 +600,32 @@ export function SelectToken({
         key={String(key)}
         type="button"
         onClick={() => handleChainSelect(chain)}
-        className={cn(
-          "tw-w-full tw-flex tw-items-center tw-gap-3 tw-px-3 tw-py-2.5 tw-rounded-lg tw-border tw-transition-all tw-duration-200",
-          isSelected
-            ? "tw-border-primary tw-bg-primary/10"
-            : "tw-border-transparent hover:tw-bg-muted/50"
+        style={mergeStyles(
+          chainButtonStyle,
+          isSelected && chainButtonSelectedStyle
         )}
       >
         {/* Chain Icon */}
         {chain.chainIconURI ? (
-          <img
-            src={chain.chainIconURI}
-            alt={label}
-            className="tw-w-8 tw-h-8 tw-rounded-full tw-object-cover tw-flex-shrink-0"
-          />
+          <img src={chain.chainIconURI} alt={label} style={chainIconStyle} />
         ) : (
-          <div className="tw-w-8 tw-h-8 tw-rounded-full tw-bg-muted tw-flex tw-items-center tw-justify-center tw-flex-shrink-0">
-            <span className="tw-text-xs tw-font-semibold tw-text-muted-foreground">
+          <div style={chainIconFallbackStyle}>
+            <span style={chainIconFallbackTextStyle}>
               {label.slice(0, 2).toUpperCase()}
             </span>
           </div>
         )}
 
         {/* Chain Name */}
-        <div className="tw-flex-1 tw-text-left tw-min-w-0">
-          <span
-            className={cn(
-              "tw-text-sm tw-font-medium tw-truncate tw-block",
-              isSelected ? "tw-text-foreground" : "tw-text-foreground"
-            )}
-          >
-            {label}
-          </span>
+        <div style={chainNameContainerStyle}>
+          <span style={chainNameStyle}>{label}</span>
         </div>
 
         {/* Selection indicator */}
         {isSelected && (
-          <div className="tw-w-5 tw-h-5 tw-rounded-full tw-bg-primary tw-flex tw-items-center tw-justify-center tw-flex-shrink-0">
+          <div style={selectionIndicatorStyle}>
             <svg
-              className="tw-w-3 tw-h-3 tw-text-primary-foreground"
+              style={checkIconStyle}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -163,17 +644,17 @@ export function SelectToken({
   };
 
   return (
-    <div className={cn("tw-flex tw-flex-col tw-min-h-[500px]", className)}>
+    <div style={mergeStyles(containerStyle, style)}>
       {/* Header */}
-      <div className="tw-flex tw-items-center tw-px-4 tw-py-4 tw-border-b tw-border-border">
+      <div style={headerStyle}>
         <button
           type="button"
           onClick={goBack}
-          className="tw-p-1 tw-mr-2 tw-rounded-lg hover:tw-bg-muted/50 tw-transition-colors"
+          style={backButtonStyle}
           aria-label="Go back"
         >
           <svg
-            className="tw-w-5 tw-h-5 tw-text-foreground"
+            style={backIconStyle}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -186,43 +667,42 @@ export function SelectToken({
             />
           </svg>
         </button>
-        <h1 className="tw-flex-1 tw-text-lg tw-font-semibold tw-text-foreground tw-text-center tw-mr-7">
-          Select Token
-        </h1>
+        <h1 style={headerTitleStyle}>Select Token</h1>
       </div>
 
       {/* Content - Two Column Layout */}
-      <div className="tw-flex-1 tw-flex tw-overflow-hidden">
+      <div style={contentStyle}>
         {/* Left Column - Chain Selector */}
-        <div className="tw-w-[140px] tw-border-r tw-border-border tw-flex tw-flex-col tw-overflow-hidden">
-          <div className="tw-px-3 tw-py-2 tw-border-b tw-border-border/50">
-            <span className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-uppercase tw-tracking-wide">
-              Chain
-            </span>
+        <div style={leftColumnStyle}>
+          <div style={columnHeaderStyle}>
+            <span style={columnLabelStyle}>Chain</span>
           </div>
 
-          <div className="tw-flex-1 tw-overflow-y-auto tw-py-2 tw-px-1">
+          <div style={chainListContainerStyle}>
             {isLoading ? (
               // Loading skeleton
-              <div className="tw-flex tw-flex-col tw-gap-2 tw-px-2">
+              <div style={skeletonContainerStyle}>
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="tw-flex tw-items-center tw-gap-3 tw-py-2"
-                  >
-                    <div className="tw-w-8 tw-h-8 tw-rounded-full tw-bg-muted tw-animate-pulse" />
-                    <div className="tw-flex-1 tw-h-4 tw-bg-muted tw-rounded tw-animate-pulse" />
+                  <div key={i} style={skeletonRowStyle}>
+                    <div
+                      style={skeletonCircleStyle}
+                      className="tw-animate-pulse"
+                    />
+                    <div
+                      style={skeletonTextStyle}
+                      className="tw-animate-pulse"
+                    />
                   </div>
                 ))}
               </div>
             ) : error ? (
               // Error state
-              <div className="tw-px-3 tw-py-4 tw-text-center">
-                <p className="tw-text-sm tw-text-destructive">{error}</p>
+              <div style={errorTextStyle}>
+                <p style={errorMessageStyle}>{error}</p>
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="tw-mt-2 tw-text-xs tw-text-primary hover:tw-underline"
+                  style={retryLinkStyle}
                 >
                   Retry
                 </button>
@@ -231,11 +711,9 @@ export function SelectToken({
               <>
                 {/* Popular Chains Section */}
                 {popularChains.length > 0 && (
-                  <div className="tw-mb-2">
-                    <div className="tw-px-3 tw-py-1.5">
-                      <span className="tw-text-[10px] tw-font-medium tw-text-muted-foreground/70 tw-uppercase tw-tracking-wide">
-                        Popular
-                      </span>
+                  <div style={sectionStyle}>
+                    <div style={sectionHeaderStyle}>
+                      <span style={sectionLabelStyle}>Popular</span>
                     </div>
                     {popularChains.map((chain, idx) =>
                       renderChainItem(chain, idx)
@@ -247,10 +725,13 @@ export function SelectToken({
                 {otherChains.length > 0 && (
                   <div>
                     {popularChains.length > 0 && (
-                      <div className="tw-px-3 tw-py-1.5 tw-mt-2">
-                        <span className="tw-text-[10px] tw-font-medium tw-text-muted-foreground/70 tw-uppercase tw-tracking-wide">
-                          All Chains
-                        </span>
+                      <div
+                        style={{
+                          ...sectionHeaderStyle,
+                          marginTop: spacing[2],
+                        }}
+                      >
+                        <span style={sectionLabelStyle}>All Chains</span>
                       </div>
                     )}
                     {otherChains.map((chain, idx) =>
@@ -261,10 +742,8 @@ export function SelectToken({
 
                 {/* Empty state */}
                 {popularChains.length === 0 && otherChains.length === 0 && (
-                  <div className="tw-px-3 tw-py-4 tw-text-center">
-                    <p className="tw-text-sm tw-text-muted-foreground">
-                      No chains available
-                    </p>
+                  <div style={emptyStateStyle}>
+                    <p style={emptyTextStyle}>No chains available</p>
                   </div>
                 )}
               </>
@@ -273,24 +752,20 @@ export function SelectToken({
         </div>
 
         {/* Right Column - Token Selector */}
-        <div className="tw-flex-1 tw-flex tw-flex-col tw-overflow-hidden">
+        <div style={rightColumnStyle}>
           {/* Header with search */}
-          <div className="tw-px-3 tw-py-2 tw-border-b tw-border-border/50">
-            <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
-              <span className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-uppercase tw-tracking-wide">
-                Token
-              </span>
+          <div style={tokenHeaderStyle}>
+            <div style={tokenHeaderRowStyle}>
+              <span style={columnLabelStyle}>Token</span>
               {walletAddress && (
-                <span className="tw-text-[10px] tw-text-primary tw-bg-primary/10 tw-px-1.5 tw-py-0.5 tw-rounded">
-                  Wallet Connected
-                </span>
+                <span style={walletBadgeStyle}>Wallet Connected</span>
               )}
             </div>
             {/* Search Input */}
             {selectedChain && (
-              <div className="tw-relative">
+              <div style={searchContainerStyle}>
                 <svg
-                  className="tw-absolute tw-left-2.5 tw-top-1/2 tw--translate-y-1/2 tw-w-4 tw-h-4 tw-text-muted-foreground"
+                  style={searchIconStyle}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -304,23 +779,17 @@ export function SelectToken({
                   placeholder="Search tokens..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(
-                    "tw-w-full tw-pl-8 tw-pr-3 tw-py-2 tw-text-sm",
-                    "tw-bg-muted/50 tw-border tw-border-border/50 tw-rounded-lg",
-                    "tw-text-foreground placeholder:tw-text-muted-foreground",
-                    "focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-primary/30 focus:tw-border-primary/50",
-                    "tw-transition-all"
-                  )}
+                  style={searchInputStyle}
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    className="tw-absolute tw-right-2.5 tw-top-1/2 tw--translate-y-1/2 tw-p-0.5 tw-rounded-full hover:tw-bg-muted tw-transition-colors"
+                    style={clearSearchButtonStyle}
                     aria-label="Clear search"
                   >
                     <svg
-                      className="tw-w-3.5 tw-h-3.5 tw-text-muted-foreground"
+                      style={clearIconStyle}
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -335,13 +804,13 @@ export function SelectToken({
           </div>
 
           {/* Token List */}
-          <div className="tw-flex-1 tw-overflow-y-auto tw-py-2 tw-px-1">
+          <div style={tokenListContainerStyle}>
             {!selectedChain ? (
               // No chain selected
-              <div className="tw-h-full tw-flex tw-items-center tw-justify-center tw-px-4">
-                <div className="tw-text-center">
+              <div style={centeredContainerStyle}>
+                <div style={centeredContentStyle}>
                   <svg
-                    className="tw-w-12 tw-h-12 tw-mx-auto tw-mb-3 tw-text-muted-foreground/50"
+                    style={placeholderIconStyle}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -353,34 +822,43 @@ export function SelectToken({
                       d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
                     />
                   </svg>
-                  <p className="tw-text-sm tw-text-muted-foreground">
+                  <p style={emptyTextStyle}>
                     Select a chain to view available tokens
                   </p>
                 </div>
               </div>
             ) : isLoadingTokens ? (
               // Loading skeleton
-              <div className="tw-flex tw-flex-col tw-gap-2 tw-px-2">
+              <div style={skeletonContainerStyle}>
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="tw-flex tw-items-center tw-gap-3 tw-py-2.5 tw-px-2"
-                  >
-                    <div className="tw-w-9 tw-h-9 tw-rounded-full tw-bg-muted tw-animate-pulse" />
-                    <div className="tw-flex-1">
-                      <div className="tw-h-4 tw-w-16 tw-bg-muted tw-rounded tw-animate-pulse tw-mb-1.5" />
-                      <div className="tw-h-3 tw-w-24 tw-bg-muted tw-rounded tw-animate-pulse" />
+                  <div key={i} style={tokenSkeletonRowStyle}>
+                    <div
+                      style={tokenSkeletonCircleStyle}
+                      className="tw-animate-pulse"
+                    />
+                    <div style={tokenSkeletonTextContainerStyle}>
+                      <div
+                        style={tokenSkeletonTextSmStyle}
+                        className="tw-animate-pulse"
+                      />
+                      <div
+                        style={tokenSkeletonTextLgStyle}
+                        className="tw-animate-pulse"
+                      />
                     </div>
-                    <div className="tw-h-4 tw-w-14 tw-bg-muted tw-rounded tw-animate-pulse" />
+                    <div
+                      style={tokenSkeletonBalanceStyle}
+                      className="tw-animate-pulse"
+                    />
                   </div>
                 ))}
               </div>
             ) : tokensError ? (
               // Error state
-              <div className="tw-h-full tw-flex tw-items-center tw-justify-center tw-px-4">
-                <div className="tw-text-center">
+              <div style={centeredContainerStyle}>
+                <div style={centeredContentStyle}>
                   <svg
-                    className="tw-w-10 tw-h-10 tw-mx-auto tw-mb-2 tw-text-destructive"
+                    style={{ ...smallIconStyle, color: colors.destructive }}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -389,13 +867,19 @@ export function SelectToken({
                     <circle cx="12" cy="12" r="10" />
                     <path strokeLinecap="round" d="M12 8v4M12 16h.01" />
                   </svg>
-                  <p className="tw-text-sm tw-text-destructive tw-mb-2">
+                  <p
+                    style={{
+                      ...emptyTextStyle,
+                      color: colors.destructive,
+                      marginBottom: spacing[2],
+                    }}
+                  >
                     {tokensError}
                   </p>
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
-                    className="tw-text-xs tw-text-primary hover:tw-underline"
+                    style={retryLinkStyle}
                   >
                     Try again
                   </button>
@@ -403,10 +887,10 @@ export function SelectToken({
               </div>
             ) : filteredTokens.length === 0 ? (
               // No tokens found
-              <div className="tw-h-full tw-flex tw-items-center tw-justify-center tw-px-4">
-                <div className="tw-text-center">
+              <div style={centeredContainerStyle}>
+                <div style={centeredContentStyle}>
                   <svg
-                    className="tw-w-10 tw-h-10 tw-mx-auto tw-mb-2 tw-text-muted-foreground/50"
+                    style={smallIconStyle}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -416,7 +900,7 @@ export function SelectToken({
                     <path strokeLinecap="round" d="m21 21-4.35-4.35" />
                     <path strokeLinecap="round" d="M8 11h6" />
                   </svg>
-                  <p className="tw-text-sm tw-text-muted-foreground">
+                  <p style={emptyTextStyle}>
                     {searchQuery
                       ? `No tokens matching "${searchQuery}"`
                       : "No tokens available"}
@@ -425,7 +909,7 @@ export function SelectToken({
                     <button
                       type="button"
                       onClick={() => setSearchQuery("")}
-                      className="tw-mt-2 tw-text-xs tw-text-primary hover:tw-underline"
+                      style={{ ...retryLinkStyle, marginTop: spacing[2] }}
                     >
                       Clear search
                     </button>
@@ -434,61 +918,55 @@ export function SelectToken({
               </div>
             ) : (
               // Token list
-              <div className="tw-flex tw-flex-col tw-gap-0.5">
+              <div style={tokenListStyle}>
                 {filteredTokens.map((token) => (
                   <button
                     key={token.address}
                     type="button"
                     onClick={() => handleTokenSelect(token)}
-                    className={cn(
-                      "tw-w-full tw-flex tw-items-center tw-gap-3 tw-px-3 tw-py-2.5 tw-rounded-lg",
-                      "tw-transition-all tw-duration-200",
-                      "hover:tw-bg-muted/70 active:tw-bg-muted"
-                    )}
+                    style={tokenButtonStyle}
                   >
                     {/* Token Icon */}
                     {token.iconUrl ? (
                       <img
                         src={token.iconUrl}
                         alt={token.symbol}
-                        className="tw-w-9 tw-h-9 tw-rounded-full tw-object-cover tw-flex-shrink-0"
+                        style={tokenIconStyle}
                         onError={(e) => {
                           // Fallback to initials on image error
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";
-                          target.nextElementSibling?.classList.remove(
-                            "tw-hidden"
-                          );
+                          if (target.nextElementSibling) {
+                            (
+                              target.nextElementSibling as HTMLElement
+                            ).style.display = "flex";
+                          }
                         }}
                       />
                     ) : null}
                     <div
-                      className={cn(
-                        "tw-w-9 tw-h-9 tw-rounded-full tw-bg-primary/10 tw-flex tw-items-center tw-justify-center tw-flex-shrink-0",
-                        token.iconUrl ? "tw-hidden" : ""
-                      )}
+                      style={{
+                        ...tokenIconFallbackStyle,
+                        display: token.iconUrl ? "none" : "flex",
+                      }}
                     >
-                      <span className="tw-text-sm tw-font-semibold tw-text-primary">
+                      <span style={tokenIconFallbackTextStyle}>
                         {token.symbol.slice(0, 2).toUpperCase()}
                       </span>
                     </div>
 
                     {/* Token Info */}
-                    <div className="tw-flex-1 tw-text-left tw-min-w-0">
-                      <div className="tw-flex tw-items-center tw-gap-1.5">
-                        <span className="tw-text-sm tw-font-semibold tw-text-foreground tw-truncate">
-                          {token.symbol}
-                        </span>
+                    <div style={tokenInfoStyle}>
+                      <div style={tokenSymbolContainerStyle}>
+                        <span style={tokenSymbolStyle}>{token.symbol}</span>
                       </div>
-                      <span className="tw-text-xs tw-text-muted-foreground tw-truncate tw-block">
-                        {token.name}
-                      </span>
+                      <span style={tokenNameStyle}>{token.name}</span>
                     </div>
 
                     {/* Token Balance (if wallet connected) */}
                     {token.balance !== undefined && (
-                      <div className="tw-text-right tw-flex-shrink-0">
-                        <span className="tw-text-sm tw-font-medium tw-text-foreground">
+                      <div style={tokenBalanceContainerStyle}>
+                        <span style={tokenBalanceStyle}>
                           {formatTokenBalance(token.balance, token.decimals)}
                         </span>
                       </div>
@@ -496,7 +974,7 @@ export function SelectToken({
 
                     {/* Chevron */}
                     <svg
-                      className="tw-w-4 tw-h-4 tw-text-muted-foreground tw-flex-shrink-0"
+                      style={chevronStyle}
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -517,10 +995,10 @@ export function SelectToken({
       </div>
 
       {/* Footer */}
-      <div className="tw-px-6 tw-py-4 tw-border-t tw-border-border/30">
-        <div className="tw-flex tw-items-center tw-justify-center tw-gap-2">
+      <div style={footerStyle}>
+        <div style={footerContentStyle}>
           <svg
-            className="tw-w-3.5 tw-h-3.5 tw-text-muted-foreground"
+            style={lockIconStyle}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -532,11 +1010,8 @@ export function SelectToken({
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span className="tw-text-sm tw-text-muted-foreground">
-            Secured by{" "}
-            <span className="tw-font-semibold tw-text-foreground">
-              Trustware
-            </span>
+          <span style={footerTextStyle}>
+            Secured by <span style={footerBrandStyle}>Trustware</span>
           </span>
         </div>
       </div>

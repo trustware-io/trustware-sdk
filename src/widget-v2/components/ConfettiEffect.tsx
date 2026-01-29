@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
+import { zIndex } from "../styles/tokens";
 
 interface ConfettiPiece {
   id: number;
@@ -18,6 +19,14 @@ export interface ConfettiEffectProps {
   /** Number of confetti pieces to generate (default: 50) */
   pieceCount?: number;
 }
+
+const containerStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  pointerEvents: "none",
+  zIndex: 50,
+  overflow: "hidden",
+};
 
 /**
  * Confetti celebration effect component.
@@ -71,54 +80,30 @@ export function ConfettiEffect({
     }
   }, [isActive, pieceCount, clearDelay]);
 
-  // Memoize the keyframes style to inject once
-  const keyframesStyle = useMemo(
-    () => `
-    @keyframes tw-confetti-fall {
-      0% {
-        transform: translateY(0) rotate(0deg);
-        opacity: 1;
-      }
-      100% {
-        transform: translateY(100vh) rotate(720deg);
-        opacity: 0;
-      }
-    }
-  `,
-    []
-  );
-
   if (!isActive || pieces.length === 0) {
     return null;
   }
 
   return (
-    <>
-      {/* Inject keyframes animation */}
-      <style>{keyframesStyle}</style>
-      <div
-        className="tw-fixed tw-inset-0 tw-pointer-events-none tw-z-50 tw-overflow-hidden"
-        aria-hidden="true"
-      >
-        {pieces.map((piece) => (
-          <div
-            key={piece.id}
-            style={{
-              position: "absolute",
-              left: `${piece.x}%`,
-              top: "-20px",
-              width: `${piece.size}px`,
-              height: `${piece.size}px`,
-              backgroundColor: piece.color,
-              borderRadius: piece.id % 2 === 0 ? "50%" : "2px",
-              transform: `rotate(${piece.rotation}deg)`,
-              animation: `tw-confetti-fall ${piece.duration}s ease-out forwards`,
-              animationDelay: `${piece.delay}s`,
-            }}
-          />
-        ))}
-      </div>
-    </>
+    <div style={containerStyle} aria-hidden="true">
+      {pieces.map((piece) => (
+        <div
+          key={piece.id}
+          style={{
+            position: "absolute",
+            left: `${piece.x}%`,
+            top: "-20px",
+            width: `${piece.size}px`,
+            height: `${piece.size}px`,
+            backgroundColor: piece.color,
+            borderRadius: piece.id % 2 === 0 ? "50%" : "2px",
+            transform: `rotate(${piece.rotation}deg)`,
+            animation: `tw-confetti-fall ${piece.duration}s ease-out forwards`,
+            animationDelay: `${piece.delay}s`,
+          }}
+        />
+      ))}
+    </div>
   );
 }
 

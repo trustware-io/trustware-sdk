@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
 
 export interface AmountSliderProps {
   /** Current amount value */
@@ -10,8 +11,8 @@ export interface AmountSliderProps {
   max: number;
   /** Minimum amount (defaults to 0) */
   min?: number;
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
   /** Whether the slider is disabled */
   disabled?: boolean;
 }
@@ -24,6 +25,123 @@ interface TickMark {
   label: string;
   value: number;
 }
+
+const containerStyle: React.CSSProperties = {
+  width: "100%",
+};
+
+const labelsContainerStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: spacing[2],
+  padding: `0 ${spacing[1]}`,
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: fontSize.xs,
+  color: colors.zinc[500],
+  fontWeight: fontWeight.medium,
+};
+
+const trackContainerStyle: React.CSSProperties = {
+  position: "relative",
+  height: "2.5rem",
+  display: "flex",
+  alignItems: "center",
+};
+
+const backgroundTrackStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  height: "0.5rem",
+  borderRadius: "9999px",
+  backgroundColor: "rgba(63, 63, 70, 0.6)",
+};
+
+const activeTrackStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 0,
+  height: "0.5rem",
+  borderRadius: "9999px",
+  backgroundColor: colors.emerald[500],
+  transition: "all 75ms",
+};
+
+const tickButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  padding: 0,
+  border: 0,
+  backgroundColor: "transparent",
+  cursor: "pointer",
+  outline: "none",
+};
+
+const tickMarkStyle: React.CSSProperties = {
+  width: "2px",
+  height: "0.625rem",
+  borderRadius: "9999px",
+  transition: "background-color 0.2s",
+  transform: "translateX(-50%)",
+};
+
+const rangeInputStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  opacity: 0,
+  zIndex: 10,
+  touchAction: "none",
+  cursor: "pointer",
+  WebkitAppearance: "none",
+  appearance: "none",
+};
+
+const thumbStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "1.5rem",
+  height: "1.5rem",
+  borderRadius: "9999px",
+  boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+  pointerEvents: "none",
+  transition: "all 75ms",
+  backgroundColor: colors.white,
+  border: `2px solid ${colors.emerald[500]}`,
+};
+
+const tickLabelsContainerStyle: React.CSSProperties = {
+  position: "relative",
+  marginTop: spacing[1],
+  height: "1.25rem",
+};
+
+const tickLabelStyle: React.CSSProperties = {
+  position: "absolute",
+  fontSize: "9px",
+  fontWeight: fontWeight.medium,
+  transform: "translateX(-50%)",
+};
+
+const valueDisplayContainerStyle: React.CSSProperties = {
+  marginTop: spacing[3],
+  display: "flex",
+  justifyContent: "center",
+};
+
+const valueDisplayStyle: React.CSSProperties = {
+  padding: `${spacing[1]} ${spacing[3]}`,
+  borderRadius: "9999px",
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.semibold,
+  backgroundColor: "rgba(16, 185, 129, 0.1)",
+  color: colors.emerald[400],
+};
 
 /**
  * Range slider component for quickly adjusting deposit amounts.
@@ -38,7 +156,7 @@ export function AmountSlider({
   onChange,
   max,
   min = 0,
-  className,
+  style,
   disabled = false,
 }: AmountSliderProps): React.ReactElement {
   /**
@@ -73,11 +191,11 @@ export function AmountSlider({
 
     // Calculate even spacing - divide 100% by (number of ticks + 1 for Max)
     const totalTicks = tickValues.length + 1; // +1 for Max
-    const spacing = 100 / totalTicks;
+    const spacingPercent = 100 / totalTicks;
 
     // Create ticks with evenly distributed positions
     const ticks: TickMark[] = tickValues.map((amount, index) => ({
-      position: spacing * (index + 1),
+      position: spacingPercent * (index + 1),
       label: `$${amount}`,
       value: amount,
     }));
@@ -170,36 +288,32 @@ export function AmountSlider({
   );
 
   return (
-    <div className={cn("tw-w-full", className)}>
+    <div style={mergeStyles(containerStyle, style)}>
       {/* Slider Track */}
-      <div className="tw-relative">
+      <div style={{ position: "relative" }}>
         {/* Labels */}
-        <div className="tw-flex tw-justify-between tw-items-center tw-mb-2 tw-px-1">
-          <span className="tw-text-xs tw-text-zinc-500 tw-font-medium">
-            ${min}
-          </span>
-          <span className="tw-text-xs tw-text-zinc-500 tw-font-medium">
-            Max
-          </span>
+        <div style={labelsContainerStyle}>
+          <span style={labelStyle}>${min}</span>
+          <span style={labelStyle}>Max</span>
         </div>
 
         {/* Track Container */}
-        <div className="tw-relative tw-h-10 tw-flex tw-items-center">
+        <div style={trackContainerStyle}>
           {/* Background Track */}
           <div
-            className={cn(
-              "tw-absolute tw-inset-x-0 tw-h-2 tw-rounded-full",
-              disabled ? "tw-bg-zinc-700/40" : "tw-bg-zinc-700/60"
+            style={mergeStyles(
+              backgroundTrackStyle,
+              disabled && { backgroundColor: "rgba(63, 63, 70, 0.4)" }
             )}
           />
 
           {/* Active Track */}
           <div
-            className={cn(
-              "tw-absolute tw-left-0 tw-h-2 tw-rounded-full tw-transition-all tw-duration-75",
-              disabled ? "tw-bg-emerald-700/50" : "tw-bg-emerald-500"
+            style={mergeStyles(
+              activeTrackStyle,
+              { width: `${percentage}%` },
+              disabled && { backgroundColor: "rgba(4, 120, 87, 0.5)" }
             )}
-            style={{ width: `${percentage}%` }}
           />
 
           {/* Tick Marks */}
@@ -209,16 +323,19 @@ export function AmountSlider({
               <button
                 key={tick.position}
                 type="button"
-                className="tw-absolute tw-top-1/2 tw--translate-y-1/2 tw-p-0 tw-border-0 tw-bg-transparent tw-cursor-pointer tw-outline-none"
-                style={{ left: `${tick.position}%` }}
+                style={mergeStyles(tickButtonStyle, { left: `${tick.position}%` })}
                 onClick={() => handleTickClick(tick.value)}
                 disabled={disabled}
                 aria-label={`Set amount to ${tick.label}`}
               >
                 <div
-                  className={cn(
-                    "tw-w-0.5 tw-h-2.5 tw-rounded-full tw-transition-colors tw--translate-x-1/2",
-                    isActive ? "tw-bg-emerald-500/50" : "tw-bg-zinc-500/20"
+                  style={mergeStyles(
+                    tickMarkStyle,
+                    {
+                      backgroundColor: isActive
+                        ? "rgba(16, 185, 129, 0.5)"
+                        : "rgba(113, 113, 122, 0.2)",
+                    }
                   )}
                 />
               </button>
@@ -233,13 +350,10 @@ export function AmountSlider({
             value={value}
             onChange={handleChange}
             disabled={disabled}
-            className={cn(
-              "tw-absolute tw-inset-0 tw-w-full tw-h-full tw-opacity-0 tw-z-10 tw-touch-none",
-              disabled ? "tw-cursor-not-allowed" : "tw-cursor-pointer"
+            style={mergeStyles(
+              rangeInputStyle,
+              disabled && { cursor: "not-allowed" }
             )}
-            style={{
-              WebkitAppearance: "none",
-            }}
             aria-label="Amount slider"
             aria-valuemin={min}
             aria-valuemax={max}
@@ -249,30 +363,32 @@ export function AmountSlider({
 
           {/* Thumb */}
           <div
-            className={cn(
-              "tw-absolute tw-top-1/2 tw--translate-y-1/2 tw-w-6 tw-h-6 tw-rounded-full tw-shadow-lg tw-pointer-events-none tw-transition-all tw-duration-75",
-              disabled
-                ? "tw-bg-zinc-600 tw-border-2 tw-border-zinc-500"
-                : "tw-bg-white tw-border-2 tw-border-emerald-500"
+            style={mergeStyles(
+              thumbStyle,
+              { left: `calc(${percentage}% - 12px)` },
+              disabled && {
+                backgroundColor: colors.zinc[600],
+                border: `2px solid ${colors.zinc[500]}`,
+              }
             )}
-            style={{
-              left: `calc(${percentage}% - 12px)`,
-            }}
           />
         </div>
 
         {/* Tick Labels */}
-        <div className="tw-relative tw-mt-1 tw-h-5">
+        <div style={tickLabelsContainerStyle}>
           {tickMarks.map((tick) => (
             <span
               key={tick.position}
-              className={cn(
-                "tw-absolute tw-text-[9px] tw-font-medium tw--translate-x-1/2",
-                percentage >= tick.position
-                  ? "tw-text-zinc-400"
-                  : "tw-text-zinc-600"
+              style={mergeStyles(
+                tickLabelStyle,
+                { left: `${tick.position}%` },
+                {
+                  color:
+                    percentage >= tick.position
+                      ? colors.zinc[400]
+                      : colors.zinc[600],
+                }
               )}
-              style={{ left: `${tick.position}%` }}
             >
               {tick.label}
             </span>
@@ -281,13 +397,14 @@ export function AmountSlider({
       </div>
 
       {/* Current Value Display */}
-      <div className="tw-mt-3 tw-flex tw-justify-center">
+      <div style={valueDisplayContainerStyle}>
         <div
-          className={cn(
-            "tw-px-3 tw-py-1 tw-rounded-full tw-text-sm tw-font-semibold",
-            disabled
-              ? "tw-bg-zinc-800 tw-text-zinc-500"
-              : "tw-bg-emerald-500/10 tw-text-emerald-400"
+          style={mergeStyles(
+            valueDisplayStyle,
+            disabled && {
+              backgroundColor: colors.zinc[800],
+              color: colors.zinc[500],
+            }
           )}
         >
           $

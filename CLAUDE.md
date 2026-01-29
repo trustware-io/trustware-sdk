@@ -43,10 +43,10 @@ npm run dev
 
 ### Entry Points
 - `src/index.ts` - Main exports (provider, widget, hooks, types)
-- `src/styles.css` - Widget styles (imported separately)
 
 ### Key Directories
 - `src/widget-v2/` - TrustwareWidget component and state machine
+- `src/widget-v2/styles/` - Design tokens, theme, animations, utilities
 - `src/wallets/` - Wallet detection, connection adapters, WalletConnect
 - `src/config/` - Configuration store and defaults
 - `src/hooks/` - React hooks for quotes, transactions, etc.
@@ -77,6 +77,62 @@ WalletConnect is enabled by default with a built-in project ID. Users can:
 - Prettier (2-space indent, 80 char width, semicolons)
 - Path alias: `@/` → `src/`
 
+## Styling Architecture (CRITICAL)
+
+**DO NOT use Tailwind CSS, external CSS files, or any CSS-in-JS library for widget styling.**
+
+The widget uses **inline styles only** to ensure it works when embedded in any host application (Next.js, Vite, etc.) without requiring the host to process CSS.
+
+### Style System Structure
+
+```
+src/widget-v2/styles/
+  index.ts           # Barrel export
+  tokens.ts          # Design tokens (colors, spacing, typography, shadows)
+  theme.ts           # CSS variable injection via <style> tag
+  animations.ts      # Keyframe definitions for injection
+  utils.ts           # mergeStyles() utility for conditional styles
+```
+
+### Patterns
+
+**Static styles** - Define as `React.CSSProperties` constants:
+```typescript
+const buttonStyle: React.CSSProperties = {
+  padding: spacing[3],
+  backgroundColor: colors.primary,
+  borderRadius: borderRadius.xl,
+};
+```
+
+**Conditional styles** - Use `mergeStyles()`:
+```typescript
+<div style={mergeStyles(
+  baseStyle,
+  isActive && activeStyle,
+  isDisabled && { opacity: 0.5 }
+)}>
+```
+
+**Animations** - Keyframes are injected via `<style>` tag in WidgetContainer:
+```typescript
+<div style={{ animation: 'tw-fade-in 0.3s ease-out' }}>
+```
+
+**Theming** - CSS variables injected via `<style>` tag, referenced in inline styles:
+```typescript
+backgroundColor: 'hsl(var(--tw-background))'
+```
+
+### Why No Tailwind/External CSS
+
+When the SDK is embedded in a host app, the host's build system doesn't process the SDK's CSS:
+- Tailwind classes won't be compiled
+- CSS imports may fail or be ignored
+- PostCSS plugins won't run
+
+Inline styles are self-contained and work everywhere.
+
 ## Recent Bug Fixes (2026-01-21)
 
 ### 1. Transaction Receipt Not Submitted to Backend
@@ -103,12 +159,12 @@ const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
 const fromAmountWei = (whole + paddedFraction).replace(/^0+/, "") || "0";
 ```
 
-### 3. UI Migration to New Design System
-**Files**: `src/widget-v2/styles.css`, `tailwind.config.js`, `src/widget-v2/components/WidgetContainer.tsx`, `src/widget-v2/pages/Home.tsx`
+### 3. UI Migration to Inline Styles (2026-01-29)
+**Files**: All `src/widget-v2/**/*.tsx` files
 
 **Changes**:
-- Updated color palette to bright blue primary (HSL 217 91% 60%)
-- Added three-tier shadow system (soft, medium, large)
-- Updated border-radius from 0.5rem to 1rem
-- Added new animations (fade-in, slide-up, scale-in, token-hint-bounce)
-- Home page: Replaced radio buttons with dropdown pill selectors for payment methods
+- Converted from Tailwind CSS to inline styles for full host-app compatibility
+- Created design tokens system in `src/widget-v2/styles/`
+- Theme/animation CSS injected via `<style>` tag in WidgetContainer
+- Removed tailwind.config.js, postcss.config.js, styles.css
+- Removed Tailwind dependencies from package.json

@@ -1,7 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/**
+ * Theme CSS styles for injection via <style> tag
+ * Contains CSS variables for light/dark themes and pseudo-state styles
+ */
 
+/**
+ * CSS variables for theming - scoped to .trustware-widget
+ * These variables are used by inline styles throughout the widget
+ */
+export const THEME_STYLES = `
 /* CSS Variables for theming - scoped to widget */
 .trustware-widget {
   /* Light theme (default) - New design system with bright blue primary */
@@ -37,6 +43,15 @@
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Box sizing */
+  box-sizing: border-box;
+}
+
+.trustware-widget *,
+.trustware-widget *::before,
+.trustware-widget *::after {
+  box-sizing: border-box;
 }
 
 /* Dark theme */
@@ -65,41 +80,77 @@
   --tw-shadow-medium: 0 4px 16px -4px hsl(0 0% 0% / 0.3);
   --tw-shadow-large: 0 8px 32px -8px hsl(0 0% 0% / 0.4);
 }
+`;
 
-/* Utility classes */
-.tw-touch-none {
-  touch-action: none;
+/**
+ * Pseudo-state styles that can't be done with inline styles
+ * Kept minimal - only for hover/focus/active states
+ */
+export const PSEUDO_STYLES = `
+/* Reset styles for elements inside widget */
+.trustware-widget button {
+  font-family: inherit;
+  cursor: pointer;
 }
 
+.trustware-widget a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.trustware-widget input {
+  font-family: inherit;
+}
+
+/* Focus visible styles */
+.trustware-widget button:focus-visible,
+.trustware-widget input:focus-visible,
+.trustware-widget a:focus-visible {
+  outline: 2px solid hsl(var(--tw-ring));
+  outline-offset: 2px;
+}
+
+/* Scrollbar hiding - apply to widget and all children */
+.trustware-widget,
+.trustware-widget *,
 .tw-scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-
+.trustware-widget::-webkit-scrollbar,
+.trustware-widget *::-webkit-scrollbar,
 .tw-scrollbar-none::-webkit-scrollbar {
   display: none;
+  width: 0;
+  height: 0;
 }
 
+/* Touch action utility */
+.tw-touch-none {
+  touch-action: none;
+}
+
+/* Safe area utilities */
 .tw-safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
-
 .tw-safe-area-top {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Confetti animation */
-@keyframes tw-confetti-fall {
-  0% {
-    transform: translateY(-20px) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(100vh) rotate(720deg);
-    opacity: 0;
-  }
+/* Disabled state styles */
+.trustware-widget button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
-.tw-animate-confetti {
-  animation: tw-confetti-fall 2s ease-out forwards;
+/* Selection color */
+.trustware-widget ::selection {
+  background-color: hsl(var(--tw-primary) / 0.2);
 }
+`;
+
+/**
+ * Combined theme and pseudo-state styles for injection
+ */
+export const ALL_THEME_STYLES = THEME_STYLES + PSEUDO_STYLES;

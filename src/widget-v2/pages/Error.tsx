@@ -1,11 +1,18 @@
 import React, { useMemo, useEffect } from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+} from "../styles/tokens";
 import { useDeposit } from "../context/DepositContext";
 import { TrustwareConfigStore } from "../../config/store";
 
 export interface ErrorProps {
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
 }
 
 /**
@@ -163,11 +170,174 @@ function getRetryStep(
   }
 }
 
+// Styles
+const containerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  minHeight: "500px",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `${spacing[4]} ${spacing[4]}`,
+  borderBottom: `1px solid ${colors.border}`,
+};
+
+const headerTitleStyle: React.CSSProperties = {
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
+const contentStyle: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `${spacing[8]} ${spacing[6]}`,
+};
+
+const errorIconContainerStyle: React.CSSProperties = {
+  width: "5rem",
+  height: "5rem",
+  borderRadius: "9999px",
+  backgroundColor: "rgba(239, 68, 68, 0.1)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: spacing[6],
+};
+
+const errorIconStyle: React.CSSProperties = {
+  width: "2.5rem",
+  height: "2.5rem",
+  color: colors.red[500],
+};
+
+const errorTitleStyle: React.CSSProperties = {
+  fontSize: fontSize["2xl"],
+  fontWeight: fontWeight.bold,
+  color: colors.foreground,
+  textAlign: "center",
+  marginBottom: spacing[2],
+};
+
+const errorMessageStyle: React.CSSProperties = {
+  color: colors.mutedForeground,
+  textAlign: "center",
+  marginBottom: spacing[4],
+  maxWidth: "20rem",
+};
+
+const suggestionStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+  textAlign: "center",
+  marginBottom: spacing[6],
+  maxWidth: "20rem",
+};
+
+const hashContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: spacing[1],
+  marginBottom: spacing[6],
+};
+
+const hashLabelStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const hashLinkStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing[1.5],
+  color: colors.primary,
+  textDecoration: "none",
+};
+
+const hashTextStyle: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: fontSize.sm,
+};
+
+const externalIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+};
+
+const buttonsContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[3],
+  width: "100%",
+  maxWidth: "20rem",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: `${spacing[3]} ${spacing[6]}`,
+  borderRadius: borderRadius.xl,
+  backgroundColor: colors.primary,
+  color: colors.primaryForeground,
+  fontWeight: fontWeight.semibold,
+  fontSize: fontSize.base,
+  transition: "background-color 0.2s",
+  border: 0,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: `${spacing[3]} ${spacing[6]}`,
+  borderRadius: borderRadius.xl,
+  backgroundColor: "transparent",
+  color: colors.mutedForeground,
+  fontWeight: fontWeight.medium,
+  fontSize: fontSize.base,
+  transition: "background-color 0.2s",
+  border: `1px solid ${colors.border}`,
+  cursor: "pointer",
+};
+
+const footerStyle: React.CSSProperties = {
+  padding: `${spacing[4]} ${spacing[6]}`,
+  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+};
+
+const footerContentStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing[2],
+};
+
+const lockIconStyle: React.CSSProperties = {
+  width: "0.875rem",
+  height: "0.875rem",
+  color: colors.mutedForeground,
+};
+
+const footerTextStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+};
+
+const footerBrandStyle: React.CSSProperties = {
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+};
+
 /**
  * Error page component.
  * Displays user-friendly error messages with appropriate recovery options.
  */
-export function Error({ className }: ErrorProps): React.ReactElement {
+export function Error({ style }: ErrorProps): React.ReactElement {
   const {
     errorMessage,
     setCurrentStep,
@@ -250,104 +420,101 @@ export function Error({ className }: ErrorProps): React.ReactElement {
     return null;
   }, [transactionHash, selectedChain]);
 
+  // Render appropriate icon based on error category
+  const renderErrorIcon = () => {
+    if (errorCategory === "wallet_rejected") {
+      // X icon for user rejection
+      return (
+        <svg
+          style={errorIconStyle}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      );
+    }
+    if (errorCategory === "network_error") {
+      // Wifi off icon for network errors
+      return (
+        <svg
+          style={errorIconStyle}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01M3.293 7.293a14.962 14.962 0 0117.414 0M1 1l22 22"
+          />
+        </svg>
+      );
+    }
+    // Warning triangle for other errors
+    return (
+      <svg
+        style={errorIconStyle}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        aria-hidden="true"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
+      </svg>
+    );
+  };
+
   return (
-    <div className={cn("tw-flex tw-flex-col tw-min-h-[500px]", className)}>
+    <div style={mergeStyles(containerStyle, style)}>
       {/* Header */}
-      <div className="tw-flex tw-items-center tw-justify-center tw-px-4 tw-py-4 tw-border-b tw-border-border">
-        <h1 className="tw-text-lg tw-font-semibold tw-text-foreground">
-          {errorTitle}
-        </h1>
+      <div style={headerStyle}>
+        <h1 style={headerTitleStyle}>{errorTitle}</h1>
       </div>
 
       {/* Content */}
-      <div className="tw-flex-1 tw-flex tw-flex-col tw-items-center tw-justify-center tw-px-6 tw-py-8">
+      <div style={contentStyle}>
         {/* Error Icon */}
-        <div className="tw-w-20 tw-h-20 tw-rounded-full tw-bg-red-500/10 tw-flex tw-items-center tw-justify-center tw-mb-6">
-          {errorCategory === "wallet_rejected" ? (
-            // X icon for user rejection
-            <svg
-              className="tw-w-10 tw-h-10 tw-text-red-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          ) : errorCategory === "network_error" ? (
-            // Wifi off icon for network errors
-            <svg
-              className="tw-w-10 tw-h-10 tw-text-red-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01M3.293 7.293a14.962 14.962 0 0117.414 0M1 1l22 22"
-              />
-            </svg>
-          ) : (
-            // Warning triangle for other errors
-            <svg
-              className="tw-w-10 tw-h-10 tw-text-red-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          )}
-        </div>
+        <div style={errorIconContainerStyle}>{renderErrorIcon()}</div>
 
         {/* Error Message */}
-        <h2 className="tw-text-2xl tw-font-bold tw-text-foreground tw-text-center tw-mb-2">
-          {errorTitle}
-        </h2>
+        <h2 style={errorTitleStyle}>{errorTitle}</h2>
 
         {/* Error Details */}
-        {errorMessage && (
-          <p className="tw-text-muted-foreground tw-text-center tw-mb-4 tw-max-w-xs">
-            {errorMessage}
-          </p>
-        )}
+        {errorMessage && <p style={errorMessageStyle}>{errorMessage}</p>}
 
         {/* Suggestion */}
-        <p className="tw-text-sm tw-text-muted-foreground tw-text-center tw-mb-6 tw-max-w-xs">
-          {errorSuggestion}
-        </p>
+        <p style={suggestionStyle}>{errorSuggestion}</p>
 
         {/* Transaction Hash Link (if available) */}
         {explorerUrl && (
-          <div className="tw-flex tw-flex-col tw-items-center tw-gap-1 tw-mb-6">
-            <span className="tw-text-sm tw-text-muted-foreground">
-              Transaction ID
-            </span>
+          <div style={hashContainerStyle}>
+            <span style={hashLabelStyle}>Transaction ID</span>
             <a
               href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="tw-flex tw-items-center tw-gap-1.5 tw-text-primary hover:tw-underline"
+              style={hashLinkStyle}
             >
-              <span className="tw-font-mono tw-text-sm">
+              <span style={hashTextStyle}>
                 {transactionHash!.slice(0, 8)}...{transactionHash!.slice(-6)}
               </span>
               <svg
-                className="tw-w-3.5 tw-h-3.5"
+                style={externalIconStyle}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -365,13 +532,9 @@ export function Error({ className }: ErrorProps): React.ReactElement {
         )}
 
         {/* Action Buttons */}
-        <div className="tw-flex tw-flex-col tw-gap-3 tw-w-full tw-max-w-xs">
+        <div style={buttonsContainerStyle}>
           {/* Try Again Button */}
-          <button
-            type="button"
-            onClick={handleTryAgain}
-            className="tw-w-full tw-py-3 tw-px-6 tw-rounded-xl tw-bg-primary tw-text-primary-foreground tw-font-semibold tw-text-base hover:tw-bg-primary/90 tw-transition-colors tw-border-0 tw-cursor-pointer"
-          >
+          <button type="button" onClick={handleTryAgain} style={primaryButtonStyle}>
             Try Again
           </button>
 
@@ -379,7 +542,7 @@ export function Error({ className }: ErrorProps): React.ReactElement {
           <button
             type="button"
             onClick={handleStartOver}
-            className="tw-w-full tw-py-3 tw-px-6 tw-rounded-xl tw-bg-transparent tw-text-muted-foreground tw-font-medium tw-text-base hover:tw-bg-muted/50 tw-transition-colors tw-border tw-border-border tw-cursor-pointer"
+            style={secondaryButtonStyle}
           >
             Start Over
           </button>
@@ -387,10 +550,10 @@ export function Error({ className }: ErrorProps): React.ReactElement {
       </div>
 
       {/* Footer */}
-      <div className="tw-px-6 tw-py-4 tw-border-t tw-border-border/30">
-        <div className="tw-flex tw-items-center tw-justify-center tw-gap-2">
+      <div style={footerStyle}>
+        <div style={footerContentStyle}>
           <svg
-            className="tw-w-3.5 tw-h-3.5 tw-text-muted-foreground"
+            style={lockIconStyle}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -403,11 +566,8 @@ export function Error({ className }: ErrorProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span className="tw-text-sm tw-text-muted-foreground">
-            Secured by{" "}
-            <span className="tw-font-semibold tw-text-foreground">
-              Trustware
-            </span>
+          <span style={footerTextStyle}>
+            Secured by <span style={footerBrandStyle}>Trustware</span>
           </span>
         </div>
       </div>

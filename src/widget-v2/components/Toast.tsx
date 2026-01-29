@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import { colors, spacing, fontSize, fontWeight, shadows, borderRadius } from "../styles/tokens";
 
 export interface ToastData {
   id: string;
@@ -12,6 +13,84 @@ export interface ToastData {
 interface ToastProps extends ToastData {
   onDismiss: (id: string) => void;
 }
+
+const baseToastStyle: React.CSSProperties = {
+  pointerEvents: "auto",
+  position: "relative",
+  display: "flex",
+  width: "100%",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: spacing[3],
+  overflow: "hidden",
+  borderRadius: borderRadius.lg,
+  border: "1px solid",
+  padding: spacing[4],
+  boxShadow: shadows.lg,
+  transition: "all 0.2s ease-out",
+};
+
+const variantStyles: Record<ToastData["variant"] & string, React.CSSProperties> = {
+  default: {
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    color: colors.foreground,
+  },
+  destructive: {
+    borderColor: "rgba(239, 68, 68, 0.5)",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    color: colors.red[600],
+  },
+  success: {
+    borderColor: "rgba(34, 197, 94, 0.5)",
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
+    color: colors.green[600],
+  },
+};
+
+const iconContainerStyle: React.CSSProperties = {
+  flexShrink: 0,
+};
+
+const iconStyle: React.CSSProperties = {
+  width: "1.25rem",
+  height: "1.25rem",
+};
+
+const contentStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.semibold,
+  margin: 0,
+};
+
+const descriptionStyle: React.CSSProperties = {
+  fontSize: fontSize.sm,
+  opacity: 0.8,
+  marginTop: spacing[0.5],
+  margin: 0,
+};
+
+const closeButtonStyle: React.CSSProperties = {
+  flexShrink: 0,
+  borderRadius: "0.375rem",
+  padding: spacing[1],
+  opacity: 0.7,
+  transition: "opacity 0.2s",
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  color: "inherit",
+};
+
+const closeIconStyle: React.CSSProperties = {
+  width: "1rem",
+  height: "1rem",
+};
 
 /**
  * Individual Toast notification component
@@ -47,28 +126,21 @@ function ToastItem({
     setIsExiting(true);
   };
 
+  const toastStyle = mergeStyles(
+    baseToastStyle,
+    variantStyles[variant] || variantStyles.default,
+    isExiting
+      ? { opacity: 0, transform: "translateX(1rem)" }
+      : { opacity: 1, transform: "translateX(0)" }
+  );
+
   return (
-    <div
-      role="alert"
-      aria-live="assertive"
-      className={cn(
-        "tw-pointer-events-auto tw-relative tw-flex tw-w-full tw-items-center tw-justify-between tw-space-x-3 tw-overflow-hidden tw-rounded-lg tw-border tw-p-4 tw-shadow-lg tw-transition-all tw-duration-200",
-        isExiting
-          ? "tw-opacity-0 tw-translate-x-4"
-          : "tw-opacity-100 tw-translate-x-0",
-        variant === "default" &&
-          "tw-border-border tw-bg-card tw-text-foreground",
-        variant === "destructive" &&
-          "tw-border-red-500/50 tw-bg-red-500/10 tw-text-red-600 dark:tw-text-red-400",
-        variant === "success" &&
-          "tw-border-green-500/50 tw-bg-green-500/10 tw-text-green-600 dark:tw-text-green-400"
-      )}
-    >
+    <div role="alert" aria-live="assertive" style={toastStyle}>
       {/* Icon based on variant */}
-      <div className="tw-flex-shrink-0">
+      <div style={iconContainerStyle}>
         {variant === "destructive" && (
           <svg
-            className="tw-w-5 tw-h-5"
+            style={iconStyle}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -83,7 +155,7 @@ function ToastItem({
         )}
         {variant === "success" && (
           <svg
-            className="tw-w-5 tw-h-5"
+            style={iconStyle}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -98,7 +170,7 @@ function ToastItem({
         )}
         {variant === "default" && (
           <svg
-            className="tw-w-5 tw-h-5"
+            style={iconStyle}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -114,21 +186,19 @@ function ToastItem({
       </div>
 
       {/* Content */}
-      <div className="tw-flex-1 tw-min-w-0">
-        <p className="tw-text-sm tw-font-semibold">{title}</p>
-        {description && (
-          <p className="tw-text-sm tw-opacity-80 tw-mt-0.5">{description}</p>
-        )}
+      <div style={contentStyle}>
+        <p style={titleStyle}>{title}</p>
+        {description && <p style={descriptionStyle}>{description}</p>}
       </div>
 
       {/* Close button */}
       <button
         onClick={handleDismiss}
-        className="tw-flex-shrink-0 tw-rounded-md tw-p-1 tw-opacity-70 hover:tw-opacity-100 tw-transition-opacity"
+        style={closeButtonStyle}
         aria-label="Dismiss"
       >
         <svg
-          className="tw-w-4 tw-h-4"
+          style={closeIconStyle}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -185,6 +255,21 @@ toast.error = (title: string, description?: string) =>
 toast.success = (title: string, description?: string) =>
   toast({ title, description, variant: "success" });
 
+const containerStyle: React.CSSProperties = {
+  position: "fixed",
+  bottom: spacing[4],
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 50,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing[2],
+  width: "100%",
+  maxWidth: "380px",
+  padding: `0 ${spacing[4]}`,
+  pointerEvents: "none",
+};
+
 /**
  * ToastContainer - Renders all active toasts
  * Must be included in your component tree (typically in WidgetContainer)
@@ -215,7 +300,7 @@ export function ToastContainer(): React.ReactElement | null {
   }
 
   return (
-    <div className="tw-fixed tw-bottom-4 tw-left-1/2 tw--translate-x-1/2 tw-z-50 tw-flex tw-flex-col tw-gap-2 tw-w-full tw-max-w-[380px] tw-px-4 tw-pointer-events-none">
+    <div style={containerStyle}>
       {activeToasts.map((toastData) => (
         <ToastItem
           key={toastData.id}

@@ -1,5 +1,6 @@
 import React from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles } from "../lib/utils";
+import { colors, spacing } from "../styles/tokens";
 
 /**
  * Resolved theme type (not 'system')
@@ -11,9 +12,32 @@ export interface ThemeToggleProps {
   theme: ResolvedTheme;
   /** Callback when theme is toggled */
   onToggle: () => void;
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
 }
+
+const buttonStyle: React.CSSProperties = {
+  position: "relative",
+  width: "2.25rem",
+  height: "2.25rem",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "9999px",
+  transition: "all 0.2s ease-out",
+  backgroundColor: "hsl(var(--tw-muted) / 0.5)",
+  color: colors.mutedForeground,
+  border: "none",
+  cursor: "pointer",
+  outline: "none",
+};
+
+const iconStyle: React.CSSProperties = {
+  position: "absolute",
+  width: "1.25rem",
+  height: "1.25rem",
+  transition: "all 0.3s ease-out",
+};
 
 /**
  * Theme toggle button with sun/moon icons for switching between light and dark modes.
@@ -22,32 +46,34 @@ export interface ThemeToggleProps {
 export function ThemeToggle({
   theme,
   onToggle,
-  className,
+  style,
 }: ThemeToggleProps): React.ReactElement {
   const isDark = theme === "dark";
+
+  const sunIconStyle = mergeStyles(
+    iconStyle,
+    isDark
+      ? { opacity: 1, transform: "rotate(0deg) scale(1)" }
+      : { opacity: 0, transform: "rotate(90deg) scale(0.5)" }
+  );
+
+  const moonIconStyle = mergeStyles(
+    iconStyle,
+    isDark
+      ? { opacity: 0, transform: "rotate(-90deg) scale(0.5)" }
+      : { opacity: 1, transform: "rotate(0deg) scale(1)" }
+  );
 
   return (
     <button
       onClick={onToggle}
-      className={cn(
-        "tw-relative tw-w-9 tw-h-9 tw-flex tw-items-center tw-justify-center",
-        "tw-rounded-full tw-transition-all tw-duration-200",
-        "tw-bg-muted/50 hover:tw-bg-muted",
-        "tw-text-muted-foreground hover:tw-text-foreground",
-        "focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-primary/50 focus:tw-ring-offset-2",
-        className
-      )}
+      style={mergeStyles(buttonStyle, style)}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
       {/* Sun icon (visible in dark mode) */}
       <svg
-        className={cn(
-          "tw-absolute tw-w-5 tw-h-5 tw-transition-all tw-duration-300",
-          isDark
-            ? "tw-opacity-100 tw-rotate-0 tw-scale-100"
-            : "tw-opacity-0 tw-rotate-90 tw-scale-50"
-        )}
+        style={sunIconStyle}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -63,12 +89,7 @@ export function ThemeToggle({
 
       {/* Moon icon (visible in light mode) */}
       <svg
-        className={cn(
-          "tw-absolute tw-w-5 tw-h-5 tw-transition-all tw-duration-300",
-          isDark
-            ? "tw-opacity-0 tw--rotate-90 tw-scale-50"
-            : "tw-opacity-100 tw-rotate-0 tw-scale-100"
-        )}
+        style={moonIconStyle}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"

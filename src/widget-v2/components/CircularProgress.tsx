@@ -1,5 +1,6 @@
 import React from "react";
-import { cn } from "../lib/utils";
+import { mergeStyles, cn } from "../lib/utils";
+import { colors, fontSize, fontWeight } from "../styles/tokens";
 
 export interface CircularProgressProps {
   /** Progress value from 0-100 */
@@ -8,13 +9,38 @@ export interface CircularProgressProps {
   size?: number;
   /** Stroke width in pixels */
   strokeWidth?: number;
-  /** Additional CSS classes */
-  className?: string;
+  /** Additional inline styles */
+  style?: React.CSSProperties;
   /** Show percentage text in center */
   showPercentage?: boolean;
   /** Use spinning indeterminate animation */
   isIndeterminate?: boolean;
 }
+
+const containerStyle: React.CSSProperties = {
+  position: "relative",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const percentageContainerStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const percentageTextStyle: React.CSSProperties = {
+  fontSize: fontSize["2xl"],
+  fontWeight: fontWeight.bold,
+  color: colors.foreground,
+};
+
+const progressCircleStyle: React.CSSProperties = {
+  transition: "all 0.5s ease-out",
+};
 
 /**
  * CircularProgress component for displaying progress in a circular format.
@@ -24,7 +50,7 @@ export function CircularProgress({
   progress = 0,
   size = 120,
   strokeWidth = 8,
-  className,
+  style,
   showPercentage = false,
   isIndeterminate = false,
 }: CircularProgressProps): React.ReactElement {
@@ -32,18 +58,17 @@ export function CircularProgress({
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (progress / 100) * circumference;
 
+  const svgStyle: React.CSSProperties = isIndeterminate
+    ? { animation: "tw-spin 2s linear infinite" }
+    : {};
+
   return (
-    <div
-      className={cn(
-        "tw-relative tw-inline-flex tw-items-center tw-justify-center",
-        className
-      )}
-    >
+    <div style={mergeStyles(containerStyle, style)}>
       <svg
         width={size}
         height={size}
         className={cn(isIndeterminate && "tw-animate-spin")}
-        style={{ animationDuration: "2s" }}
+        style={svgStyle}
       >
         {/* Background circle */}
         <circle
@@ -51,7 +76,7 @@ export function CircularProgress({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--tw-muted))"
+          stroke={colors.muted}
           strokeWidth={strokeWidth}
         />
 
@@ -61,21 +86,19 @@ export function CircularProgress({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--tw-primary))"
+          stroke={colors.primary}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={isIndeterminate ? circumference * 0.75 : offset}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          className="tw-transition-all tw-duration-500 tw-ease-out"
+          style={progressCircleStyle}
         />
       </svg>
 
       {showPercentage && !isIndeterminate && (
-        <div className="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center">
-          <span className="tw-text-2xl tw-font-bold tw-text-foreground">
-            {Math.round(progress)}%
-          </span>
+        <div style={percentageContainerStyle}>
+          <span style={percentageTextStyle}>{Math.round(progress)}%</span>
         </div>
       )}
     </div>
