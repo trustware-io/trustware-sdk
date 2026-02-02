@@ -3,7 +3,7 @@ import type { CustomCaipNetwork } from "@reown/appkit-common";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
 
 // Get projectId from https://dashboard.walletconnect.com
-export const projectId = "896c4c8fa652baf14b9614e4026aff6a"; // this is a public projectId only to use on localhost
+export const projectId = process.env.PROJECT_ID!; // this is a public projectId only to use on localhost
 
 if (!projectId) {
   throw new Error("Project ID is not defined");
