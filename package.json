@@ -99,8 +99,9 @@
     "widget"
   ],
   "dependencies": {
-    "@walletconnect/modal": "^2.7.0",
-    "@walletconnect/universal-provider": "^2.23.4",
-    "qrcode.react": "^4.2.0"
+    "@reown/appkit": "^1.8.17",
+    "@reown/appkit-common": "^1.8.17",
+    "@reown/appkit-universal-connector": "^1.8.17",
+    "ethers": "^6.16.0"
   }
 }

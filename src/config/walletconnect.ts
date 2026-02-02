@@ -1,195 +1,119 @@
-// // walletconnect.ts
-// "use client";
+import type { AppKitNetwork } from "@reown/appkit/networks";
+import type { CustomCaipNetwork } from "@reown/appkit-common";
+import { UniversalConnector } from "@reown/appkit-universal-connector";
 
-// import type { SessionTypes } from "@walletconnect/types";
+// Get projectId from https://dashboard.walletconnect.com
+export const projectId = "896c4c8fa652baf14b9614e4026aff6a"; // this is a public projectId only to use on localhost
 
-// export const CHAINS = {
-//   SOLANA_MAINNET: "solana:5eykt4UsFv8P8NJdTREpY1vzqAQ3H1FQ",
-//   SEI_MAINNET_EVM: "eip155:1329",
-//   BITCOIN_MAINNET: "bip122:000000000019d6689c085ae165831e93",
-// };
+if (!projectId) {
+  throw new Error("Project ID is not defined");
+}
 
-// const PROJECT_ID = "896c4c8fa652baf14b9614e4026aff6a";
-
-// export class WalletConnectSDK {
-//   provider: any;
-//   uri: string | null = null;
-
-//   async init() {
-//     const { default: UniversalProvider } =
-//       await import("@walletconnect/universal-provider");
-
-//     this.provider = await UniversalProvider.init({
-//       projectId: PROJECT_ID,
-//       metadata: {
-//         name: "TW SDK",
-//         description: "Multi-chain SDK",
-//         url: typeof window !== "undefined" ? window.location.origin : "",
-//         icons: ["https://api.trustware.io/icon.png"],
-//       },
-//     });
-
-//     // Save URI for QR rendering
-//     this.uri = this.provider.uri;
-
-//     return this.provider;
-//   }
-
-//   async connect() {
-//     if (!this.provider) throw new Error("WalletConnect not initialized");
-
-//     const namespaces = {
-//       solana: {
-//         methods: ["solana_signMessage", "solana_signTransaction"],
-//         chains: [CHAINS.SOLANA_MAINNET],
-//         events: [],
-//       },
-//       eip155: {
-//         methods: ["eth_sendTransaction", "eth_sign", "personal_sign"],
-//         chains: [CHAINS.SEI_MAINNET_EVM],
-//         events: ["accountsChanged", "chainChanged"],
-//       },
-//       bip122: {
-//         methods: ["btc_signMessage", "btc_sendTransaction"],
-//         chains: [CHAINS.BITCOIN_MAINNET],
-//         events: [],
-//       },
-//     };
-
-//     const sessionPromise: SessionTypes.Struct = await this.provider.connect({
-//       namespaces,
-//     });
-
-//     return this.getAccounts();
-//   }
-
-//   getAccounts() {
-//     return {
-//       solana: this.provider?.session?.namespaces?.solana?.accounts ?? [],
-//       sei: this.provider?.session?.namespaces?.eip155?.accounts ?? [],
-//       bitcoin: this.provider?.session?.namespaces?.bip122?.accounts ?? [],
-//     };
-//   }
-
-//   disconnect() {
-//     return this.provider?.disconnect();
-//   }
-// }
-
-// walletconnect.ts
-"use client";
-
-export const CHAINS = {
-  SOLANA_MAINNET: "solana:5eykt4UsFv8P8NJdTREpY1vzqAQ3H1FQ",
-  SEI_MAINNET_EVM: "eip155:1329",
-  BITCOIN_MAINNET: "bip122:000000000019d6689c085ae165831e93",
+export const solanaMainnet: CustomCaipNetwork<"solana"> = {
+  id: 1,
+  chainNamespace: "solana",
+  caipNetworkId: "solana:5eykt4UsFv8P8NJdTREpY1vzqAQ3H1FQ",
+  name: "Solana Mainnet",
+  nativeCurrency: {
+    name: "Solana",
+    symbol: "SOL",
+    decimals: 9,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://api.mainnet-beta.solana.com"],
+    },
+  },
 };
 
-const PROJECT_ID = "896c4c8fa652baf14b9614e4026aff6a";
+export const bitcoinMainnet: CustomCaipNetwork<"bip122"> = {
+  id: 0,
+  chainNamespace: "bip122",
+  caipNetworkId: "bip122:000000000019d6689c085ae165831e93",
+  name: "Bitcoin Mainnet",
+  nativeCurrency: {
+    name: "Bitcoin",
+    symbol: "BTC",
+    decimals: 8,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://api.blockcypher.com/v1/btc/main"],
+    },
+  },
+};
 
-export class WalletConnectSDK {
-  private provider: any;
-  private modal: any;
-  private _uri: string | undefined; // Store URI for access
-  private uriResolver?: (uri: string) => void;
+export const ethereumMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 1,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:1",
+  name: "Ethereum Mainnet",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.ankr.com/eth"],
+    },
+  },
+};
 
-  async init() {
-    // 🚨 Dynamic imports — browser only
-    const { default: UniversalProvider } =
-      await import("@walletconnect/universal-provider");
-    const { WalletConnectModal } = await import("@walletconnect/modal");
+export const seiMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 1329,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:1329",
+  name: "Sei Mainnet",
+  nativeCurrency: {
+    name: "Sei",
+    symbol: "SEI",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://evm-rpc.sei-apis.com"],
+    },
+  },
+};
 
-    this.modal = new WalletConnectModal({
-      projectId: PROJECT_ID,
-      themeMode: "dark",
-    });
+export const networks1 = [
+  solanaMainnet,
+  bitcoinMainnet,
+  ethereumMainnet,
+  seiMainnet,
+] as [AppKitNetwork, ...AppKitNetwork[]];
 
-    this.provider = await UniversalProvider.init({
-      projectId: PROJECT_ID,
-      metadata: {
-        name: "TW SDK",
-        description: "Multi-chain SDK with WalletConnect",
-        url: typeof window !== "undefined" ? window.location.origin : "",
-        icons: ["https://my-sdk.io/icon.png"],
-      },
-    });
-
-    return this.provider;
-  }
-
-  async connect() {
-    if (!this.provider) {
-      throw new Error("WalletConnect not initialized");
-    }
-
-    const namespaces = {
-      solana: {
+export async function getUniversalConnector() {
+  const universalConnector = await UniversalConnector.init({
+    projectId,
+    metadata: {
+      name: "Universal Connector",
+      description: "Universal Connector",
+      url: "https://www.walletconnect.com",
+      icons: ["https://www.walletconnect.com/icon.png"],
+    },
+    networks: [
+      {
+        namespace: "solana",
+        chains: [solanaMainnet],
         methods: ["solana_signMessage", "solana_signTransaction"],
-        chains: [CHAINS.SOLANA_MAINNET],
         events: [],
       },
-      eip155: {
+      {
+        namespace: "eip155",
+        chains: [ethereumMainnet, seiMainnet],
         methods: ["eth_sendTransaction", "eth_sign", "personal_sign"],
-        chains: [CHAINS.SEI_MAINNET_EVM],
         events: ["accountsChanged", "chainChanged"],
       },
-      bip122: {
-        methods: ["btc_signMessage", "btc_sendTransaction"],
-        chains: [CHAINS.BITCOIN_MAINNET],
+      {
+        namespace: "bip122",
+        chains: [bitcoinMainnet],
+        methods: ["btc_signMessage"],
         events: [],
       },
-    };
+    ],
+  });
 
-    this.provider.on("display_uri", (uri: string) => {
-      this._uri = uri;
-      this.uriResolver?.(uri);
-      console.log({ uri: this.provider.uri, provider: this.provider });
-    });
-
-    const sessionPromise = this.provider.connect({ namespaces });
-
-    // Subscribe to session ping
-    this.provider.on("connect", ({ id, topic }: any) => {
-      console.log("✅ WalletConnect session approved");
-
-      const accounts = this.getAccounts();
-      //  onConnected?.(accounts);
-      console.log({ id, topic, accounts });
-    });
-
-    // The URI is available immediately after connect() is called
-    // this._uri = this.provider.uri;
-
-    // this.modal.openModal({
-    //   uri: this.provider.uri,
-    // });
-
-    await sessionPromise;
-    // this.modal.closeModal();
-
-    return this.getAccounts();
-  }
-
-  public async getAccounts() {
-    return {
-      solana: this.provider?.session?.namespaces?.solana?.accounts ?? [],
-      sei: this.provider?.session?.namespaces?.eip155?.accounts ?? [],
-      bitcoin: this.provider?.session?.namespaces?.bip122?.accounts ?? [],
-    };
-  }
-
-  public disconnect() {
-    return this.provider?.disconnect();
-  }
-
-  public getUri() {
-    // Return stored URI or from provider
-    return this._uri || this.provider?.uri;
-  }
-
-  public waitForUri(): Promise<string> {
-    return new Promise((resolve) => {
-      this.uriResolver = resolve;
-    });
-  }
+  return universalConnector;
 }

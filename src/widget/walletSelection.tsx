@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   useIsMobile,
   useWalletDetection,
@@ -10,8 +10,8 @@ import {
 } from "../wallets/";
 import { WalletMeta } from "../types/";
 import { useTrustwareConfig } from "../hooks/useTrustwareConfig";
-import { WalletConnectSDK } from "src/config/walletconnect";
-import { QRCodeModal } from "./qrcodeModal";
+import { UniversalConnector } from "@reown/appkit-universal-connector";
+import { getUniversalConnector } from "src/config/walletconnect";
 // =============================================
 // Notes & Integration
 // =============================================
@@ -125,9 +125,19 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
     }
   };
 
-  const [wc, setWC] = useState<WalletConnectSDK | null>(null);
-  const [uri, setUri] = useState<string | null>("");
-  const [connecting, setConnecting] = useState(false);
+  const [universalConnector, setUniversalConnector] =
+    useState<UniversalConnector>();
+  const [session, setSession] = useState<any>();
+
+  // Initialize the Universal Connector on component mount
+  useEffect(() => {
+    getUniversalConnector().then(setUniversalConnector);
+  }, []);
+
+  // Set the session state in case it changes
+  useEffect(() => {
+    setSession(universalConnector?.provider.session);
+  }, [universalConnector?.provider.session]);
 
   const attemptConnection = async (wallet: WalletMeta) => {
     console.log({ wallet });
@@ -156,19 +166,18 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
     }
 
     if (wallet.name === "WalletConnect") {
-      const wc = new WalletConnectSDK();
-      await wc.init();
+      if (!universalConnector) {
+        return;
+      }
 
-      // Start the connection
-      const connectionPromise = wc.connect();
+      const { session: providerSession } = await universalConnector.connect();
 
-      const uri = await wc.waitForUri();
-      // console.log("Received WalletConnect URI:", { uri });
-      setUri(uri);
-
-      // Now wait for the connection to complete
-      const accounts = await connectionPromise;
-      console.log("Connected accounts:", accounts);
+      if (providerSession) {
+        setSession(providerSession);
+        console.log("✅ WalletConnect session approved", { providerSession });
+        setStatus("connected");
+        onNext();
+      }
     }
 
     openInstallOrDeepLink(wallet);
@@ -299,8 +308,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
 
   return (
     <>
-      {uri && <QRCodeModal uri={uri || ""} onClose={() => setUri(null)} />}
-
       {errorMessage && (
         <div
           style={{
