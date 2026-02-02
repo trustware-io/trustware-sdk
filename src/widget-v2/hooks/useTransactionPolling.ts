@@ -5,9 +5,11 @@ import { useDeposit } from "../context/DepositContext";
 import type { Transaction } from "../../types";
 
 /**
- * Polling interval in milliseconds (3 seconds as per spec)
+ * Polling interval in milliseconds - faster for better UX
+ * Initial polls are faster, then slows down for efficiency
  */
-const POLL_INTERVAL_MS = 3000;
+const FAST_POLL_INTERVAL_MS = 1500;
+const NORMAL_POLL_INTERVAL_MS = 2500;
 
 /**
  * Timeout duration in milliseconds (5 minutes as per spec)
@@ -53,6 +55,7 @@ export function useTransactionPolling() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef(false);
   const startTimeRef = useRef<number>(0);
+  const pollCountRef = useRef<number>(0);
 
   /**
    * Clear all timers and stop polling
@@ -86,6 +89,7 @@ export function useTransactionPolling() {
       clearPolling();
       abortRef.current = false;
       startTimeRef.current = Date.now();
+      pollCountRef.current = 0;
 
       setState({
         isPolling: true,
@@ -188,14 +192,19 @@ export function useTransactionPolling() {
             }
 
             // Schedule next poll if not terminal
+            // Use faster polling for first 10 polls, then slow down
+            pollCountRef.current += 1;
+            const pollInterval = pollCountRef.current <= 10
+              ? FAST_POLL_INTERVAL_MS
+              : NORMAL_POLL_INTERVAL_MS;
             console.log(
               "[TW Polling] Status is",
               tx.status,
               "- scheduling next poll in",
-              POLL_INTERVAL_MS,
-              "ms"
+              pollInterval,
+              "ms (poll #" + pollCountRef.current + ")"
             );
-            pollingRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+            pollingRef.current = setTimeout(poll, pollInterval);
             console.log(
               "[TW Polling] Next poll scheduled, pollingRef:",
               pollingRef.current !== null
@@ -223,8 +232,12 @@ export function useTransactionPolling() {
               return;
             }
 
-            // Retry after interval
-            pollingRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+            // Retry after interval (use same adaptive timing)
+            pollCountRef.current += 1;
+            const retryInterval = pollCountRef.current <= 10
+              ? FAST_POLL_INTERVAL_MS
+              : NORMAL_POLL_INTERVAL_MS;
+            pollingRef.current = setTimeout(poll, retryInterval);
           }
         };
 
