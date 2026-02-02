@@ -24,7 +24,6 @@ const baseToastStyle: React.CSSProperties = {
   gap: spacing[3],
   overflow: "hidden",
   borderRadius: borderRadius.lg,
-  border: "1px solid",
   padding: spacing[4],
   boxShadow: shadows.lg,
   transition: "all 0.2s ease-out",
@@ -32,17 +31,17 @@ const baseToastStyle: React.CSSProperties = {
 
 const variantStyles: Record<ToastData["variant"] & string, React.CSSProperties> = {
   default: {
-    borderColor: colors.border,
+    border: `1px solid ${colors.border}`,
     backgroundColor: colors.card,
     color: colors.foreground,
   },
   destructive: {
-    borderColor: "rgba(239, 68, 68, 0.5)",
+    border: "1px solid rgba(239, 68, 68, 0.5)",
     backgroundColor: "rgba(239, 68, 68, 0.1)",
     color: colors.red[600],
   },
   success: {
-    borderColor: "rgba(34, 197, 94, 0.5)",
+    border: "1px solid rgba(34, 197, 94, 0.5)",
     backgroundColor: "rgba(34, 197, 94, 0.1)",
     color: colors.green[600],
   },

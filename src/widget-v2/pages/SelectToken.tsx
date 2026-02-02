@@ -188,7 +188,7 @@ const chainButtonStyle: React.CSSProperties = {
 };
 
 const chainButtonSelectedStyle: React.CSSProperties = {
-  borderColor: colors.primary,
+  border: `1px solid ${colors.primary}`,
   backgroundColor: "rgba(59, 130, 246, 0.1)",
 };
 

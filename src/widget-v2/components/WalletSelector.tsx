@@ -459,7 +459,7 @@ export function WalletSelector({
                   walletCardStyle,
                   isThisWalletConnected && {
                     boxShadow: `0 0 0 2px ${colors.primary}`,
-                    borderColor: colors.primary,
+                    border: `1px solid ${colors.primary}`,
                   }
                 )}
               >
