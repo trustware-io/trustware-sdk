@@ -110,9 +110,15 @@ const chainIconStyle: React.CSSProperties = {
 const paginationContainerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: spacing[1.5],
+  gap: spacing[1],
   marginTop: spacing[1],
 };
+
+/**
+ * Max number of pagination dots to show
+ * When there are more tokens, we show a subset with ellipsis-like behavior
+ */
+const MAX_VISIBLE_DOTS = 5;
 
 const walletIndicatorStyle: React.CSSProperties = {
   display: "flex",
@@ -436,28 +442,102 @@ export function TokenSwipePill({
         {/* Pagination Dots - directly under carousel */}
         {hasMultipleTokens && (
           <div style={paginationContainerStyle}>
-            {tokens.map((token, index) => (
-              <button
-                key={`dot-${index}-${token.address}`}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTokenChange(token);
-                }}
-                style={{
-                  height: "0.375rem",
-                  borderRadius: "9999px",
-                  transition: "all 0.2s",
-                  border: 0,
-                  outline: "none",
-                  cursor: "pointer",
-                  backgroundColor:
-                    index === currentIndex ? colors.white : colors.zinc[600],
-                  width: index === currentIndex ? "0.75rem" : "0.375rem",
-                }}
-                aria-label={`Select ${token.symbol}`}
-              />
-            ))}
+            {(() => {
+              const total = tokens.length;
+
+              // If we have few tokens, show all dots
+              if (total <= MAX_VISIBLE_DOTS) {
+                return tokens.map((token, index) => (
+                  <button
+                    key={`dot-${index}-${token.address}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTokenChange(token);
+                    }}
+                    style={{
+                      height: "0.375rem",
+                      borderRadius: "9999px",
+                      transition: "all 0.2s",
+                      border: 0,
+                      outline: "none",
+                      cursor: "pointer",
+                      backgroundColor:
+                        index === currentIndex ? colors.white : colors.zinc[600],
+                      width: index === currentIndex ? "0.75rem" : "0.375rem",
+                    }}
+                    aria-label={`Select ${token.symbol}`}
+                  />
+                ));
+              }
+
+              // For many tokens, show limited dots with scaling effect
+              // Show: first, prev, current, next, last (when applicable)
+              const visibleIndices: number[] = [];
+
+              // Always show first
+              visibleIndices.push(0);
+
+              // Show dots around current
+              if (currentIndex > 1) {
+                visibleIndices.push(currentIndex - 1);
+              }
+              if (currentIndex > 0 && currentIndex < total - 1) {
+                visibleIndices.push(currentIndex);
+              }
+              if (currentIndex < total - 2) {
+                visibleIndices.push(currentIndex + 1);
+              }
+
+              // Always show last
+              if (total > 1) {
+                visibleIndices.push(total - 1);
+              }
+
+              // Dedupe and sort
+              const uniqueIndices = [...new Set(visibleIndices)].sort((a, b) => a - b);
+
+              return uniqueIndices.map((index, i) => {
+                const token = tokens[index];
+                const prevIndex = uniqueIndices[i - 1];
+                const showGap = i > 0 && index - prevIndex > 1;
+
+                return (
+                  <React.Fragment key={`dot-${index}-${token.address}`}>
+                    {/* Gap indicator for skipped tokens */}
+                    {showGap && (
+                      <span
+                        style={{
+                          width: "0.25rem",
+                          height: "0.25rem",
+                          borderRadius: "9999px",
+                          backgroundColor: colors.zinc[700],
+                        }}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTokenChange(token);
+                      }}
+                      style={{
+                        height: "0.375rem",
+                        borderRadius: "9999px",
+                        transition: "all 0.2s",
+                        border: 0,
+                        outline: "none",
+                        cursor: "pointer",
+                        backgroundColor:
+                          index === currentIndex ? colors.white : colors.zinc[600],
+                        width: index === currentIndex ? "0.75rem" : "0.375rem",
+                      }}
+                      aria-label={`Select ${token.symbol} (${index + 1} of ${total})`}
+                    />
+                  </React.Fragment>
+                );
+              });
+            })()}
           </div>
         )}
 

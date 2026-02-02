@@ -46,7 +46,7 @@ const labelStyle: React.CSSProperties = {
 
 const trackContainerStyle: React.CSSProperties = {
   position: "relative",
-  height: "2.5rem",
+  height: "3rem",
   display: "flex",
   alignItems: "center",
 };
@@ -55,17 +55,19 @@ const backgroundTrackStyle: React.CSSProperties = {
   position: "absolute",
   left: 0,
   right: 0,
-  height: "0.5rem",
+  height: "0.625rem",
   borderRadius: "9999px",
-  backgroundColor: "rgba(63, 63, 70, 0.6)",
+  backgroundColor: "rgba(63, 63, 70, 0.8)",
+  boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.2)",
 };
 
 const activeTrackStyle: React.CSSProperties = {
   position: "absolute",
   left: 0,
-  height: "0.5rem",
+  height: "0.625rem",
   borderRadius: "9999px",
-  backgroundColor: colors.emerald[500],
+  background: `linear-gradient(90deg, ${colors.emerald[500]}, ${colors.emerald[400]})`,
+  boxShadow: `0 0 8px ${colors.emerald[500]}40`,
   transition: "all 75ms",
 };
 
@@ -73,7 +75,8 @@ const tickButtonStyle: React.CSSProperties = {
   position: "absolute",
   top: "50%",
   transform: "translateY(-50%)",
-  padding: 0,
+  padding: "0.5rem",
+  margin: "-0.5rem",
   border: 0,
   backgroundColor: "transparent",
   cursor: "pointer",
@@ -81,10 +84,10 @@ const tickButtonStyle: React.CSSProperties = {
 };
 
 const tickMarkStyle: React.CSSProperties = {
-  width: "2px",
-  height: "0.625rem",
+  width: "3px",
+  height: "0.875rem",
   borderRadius: "9999px",
-  transition: "background-color 0.2s",
+  transition: "all 0.2s",
   transform: "translateX(-50%)",
 };
 
@@ -105,42 +108,45 @@ const thumbStyle: React.CSSProperties = {
   position: "absolute",
   top: "50%",
   transform: "translateY(-50%)",
-  width: "1.5rem",
-  height: "1.5rem",
+  width: "1.75rem",
+  height: "1.75rem",
   borderRadius: "9999px",
-  boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+  boxShadow: `0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 3px ${colors.emerald[500]}30`,
   pointerEvents: "none",
   transition: "all 75ms",
   backgroundColor: colors.white,
-  border: `2px solid ${colors.emerald[500]}`,
+  border: `3px solid ${colors.emerald[500]}`,
 };
 
 const tickLabelsContainerStyle: React.CSSProperties = {
   position: "relative",
-  marginTop: spacing[1],
+  marginTop: spacing[2],
   height: "1.25rem",
 };
 
 const tickLabelStyle: React.CSSProperties = {
   position: "absolute",
-  fontSize: "9px",
-  fontWeight: fontWeight.medium,
+  fontSize: "10px",
+  fontWeight: fontWeight.semibold,
   transform: "translateX(-50%)",
+  letterSpacing: "-0.01em",
 };
 
 const valueDisplayContainerStyle: React.CSSProperties = {
-  marginTop: spacing[3],
+  marginTop: spacing[4],
   display: "flex",
   justifyContent: "center",
 };
 
 const valueDisplayStyle: React.CSSProperties = {
-  padding: `${spacing[1]} ${spacing[3]}`,
+  padding: `${spacing[1.5]} ${spacing[4]}`,
   borderRadius: "9999px",
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.semibold,
-  backgroundColor: "rgba(16, 185, 129, 0.1)",
+  fontSize: fontSize.base,
+  fontWeight: fontWeight.bold,
+  backgroundColor: "rgba(16, 185, 129, 0.15)",
   color: colors.emerald[400],
+  border: `1px solid ${colors.emerald[500]}30`,
+  letterSpacing: "-0.01em",
 };
 
 /**
@@ -333,8 +339,11 @@ export function AmountSlider({
                     tickMarkStyle,
                     {
                       backgroundColor: isActive
-                        ? "rgba(16, 185, 129, 0.5)"
-                        : "rgba(113, 113, 122, 0.2)",
+                        ? colors.emerald[400]
+                        : colors.zinc[600],
+                      boxShadow: isActive
+                        ? `0 0 4px ${colors.emerald[500]}40`
+                        : "none",
                     }
                   )}
                 />
