@@ -1,8 +1,8 @@
 # Trustware Design System Specification
 
-> **Version**: 1.0.0  
-> **Last Updated**: 2026-01-20  
-> **Scope**: All Trustware products including Quick Links, Quick Deposit, and future surfaces  
+> **Version**: 2.0.0
+> **Last Updated**: 2026-02-03
+> **Scope**: Trustware SDK widget (embeddable in any host app)
 > **Platforms**: Web (responsive), Mobile (iOS/Android web views)
 
 ---
@@ -10,17 +10,19 @@
 ## Table of Contents
 
 1. [Overview & Philosophy](#1-overview--philosophy)
-2. [Tech Stack & Dependencies](#2-tech-stack--dependencies)
-3. [Design Tokens](#3-design-tokens)
-4. [Typography System](#4-typography-system)
-5. [Color System](#5-color-system)
-6. [Spacing & Layout](#6-spacing--layout)
-7. [Component Library](#7-component-library)
-8. [Animation & Motion](#8-animation--motion)
-9. [Responsive Breakpoints](#9-responsive-breakpoints)
-10. [Accessibility Requirements](#10-accessibility-requirements)
-11. [Implementation Checklist](#11-implementation-checklist)
-12. [Validation Protocol](#12-validation-protocol)
+2. [Styling Architecture](#2-styling-architecture)
+3. [Tech Stack & Dependencies](#3-tech-stack--dependencies)
+4. [Design Tokens](#4-design-tokens)
+5. [Theme System](#5-theme-system)
+6. [Typography System](#6-typography-system)
+7. [Color System](#7-color-system)
+8. [Spacing & Layout](#8-spacing--layout)
+9. [Component Library](#9-component-library)
+10. [Animation & Motion](#10-animation--motion)
+11. [Responsive Design](#11-responsive-design)
+12. [Accessibility Requirements](#12-accessibility-requirements)
+13. [Widget State Machine](#13-widget-state-machine)
+14. [Validation Protocol](#14-validation-protocol)
 
 ---
 
@@ -33,7 +35,7 @@
 | **Inevitable Simplicity** | Every interaction should feel obvious and require zero explanation | User can complete primary action within 3 taps/clicks |
 | **Soft Confidence** | Premium feel through restraint, not decoration | No more than 3 visual accents per screen |
 | **Tactile Responsiveness** | Every touch/click provides immediate feedback | All interactive elements respond within 50ms |
-| **Cross-Platform Consistency** | Identical experience across web and mobile | Visual diff < 5% between platforms |
+| **Host-App Agnostic** | Widget works identically in any embedding context | Zero external CSS dependencies, self-contained styles |
 
 ### 1.2 Aesthetic Direction
 
@@ -53,282 +55,496 @@
 
 ---
 
-## 2. Tech Stack & Dependencies
+## 2. Styling Architecture
 
-### 2.1 Core Stack
+### 2.1 Why Inline Styles (Critical Context)
+
+The SDK widget uses **inline styles exclusively** -- no Tailwind CSS, no external CSS files, no CSS-in-JS libraries. This is a deliberate architectural decision, not a limitation.
+
+**Problem**: When the SDK is embedded in a host app (Next.js, Vite, CRA, etc.), the host's build system does not process the SDK's CSS:
+- Tailwind classes won't be compiled
+- CSS imports may fail or be ignored
+- PostCSS plugins won't run
+- CSS module scoping won't apply
+
+**Solution**: All styling is self-contained via:
+1. **Inline `style` props** (`React.CSSProperties` objects) for all visual properties
+2. **Injected `<style>` tag** for things that can't be done inline (CSS variables, keyframes, pseudo-states, focus-visible)
+3. **TypeScript design tokens** for consistency across components
+
+### 2.2 Style System Architecture
+
+```
+src/widget-v2/styles/
+├── index.ts           # Barrel export for all style modules
+├── tokens.ts          # Design tokens (colors, spacing, typography, shadows, etc.)
+├── theme.ts           # CSS variable definitions for light/dark themes
+├── animations.ts      # Keyframe definitions and animation utility classes
+└── utils.ts           # mergeStyles(), commonStyles, helper functions
+```
+
+**How it works:**
+
+```
+tokens.ts  ──→  Inline style properties + CSS variable references
+                 (colors.primary = "hsl(var(--tw-primary))")
+
+theme.ts   ──→  <style> tag injection (once, in WidgetContainer)
+                 (CSS variables for light/dark, pseudo-state resets)
+
+animations.ts ──→  <style> tag injection (once, in WidgetContainer)
+                    (@keyframes + .tw-animate-* classes)
+
+utils.ts   ──→  Runtime utilities for component authors
+                 (mergeStyles(), commonStyles, circleStyle(), etc.)
+```
+
+### 2.3 Core Utility Functions
+
+**`mergeStyles()`** -- the primary style composition function (replaces Tailwind's `cn()`):
+
+```typescript
+// src/widget-v2/styles/utils.ts
+export function mergeStyles(...styles: StyleInput[]): StyleObject {
+  return styles.reduce<StyleObject>((acc, style) => {
+    if (!style) return acc;
+    return { ...acc, ...style };
+  }, {});
+}
+
+// Usage: conditional styles via short-circuit
+<div style={mergeStyles(
+  baseStyle,
+  isActive && activeStyle,
+  isDisabled && { opacity: 0.5 }
+)} />
+```
+
+**`cn()`** -- still exists but only for CSS class name merging (animation classes):
+
+```typescript
+// src/widget-v2/lib/utils.ts
+import { clsx, type ClassValue } from "clsx";
+export function cn(...inputs: ClassValue[]) {
+  return clsx(inputs);
+}
+
+// Usage: animation classes only
+<div className={cn("tw-animate-fade-in", isSpinning && "tw-animate-spin")} />
+```
+
+### 2.4 Rules
+
+- **NEVER** use Tailwind CSS classes, external CSS files, or CSS-in-JS libraries
+- **ALL** visual properties use inline `style` props with token references
+- **ONLY** use `className` for injected animation classes (`.tw-animate-*`) and pseudo-state utilities (`.tw-touch-none`, `.tw-scrollbar-none`)
+- **ALL** components import tokens from `@/widget-v2/styles`
+- **ALWAYS** use `mergeStyles()` for conditional style composition
+
+---
+
+## 3. Tech Stack & Dependencies
+
+### 3.1 Core Stack
 
 ```json
 {
   "framework": "React 18.3+",
-  "build": "Vite 5.4+",
-  "styling": "Tailwind CSS 3.4+",
-  "components": "shadcn/ui (Radix primitives)",
-  "state": "@tanstack/react-query",
-  "routing": "react-router-dom 6.x",
-  "forms": "react-hook-form + zod",
+  "build": "tsup (esbuild-based)",
+  "styling": "Inline styles (React.CSSProperties)",
+  "state": "React Context + custom hooks",
+  "wallets": "@walletconnect/ethereum-provider",
   "icons": "lucide-react",
-  "animations": "tailwindcss-animate"
+  "output": "ESM + CJS + TypeScript declarations"
 }
 ```
 
-### 2.2 Required Dependencies
+### 3.2 Dependencies
 
-```bash
-# Core UI
-npm install @radix-ui/react-dialog @radix-ui/react-slot @radix-ui/react-toast
-npm install class-variance-authority clsx tailwind-merge
-
-# Animation
-npm install tailwindcss-animate
-
-# Forms
-npm install react-hook-form @hookform/resolvers zod
-
-# Icons
-npm install lucide-react
-```
-
-### 2.3 Utility Function
-
-**Required**: All components MUST use the `cn()` utility for className merging:
-
-```typescript
-// src/lib/utils.ts
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-```
-
-**Completion Criteria**:
-- [ ] `cn()` utility exists at `src/lib/utils.ts`
-- [ ] All component classNames use `cn()` for merging
-- [ ] No raw string concatenation for classNames
-
----
-
-## 3. Design Tokens
-
-### 3.1 CSS Variables (Required in `index.css`)
-
-```css
-@layer base {
-  :root {
-    /* === CORE SEMANTIC COLORS === */
-    --background: 0 0% 98%;
-    --foreground: 220 15% 20%;
-    
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 20%;
-    
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 20%;
-    
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
-    
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 15% 20%;
-    
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 50%;
-    
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-    
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 91% 60%;
-    
-    /* === RADIUS === */
-    --radius: 1rem;
-    
-    /* === SHADOWS === */
-    --shadow-soft: 0 2px 8px -2px hsl(220 15% 20% / 0.08);
-    --shadow-medium: 0 4px 16px -4px hsl(220 15% 20% / 0.12);
-    --shadow-large: 0 8px 32px -8px hsl(220 15% 20% / 0.16);
-    
-    /* === TRANSITIONS === */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  }
-  
-  .dark {
-    --background: 220 15% 10%;
-    --foreground: 0 0% 98%;
-    
-    --card: 220 15% 12%;
-    --card-foreground: 0 0% 98%;
-    
-    --popover: 220 15% 12%;
-    --popover-foreground: 0 0% 98%;
-    
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
-    
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 0 0% 98%;
-    
-    --muted: 220 15% 18%;
-    --muted-foreground: 220 10% 60%;
-    
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-    
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
-    --ring: 217 91% 60%;
-  }
-}
-```
-
-### 3.2 Tailwind Configuration
-
-```typescript
-// tailwind.config.ts
-import type { Config } from "tailwindcss";
-
-export default {
-  darkMode: ["class"],
-  content: ["./src/**/*.{ts,tsx}"],
-  theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: { "2xl": "1400px" },
-    },
-    extend: {
-      colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-      boxShadow: {
-        soft: "var(--shadow-soft)",
-        medium: "var(--shadow-medium)",
-        large: "var(--shadow-large)",
-      },
-    },
+```json
+{
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@walletconnect/ethereum-provider": "^2.17.0",
+    "qrcode": "^1.5.4"
   },
-  plugins: [require("tailwindcss-animate")],
-} satisfies Config;
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.6.3",
+    "eslint": "^9.x",
+    "prettier": "^3.x"
+  }
+}
 ```
 
-**Completion Criteria**:
-- [ ] All CSS variables defined in `:root` and `.dark`
-- [ ] No hardcoded color values in components (use semantic tokens only)
-- [ ] Tailwind config extends with all custom values
-- [ ] `tailwindcss-animate` plugin installed and configured
+**What is NOT used** (removed in v2.0):
+- ~~Tailwind CSS~~, ~~postcss~~, ~~autoprefixer~~
+- ~~shadcn/ui~~, ~~class-variance-authority (CVA)~~
+- ~~clsx + tailwind-merge~~ (clsx retained for animation classNames only)
+- ~~tailwindcss-animate~~
+- ~~react-hook-form~~, ~~zod~~
+- ~~@tanstack/react-query~~, ~~react-router-dom~~
+
+### 3.3 Build Configuration
+
+```typescript
+// tsup.config.ts
+export default defineConfig({
+  entry: ["src/index.ts", "src/core.ts", "src/wallet.ts", "src/widget.tsx", "src/constants.ts"],
+  format: ["esm", "cjs"],
+  dts: true,
+  splitting: false,
+  target: "es2020",
+  external: ["react", "react-dom", "wagmi", "@rainbow-me/rainbowkit",
+             "@walletconnect/ethereum-provider", "qrcode"],
+});
+```
+
+**Bundle size limit**: < 50 KB gzipped
 
 ---
 
-## 4. Typography System
+## 4. Design Tokens
 
-### 4.1 Font Stack
+All tokens are defined in `src/widget-v2/styles/tokens.ts` as TypeScript constants.
+
+### 4.1 Spacing Scale
+
+```typescript
+export const spacing = {
+  0: "0",
+  0.5: "0.125rem",   // 2px
+  1: "0.25rem",       // 4px
+  1.5: "0.375rem",    // 6px
+  2: "0.5rem",        // 8px
+  2.5: "0.625rem",    // 10px
+  3: "0.75rem",       // 12px
+  3.5: "0.875rem",    // 14px
+  4: "1rem",          // 16px
+  5: "1.25rem",       // 20px
+  6: "1.5rem",        // 24px
+  8: "2rem",          // 32px
+  10: "2.5rem",       // 40px
+  12: "3rem",         // 48px
+  16: "4rem",         // 64px
+  // ... extends to 96 (24rem)
+} as const;
+```
+
+### 4.2 Border Radius
+
+```typescript
+export const borderRadius = {
+  none: "0",
+  sm: "calc(var(--tw-radius) - 4px)",    // ~12px
+  md: "calc(var(--tw-radius) - 2px)",    // ~14px
+  lg: "var(--tw-radius)",                 // 16px (1rem)
+  xl: "calc(var(--tw-radius) + 4px)",    // ~20px
+  "2xl": "calc(var(--tw-radius) + 8px)", // ~24px
+  full: "9999px",                         // Pills, avatars, dots
+} as const;
+```
+
+### 4.3 Font Sizes
+
+```typescript
+export const fontSize = {
+  xs: "0.75rem",    // 12px
+  sm: "0.875rem",   // 14px
+  base: "1rem",     // 16px
+  lg: "1.125rem",   // 18px
+  xl: "1.25rem",    // 20px
+  "2xl": "1.5rem",  // 24px
+  "3xl": "1.875rem",// 30px
+  "4xl": "2.25rem", // 36px
+  "5xl": "3rem",    // 48px
+  "6xl": "3.75rem", // 60px
+} as const;
+```
+
+### 4.4 Font Weights
+
+```typescript
+export const fontWeight = {
+  normal: "400",
+  medium: "500",
+  semibold: "600",
+  bold: "700",
+} as const;
+```
+
+### 4.5 Line Heights
+
+```typescript
+export const lineHeight = {
+  none: "1",
+  tight: "1.25",
+  snug: "1.375",
+  normal: "1.5",
+  relaxed: "1.625",
+  loose: "2",
+} as const;
+```
+
+### 4.6 Shadows
+
+```typescript
+export const shadows = {
+  none: "none",
+  // Themed (reference CSS variables, change in light/dark)
+  soft: "var(--tw-shadow-soft)",
+  medium: "var(--tw-shadow-medium)",
+  large: "var(--tw-shadow-large)",
+  // Static (don't change with theme)
+  sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+  DEFAULT: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+  md: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+  lg: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+  xl: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+} as const;
+```
+
+### 4.7 Transitions
+
+```typescript
+export const transitions = {
+  smooth: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+  bounce: "all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
+  fast: "all 0.15s ease-out",
+  normal: "all 0.2s ease-out",
+  slow: "all 0.3s ease-out",
+  colors: "color, background-color, border-color 0.2s ease-out",
+  opacity: "opacity 0.2s ease-out",
+  transform: "transform 0.2s ease-out",
+} as const;
+```
+
+### 4.8 Z-Index Scale
+
+```typescript
+export const zIndex = {
+  0: "0", 10: "10", 20: "20", 30: "30", 40: "40", 50: "50", auto: "auto",
+} as const;
+```
+
+---
+
+## 5. Theme System
+
+### 5.1 CSS Variable Injection
+
+CSS variables are scoped to `.trustware-widget` and injected once via a `<style>` tag in `WidgetContainer`. All variables use the `--tw-` prefix.
+
+**Light Theme (default):**
 
 ```css
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 
+.trustware-widget {
+  --tw-background: 0 0% 98%;
+  --tw-foreground: 220 15% 20%;
+  --tw-card: 0 0% 100%;
+  --tw-card-foreground: 220 15% 20%;
+  --tw-primary: 217 91% 60%;
+  --tw-primary-foreground: 0 0% 100%;
+  --tw-secondary: 220 14% 96%;
+  --tw-secondary-foreground: 220 15% 20%;
+  --tw-muted: 220 14% 96%;
+  --tw-muted-foreground: 220 10% 50%;
+  --tw-accent: 217 91% 60%;
+  --tw-accent-foreground: 0 0% 100%;
+  --tw-destructive: 0 84% 60%;
+  --tw-destructive-foreground: 0 0% 100%;
+  --tw-border: 220 13% 91%;
+  --tw-input: 220 13% 91%;
+  --tw-ring: 217 91% 60%;
+  --tw-radius: 1rem;
+
+  --tw-shadow-soft: 0 2px 8px -2px hsl(220 15% 20% / 0.08);
+  --tw-shadow-medium: 0 4px 16px -4px hsl(220 15% 20% / 0.12);
+  --tw-shadow-large: 0 8px 32px -8px hsl(220 15% 20% / 0.16);
+
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
                'SF Pro Text', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
 }
 ```
 
-### 4.2 Type Scale
+**Dark Theme:**
 
-| Role | Class | Size | Weight | Line Height | Use Case |
-|------|-------|------|--------|-------------|----------|
-| Display | `text-6xl font-bold tracking-tight` | 60px | 700 | 1.0 | Hero amounts, primary values |
-| Heading 1 | `text-2xl font-semibold` | 24px | 600 | 1.2 | Page titles, card titles |
-| Heading 2 | `text-lg font-semibold` | 18px | 600 | 1.3 | Section headers |
-| Heading 3 | `text-base font-medium` | 16px | 500 | 1.4 | Subsection headers |
-| Body | `text-sm` | 14px | 400 | 1.5 | Primary content |
-| Caption | `text-xs` | 12px | 400 | 1.4 | Labels, hints |
-| Micro | `text-[10px]` | 10px | 500 | 1.2 | Badges, indicators |
+```css
+.trustware-widget[data-theme="dark"],
+.trustware-widget.dark {
+  --tw-background: 220 15% 10%;
+  --tw-foreground: 0 0% 98%;
+  --tw-card: 220 15% 12%;
+  --tw-card-foreground: 0 0% 98%;
+  --tw-primary: 217 91% 60%;
+  --tw-primary-foreground: 0 0% 100%;
+  --tw-secondary: 220 15% 18%;
+  --tw-secondary-foreground: 0 0% 98%;
+  --tw-muted: 220 15% 18%;
+  --tw-muted-foreground: 220 10% 60%;
+  --tw-accent: 217 91% 60%;
+  --tw-accent-foreground: 0 0% 100%;
+  --tw-destructive: 0 84% 60%;
+  --tw-destructive-foreground: 0 0% 100%;
+  --tw-border: 220 15% 20%;
+  --tw-input: 220 15% 20%;
+  --tw-ring: 217 91% 60%;
 
-### 4.3 Typography Patterns
+  --tw-shadow-soft: 0 2px 8px -2px hsl(0 0% 0% / 0.2);
+  --tw-shadow-medium: 0 4px 16px -4px hsl(0 0% 0% / 0.3);
+  --tw-shadow-large: 0 8px 32px -8px hsl(0 0% 0% / 0.4);
+}
+```
+
+### 5.2 Pseudo-State Styles (Injected CSS)
+
+These handle states that can't be expressed as inline styles:
+
+```css
+/* Focus visible for all interactive elements */
+.trustware-widget button:focus-visible,
+.trustware-widget input:focus-visible,
+.trustware-widget a:focus-visible {
+  outline: 2px solid hsl(var(--tw-ring));
+  outline-offset: 2px;
+}
+
+/* Scrollbar hiding on widget and all children */
+.trustware-widget, .trustware-widget * { scrollbar-width: none; }
+.trustware-widget::-webkit-scrollbar, .trustware-widget *::-webkit-scrollbar { display: none; }
+
+/* Disabled buttons */
+.trustware-widget button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* Touch/safe-area utilities */
+.tw-touch-none { touch-action: none; }
+.tw-safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.tw-safe-area-top { padding-top: env(safe-area-inset-top); }
+
+/* Selection highlight */
+.trustware-widget ::selection { background-color: hsl(var(--tw-primary) / 0.2); }
+```
+
+### 5.3 Theme Switching
+
+Theme is controlled via `data-theme` attribute on the widget root:
 
 ```tsx
-// Display Amount (Primary value display)
-<span className="text-6xl font-bold tracking-tight">
-  <span className="text-foreground">$</span>
-  <span className="text-foreground">1,234.56</span>
+// WidgetContainer.tsx
+<div
+  className="trustware-widget"
+  data-theme={resolvedTheme}  // "light" | "dark"
+  style={containerStyle}
+>
+  <style>{ALL_THEME_STYLES + ALL_ANIMATION_STYLES}</style>
+  {children}
+</div>
+```
+
+Supports: `"light"`, `"dark"`, `"system"` (auto-detects from `prefers-color-scheme`).
+
+---
+
+## 6. Typography System
+
+### 6.1 Font Stack
+
+Applied globally via the `.trustware-widget` CSS variable injection:
+
+```
+-apple-system, BlinkMacSystemFont, 'SF Pro Display',
+'SF Pro Text', 'Helvetica Neue', sans-serif
+```
+
+Antialiasing: `-webkit-font-smoothing: antialiased`
+
+### 6.2 Type Scale
+
+| Role | Token Usage | Size | Weight | Line Height | Use Case |
+|------|-------------|------|--------|-------------|----------|
+| Display | `fontSize["6xl"], fontWeight.bold` | 60px | 700 | 1.0 | Hero amounts |
+| Heading 1 | `fontSize["2xl"], fontWeight.semibold` | 24px | 600 | 1.25 | Page titles |
+| Heading 2 | `fontSize.lg, fontWeight.semibold` | 18px | 600 | 1.375 | Section headers |
+| Heading 3 | `fontSize.base, fontWeight.medium` | 16px | 500 | 1.5 | Subsection headers |
+| Body | `fontSize.sm` | 14px | 400 | 1.5 | Primary content |
+| Caption | `fontSize.xs` | 12px | 400 | 1.5 | Labels, hints |
+
+### 6.3 Typography Patterns (Inline Styles)
+
+```tsx
+// Display Amount
+<span style={{
+  fontSize: fontSize["6xl"],
+  fontWeight: fontWeight.bold,
+  letterSpacing: "-0.025em",
+  color: colors.foreground,
+}}>
+  $1,234.56
 </span>
 
-// Muted Placeholder State
-<span className="text-6xl font-bold tracking-tight text-muted-foreground/40">
+// Muted Placeholder
+<span style={{
+  fontSize: fontSize["6xl"],
+  fontWeight: fontWeight.bold,
+  letterSpacing: "-0.025em",
+  color: colors.mutedForeground,
+  opacity: 0.4,
+}}>
   $0.00
 </span>
 
 // Page Title
-<h1 className="text-lg font-semibold text-foreground">Deposit</h1>
-
-// Section Label
-<p className="text-base text-muted-foreground">Enter an amount</p>
+<h1 style={{
+  fontSize: fontSize.lg,
+  fontWeight: fontWeight.semibold,
+  color: colors.foreground,
+}}>
+  Deposit
+</h1>
 
 // Helper Text
-<span className="text-sm text-muted-foreground">Balance 150.00</span>
-
-// Emphasized Helper
-<span className="text-sm font-semibold text-blue-500">Balance 150.00</span>
+<span style={{
+  fontSize: fontSize.sm,
+  color: colors.mutedForeground,
+}}>
+  Balance 150.00
+</span>
 ```
-
-**Completion Criteria**:
-- [ ] System font stack applied to body
-- [ ] Antialiasing enabled globally
-- [ ] No custom fonts loaded (performance)
-- [ ] Type scale adhered to across all components
-- [ ] Display amounts use `tracking-tight`
 
 ---
 
-## 5. Color System
+## 7. Color System
 
-### 5.1 Semantic Color Usage
+### 7.1 Semantic Colors (Theme-Aware)
+
+These reference CSS variables and automatically switch between light/dark:
+
+```typescript
+export const colors = {
+  background: "hsl(var(--tw-background))",
+  foreground: "hsl(var(--tw-foreground))",
+  card: "hsl(var(--tw-card))",
+  cardForeground: "hsl(var(--tw-card-foreground))",
+  primary: "hsl(var(--tw-primary))",
+  primaryForeground: "hsl(var(--tw-primary-foreground))",
+  secondary: "hsl(var(--tw-secondary))",
+  secondaryForeground: "hsl(var(--tw-secondary-foreground))",
+  muted: "hsl(var(--tw-muted))",
+  mutedForeground: "hsl(var(--tw-muted-foreground))",
+  accent: "hsl(var(--tw-accent))",
+  accentForeground: "hsl(var(--tw-accent-foreground))",
+  destructive: "hsl(var(--tw-destructive))",
+  destructiveForeground: "hsl(var(--tw-destructive-foreground))",
+  border: "hsl(var(--tw-border))",
+  input: "hsl(var(--tw-input))",
+  ring: "hsl(var(--tw-ring))",
+};
+```
+
+### 7.2 Semantic Color Usage
 
 | Token | Light Mode | Dark Mode | Usage |
 |-------|------------|-----------|-------|
@@ -336,616 +552,519 @@ body {
 | `foreground` | `hsl(220 15% 20%)` | `hsl(0 0% 98%)` | Primary text |
 | `card` | `hsl(0 0% 100%)` | `hsl(220 15% 12%)` | Card surfaces |
 | `muted` | `hsl(220 14% 96%)` | `hsl(220 15% 18%)` | Subtle backgrounds |
-| `muted-foreground` | `hsl(220 10% 50%)` | `hsl(220 10% 60%)` | Secondary text |
+| `mutedForeground` | `hsl(220 10% 50%)` | `hsl(220 10% 60%)` | Secondary text |
 | `primary` | `hsl(217 91% 60%)` | `hsl(217 91% 60%)` | Brand blue, CTAs |
-| `destructive` | `hsl(0 84% 60%)` | `hsl(0 84% 60%)` | Errors, warnings |
+| `destructive` | `hsl(0 84% 60%)` | `hsl(0 84% 60%)` | Errors |
 | `border` | `hsl(220 13% 91%)` | `hsl(220 15% 20%)` | Borders, dividers |
 
-### 5.2 Accent Colors (Hardcoded, Non-Semantic)
+### 7.3 Static Color Scales
 
-```css
-/* Success / Confirmation */
-bg-green-500    /* #22c55e - Confirmation states */
-bg-green-400/30 /* Progress fills */
-bg-emerald-500  /* Slider active track */
+These don't change with theme and are used for specific UI elements:
 
-/* Status Indicators */
-bg-green-500    /* Connected/active dot */
-bg-primary      /* Selected/active state */
+```typescript
+colors.white      // "#ffffff"
+colors.black      // "#000000"
+colors.transparent // "transparent"
 
-/* Confetti Palette */
-['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+// Named scales (50-900)
+colors.zinc[800]    // "#27272a" - Dark backgrounds
+colors.green[500]   // "#22c55e" - Success states
+colors.red[500]     // "#ef4444" - Error states
+colors.blue[500]    // "#3b82f6" - Primary actions
+colors.amber[500]   // "#f59e0b" - Warnings
+colors.emerald[500] // "#10b981" - Slider/progress active
 ```
 
-### 5.3 Opacity Modifiers
+### 7.4 Confetti Palette
 
-| Modifier | Use Case | Example |
-|----------|----------|---------|
-| `/10` | Very subtle backgrounds | `bg-primary/10` |
-| `/20` | Light fills, progress | `bg-green-400/20` |
-| `/30` | Hover backgrounds | `bg-muted/30` |
-| `/40` | Placeholder text, pills | `text-muted-foreground/40`, `bg-muted/40` |
-| `/50` | Disabled states, borders | `border-border/50` |
-| `/60` | Secondary icons | `text-muted-foreground/60` |
-| `/80` | Overlay backgrounds | `bg-black/80` |
-| `/90` | Hover on solid | `hover:bg-primary/90` |
-
-**Completion Criteria**:
-- [ ] All colors use HSL format with CSS variables
-- [ ] No hex colors in components (except confetti)
-- [ ] Dark mode variables properly contrast
-- [ ] Opacity modifiers used consistently
+```typescript
+const CONFETTI_COLORS = [
+  colors.emerald[500], // #10b981
+  colors.blue[500],    // #3b82f6
+  colors.amber[500],   // #f59e0b
+  colors.red[500],     // #ef4444
+  "#8b5cf6",           // violet
+  "#ec4899",           // pink
+  "#06b6d4",           // cyan
+  "#84cc16",           // lime
+];
+```
 
 ---
 
-## 6. Spacing & Layout
+## 8. Spacing & Layout
 
-### 6.1 Spacing Scale
+### 8.1 Common Spacing Usage
 
 | Token | Value | Use Case |
 |-------|-------|----------|
-| `0.5` | 2px | Micro gaps, icon insets |
-| `1` | 4px | Tight padding, small gaps |
-| `1.5` | 6px | Pill padding, dot gaps |
-| `2` | 8px | Standard small spacing |
-| `3` | 12px | Card internal spacing |
-| `4` | 16px | Standard padding |
-| `6` | 24px | Section spacing |
-| `8` | 32px | Large section gaps |
+| `spacing[0.5]` | 2px | Micro gaps, icon insets |
+| `spacing[1]` | 4px | Tight padding, small gaps |
+| `spacing[1.5]` | 6px | Pill padding, dot gaps |
+| `spacing[2]` | 8px | Standard small spacing |
+| `spacing[3]` | 12px | Card internal spacing |
+| `spacing[4]` | 16px | Standard padding |
+| `spacing[6]` | 24px | Section spacing |
+| `spacing[8]` | 32px | Large section gaps |
 
-### 6.2 Container Patterns
+### 8.2 Widget Container Pattern
 
 ```tsx
-// SDK Container (Primary wrapper for embeddable UI)
-<div className="min-h-screen bg-background flex items-center justify-center p-4">
-  <div className="relative bg-card w-full max-w-[420px] rounded-[20px] shadow-xl 
-                  overflow-hidden border border-border/30"
-       style={{ maxHeight: 'calc(100vh - 32px)' }}>
-    <div className="overflow-y-auto max-h-[85vh] scrollbar-none">
-      {children}
-    </div>
-  </div>
-</div>
+// WidgetContainer.tsx -- top-level wrapper
+const containerStyle: React.CSSProperties = {
+  maxWidth: "420px",
+  width: "100%",
+  backgroundColor: colors.card,
+  color: colors.foreground,
+  borderRadius: "20px",
+  boxShadow: shadows.large,
+  border: `1px solid ${colors.border}`,
+  overflow: "hidden",
+  position: "relative",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif",
+  WebkitFontSmoothing: "antialiased",
+  MozOsxFontSmoothing: "grayscale",
+};
 
-// Page Layout (Within container)
-<div className="flex flex-col min-h-[600px]">
-  {/* Header */}
-  <div className="flex items-center justify-center px-4 py-4 border-b border-border">
-    <h1 className="text-lg font-semibold text-foreground">Title</h1>
-  </div>
-  
-  {/* Content */}
-  <div className="flex-1 px-6 overflow-y-auto scrollbar-none flex flex-col items-center">
-    {/* Content here */}
-  </div>
-  
-  {/* Footer */}
-  <div className="px-6 py-4 border-t border-border/30">
-    {/* Footer content */}
-  </div>
+<div className="trustware-widget" data-theme={theme} style={containerStyle}>
+  <style>{INJECTED_STYLES}</style>
+  {children}
 </div>
 ```
 
-### 6.3 Border Radius Scale
+### 8.3 Page Layout Pattern
+
+```tsx
+// Header
+<div style={{
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: `${spacing[4]} ${spacing[4]}`,
+  borderBottom: `1px solid ${colors.border}`,
+}}>
+  <h1 style={{ fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground }}>
+    Title
+  </h1>
+</div>
+
+// Content
+<div style={{
+  flex: 1,
+  padding: `0 ${spacing[6]}`,
+  overflowY: "auto",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+}}>
+  {children}
+</div>
+
+// Footer
+<div style={{
+  padding: `${spacing[4]} ${spacing[6]}`,
+  borderTop: `1px solid ${colors.border}`,
+}}>
+  {footer}
+</div>
+```
+
+### 8.4 Border Radius Scale
 
 | Token | Value | Use Case |
 |-------|-------|----------|
-| `rounded-sm` | 12px | Small buttons, badges |
-| `rounded-md` | 14px | Inputs, small cards |
-| `rounded-lg` | 16px | Cards, dropdowns |
-| `rounded-xl` | 20px | Large cards, containers |
-| `rounded-full` | 9999px | Pills, avatars, dots |
-| `rounded-[20px]` | 20px | SDK container |
-
-### 6.4 Safe Area Utilities
-
-```css
-@layer utilities {
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  
-  .safe-area-top {
-    padding-top: env(safe-area-inset-top);
-  }
-  
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .touch-none {
-    touch-action: none;
-  }
-}
-```
-
-**Completion Criteria**:
-- [ ] All spacing uses Tailwind scale (no arbitrary values)
-- [ ] SDK container pattern used for all embeddable UIs
-- [ ] Safe area utilities applied on mobile
-- [ ] Scrollbar hidden on scrollable containers
+| `borderRadius.sm` | ~12px | Small buttons, badges |
+| `borderRadius.md` | ~14px | Inputs, small cards |
+| `borderRadius.lg` | 16px | Cards, dropdowns |
+| `borderRadius.xl` | ~20px | Large cards, containers |
+| `borderRadius.full` | 9999px | Pills, avatars, dots |
+| `"20px"` (hardcoded) | 20px | SDK container |
 
 ---
 
-## 7. Component Library
+## 9. Component Library
 
-### 7.1 Button Component
+### 9.1 Style Utilities
+
+Pre-defined style objects available from `commonStyles`:
+
+```typescript
+import { commonStyles, mergeStyles } from "@/widget-v2/styles";
+
+// Flexbox
+commonStyles.flexCenter    // display:flex, align:center, justify:center
+commonStyles.flexCol       // display:flex, flexDirection:column
+commonStyles.flexRow       // display:flex, flexDirection:row
+commonStyles.flexBetween   // display:flex, align:center, justify:space-between
+
+// Position
+commonStyles.absolute      // position:absolute
+commonStyles.relative      // position:relative
+commonStyles.inset0        // position:absolute, top/right/bottom/left: 0
+
+// Size
+commonStyles.fullWidth     // width:100%
+commonStyles.fullSize      // width:100%, height:100%
+
+// Text
+commonStyles.textCenter    // textAlign:center
+commonStyles.truncate      // overflow:hidden, textOverflow:ellipsis, whiteSpace:nowrap
+
+// Interaction
+commonStyles.selectNone    // userSelect:none
+commonStyles.buttonReset   // border:none, background:none, cursor:pointer, etc.
+commonStyles.inputReset    // border:none, background:none, outline:none, width:100%
+
+// Transition
+commonStyles.transitionColors  // color, bg, border 0.2s
+commonStyles.transitionAll     // all 0.2s ease-out
+```
+
+### 9.2 Button Pattern
 
 ```tsx
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md 
-   text-sm font-medium ring-offset-background transition-colors 
-   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 
-   focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 
-   [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+const primaryButtonStyle: React.CSSProperties = {
+  ...commonStyles.flexCenter,
+  ...commonStyles.buttonReset,
+  gap: spacing[2],
+  padding: `${spacing[2]} ${spacing[4]}`,
+  backgroundColor: colors.primary,
+  color: colors.primaryForeground,
+  fontSize: fontSize.sm,
+  fontWeight: fontWeight.medium,
+  borderRadius: borderRadius.md,
+  transition: transitions.colors,
+  width: "100%",
+  height: "2.5rem",
+};
+
+// Disabled: opacity handled by injected CSS (button:disabled { opacity: 0.5 })
+<button style={primaryButtonStyle} disabled={isDisabled}>
+  Submit
+</button>
+```
+
+### 9.3 Card Pattern
+
+```tsx
+const cardStyle: React.CSSProperties = {
+  backgroundColor: colors.card,
+  color: colors.cardForeground,
+  borderRadius: borderRadius.lg,
+  border: `1px solid ${colors.border}`,
+  boxShadow: shadows.sm,
+  padding: spacing[6],
+};
+```
+
+### 9.4 Pill/Badge Pattern
+
+```tsx
+// Selection Pill (draggable token selector)
+const pillStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: spacing[2],
+  padding: `${spacing[1.5]} ${spacing[4]}`,
+  backgroundColor: "rgba(39, 39, 42, 0.4)",
+  borderRadius: borderRadius.full,
+  border: "1px solid rgba(63, 63, 70, 0.5)",
+  userSelect: "none",
+  touchAction: "none",
+  cursor: "grab",
+};
+
+// Quick Amount Button
+const quickAmountStyle: React.CSSProperties = {
+  ...commonStyles.buttonReset,
+  padding: `${spacing[1]} ${spacing[3]}`,
+  fontSize: fontSize.xs,
+  fontWeight: fontWeight.medium,
+  color: colors.mutedForeground,
+  backgroundColor: colors.muted,
+  borderRadius: borderRadius.full,
+  transition: transitions.colors,
+};
+```
+
+### 9.5 Swipe-to-Confirm Pattern
+
+```tsx
+// Track container
+const trackStyle: React.CSSProperties = {
+  position: "relative",
+  height: "3.5rem",
+  borderRadius: borderRadius.full,
+  overflow: "hidden",
+  userSelect: "none",
+};
+
+// Track background (dynamic based on progress)
+const trackBg = progress > 0
+  ? `linear-gradient(to right, rgb(34, 197, 94) ${progress * 100}%, rgb(39, 39, 42) ${progress * 100}%)`
+  : "rgb(39, 39, 42)";
+
+// Thumb
+const thumbStyle: React.CSSProperties = mergeStyles(
   {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-      size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "3rem",
+    height: "3rem",
+    borderRadius: borderRadius.full,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "grab",
+    backgroundColor: colors.white,
+    boxShadow: shadows.md,
+    transition: "all 0.15s ease-out",
+  },
+  isDragging && { transform: "translateY(-50%) scale(1.05)", cursor: "grabbing" },
+  isComplete && { backgroundColor: colors.green[500], color: colors.white },
 );
 ```
 
-### 7.2 Card Component
+**Dual confirmation modes:**
+1. **Drag**: Swipe thumb to 80% threshold
+2. **Long-press**: Hold for 1.5s with circular SVG progress indicator
+
+### 9.6 Amount Slider
 
 ```tsx
-// Card base
-<div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-  {/* Card Header */}
-  <div className="flex flex-col space-y-1.5 p-6">
-    <h3 className="text-2xl font-semibold leading-none tracking-tight">{title}</h3>
-    <p className="text-sm text-muted-foreground">{description}</p>
-  </div>
-  
-  {/* Card Content */}
-  <div className="p-6 pt-0">
-    {content}
-  </div>
-  
-  {/* Card Footer */}
-  <div className="flex items-center p-6 pt-0">
-    {footer}
-  </div>
-</div>
+// Background track
+const backgroundTrackStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 0, right: 0,
+  height: "0.625rem",
+  backgroundColor: colors.zinc[800],
+  borderRadius: borderRadius.full,
+  boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.2)",
+};
+
+// Active track (gradient + glow)
+const activeTrackStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 0,
+  height: "0.625rem",
+  background: `linear-gradient(90deg, ${colors.emerald[500]}, ${colors.emerald[400]})`,
+  borderRadius: borderRadius.full,
+  transition: "all 75ms",
+  boxShadow: `0 0 8px ${colors.emerald[500]}40`,
+  width: `${percentage}%`,
+};
+
+// Thumb
+const thumbStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "1.75rem",
+  height: "1.75rem",
+  backgroundColor: colors.white,
+  borderRadius: borderRadius.full,
+  boxShadow: `0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 3px ${colors.emerald[500]}`,
+  border: `3px solid ${colors.emerald[500]}`,
+  pointerEvents: "none",
+  transition: "all 75ms",
+  left: `calc(${percentage}% - 14px)`,
+};
 ```
 
-### 7.3 Input Component
+### 9.7 Token Carousel (TokenSwipePill)
 
 ```tsx
-<input
-  className={cn(
-    "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2",
-    "text-base ring-offset-background",
-    "file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
-    "placeholder:text-muted-foreground",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-    "disabled:cursor-not-allowed disabled:opacity-50",
-    "md:text-sm"
-  )}
-/>
+// Each token item uses transform-based positioning
+const tokenStyle: React.CSSProperties = {
+  position: "absolute",
+  transition: isDragging ? "all 75ms" : "all 200ms ease-out",
+  transform: `translateX(${offset}px) scale(${scale})`,
+  opacity: isCenter ? 1 : 0.5,
+  filter: `blur(${isCenter ? 0 : 1}px)`,
+  zIndex: isCenter ? 10 : 5,
+};
+
+// Token icon container
+const tokenIconStyle: React.CSSProperties = {
+  width: "2.5rem",
+  height: "2.5rem",
+  borderRadius: borderRadius.full,
+  overflow: "hidden",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: colors.white,
+  boxShadow: shadows.sm,
+};
+
+// Pagination dots (max 5 visible)
+const dotStyle: React.CSSProperties = mergeStyles(
+  {
+    width: "0.375rem",
+    height: "0.375rem",
+    borderRadius: borderRadius.full,
+    transition: "all 200ms ease-out",
+    backgroundColor: colors.zinc[600],
+  },
+  isActive && {
+    width: "0.75rem",
+    backgroundColor: colors.white,
+  },
+);
 ```
 
-### 7.4 Pill/Badge Pattern
+### 9.8 Circular Progress
 
 ```tsx
-// Selection Pill
-<div className="inline-flex items-center gap-2 px-4 py-1.5 
-                bg-muted/40 rounded-full border border-border/50 
-                select-none touch-none cursor-grab active:cursor-grabbing">
-  {content}
-</div>
+<svg width={size} height={size}>
+  {/* Background circle */}
+  <circle
+    cx={size / 2} cy={size / 2} r={radius}
+    fill="none"
+    stroke={colors.muted}
+    strokeWidth={strokeWidth}
+  />
+  {/* Progress circle */}
+  <circle
+    cx={size / 2} cy={size / 2} r={radius}
+    fill="none"
+    stroke={colors.primary}
+    strokeWidth={strokeWidth}
+    strokeLinecap="round"
+    strokeDasharray={circumference}
+    strokeDashoffset={offset}
+    style={{ transition: "all 0.5s ease-out" }}
+    transform={`rotate(-90 ${size / 2} ${size / 2})`}
+  />
+</svg>
 
-// Action Pill
-<button className="inline-flex items-center gap-3 px-6 py-3 
-                   rounded-full transition-all bg-muted/50 hover:bg-muted w-56">
-  <Icon className="w-5 h-5 text-muted-foreground" />
-  <span className="font-medium text-sm text-foreground flex-1 text-left">{label}</span>
-  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-</button>
-
-// Quick Amount Button
-<button className="px-3 py-1 text-xs font-medium text-muted-foreground 
-                   bg-muted rounded-full hover:bg-muted/80 transition-colors">
-  Max
-</button>
+// Indeterminate mode uses animation class:
+// className="tw-animate-spin-slow"
 ```
 
-### 7.5 Dropdown Menu
+### 9.9 Footer Pattern
 
 ```tsx
-<div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 
-                bg-card rounded-xl shadow-lg border border-border/50 z-50 overflow-hidden">
-  {/* Section Header */}
-  <div className="p-3">
-    <div className="flex items-center gap-2 mb-2">
-      <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-      <span className="text-xs font-medium text-primary">Section Title</span>
-    </div>
-    
-    {/* Items */}
-    <div className="space-y-1">
-      {items.map(item => (
-        <button className="w-full flex items-center justify-between p-2 
-                          rounded-lg hover:bg-muted/50 transition-colors">
-          <div className="flex items-center gap-2">
-            <img src={item.icon} className="w-8 h-8 rounded-lg object-cover" />
-            <span className="font-medium text-sm text-foreground">{item.name}</span>
-          </div>
-          <div className={cn(
-            "w-4 h-4 rounded-full border-2",
-            selected ? "border-primary bg-primary" : "border-muted-foreground/30"
-          )} />
-        </button>
-      ))}
-    </div>
-  </div>
-  
-  {/* Divider */}
-  <div className="border-t border-border/50" />
-</div>
-```
+const footerStyle: React.CSSProperties = {
+  ...commonStyles.flexCenter,
+  gap: spacing[2],
+  padding: `${spacing[4]} ${spacing[6]}`,
+  borderTop: `1px solid ${colors.border}`,
+};
 
-### 7.6 Swipe-to-Confirm Pattern
-
-```tsx
-// Container
-<div className="relative h-14 rounded-full overflow-hidden transition-colors 
-                duration-300 select-none bg-muted">
-  {/* Progress Fill */}
-  <div className="absolute inset-y-0 left-0 transition-all duration-75 bg-green-400/20"
-       style={{ width: `${progress}%` }} />
-  
-  {/* Label (fades out on drag) */}
-  <div className={cn(
-    "absolute inset-0 flex items-center justify-center transition-opacity duration-200",
-    progress > 0.3 && "opacity-0"
-  )}>
-    <span className="text-sm font-medium text-muted-foreground">{label}</span>
-  </div>
-  
-  {/* Thumb */}
-  <div className={cn(
-    "absolute top-1 bottom-1 w-12 rounded-full flex items-center justify-center",
-    "cursor-grab active:cursor-grabbing transition-all",
-    isComplete 
-      ? "bg-green-500 text-white" 
-      : "bg-card text-foreground shadow-md",
-    isDragging && "scale-105"
-  )}
-  style={{ 
-    left: `${dragX + 4}px`,
-    transition: isDragging ? 'none' : 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-  }}>
-    {isComplete ? <Check className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-  </div>
-</div>
-```
-
-### 7.7 Amount Slider
-
-```tsx
-// Track Container
-<div className="relative h-10 flex items-center">
-  {/* Background Track */}
-  <div className="absolute inset-x-0 h-2 bg-muted/60 rounded-full" />
-  
-  {/* Active Track */}
-  <div className="absolute left-0 h-2 bg-emerald-500 rounded-full transition-all duration-75"
-       style={{ width: `${percentage}%` }} />
-  
-  {/* Tick Marks */}
-  {tickMarks.map(tick => (
-    <div className="absolute top-1/2 -translate-y-1/2" style={{ left: `${tick.position}%` }}>
-      <div className={cn(
-        "w-0.5 h-2.5 rounded-full transition-colors -translate-x-1/2",
-        isActive ? "bg-emerald-500/50" : "bg-muted-foreground/20"
-      )} />
-    </div>
-  ))}
-  
-  {/* Hidden Input */}
-  <input type="range" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 touch-none" />
-  
-  {/* Thumb */}
-  <div className="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full 
-                  shadow-lg border-2 border-emerald-500 pointer-events-none transition-all duration-75"
-       style={{ left: `calc(${percentage}% - 12px)` }} />
-</div>
-```
-
-### 7.8 Circular Progress
-
-```tsx
-<div className="relative inline-flex items-center justify-center">
-  <svg width={size} height={size}>
-    {/* Background Circle */}
-    <circle
-      cx={size / 2} cy={size / 2} r={radius}
-      fill="none" stroke="hsl(var(--muted))" strokeWidth={strokeWidth}
-    />
-    
-    {/* Progress Circle */}
-    <circle
-      cx={size / 2} cy={size / 2} r={radius}
-      fill="none" stroke="hsl(var(--primary))" strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeDasharray={circumference}
-      strokeDashoffset={offset}
-      transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      className="transition-all duration-500 ease-out"
-    />
-  </svg>
-  
-  {/* Percentage Label */}
-  <div className="absolute inset-0 flex items-center justify-center">
-    <span className="text-2xl font-bold text-foreground">{progress}%</span>
-  </div>
-</div>
-```
-
-### 7.9 Token Carousel
-
-```tsx
-// Carousel Container
-<div className="relative flex items-center justify-center h-12 w-20 overflow-hidden">
-  {tokens.map((token, index) => {
-    const pos = getPosition(index);
-    const isCenter = pos === 0;
-    const isVisible = Math.abs(pos) <= 1;
-    
-    if (!isVisible) return null;
-    
-    const baseOffset = pos * 32;
-    const scale = isCenter ? 1 : 0.6;
-    const opacity = isCenter ? 1 : 0.5;
-    const blur = isCenter ? 0 : 1;
-    
-    return (
-      <div
-        className={cn("absolute transition-all", isDragging ? "duration-75" : "duration-200 ease-out")}
-        style={{
-          transform: `translateX(${baseOffset}px) scale(${scale})`,
-          opacity,
-          filter: `blur(${blur}px)`,
-          zIndex: isCenter ? 10 : 5,
-        }}
-      >
-        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center 
-                        justify-center bg-white shadow-sm">
-          <img src={token.icon} className="w-8 h-8 object-contain" />
-        </div>
-        
-        {/* Chain Badge (center only) */}
-        {isCenter && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full 
-                          bg-background border-2 border-background overflow-hidden">
-            <img src={token.chainIcon} className="w-3 h-3 rounded-full object-cover" />
-          </div>
-        )}
-      </div>
-    );
-  })}
-</div>
-
-// Pagination Dots
-<div className="flex items-center gap-1.5 mt-1">
-  {tokens.map((_, index) => (
-    <button
-      className={cn(
-        "w-1.5 h-1.5 rounded-full transition-all duration-200",
-        index === currentIndex 
-          ? "bg-foreground w-3" 
-          : "bg-muted-foreground/40 hover:bg-muted-foreground/60"
-      )}
-    />
-  ))}
-</div>
-```
-
-### 7.10 Footer Pattern
-
-```tsx
-<div className="px-6 py-4 border-t border-border/30 flex items-center justify-center gap-2">
-  <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-  <span className="text-sm text-muted-foreground">
+<div style={footerStyle}>
+  <Lock style={{ width: "0.875rem", height: "0.875rem", color: colors.mutedForeground }} />
+  <span style={{ fontSize: fontSize.sm, color: colors.mutedForeground }}>
     Secured by{' '}
-    <span className="font-semibold text-foreground inline-flex items-center gap-1">
+    <span style={{ fontWeight: fontWeight.semibold, color: colors.foreground }}>
       Trustware
-      <img src={trustwareLogo} alt="Trustware" className="w-3.5 h-3.5 dark:invert" />
     </span>
   </span>
 </div>
 ```
 
-**Completion Criteria**:
-- [ ] All component patterns implemented
-- [ ] CVA variants used for Button, Badge, Toast
-- [ ] Radix primitives used for Dialog, Sheet, Select, Toast
-- [ ] No custom implementations of standard patterns
-
 ---
 
-## 8. Animation & Motion
+## 10. Animation & Motion
 
-### 8.1 Keyframes (Tailwind Config)
+### 10.1 Keyframe Definitions
+
+All keyframes are defined in `src/widget-v2/styles/animations.ts` and injected via `<style>` tag. All names use the `tw-` prefix to avoid collisions with host app styles.
+
+| Keyframe | Description |
+|----------|-------------|
+| `tw-slide-in-right` | Forward page navigation (translateX 1rem → 0) |
+| `tw-slide-in-left` | Backward page navigation (translateX -1rem → 0) |
+| `tw-fade-in` | Scale 0.95 → 1 with opacity |
+| `tw-slide-up` | translateY 20px → 0 with opacity |
+| `tw-scale-in` | Scale 0.9 → 1 with opacity |
+| `tw-swipe-complete` | Background muted → green |
+| `tw-token-hint-bounce` | Vertical bounce (-8px, 5px, -3px) |
+| `tw-token-hint-bounce-x` | Horizontal bounce (-10px, 8px, -5px, 3px) |
+| `tw-spin` | 360° rotation, 1s |
+| `tw-spin-slow` | 360° rotation, 2s |
+| `tw-confetti-fall` | translateY → 100vh, rotate 720°, opacity → 0 |
+| `tw-pulse` | Opacity 1 → 0.5 → 1 |
+
+### 10.2 Animation Utility Classes
+
+Applied via `className`:
+
+| Class | Animation | Duration |
+|-------|-----------|----------|
+| `.tw-animate-slide-in-right` | Forward nav | 150ms ease-out |
+| `.tw-animate-slide-in-left` | Back nav | 150ms ease-out |
+| `.tw-animate-fade-in` | Fade + scale | 300ms ease-out |
+| `.tw-animate-slide-up` | Slide up | 400ms ease-out |
+| `.tw-animate-scale-in` | Scale in | 300ms cubic-bezier |
+| `.tw-animate-swipe-complete` | Swipe done | 300ms forwards |
+| `.tw-animate-token-hint-bounce` | Bounce Y | 700ms ease-out |
+| `.tw-animate-token-hint-bounce-x` | Bounce X | 800ms ease-out |
+| `.tw-animate-spin` | Spinner | 1s linear infinite |
+| `.tw-animate-spin-slow` | Slow spinner | 2s linear infinite |
+| `.tw-animate-confetti` | Confetti fall | 2s forwards |
+| `.tw-animate-pulse` | Pulse | 2s infinite |
+
+### 10.3 Inline Animation Timings
+
+For use with `style={{ animation: ... }}`:
 
 ```typescript
-keyframes: {
-  "accordion-down": {
-    from: { height: "0" },
-    to: { height: "var(--radix-accordion-content-height)" },
-  },
-  "accordion-up": {
-    from: { height: "var(--radix-accordion-content-height)" },
-    to: { height: "0" },
-  },
-  "fade-in": {
-    from: { opacity: "0", transform: "translateY(10px)" },
-    to: { opacity: "1", transform: "translateY(0)" },
-  },
-  "slide-up": {
-    from: { opacity: "0", transform: "translateY(20px)" },
-    to: { opacity: "1", transform: "translateY(0)" },
-  },
-  "scale-in": {
-    from: { opacity: "0", transform: "scale(0.9)" },
-    to: { opacity: "1", transform: "scale(1)" },
-  },
-  "spin-slow": {
-    from: { transform: "rotate(0deg)" },
-    to: { transform: "rotate(360deg)" },
-  },
-  "swipe-complete": {
-    from: { backgroundColor: "hsl(var(--muted))" },
-    to: { backgroundColor: "hsl(142 76% 36%)" },
-  },
-  "token-hint-bounce": {
-    "0%, 100%": { transform: "translateY(0)" },
-    "25%": { transform: "translateY(-8px)" },
-    "50%": { transform: "translateY(5px)" },
-    "75%": { transform: "translateY(-3px)" },
-  },
-  "token-hint-bounce-x": {
-    "0%, 100%": { transform: "translateX(0) scale(1)" },
-    "20%": { transform: "translateX(-10px) scale(1)" },
-    "40%": { transform: "translateX(8px) scale(1)" },
-    "60%": { transform: "translateX(-5px) scale(1)" },
-    "80%": { transform: "translateX(3px) scale(1)" },
-  },
-  "confetti-fall": {
-    "0%": { transform: "translateY(-20px) rotate(0deg)", opacity: "1" },
-    "100%": { transform: "translateY(100vh) rotate(720deg)", opacity: "0" },
-  },
-}
+import { animationTimings } from "@/widget-v2/styles";
+
+// animationTimings.fadeIn = "tw-fade-in 0.3s ease-out"
+// animationTimings.spin  = "tw-spin 1s linear infinite"
+
+<div style={{ animation: animationTimings.fadeIn }}>...</div>
 ```
 
-### 8.2 Animation Classes
+### 10.4 Transition Patterns
 
-```typescript
-animation: {
-  "accordion-down": "accordion-down 0.2s ease-out",
-  "accordion-up": "accordion-up 0.2s ease-out",
-  "fade-in": "fade-in 0.3s ease-out",
-  "slide-up": "slide-up 0.4s ease-out",
-  "scale-in": "scale-in 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-  "spin-slow": "spin-slow 2s linear infinite",
-  "swipe-complete": "swipe-complete 0.3s ease-out forwards",
-  "token-hint-bounce": "token-hint-bounce 0.7s ease-out",
-  "token-hint-bounce-x": "token-hint-bounce-x 0.8s ease-out",
-  "confetti": "confetti-fall 2s ease-out forwards",
-}
+| Pattern | Inline Style | Duration |
+|---------|-------------|----------|
+| Color change | `transition: transitions.colors` | 200ms |
+| All properties | `transition: transitions.smooth` | 300ms |
+| Fast response | `transition: transitions.fast` | 150ms |
+| Normal | `transition: transitions.normal` | 200ms |
+| Drag response | `transition: "all 75ms"` | 75ms |
+| Bounce | `transition: transitions.bounce` | 400ms |
+
+### 10.5 Page Transition Flow
+
+```
+Exit (150ms): opacity → 0, translateX ±1rem
+Wait: component switch
+Enter (150ms): tw-animate-slide-in-right or tw-animate-slide-in-left
 ```
 
-### 8.3 Transition Patterns
-
-| Pattern | Classes | Duration | Easing |
-|---------|---------|----------|--------|
-| Color change | `transition-colors` | 150ms | ease |
-| All properties | `transition-all` | 300ms | cubic-bezier(0.4, 0, 0.2, 1) |
-| Opacity | `transition-opacity duration-200` | 200ms | ease |
-| Transform | `transition-transform duration-75` | 75ms | ease |
-| Drag response | `duration-75` (while dragging) | 75ms | ease |
-| Spring back | `duration-300` | 300ms | cubic-bezier(0.4, 0, 0.2, 1) |
-
-### 8.4 Haptic Feedback
+### 10.6 Haptic Feedback
 
 ```typescript
-// Light tap
-if (navigator.vibrate) {
-  navigator.vibrate(10);
-}
+// Light tap (token switch)
+if (navigator.vibrate) navigator.vibrate(10);
 
-// Confirmation
-if (navigator.vibrate) {
-  navigator.vibrate(50);
-}
+// Confirmation (swipe complete)
+if (navigator.vibrate) navigator.vibrate(50);
 
 // Success pattern
-if (navigator.vibrate) {
-  navigator.vibrate([50, 50, 100]);
-}
+if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
 ```
-
-**Completion Criteria**:
-- [ ] All keyframes defined in tailwind.config.ts
-- [ ] `tailwindcss-animate` plugin enabled
-- [ ] Haptic feedback on swipe complete
-- [ ] Haptic feedback on token switch
-- [ ] No animations > 500ms (except confetti)
 
 ---
 
-## 9. Responsive Breakpoints
+## 11. Responsive Design
 
-### 9.1 Breakpoint Definitions
+### 11.1 Widget Constraints
 
-| Token | Value | Description |
-|-------|-------|-------------|
-| `sm` | 640px | Small tablets, large phones landscape |
-| `md` | 768px | Tablets portrait |
-| `lg` | 1024px | Tablets landscape, small laptops |
-| `xl` | 1280px | Laptops, desktops |
-| `2xl` | 1400px | Large desktops (container max) |
-
-### 9.2 Mobile Detection Hook
+The widget is designed as a **fixed-width mobile card** (max 420px). Responsiveness is handled by the widget fitting within its container, not by breakpoint-based layout changes.
 
 ```typescript
-const MOBILE_BREAKPOINT = 768;
-
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = useState<boolean | undefined>(undefined);
-
-  useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    mql.addEventListener("change", onChange);
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-
-  return !!isMobile;
-}
+maxWidth: "420px",
+width: "100%",
 ```
 
-### 9.3 Responsive Patterns
-
-```tsx
-// Text size adjustment
-<input className="text-base md:text-sm" />
-
-// Container constraints
-<div className="w-full max-w-[420px]" />
-
-// Toast positioning
-<div className="fixed top-0 sm:bottom-0 sm:right-0 sm:top-auto" />
-
-// Sheet sizing
-<div className="w-3/4 sm:max-w-sm" />
-```
-
-### 9.4 Test Viewports
+### 11.2 Test Viewports
 
 | Device | Width | Height | Pixel Ratio |
 |--------|-------|--------|-------------|
@@ -953,255 +1072,214 @@ export function useIsMobile() {
 | iPhone 14 Pro | 393px | 852px | 3x |
 | iPhone 14 Pro Max | 430px | 932px | 3x |
 | iPad Mini | 768px | 1024px | 2x |
-| iPad Pro 11" | 834px | 1194px | 2x |
 | Desktop 1080p | 1920px | 1080px | 1x |
-| Desktop 1440p | 2560px | 1440px | 1x |
-
-**Completion Criteria**:
-- [ ] Mobile breakpoint at 768px
-- [ ] `useIsMobile()` hook available
-- [ ] SDK container max-width 420px
-- [ ] All viewports in test matrix pass visual review
 
 ---
 
-## 10. Accessibility Requirements
+## 12. Accessibility Requirements
 
-### 10.1 Focus States
+### 12.1 Focus States
 
-```tsx
-// All interactive elements MUST have visible focus
-"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+Handled by injected CSS pseudo-state styles:
 
-// Ring offset for layered elements
-"ring-offset-background"
+```css
+.trustware-widget button:focus-visible,
+.trustware-widget input:focus-visible,
+.trustware-widget a:focus-visible {
+  outline: 2px solid hsl(var(--tw-ring));
+  outline-offset: 2px;
+}
 ```
 
-### 10.2 Disabled States
+### 12.2 Disabled States
 
-```tsx
-// Standard disabled pattern
-"disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed"
+Handled by injected CSS:
+
+```css
+.trustware-widget button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 ```
 
-### 10.3 Screen Reader Support
+### 12.3 Screen Reader Support
 
 ```tsx
-// Hidden visually but accessible
-<span className="sr-only">Close</span>
+// Visually hidden text
+<span style={{
+  position: "absolute",
+  width: "1px", height: "1px",
+  padding: 0, margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  borderWidth: 0,
+}}>
+  Close
+</span>
 
 // ARIA labels
-<button aria-label={`Select ${token.symbol}`} />
+<button aria-label={`Select ${token.symbol}`} style={buttonStyle} />
 ```
 
-### 10.4 Color Contrast
+### 12.4 Color Contrast
 
 | Pairing | Ratio | Status |
 |---------|-------|--------|
-| `foreground` on `background` | 12.6:1 | ✅ AAA |
-| `muted-foreground` on `background` | 4.5:1 | ✅ AA |
-| `primary-foreground` on `primary` | 7.2:1 | ✅ AAA |
-| `primary` on `background` | 4.8:1 | ✅ AA |
-
-**Completion Criteria**:
-- [ ] All interactive elements have focus-visible states
-- [ ] All buttons have aria-labels or visible text
-- [ ] Color contrast meets WCAG AA minimum
-- [ ] Disabled states visually distinct (50% opacity)
+| `foreground` on `background` | 12.6:1 | AAA |
+| `mutedForeground` on `background` | 4.5:1 | AA |
+| `primaryForeground` on `primary` | 7.2:1 | AAA |
+| `primary` on `background` | 4.8:1 | AA |
 
 ---
 
-## 11. Implementation Checklist
+## 13. Widget State Machine
 
-### Phase 1: Foundation Setup
+### 13.1 Navigation Steps
 
-- [ ] **1.1** Create `src/lib/utils.ts` with `cn()` function
-- [ ] **1.2** Configure `tailwind.config.ts` with all design tokens
-- [ ] **1.3** Create `src/index.css` with CSS variables
-- [ ] **1.4** Install all required dependencies
-- [ ] **1.5** Verify dark mode toggle works
+```typescript
+type NavigationStep =
+  | "home"          // Home screen with deposit options
+  | "select-token"  // Chain and token selection
+  | "crypto-pay"    // Amount entry, slider, fee summary, swipe-to-confirm
+  | "processing"    // Transaction submitted, waiting for confirmation
+  | "success"       // Success screen with confetti
+  | "error"         // Error screen with retry
 
-### Phase 2: Core Components
+// Flow:
+// home → select-token → crypto-pay → processing → success
+//                                                → error
+```
 
-- [ ] **2.1** Implement Button component with all variants
-- [ ] **2.2** Implement Card component
-- [ ] **2.3** Implement Input component
-- [ ] **2.4** Implement Badge component
-- [ ] **2.5** Implement Dialog/Sheet components
-- [ ] **2.6** Implement Toast/Sonner integration
-- [ ] **2.7** Implement Select component
+### 13.2 Transaction Status (Within Processing)
 
-### Phase 3: Custom Components
+```typescript
+type TransactionStatus =
+  | "idle"
+  | "confirming"    // Wallet confirmation pending
+  | "processing"    // Transaction submitted
+  | "bridging"      // Cross-chain bridge in progress
+  | "success"       // Transaction complete
+  | "error"         // Transaction failed
+```
 
-- [ ] **3.1** Implement SDKContainer wrapper
-- [ ] **3.2** Implement SwipeToConfirm component
-- [ ] **3.3** Implement AmountSlider component
-- [ ] **3.4** Implement CircularProgress component
-- [ ] **3.5** Implement TokenSwipePill/Carousel component
-- [ ] **3.6** Implement ConfettiEffect component
-- [ ] **3.7** Implement WalletCard component
+### 13.3 Page Components
 
-### Phase 4: Page Templates
-
-- [ ] **4.1** Create Home page template
-- [ ] **4.2** Create CryptoPay page template
-- [ ] **4.3** Create FiatPayment page template
-- [ ] **4.4** Create Processing page template
-- [ ] **4.5** Create SelectToken page template
-
-### Phase 5: Responsive Validation
-
-- [ ] **5.1** Test iPhone SE (375px)
-- [ ] **5.2** Test iPhone 14 Pro (393px)
-- [ ] **5.3** Test iPhone 14 Pro Max (430px)
-- [ ] **5.4** Test iPad Mini (768px)
-- [ ] **5.5** Test Desktop 1080p (1920px)
-- [ ] **5.6** Verify dark mode on all viewports
-
-### Phase 6: Interaction Validation
-
-- [ ] **6.1** SwipeToConfirm drag responds < 50ms
-- [ ] **6.2** Haptic feedback fires on swipe complete
-- [ ] **6.3** Token carousel animates smoothly
-- [ ] **6.4** Amount slider snaps to tick marks
-- [ ] **6.5** Confetti plays on success state
-- [ ] **6.6** All focus states visible via keyboard
+| Step | Component | Key Interactions |
+|------|-----------|-----------------|
+| `home` | `Home.tsx` | Pay with crypto / Pay with fiat buttons |
+| `select-token` | `SelectToken.tsx` | Two-column chain + token picker |
+| `crypto-pay` | `CryptoPay.tsx` | Amount slider, token carousel, swipe-to-confirm |
+| `processing` | `Processing.tsx` | Circular progress, transaction steps |
+| `success` | `Success.tsx` | Confetti, completion message |
+| `error` | `Error.tsx` | Error message, retry button |
 
 ---
 
-## 12. Validation Protocol
+## 14. Validation Protocol
 
-### 12.1 Visual Diff Checklist
-
-For each viewport, capture screenshots and verify:
+### 14.1 Visual Checklist
 
 ```
 □ Background color matches design token
-□ Card shadows render correctly
+□ Card shadows render correctly in both themes
 □ Border radius consistent (20px on container)
 □ Typography scale matches spec
-□ Icon sizes correct (lucide-react)
 □ Spacing matches 4px grid
 □ Dark mode colors invert correctly
+□ No Tailwind classes present in widget code
+□ All styles are inline or injected via <style> tag
 ```
 
-### 12.2 Interaction Audit
+### 14.2 Interaction Audit
 
 ```
-□ All buttons have hover state
-□ All buttons have focus-visible ring
-□ Swipe threshold at 80%
+□ All buttons have focus-visible ring (via injected CSS)
+□ Swipe threshold at 80% (drag) or 1.5s (long-press)
 □ Drag thumb scales 105% while dragging
 □ Spring-back animation plays when released early
 □ Success state shows green-500 background
 □ Confetti particle count: 50
+□ Token carousel swipe threshold: 30px
+□ Haptic feedback on swipe complete and token switch
 ```
 
-### 12.3 Performance Metrics
+### 14.3 Performance Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
+| Bundle Size | < 50 KB gzip | `npm run size` |
+| Animation FPS | 60fps | DevTools |
 | First Paint | < 1.0s | Lighthouse |
 | LCP | < 2.5s | Lighthouse |
 | CLS | < 0.1 | Lighthouse |
-| Animation FPS | 60fps | DevTools |
-| Bundle Size | < 200KB gzip | Vite build |
 
-### 12.4 Automated Tests
+### 14.4 Embedding Compatibility
 
-```typescript
-// Example Playwright viewport tests
-const viewports = [
-  { name: 'iPhone SE', width: 375, height: 667 },
-  { name: 'iPhone 14 Pro', width: 393, height: 852 },
-  { name: 'iPad Mini', width: 768, height: 1024 },
-  { name: 'Desktop', width: 1920, height: 1080 },
-];
-
-for (const viewport of viewports) {
-  test(`renders correctly on ${viewport.name}`, async ({ page }) => {
-    await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.goto('/');
-    await expect(page.locator('[data-testid="sdk-container"]')).toBeVisible();
-    await expect(page).toHaveScreenshot(`${viewport.name}.png`);
-  });
-}
 ```
-
-### 12.5 Sign-off Requirements
-
-Before shipping any UI:
-
-1. **Visual**: Side-by-side comparison with this spec passes
-2. **Responsive**: All 5 test viewports render correctly
-3. **Dark Mode**: Light/dark toggle works, no color regressions
-4. **Accessibility**: Keyboard navigation works end-to-end
-5. **Performance**: Lighthouse score > 90 on all categories
-6. **Animations**: 60fps on target devices
+□ Works in Vite app without CSS config
+□ Works in Next.js app without CSS config
+□ Works in CRA app without CSS config
+□ No style leakage to host app
+□ No host app styles leaking into widget
+□ Theme follows data-theme attribute, not host :root
+```
 
 ---
 
-## Appendix A: Icon Reference
-
-All icons from `lucide-react`:
-
-| Icon | Usage |
-|------|-------|
-| `Lock` | Security badge |
-| `Wallet` | Wallet selection |
-| `CreditCard` | Fiat payment |
-| `ChevronDown/Up` | Dropdowns, accordions |
-| `ChevronLeft/Right` | Carousel, navigation |
-| `Check` | Success, selected |
-| `X` | Close, dismiss |
-| `ArrowUpDown` | Token conversion |
-
----
-
-## Appendix B: File Structure
+## Appendix A: File Structure
 
 ```
-src/
-├── assets/                 # Static images, logos
+src/widget-v2/
+├── TrustwareWidgetV2.tsx           # Main widget with state machine + page transitions
+├── styles/
+│   ├── index.ts                    # Barrel export
+│   ├── tokens.ts                   # Design tokens (colors, spacing, typography, etc.)
+│   ├── theme.ts                    # CSS variables for light/dark (injected <style>)
+│   ├── animations.ts              # Keyframes + animation classes (injected <style>)
+│   └── utils.ts                    # mergeStyles(), commonStyles, helpers
+├── context/
+│   └── DepositContext.tsx          # Widget state (nav step, selected token, amounts)
+├── hooks/
+│   ├── index.ts
+│   ├── useChains.ts               # Chain data
+│   ├── useTokens.ts               # Token data
+│   ├── useRouteBuilder.ts         # Quote/route construction
+│   ├── useTransactionSubmit.ts    # Transaction submission + receipt
+│   └── useTransactionPolling.ts   # Transaction status polling
 ├── components/
-│   ├── deposit/           # Domain-specific components
-│   │   ├── AmountInput.tsx
-│   │   ├── AmountSlider.tsx
-│   │   ├── CircularProgress.tsx
-│   │   ├── ConfettiEffect.tsx
-│   │   ├── SDKContainer.tsx
-│   │   ├── SwipeToConfirm.tsx
-│   │   ├── TokenSwipePill.tsx
-│   │   └── ...
-│   └── ui/                # Generic UI primitives (shadcn)
-│       ├── button.tsx
-│       ├── card.tsx
-│       ├── dialog.tsx
-│       ├── input.tsx
-│       ├── sheet.tsx
-│       └── ...
-├── contexts/              # React contexts
-├── hooks/                 # Custom hooks
-│   ├── use-mobile.tsx
-│   └── use-toast.ts
+│   ├── WidgetContainer.tsx        # Top-level wrapper, style injection, theme
+│   ├── AmountSlider.tsx           # Range slider with snap-to-tick
+│   ├── TokenSwipePill.tsx         # Token carousel with swipe gestures
+│   ├── SwipeToConfirmTokens.tsx   # Drag + long-press confirmation
+│   ├── CircularProgress.tsx       # SVG progress indicator
+│   ├── ConfettiEffect.tsx         # Success celebration (50 particles)
+│   ├── Toast.tsx                  # Notification component
+│   ├── ThemeToggle.tsx            # Light/dark theme switcher
+│   ├── TransactionSteps.tsx       # Step progress indicator
+│   ├── WalletSelector.tsx         # Wallet picker
+│   └── WalletConnectModal.tsx     # WalletConnect QR code modal
 ├── lib/
-│   └── utils.ts           # cn() utility
-├── pages/                 # Route pages
-├── index.css              # CSS variables
-├── App.tsx                # Root component
-└── main.tsx               # Entry point
+│   └── utils.ts                   # cn() for animation classNames
+└── pages/
+    ├── Home.tsx                    # Step 1: Home screen
+    ├── SelectToken.tsx             # Step 2: Chain/token selection
+    ├── CryptoPay.tsx               # Step 3: Amount + confirm
+    ├── Processing.tsx              # Step 4: Transaction processing
+    ├── Success.tsx                 # Step 5: Success
+    └── Error.tsx                   # Step 6: Error
 ```
 
 ---
 
-## Appendix C: Quick Reference Card
+## Appendix B: Quick Reference Card
 
 ### Colors (HSL)
 
 ```
 Primary:      217 91% 60%   (Blue)
 Destructive:  0 84% 60%     (Red)
-Success:      142 76% 36%   (Green)
+Success:      142 76% 36%   (Green - in keyframes)
 Background:   0 0% 98%      (Light) / 220 15% 10% (Dark)
 Foreground:   220 15% 20%   (Light) / 0 0% 98% (Dark)
 ```
@@ -1209,31 +1287,53 @@ Foreground:   220 15% 20%   (Light) / 0 0% 98% (Dark)
 ### Spacing
 
 ```
-4px  = 1    (tight)
-8px  = 2    (small)
-16px = 4    (standard)
-24px = 6    (medium)
-32px = 8    (large)
+2px  = spacing[0.5]
+4px  = spacing[1]     (tight)
+8px  = spacing[2]     (small)
+12px = spacing[3]     (card internal)
+16px = spacing[4]     (standard)
+24px = spacing[6]     (medium)
+32px = spacing[8]     (large)
 ```
 
 ### Border Radius
 
 ```
-12px = rounded-sm
-14px = rounded-md  
-16px = rounded-lg
-20px = rounded-xl / rounded-[20px]
-9999px = rounded-full
+~12px  = borderRadius.sm
+~14px  = borderRadius.md
+16px   = borderRadius.lg
+~20px  = borderRadius.xl
+9999px = borderRadius.full
 ```
 
-### Shadows
+### Shadows (Themed)
 
 ```
-soft:   0 2px 8px -2px (8% opacity)
-medium: 0 4px 16px -4px (12% opacity)
-large:  0 8px 32px -8px (16% opacity)
+soft:   0 2px 8px -2px   (light: 8% opacity / dark: 20% opacity)
+medium: 0 4px 16px -4px  (light: 12% opacity / dark: 30% opacity)
+large:  0 8px 32px -8px  (light: 16% opacity / dark: 40% opacity)
+```
+
+### Style Composition
+
+```typescript
+import { colors, spacing, fontSize, fontWeight, borderRadius, shadows, transitions } from "@/widget-v2/styles";
+import { mergeStyles, commonStyles } from "@/widget-v2/styles";
+
+// Static styles as constants
+const myStyle: React.CSSProperties = {
+  backgroundColor: colors.card,
+  padding: spacing[4],
+  borderRadius: borderRadius.lg,
+};
+
+// Conditional styles
+<div style={mergeStyles(baseStyle, isActive && activeStyle)} />
+
+// Animation classes
+<div className="tw-animate-fade-in" />
 ```
 
 ---
 
-*End of Trustware Design System Specification v1.0.0*
+*End of Trustware Design System Specification v2.0.0*
