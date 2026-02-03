@@ -4,10 +4,15 @@ React provider, widget, and headless API for cross-chain bridging and top-up rou
 
 ## Development Commands
 
+**CRITICAL: Always build with local backend URL during development:**
+```bash
+TRUSTWARE_API_ROOT=http://localhost:8000 npm run build
+```
+
+Other commands:
 ```bash
 npm install          # Install dependencies
-npm run dev          # Watch mode (rebuilds on changes)
-npm run build        # Production build to dist/
+npm run dev          # Watch mode (rebuilds on changes) - NOTE: doesn't set API URL
 npm run validate     # Full validation (typecheck + lint:strict + format:check)
 npm run size         # Check bundle size (limit: 50 KB gzipped)
 ```
@@ -79,15 +84,14 @@ Without `outputFileTracingRoot`, you'll get "Module not found: Can't resolve '@t
 
 ## Pointing SDK to Local Backend
 
-The SDK's API URL is set at build time via the `TRUSTWARE_API_ROOT` environment variable:
+**ALWAYS use this command when building during local development:**
 
 ```bash
-# Build SDK pointing to local backend
-cd /path/to/trustware-sdk
 TRUSTWARE_API_ROOT=http://localhost:8000 npm run build
 ```
 
-Default is `https://api.trustware.io`. After rebuilding, re-link in consumer apps.
+The API URL is baked in at build time. Default is `https://api.trustware.io` (production).
+If you run `npm run build` without the env var, the SDK will call production APIs!
 
 ## Architecture
 

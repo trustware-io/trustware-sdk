@@ -579,11 +579,9 @@ export const TrustwareWidgetV2 = forwardRef<
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const closeRequestRef = useRef<(() => void) | null>(null);
 
-  // Load persisted initial step if available (using lazy state initializer to avoid ref access during render)
-  const [effectiveInitialStep] = useState<NavigationStep>(() => {
-    const persisted = loadPersistedState();
-    return persisted?.currentStep ?? initialStep;
-  });
+  // Always start at initialStep on mount (refresh returns to home)
+  // Persisting step caused issues: wallet disconnects, intentId lost, polling stops
+  const effectiveInitialStep = initialStep;
 
   /**
    * Open the widget
