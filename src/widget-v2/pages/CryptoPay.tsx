@@ -327,6 +327,17 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
     }
   }, []);
 
+  // Minimum deposit from SDK config
+  const minDeposit = useMemo(() => {
+    try {
+      const config = TrustwareConfigStore.get();
+      const raw = config.routes.options?.minAmountOut;
+      return raw ? Number(raw) : 0;
+    } catch {
+      return 0;
+    }
+  }, []);
+
   // Parse amount for display
   const parsedAmount = parseFloat(amount) || 0;
 
@@ -559,6 +570,7 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
             value={parsedAmount}
             onChange={handleSliderChange}
             max={maxAmount}
+            min={minDeposit}
             disabled={!selectedToken}
           />
         </div>
