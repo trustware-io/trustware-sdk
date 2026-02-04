@@ -1,7 +1,7 @@
 import type { DetectedWallet, WalletInterFaceAPI } from "../types";
 import type { WagmiBridge } from "./bridges";
 import { toWalletInterfaceFromDetected } from "./adapters";
-import { connectWalletConnect } from "./walletconnect";
+// import { connectWalletConnect } from "./walletconnect";
 
 function pickWagmiConnector(
   wagmi: WagmiBridge,
@@ -59,11 +59,11 @@ export async function connectDetectedWallet(
     }
 
     // Use our native WalletConnect integration (built-in, always available)
-    const api = await connectWalletConnect();
-    if (api) {
-      if (touchAddress) await api.getAddress();
-      return { via: "walletconnect", api };
-    }
+    // const api = await connectWalletConnect();
+    // if (api) {
+    //   if (touchAddress) await api.getAddress();
+    //   return { via: "walletconnect", api };
+    // }
 
     throw new Error("WalletConnect connection failed. Please try again.");
   }
