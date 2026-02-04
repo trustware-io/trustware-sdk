@@ -6,9 +6,23 @@ import React, {
   useImperativeHandle,
   forwardRef,
 } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { cn, mergeStyles } from "./lib/utils";
-import { colors, spacing, fontSize, fontWeight, borderRadius, zIndex } from "./styles/tokens";
+import {
+  Overlay,
+  Portal,
+  Root,
+  Content,
+  Title,
+  Description,
+} from "@radix-ui/react-dialog";
+import { mergeStyles } from "./lib/utils";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+  zIndex,
+} from "./styles/tokens";
 import {
   DepositProvider,
   useDeposit,
@@ -401,40 +415,43 @@ function ConfirmCloseDialog({
 }: ConfirmCloseDialogProps): React.ReactElement {
   const isDark = theme === "dark";
 
-  const contentStyle = mergeStyles(
-    dialogContentBaseStyle,
-    { backgroundColor: isDark ? colors.zinc[900] : colors.white }
-  );
+  const contentStyle = mergeStyles(dialogContentBaseStyle, {
+    backgroundColor: isDark ? colors.zinc[900] : colors.white,
+  });
 
-  const titleStyle = mergeStyles(
-    dialogTitleBaseStyle,
-    { color: isDark ? colors.white : colors.zinc[900] }
-  );
+  const titleStyle = mergeStyles(dialogTitleBaseStyle, {
+    color: isDark ? colors.white : colors.zinc[900],
+  });
 
-  const descriptionStyle = mergeStyles(
-    dialogDescriptionBaseStyle,
-    { color: isDark ? colors.zinc[400] : colors.zinc[600] }
-  );
+  const descriptionStyle = mergeStyles(dialogDescriptionBaseStyle, {
+    color: isDark ? colors.zinc[400] : colors.zinc[600],
+  });
 
   const cancelButtonStyle = mergeStyles(
     cancelButtonBaseStyle,
     isDark
-      ? { border: `1px solid ${colors.zinc[700]}`, color: colors.zinc[300], backgroundColor: "transparent" }
-      : { border: `1px solid ${colors.zinc[200]}`, color: colors.zinc[700], backgroundColor: "transparent" }
+      ? {
+          border: `1px solid ${colors.zinc[700]}`,
+          color: colors.zinc[300],
+          backgroundColor: "transparent",
+        }
+      : {
+          border: `1px solid ${colors.zinc[200]}`,
+          color: colors.zinc[700],
+          backgroundColor: "transparent",
+        }
   );
 
   return (
-    <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <Dialog.Portal>
-        <Dialog.Overlay style={dialogOverlayStyle} />
-        <Dialog.Content style={contentStyle}>
-          <Dialog.Title style={titleStyle}>
-            Transaction in Progress
-          </Dialog.Title>
-          <Dialog.Description style={descriptionStyle}>
+    <Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+      <Portal>
+        <Overlay style={dialogOverlayStyle} />
+        <Content style={contentStyle}>
+          <Title style={titleStyle}>Transaction in Progress</Title>
+          <Description style={descriptionStyle}>
             You have an active transaction. Closing the widget will not cancel
             your transaction, but you will lose visibility of its progress.
-          </Dialog.Description>
+          </Description>
           <div style={dialogButtonsContainerStyle}>
             <button onClick={onCancel} style={cancelButtonStyle}>
               Keep Open
@@ -443,9 +460,9 @@ function ConfirmCloseDialog({
               Close Anyway
             </button>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </Content>
+      </Portal>
+    </Root>
   );
 }
 
