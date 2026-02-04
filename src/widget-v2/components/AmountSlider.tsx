@@ -166,59 +166,70 @@ export function AmountSlider({
   disabled = false,
 }: AmountSliderProps): React.ReactElement {
   /**
-   * Generate smart tick marks based on max value with even spacing
+   * Generate smart tick marks based on the [min, max] range with even spacing
    */
-  const generateTickMarks = useCallback((maxValue: number): TickMark[] => {
-    if (maxValue <= 0) return [{ position: 100, label: "$0", value: 0 }];
+  const generateTickMarks = useCallback(
+    (minValue: number, maxValue: number): TickMark[] => {
+      const range = maxValue - minValue;
+      if (range <= 0)
+        return [{ position: 100, label: `$${Math.round(maxValue)}`, value: maxValue }];
 
-    // Define "nice" intervals based on max value
-    let interval: number;
-    if (maxValue <= 20) {
-      interval = 5;
-    } else if (maxValue <= 50) {
-      interval = 10;
-    } else if (maxValue <= 100) {
-      interval = 25;
-    } else if (maxValue <= 250) {
-      interval = 50;
-    } else if (maxValue <= 500) {
-      interval = 100;
-    } else if (maxValue <= 1000) {
-      interval = 250;
-    } else {
-      interval = 500;
-    }
+      // Define "nice" intervals based on the available range
+      let interval: number;
+      if (range <= 20) {
+        interval = 5;
+      } else if (range <= 50) {
+        interval = 10;
+      } else if (range <= 100) {
+        interval = 25;
+      } else if (range <= 250) {
+        interval = 50;
+      } else if (range <= 500) {
+        interval = 100;
+      } else if (range <= 1000) {
+        interval = 250;
+      } else {
+        interval = 500;
+      }
 
-    // Generate tick values at each interval
-    const tickValues: number[] = [];
-    for (let amount = interval; amount < maxValue; amount += interval) {
-      tickValues.push(amount);
-    }
+      // Generate tick values starting from the first interval above min
+      const firstTick =
+        Math.ceil(minValue / interval) * interval;
+      const tickValues: number[] = [];
+      for (
+        let amount = firstTick === minValue ? firstTick + interval : firstTick;
+        amount < maxValue;
+        amount += interval
+      ) {
+        tickValues.push(amount);
+      }
 
-    // Calculate even spacing - divide 100% by (number of ticks + 1 for Max)
-    const totalTicks = tickValues.length + 1; // +1 for Max
-    const spacingPercent = 100 / totalTicks;
+      // Calculate even spacing - divide 100% by (number of ticks + 1 for Max)
+      const totalTicks = tickValues.length + 1; // +1 for Max
+      const spacingPercent = 100 / totalTicks;
 
-    // Create ticks with evenly distributed positions
-    const ticks: TickMark[] = tickValues.map((amount, index) => ({
-      position: spacingPercent * (index + 1),
-      label: `$${amount}`,
-      value: amount,
-    }));
+      // Create ticks with evenly distributed positions
+      const ticks: TickMark[] = tickValues.map((amount, index) => ({
+        position: spacingPercent * (index + 1),
+        label: `$${amount}`,
+        value: amount,
+      }));
 
-    // Always add Max at the end at 100%
-    ticks.push({
-      position: 100,
-      label: `$${Math.round(maxValue)}`,
-      value: maxValue,
-    });
+      // Always add Max at the end at 100%
+      ticks.push({
+        position: 100,
+        label: `$${Math.round(maxValue)}`,
+        value: maxValue,
+      });
 
-    return ticks;
-  }, []);
+      return ticks;
+    },
+    []
+  );
 
   const tickMarks = useMemo(
-    () => generateTickMarks(max),
-    [generateTickMarks, max]
+    () => generateTickMarks(min, max),
+    [generateTickMarks, min, max]
   );
 
   // Snap threshold - 5% of max value for noticeable snap effect
@@ -299,7 +310,9 @@ export function AmountSlider({
       <div style={{ position: "relative" }}>
         {/* Labels */}
         <div style={labelsContainerStyle}>
-          <span style={labelStyle}>${min}</span>
+          <span style={labelStyle}>
+            ${min}{min > 0 ? " Min" : ""}
+          </span>
           <span style={labelStyle}>Max</span>
         </div>
 
