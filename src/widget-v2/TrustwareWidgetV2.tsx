@@ -6,14 +6,15 @@ import React, {
   useImperativeHandle,
   forwardRef,
 } from "react";
-import {
-  Overlay,
-  Portal,
-  Root,
-  Content,
-  Title,
-  Description,
-} from "@radix-ui/react-dialog";
+// import {
+//   Overlay,
+//   Portal,
+//   Root,
+//   Content,
+//   Title,
+//   Description,
+// } from "@radix-ui/react-dialog";
+// import { Dialog } from "radix-ui";
 import { mergeStyles } from "./lib/utils";
 import {
   colors,
@@ -443,26 +444,29 @@ function ConfirmCloseDialog({
   );
 
   return (
-    <Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <Portal>
-        <Overlay style={dialogOverlayStyle} />
-        <Content style={contentStyle}>
-          <Title style={titleStyle}>Transaction in Progress</Title>
-          <Description style={descriptionStyle}>
-            You have an active transaction. Closing the widget will not cancel
-            your transaction, but you will lose visibility of its progress.
-          </Description>
-          <div style={dialogButtonsContainerStyle}>
-            <button onClick={onCancel} style={cancelButtonStyle}>
-              Keep Open
-            </button>
-            <button onClick={onConfirm} style={confirmButtonStyle}>
-              Close Anyway
-            </button>
-          </div>
-        </Content>
-      </Portal>
-    </Root>
+    // <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+    //   <Dialog.Portal>
+    //     <Dialog.Overlay style={dialogOverlayStyle} />
+    //     <Dialog.Content style={contentStyle}>
+    //       <Dialog.Title style={titleStyle}>
+    //         Transaction in Progress
+    //       </Dialog.Title>
+    //       <Dialog.Description style={descriptionStyle}>
+    //         You have an active transaction. Closing the widget will not cancel
+    //         your transaction, but you will lose visibility of its progress.
+    //       </Dialog.Description>
+    //       <div style={dialogButtonsContainerStyle}>
+    //         <button onClick={onCancel} style={cancelButtonStyle}>
+    //           Keep Open
+    //         </button>
+    //         <button onClick={onConfirm} style={confirmButtonStyle}>
+    //           Close Anyway
+    //         </button>
+    //       </div>
+    //     </Dialog.Content>
+    //   </Dialog.Portal>
+    // </Dialog.Root>
+    <></>
   );
 }
 
