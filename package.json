@@ -72,7 +72,10 @@
       "gzip": true
     }
   ],
-  "peerDependencies": { "react": "^18.2.0", "react-dom": "^18.2.0" },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
@@ -90,11 +93,12 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "prettier": "^3.7.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "size-limit": "^12.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.6.3",
-    "typescript-eslint": "^8.51.0",
-    "react": "^18.2.0", "react-dom": "^18.2.0"
+    "typescript-eslint": "^8.51.0"
   },
   "engines": {
     "node": ">=18"
@@ -115,7 +119,6 @@
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-common": "^1.8.17",
     "@reown/appkit-universal-connector": "^1.8.17",
-    "ethers": "^6.16.0",
-    "radix-ui": "^1.4.3"
+    "ethers": "^6.16.0"
   }
 }

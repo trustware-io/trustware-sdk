@@ -6,24 +6,9 @@ import React, {
   useImperativeHandle,
   forwardRef,
 } from "react";
-// import {
-//   Overlay,
-//   Portal,
-//   Root,
-//   Content,
-//   Title,
-//   Description,
-// } from "@radix-ui/react-dialog";
-// import { Dialog } from "radix-ui";
+
 import { mergeStyles } from "./lib/utils";
-import {
-  colors,
-  spacing,
-  fontSize,
-  fontWeight,
-  borderRadius,
-  zIndex,
-} from "./styles/tokens";
+import { spacing } from "./styles/tokens";
 import {
   DepositProvider,
   useDeposit,
@@ -39,6 +24,7 @@ import { CryptoPay } from "./pages/CryptoPay";
 import { Processing } from "./pages/Processing";
 import { Success } from "./pages/Success";
 import { Error } from "./pages/Error";
+import { Dialog } from "./components/Dialog";
 
 /**
  * SessionStorage key for persisting widget state
@@ -151,68 +137,6 @@ const pageContainerBaseStyle: React.CSSProperties = {
   width: "100%",
   height: "100%",
   transition: "all 0.15s ease-out",
-};
-
-// Styles for ConfirmCloseDialog
-const dialogOverlayStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  backgroundColor: "rgba(0, 0, 0, 0.5)",
-  zIndex: zIndex[50],
-  animation: "tw-fade-in 0.2s ease-out",
-};
-
-const dialogContentBaseStyle: React.CSSProperties = {
-  position: "fixed",
-  left: "50%",
-  top: "50%",
-  transform: "translate(-50%, -50%)",
-  zIndex: zIndex[50],
-  width: "90%",
-  maxWidth: "340px",
-  borderRadius: borderRadius.xl,
-  padding: spacing[6],
-  boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
-  animation: "tw-fade-in 0.2s ease-out",
-};
-
-const dialogTitleBaseStyle: React.CSSProperties = {
-  fontSize: fontSize.lg,
-  fontWeight: fontWeight.semibold,
-};
-
-const dialogDescriptionBaseStyle: React.CSSProperties = {
-  marginTop: spacing[2],
-  fontSize: fontSize.sm,
-};
-
-const dialogButtonsContainerStyle: React.CSSProperties = {
-  marginTop: spacing[6],
-  display: "flex",
-  gap: spacing[3],
-};
-
-const cancelButtonBaseStyle: React.CSSProperties = {
-  flex: 1,
-  borderRadius: borderRadius.lg,
-  padding: `${spacing[2.5]} ${spacing[4]}`,
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.medium,
-  transition: "background-color 0.2s",
-  cursor: "pointer",
-};
-
-const confirmButtonStyle: React.CSSProperties = {
-  flex: 1,
-  borderRadius: borderRadius.lg,
-  backgroundColor: colors.red[500],
-  padding: `${spacing[2.5]} ${spacing[4]}`,
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.medium,
-  color: colors.white,
-  transition: "background-color 0.2s",
-  border: 0,
-  cursor: "pointer",
 };
 
 /**
@@ -416,57 +340,20 @@ function ConfirmCloseDialog({
 }: ConfirmCloseDialogProps): React.ReactElement {
   const isDark = theme === "dark";
 
-  const contentStyle = mergeStyles(dialogContentBaseStyle, {
-    backgroundColor: isDark ? colors.zinc[900] : colors.white,
-  });
-
-  const titleStyle = mergeStyles(dialogTitleBaseStyle, {
-    color: isDark ? colors.white : colors.zinc[900],
-  });
-
-  const descriptionStyle = mergeStyles(dialogDescriptionBaseStyle, {
-    color: isDark ? colors.zinc[400] : colors.zinc[600],
-  });
-
-  const cancelButtonStyle = mergeStyles(
-    cancelButtonBaseStyle,
-    isDark
-      ? {
-          border: `1px solid ${colors.zinc[700]}`,
-          color: colors.zinc[300],
-          backgroundColor: "transparent",
-        }
-      : {
-          border: `1px solid ${colors.zinc[200]}`,
-          color: colors.zinc[700],
-          backgroundColor: "transparent",
-        }
-  );
-
   return (
-    // <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-    //   <Dialog.Portal>
-    //     <Dialog.Overlay style={dialogOverlayStyle} />
-    //     <Dialog.Content style={contentStyle}>
-    //       <Dialog.Title style={titleStyle}>
-    //         Transaction in Progress
-    //       </Dialog.Title>
-    //       <Dialog.Description style={descriptionStyle}>
-    //         You have an active transaction. Closing the widget will not cancel
-    //         your transaction, but you will lose visibility of its progress.
-    //       </Dialog.Description>
-    //       <div style={dialogButtonsContainerStyle}>
-    //         <button onClick={onCancel} style={cancelButtonStyle}>
-    //           Keep Open
-    //         </button>
-    //         <button onClick={onConfirm} style={confirmButtonStyle}>
-    //           Close Anyway
-    //         </button>
-    //       </div>
-    //     </Dialog.Content>
-    //   </Dialog.Portal>
-    // </Dialog.Root>
-    <></>
+    <>
+      <Dialog
+        open={open}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+        title={"Transaction in Progress"}
+        description={
+          "You have an active transaction. Closing the widget will not cancel your transaction, but you will lose visibility of its progress."
+        }
+        isDark={isDark}
+        // style={customDarkStyles}
+      />
+    </>
   );
 }
 
