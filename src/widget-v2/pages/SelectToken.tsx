@@ -83,6 +83,7 @@ import {
   tokenSkeletonRowStyle,
   walletBadgeStyle,
 } from "./styles";
+import { getBalances } from "src/core/balances";
 
 export interface SelectTokenProps {
   /** Additional inline styles */
@@ -149,11 +150,31 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     });
   };
 
+  // Get balance in USD
+
   /**
    * Handle token selection
    */
-  const handleTokenSelect = (token: Token) => {
-    setSelectedToken(token);
+  const handleTokenSelect = async (token: Token) => {
+    if (token.balance !== undefined) return setSelectedToken(token);
+
+    const balance = await getBalances(
+      selectedChain?.chainId as string | number,
+      walletAddress as string
+    );
+
+    const match = balance.find(
+      (b) => b.contract?.toLowerCase() === token.address.toLowerCase()
+    );
+    const tokenWithBalance = {
+      ...token,
+      balance: (match
+        ? Number(match.balance) / 10 ** token.decimals
+        : "0"
+      ).toString(),
+    };
+
+    setSelectedToken(tokenWithBalance);
     setCurrentStep("crypto-pay");
   };
 
