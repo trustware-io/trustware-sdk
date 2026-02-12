@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
 
@@ -287,7 +287,7 @@ export function AmountSlider({
         value: maxValue,
       });
 
-      console.log({ ticks, minValue, maxValue, range });
+      // console.log({ ticks, minValue, maxValue, range });
       return ticks;
     },
     []

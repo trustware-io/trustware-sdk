@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { mergeStyles } from "../lib/utils";
 import {
   colors,
@@ -9,7 +9,7 @@ import {
 } from "../styles/tokens";
 
 import { useDeposit } from "../context/DepositContext";
-import type { Token } from "../context/DepositContext";
+import type { Chain, Token, YourTokenData } from "../context/DepositContext";
 import { useChains } from "../hooks/useChains";
 import { useTokens } from "../hooks/useTokens";
 import { resolveChainLabel } from "../../utils";
@@ -125,7 +125,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     yourWalletTokens,
     setYourWalletTokens,
   } = useDeposit();
-  const { popularChains, otherChains, isLoading, error, chains } = useChains();
+  const { popularChains, otherChains, isLoading, error } = useChains();
   const {
     filteredTokens,
     isLoading: isLoadingTokens,
@@ -133,67 +133,6 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     searchQuery,
     setSearchQuery,
   } = useTokens(selectedChain?.chainId ?? null);
-
-  useEffect(() => {
-    if (!walletAddress) {
-      setYourWalletTokens([]);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadTokens() {
-      try {
-        const arr = await getBalances(
-          selectedChain?.chainId as string | number,
-          walletAddress as string
-        );
-
-        const tks = filteredTokens
-          .filter((ft) =>
-            arr.some(
-              (t) =>
-                (t.symbol === ft.symbol && t.category === "native") ||
-                (t.contract === ft.address &&
-                  t.symbol?.toUpperCase() === ft.symbol.toUpperCase())
-            )
-          )
-          .map((token) => {
-            const match = arr.find((t) => t.contract === token.address);
-            return {
-              ...token,
-              balance: (match
-                ? Number(match.balance) / 10 ** token.decimals
-                : "0"
-              ).toString(),
-            };
-          });
-
-        if (!cancelled) {
-          const tokenChainUri = tks.map((t) => {
-            const chain = chains.find((c) => c.chainId === t.chainId);
-            return { ...t, chainIconURI: chain?.chainIconURI || "" };
-          });
-          setYourWalletTokens(tokenChainUri);
-        }
-      } catch (err) {
-        console.error("Failed to load balances:", err);
-        if (!cancelled) setYourWalletTokens([]);
-      }
-    }
-
-    loadTokens();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    chains,
-    filteredTokens,
-    selectedChain?.chainId,
-    setYourWalletTokens,
-    walletAddress,
-  ]);
 
   /**
    * Handle chain selection
@@ -239,9 +178,24 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
       ).toString(),
     };
 
-    setSelectedToken(tokenWithBalance);
+    const concToken = {
+      ...tokenWithBalance,
+      chainData: selectedChain as Chain,
+    } as unknown as YourTokenData;
+
+    setSelectedToken(concToken);
+
     setCurrentStep("crypto-pay");
   };
+
+  const handleYourTokenSelect = useCallback(
+    (token: YourTokenData) => {
+      setSelectedToken(token);
+      setSelectedChain(token.chainData as Chain);
+      setCurrentStep("crypto-pay");
+    },
+    [setCurrentStep, setSelectedChain, setSelectedToken]
+  );
 
   /**
    * Check if a chain is currently selected
@@ -611,11 +565,11 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   </div>
                 ) : null}
 
-                {yourWalletTokens?.map((token) => (
+                {yourWalletTokens?.map((token, i) => (
                   <button
-                    onClick={() => handleTokenSelect(token)}
+                    onClick={() => handleYourTokenSelect(token)}
                     style={tokenButtonStyle}
-                    key={token.address}
+                    key={`${token.address}-${i}`}
                   >
                     {/* Token Icon with Chain Badge */}
                     <div
@@ -624,7 +578,11 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                       }}
                     >
                       <img
-                        src={token.iconUrl}
+                        src={
+                          token.iconUrl ||
+                          (token as typeof token & { logo_url: string })
+                            .logo_url
+                        }
                         alt={token.symbol}
                         style={tokenIconStyle}
                       />
@@ -645,7 +603,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                       >
                         <img
                           src={token.chainIconURI}
-                          alt={token.chainId.toString()}
+                          alt={token.chainId?.toString()}
                           style={{
                             width: "0.875rem",
                             height: "0.875rem",
@@ -661,7 +619,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                         <span style={tokenSymbolStyle}>{token.symbol}</span>
                       </div>
                       <span style={tokenNameStyle}>
-                        {Number(token.balance)
+                        {(Number(token.balance) / 10 ** token.decimals)
                           ?.toFixed(Number(token.balance) !== 0 ? 4 : 2)
                           ?.toLocaleString()}{" "}
                         {token.symbol}
