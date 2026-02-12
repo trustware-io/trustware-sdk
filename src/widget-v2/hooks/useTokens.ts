@@ -3,8 +3,6 @@ import { Registry } from "../../registry";
 import { apiBase } from "../../core/http";
 import type { TokenDef } from "../../types/";
 import type { Token } from "../context/DepositContext";
-import { get } from "http";
-import { getBalances } from "src/core/balances";
 
 export interface UseTokensResult {
   /** All available tokens for the selected chain */
@@ -103,7 +101,6 @@ export function useTokens(chainId: number | null): UseTokensResult {
             return a.symbol.localeCompare(b.symbol);
           });
         if (loadedTokens !== undefined) {
-          console.log("loadedTokens:", { loadedTokens });
           setTokens(loadedTokens);
         }
         // setTokens(loadedTokens);

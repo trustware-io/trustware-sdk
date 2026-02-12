@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { mergeStyles } from "../lib/utils";
 import {
   colors,
@@ -7,6 +7,7 @@ import {
   fontWeight,
   borderRadius,
 } from "../styles/tokens";
+
 import { useDeposit } from "../context/DepositContext";
 import type { Token } from "../context/DepositContext";
 import { useChains } from "../hooks/useChains";
@@ -121,8 +122,10 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     setCurrentStep,
     goBack,
     walletAddress,
+    yourWalletTokens,
+    setYourWalletTokens,
   } = useDeposit();
-  const { popularChains, otherChains, isLoading, error } = useChains();
+  const { popularChains, otherChains, isLoading, error, chains } = useChains();
   const {
     filteredTokens,
     isLoading: isLoadingTokens,
@@ -130,6 +133,67 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     searchQuery,
     setSearchQuery,
   } = useTokens(selectedChain?.chainId ?? null);
+
+  useEffect(() => {
+    if (!walletAddress) {
+      setYourWalletTokens([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadTokens() {
+      try {
+        const arr = await getBalances(
+          selectedChain?.chainId as string | number,
+          walletAddress as string
+        );
+
+        const tks = filteredTokens
+          .filter((ft) =>
+            arr.some(
+              (t) =>
+                (t.symbol === ft.symbol && t.category === "native") ||
+                (t.contract === ft.address &&
+                  t.symbol?.toUpperCase() === ft.symbol.toUpperCase())
+            )
+          )
+          .map((token) => {
+            const match = arr.find((t) => t.contract === token.address);
+            return {
+              ...token,
+              balance: (match
+                ? Number(match.balance) / 10 ** token.decimals
+                : "0"
+              ).toString(),
+            };
+          });
+
+        if (!cancelled) {
+          const tokenChainUri = tks.map((t) => {
+            const chain = chains.find((c) => c.chainId === t.chainId);
+            return { ...t, chainIconURI: chain?.chainIconURI || "" };
+          });
+          setYourWalletTokens(tokenChainUri);
+        }
+      } catch (err) {
+        console.error("Failed to load balances:", err);
+        if (!cancelled) setYourWalletTokens([]);
+      }
+    }
+
+    loadTokens();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    chains,
+    filteredTokens,
+    selectedChain?.chainId,
+    setYourWalletTokens,
+    walletAddress,
+  ]);
 
   /**
    * Handle chain selection
@@ -156,7 +220,8 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
    * Handle token selection
    */
   const handleTokenSelect = async (token: Token) => {
-    if (token.balance !== undefined) return setSelectedToken(token);
+    if (token.balance !== undefined)
+      return (setSelectedToken(token), setCurrentStep("crypto-pay"));
 
     const balance = await getBalances(
       selectedChain?.chainId as string | number,
@@ -375,6 +440,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   <circle cx="11" cy="11" r="8" />
                   <path strokeLinecap="round" d="m21 21-4.35-4.35" />
                 </svg>
+
                 <input
                   type="text"
                   placeholder="Search tokens..."
@@ -382,6 +448,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={searchInputStyle}
                 />
+
                 {searchQuery && (
                   <button
                     type="button"
@@ -520,6 +587,111 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
             ) : (
               // Token list
               <div style={tokenListStyle}>
+                {yourWalletTokens?.length > 0 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.375rem",
+                      paddingLeft: "0.5rem",
+                      paddingRight: "0.5rem",
+                      marginBottom: spacing[2],
+                    }}
+                  >
+                    {/* <Sparkles className="w-3.5 h-3.5 text-primary" /> */}
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        lineHeight: "1rem",
+                        color: colors.primary,
+                      }}
+                    >
+                      Your tokens
+                    </span>
+                  </div>
+                ) : null}
+
+                {yourWalletTokens?.map((token) => (
+                  <button
+                    onClick={() => handleTokenSelect(token)}
+                    style={tokenButtonStyle}
+                    key={token.address}
+                  >
+                    {/* Token Icon with Chain Badge */}
+                    <div
+                      style={{
+                        position: "relative",
+                      }}
+                    >
+                      <img
+                        src={token.iconUrl}
+                        alt={token.symbol}
+                        style={tokenIconStyle}
+                      />
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "-0.125rem",
+                          right: "-0.125rem",
+                          width: "1rem",
+                          height: "1rem",
+                          borderRadius: "100%",
+                          backgroundColor: colors.background,
+                          border: `2px solid ${colors.background}`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <img
+                          src={token.chainIconURI}
+                          alt={token.chainId.toString()}
+                          style={{
+                            width: "0.875rem",
+                            height: "0.875rem",
+                            borderRadius: "9999px",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Token Info */}
+                    <div style={tokenInfoStyle}>
+                      <div style={tokenSymbolContainerStyle}>
+                        <span style={tokenSymbolStyle}>{token.symbol}</span>
+                      </div>
+                      <span style={tokenNameStyle}>
+                        {Number(token.balance)
+                          ?.toFixed(Number(token.balance) !== 0 ? 4 : 2)
+                          ?.toLocaleString()}{" "}
+                        {token.symbol}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                    paddingLeft: "0.5rem",
+                    paddingRight: "0.5rem",
+                    marginBottom: spacing[2],
+                  }}
+                >
+                  {/* <Sparkles className="w-3.5 h-3.5 text-primary" /> */}
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      lineHeight: "1rem",
+                      color: colors.primary,
+                    }}
+                  >
+                    Popular tokens
+                  </span>
+                </div>
+
                 {filteredTokens.map((token) => (
                   <button
                     key={token.address}

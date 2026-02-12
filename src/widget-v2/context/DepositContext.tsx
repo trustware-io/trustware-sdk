@@ -166,6 +166,20 @@ export interface DepositContextValue {
   resolvedTheme: ResolvedTheme;
   /** Toggle between light and dark themes */
   toggleTheme: () => void;
+
+  setYourWalletTokens: React.Dispatch<
+    React.SetStateAction<
+      (Token & {
+        balance: string;
+        chainIconURI: string;
+      })[]
+    >
+  >;
+
+  yourWalletTokens: (Token & {
+    balance: string;
+    chainIconURI: string;
+  })[];
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -211,6 +225,9 @@ export function DepositProvider({
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
   const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
   const [amount, setAmount] = useState<string>("");
+  const [yourWalletTokens, setYourWalletTokens] = useState<
+    (Token & { balance: string; chainIconURI: string })[]
+  >([]);
 
   // Transaction lifecycle state
   const [transactionStatus, setTransactionStatus] =
@@ -409,6 +426,9 @@ export function DepositProvider({
       // Theme state
       resolvedTheme,
       toggleTheme,
+
+      yourWalletTokens,
+      setYourWalletTokens,
     }),
     [
       currentStep,
@@ -431,6 +451,7 @@ export function DepositProvider({
       paymentMethod,
       resolvedTheme,
       toggleTheme,
+      yourWalletTokens,
     ]
   );
 

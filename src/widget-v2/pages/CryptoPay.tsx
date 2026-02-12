@@ -298,6 +298,7 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
     walletStatus,
     goBack,
     setCurrentStep,
+    yourWalletTokens,
   } = useDeposit();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -600,10 +601,10 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
         )}
 
         {/* Token Swipe Pill */}
-        {selectedToken && tokens.length > 0 && (
+        {selectedToken && yourWalletTokens.length > 0 && (
           <div style={tokenPillContainerStyle}>
             <TokenSwipePill
-              tokens={tokens}
+              tokens={yourWalletTokens}
               selectedToken={selectedToken}
               onTokenChange={handleTokenChange}
               onExpandClick={handleExpandTokens}
