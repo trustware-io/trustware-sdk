@@ -496,8 +496,9 @@ export function Home({ style }: HomeProps): React.ReactElement {
 
     // If already connected, go to select token
     if (walletAddress) {
-      console.log("[TW Home] Already connected, navigating to select-token");
-      setCurrentStep("select-token");
+      console.log("[TW Home] Already connected, navigating to crypto-pay");
+      // setCurrentStep("select-token");
+      setCurrentStep("crypto-pay");
       return;
     }
 
@@ -508,7 +509,8 @@ export function Home({ style }: HomeProps): React.ReactElement {
       console.log(
         "[TW Home] connectWallet succeeded, navigating to select-token"
       );
-      setCurrentStep("select-token");
+      // setCurrentStep("select-token");
+      setCurrentStep("crypto-pay");
     } catch (err) {
       console.error("[TW Home] Failed to connect wallet:", err);
     }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { mergeStyles } from "../lib/utils";
 import {
   colors,
@@ -7,8 +7,9 @@ import {
   fontWeight,
   borderRadius,
 } from "../styles/tokens";
+
 import { useDeposit } from "../context/DepositContext";
-import type { Token } from "../context/DepositContext";
+import type { Chain, Token, YourTokenData } from "../context/DepositContext";
 import { useChains } from "../hooks/useChains";
 import { useTokens } from "../hooks/useTokens";
 import { resolveChainLabel } from "../../utils";
@@ -121,6 +122,8 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     setCurrentStep,
     goBack,
     walletAddress,
+    yourWalletTokens,
+    setYourWalletTokens,
   } = useDeposit();
   const { popularChains, otherChains, isLoading, error } = useChains();
   const {
@@ -156,7 +159,8 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
    * Handle token selection
    */
   const handleTokenSelect = async (token: Token) => {
-    if (token.balance !== undefined) return setSelectedToken(token);
+    if (token.balance !== undefined)
+      return (setSelectedToken(token), setCurrentStep("crypto-pay"));
 
     const balance = await getBalances(
       selectedChain?.chainId as string | number,
@@ -174,9 +178,24 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
       ).toString(),
     };
 
-    setSelectedToken(tokenWithBalance);
+    const concToken = {
+      ...tokenWithBalance,
+      chainData: selectedChain as Chain,
+    } as unknown as YourTokenData;
+
+    setSelectedToken(concToken);
+
     setCurrentStep("crypto-pay");
   };
+
+  const handleYourTokenSelect = useCallback(
+    (token: YourTokenData) => {
+      setSelectedToken(token);
+      setSelectedChain(token.chainData as Chain);
+      setCurrentStep("crypto-pay");
+    },
+    [setCurrentStep, setSelectedChain, setSelectedToken]
+  );
 
   /**
    * Check if a chain is currently selected
@@ -375,6 +394,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   <circle cx="11" cy="11" r="8" />
                   <path strokeLinecap="round" d="m21 21-4.35-4.35" />
                 </svg>
+
                 <input
                   type="text"
                   placeholder="Search tokens..."
@@ -382,6 +402,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={searchInputStyle}
                 />
+
                 {searchQuery && (
                   <button
                     type="button"
@@ -520,6 +541,115 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
             ) : (
               // Token list
               <div style={tokenListStyle}>
+                {yourWalletTokens?.length > 0 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.375rem",
+                      paddingLeft: "0.5rem",
+                      paddingRight: "0.5rem",
+                      marginBottom: spacing[2],
+                    }}
+                  >
+                    {/* <Sparkles className="w-3.5 h-3.5 text-primary" /> */}
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        lineHeight: "1rem",
+                        color: colors.primary,
+                      }}
+                    >
+                      Your tokens
+                    </span>
+                  </div>
+                ) : null}
+
+                {yourWalletTokens?.map((token, i) => (
+                  <button
+                    onClick={() => handleYourTokenSelect(token)}
+                    style={tokenButtonStyle}
+                    key={`${token.address}-${i}`}
+                  >
+                    {/* Token Icon with Chain Badge */}
+                    <div
+                      style={{
+                        position: "relative",
+                      }}
+                    >
+                      <img
+                        src={
+                          token.iconUrl ||
+                          (token as typeof token & { logo_url: string })
+                            .logo_url
+                        }
+                        alt={token.symbol}
+                        style={tokenIconStyle}
+                      />
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "-0.125rem",
+                          right: "-0.125rem",
+                          width: "1rem",
+                          height: "1rem",
+                          borderRadius: "100%",
+                          backgroundColor: colors.background,
+                          border: `2px solid ${colors.background}`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <img
+                          src={token.chainIconURI}
+                          alt={token.chainId?.toString()}
+                          style={{
+                            width: "0.875rem",
+                            height: "0.875rem",
+                            borderRadius: "9999px",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Token Info */}
+                    <div style={tokenInfoStyle}>
+                      <div style={tokenSymbolContainerStyle}>
+                        <span style={tokenSymbolStyle}>{token.symbol}</span>
+                      </div>
+                      <span style={tokenNameStyle}>
+                        {(Number(token.balance) / 10 ** token.decimals)
+                          ?.toFixed(Number(token.balance) !== 0 ? 4 : 2)
+                          ?.toLocaleString()}{" "}
+                        {token.symbol}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                    paddingLeft: "0.5rem",
+                    paddingRight: "0.5rem",
+                    marginBottom: spacing[2],
+                  }}
+                >
+                  {/* <Sparkles className="w-3.5 h-3.5 text-primary" /> */}
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      lineHeight: "1rem",
+                      color: colors.primary,
+                    }}
+                  >
+                    Popular tokens
+                  </span>
+                </div>
+
                 {filteredTokens.map((token) => (
                   <button
                     key={token.address}

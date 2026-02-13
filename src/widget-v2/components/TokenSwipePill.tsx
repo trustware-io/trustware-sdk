@@ -1,15 +1,21 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
-import type { Token, Chain } from "../context/DepositContext";
+import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 
 export interface TokenSwipePillProps {
   /** List of tokens to display in the carousel */
-  tokens: Token[];
+  tokens: Token[] | YourTokenData[];
   /** Currently selected token */
-  selectedToken: Token;
+  selectedToken: Token | YourTokenData;
   /** Callback when a token is selected */
-  onTokenChange: (token: Token) => void;
+  onTokenChange: (token: Token | YourTokenData) => void;
   /** Callback when expand/dropdown button is clicked */
   onExpandClick?: () => void;
   /** Currently selected chain (for displaying chain info) */
@@ -192,7 +198,7 @@ export function TokenSwipePill({
   selectedToken,
   onTokenChange,
   onExpandClick,
-  selectedChain,
+  // selectedChain,
   walletAddress,
   style,
 }: TokenSwipePillProps): React.ReactElement | null {
@@ -317,13 +323,25 @@ export function TokenSwipePill({
    * Generate fallback initials from token symbol
    */
   const getTokenInitials = (symbol: string) => {
-    return symbol.slice(0, 2).toUpperCase();
+    return symbol?.slice(0, 2).toUpperCase();
   };
 
   // Don't render if no tokens
   if (tokens.length === 0) {
     return null;
   }
+
+  const chainBadge = useMemo(() => {
+    const url =
+      (selectedToken as YourTokenData).chainData?.chainIconURI ||
+      (
+        (selectedToken as YourTokenData)
+          .chainData as YourTokenData["chainData"] & {
+          iconUrl: string;
+        }
+      )?.iconUrl;
+    return url.toString();
+  }, [selectedToken]);
 
   return (
     <div
@@ -399,16 +417,20 @@ export function TokenSwipePill({
                         />
                       ) : (
                         <span style={tokenInitialsStyle}>
-                          {getTokenInitials(token.symbol)}
+                          {getTokenInitials(token.symbol as string)}
                         </span>
                       )}
                     </div>
                     {/* Chain Icon - only on center token */}
-                    {isCenter && selectedChain?.iconUrl && (
+
+                    {isCenter && (selectedToken as YourTokenData).chainData && (
                       <div style={chainIconContainerStyle}>
                         <img
-                          src={selectedChain.iconUrl}
-                          alt={selectedChain.name}
+                          src={chainBadge}
+                          alt={
+                            (selectedToken as YourTokenData).chainData
+                              ?.networkName
+                          }
                           style={chainIconStyle}
                         />
                       </div>
@@ -583,7 +605,12 @@ export function TokenSwipePill({
       >
         <div>
           <p style={tokenSymbolStyle}>{selectedToken.symbol}</p>
-          {selectedChain && <p style={chainNameStyle}>{selectedChain.name}</p>}
+          {(selectedToken as YourTokenData).chainData && (
+            <p style={chainNameStyle}>
+              {(selectedToken as YourTokenData)?.chainData?.networkName ||
+                ((selectedToken as YourTokenData)?.chainData as Chain)?.name}
+            </p>
+          )}
         </div>
         {/* Chevron Down icon */}
         <svg

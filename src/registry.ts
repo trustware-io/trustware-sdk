@@ -70,6 +70,14 @@ export class Registry {
     return this._chainsById.get(String(chainId));
   }
 
+  allTokens(): TokenDef[] {
+    const all: TokenDef[] = [];
+    for (const list of this._tokensByChain.values()) {
+      all.push(...list);
+    }
+    return all;
+  }
+
   tokens(chainId: string | number): TokenDef[] {
     return this._tokensByChain.get(String(chainId)) ?? [];
   }
