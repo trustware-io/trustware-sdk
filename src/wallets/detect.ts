@@ -7,7 +7,6 @@ import type {
   WalletId,
 } from "../types/";
 import { WALLETS } from "./metadata";
-import { isWalletConnectConfigured } from "./walletconnect";
 
 type AnnounceEvent = CustomEvent<{
   info: EIP6963ProviderDetail["info"];
@@ -356,10 +355,10 @@ export function useWalletDetection(timeoutMs = 400) {
 
       // Always add WalletConnect as an option (built-in, enabled by default)
       // Only skip if explicitly disabled via config
-      const hasWalletConnect = seenIds.has("walletconnect");
-      if (!hasWalletConnect && isWalletConnectConfigured()) {
-        out.push(createWalletConnectEntry());
-      }
+      // const hasWalletConnect = seenIds.has("walletconnect");
+      // if (!hasWalletConnect && isWalletConnectConfigured()) {
+      //   out.push(createWalletConnectEntry());
+      // }
 
       setDetected(rankDetected(out));
       w.removeEventListener?.("eip6963:announceProvider", onAnnounce);
