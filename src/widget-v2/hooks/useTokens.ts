@@ -3,6 +3,8 @@ import { Registry } from "../../registry";
 import { apiBase } from "../../core/http";
 import type { TokenDef } from "../../types/";
 import type { Token } from "../context/DepositContext";
+import { get } from "http";
+import { getBalances } from "src/core/balances";
 
 export interface UseTokensResult {
   /** All available tokens for the selected chain */
@@ -25,12 +27,14 @@ export interface UseTokensResult {
 function mapTokenDefToToken(tokenDef: TokenDef): Token {
   return {
     address: tokenDef.address,
+    chainId: tokenDef.chainId,
     symbol: tokenDef.symbol,
     name: tokenDef.name,
     decimals: tokenDef.decimals,
     iconUrl: tokenDef.logoURI,
     // balance is populated separately when wallet is connected
     balance: undefined,
+    usdPrice: tokenDef.usdPrice,
   };
 }
 
@@ -98,8 +102,11 @@ export function useTokens(chainId: number | null): UseTokensResult {
             if (!aIsStable && bIsStable) return 1;
             return a.symbol.localeCompare(b.symbol);
           });
-
-        setTokens(loadedTokens);
+        if (loadedTokens !== undefined) {
+          console.log("loadedTokens:", { loadedTokens });
+          setTokens(loadedTokens);
+        }
+        // setTokens(loadedTokens);
       } catch (err) {
         if (!cancelled) {
           const message =

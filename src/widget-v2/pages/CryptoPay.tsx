@@ -15,6 +15,7 @@ import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
 import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
+import { getBalances } from "src/core/balances";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
@@ -277,6 +278,10 @@ const footerBrandStyle: React.CSSProperties = {
   color: colors.foreground,
 };
 
+function usdToTokenAmount(amt: string, tkPrice: string | undefined): number {
+  if (tkPrice === undefined || tkPrice === "0") return 0;
+  return Number(amt) / Number(tkPrice);
+}
 /**
  * CryptoPay confirmation page.
  * Displays transaction summary with fees and allows last-minute token changes.
@@ -359,6 +364,16 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
     return Math.min(balance, 10000); // Cap at 10k for slider
   }, [selectedToken]);
 
+  const maxAmountUSD = useMemo(() => {
+    if (!selectedToken?.usdPrice || !selectedToken?.balance) return 1000; // Default max
+    // Parse balance and convert from smallest unit
+    const balance = parseFloat(selectedToken.balance);
+    if (isNaN(balance)) return 1000;
+    // Assume balance is in token units (already converted)
+
+    return Math.min(balance * selectedToken.usdPrice, 10000); // Cap at 10k for slider
+  }, [selectedToken]);
+
   /**
    * Handle amount input changes with decimal sanitization
    */
@@ -370,6 +385,20 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
       parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
     setAmount(sanitized);
   };
+
+  const _combinedAmountObj = useMemo(() => {
+    if (selectedToken?.usdPrice !== undefined) {
+      const tokenAmt = usdToTokenAmount(
+        amount,
+        selectedToken.usdPrice.toString()
+      );
+      return {
+        usdAmount: amount,
+        tokenAmount: tokenAmt.toString(),
+      };
+    }
+    return undefined;
+  }, [selectedToken?.usdPrice, amount]);
 
   /**
    * Handle click on the amount display to start editing
@@ -397,9 +426,27 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
   /**
    * Handle token change from TokenSwipePill
    */
-  const handleTokenChange = (token: typeof selectedToken) => {
+  const handleTokenChange = async (token: typeof selectedToken) => {
     if (token) {
-      setSelectedToken(token);
+      if (token.balance !== undefined) return setSelectedToken(token);
+
+      const balance = await getBalances(
+        selectedChain?.chainId as string | number,
+        walletAddress as string
+      );
+
+      const match = balance.find(
+        (b) => b.contract?.toLowerCase() === token.address.toLowerCase()
+      );
+      const tokenWithBalance = {
+        ...token,
+        balance: (match
+          ? Number(match.balance) / 10 ** token.decimals
+          : "0"
+        ).toString(),
+      };
+
+      setSelectedToken(tokenWithBalance);
     }
   };
 
@@ -508,8 +555,10 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
         {selectedToken && (
           <div style={tokenConversionStyle}>
             <span style={tokenAmountStyle}>
-              {tokenAmount > 0
-                ? tokenAmount.toLocaleString(undefined, {
+              {Number(_combinedAmountObj?.tokenAmount ?? 0) > 0
+                ? parseFloat(
+                    (_combinedAmountObj?.tokenAmount ?? 0).toString()
+                  ).toLocaleString(undefined, {
                     maximumFractionDigits: 5,
                   })
                 : "0"}{" "}
@@ -569,7 +618,7 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
           <AmountSlider
             value={parsedAmount}
             onChange={handleSliderChange}
-            max={maxAmount}
+            max={maxAmountUSD}
             min={minDeposit}
             disabled={!selectedToken}
           />

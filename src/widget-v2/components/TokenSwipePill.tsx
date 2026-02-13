@@ -382,9 +382,7 @@ export function TokenSwipePill({
                   key={`carousel-${index}-${token.address}`}
                   style={{
                     position: "absolute",
-                    transition: isDragging
-                      ? "all 75ms"
-                      : "all 200ms ease-out",
+                    transition: isDragging ? "all 75ms" : "all 200ms ease-out",
                     transform: `translateX(${currentOffset}px) scale(${scale})`,
                     opacity,
                     filter: `blur(${blur}px)`,
@@ -463,7 +461,9 @@ export function TokenSwipePill({
                       outline: "none",
                       cursor: "pointer",
                       backgroundColor:
-                        index === currentIndex ? colors.white : colors.zinc[600],
+                        index === currentIndex
+                          ? colors.white
+                          : colors.zinc[600],
                       width: index === currentIndex ? "0.75rem" : "0.375rem",
                     }}
                     aria-label={`Select ${token.symbol}`}
@@ -495,7 +495,9 @@ export function TokenSwipePill({
               }
 
               // Dedupe and sort
-              const uniqueIndices = [...new Set(visibleIndices)].sort((a, b) => a - b);
+              const uniqueIndices = [...new Set(visibleIndices)].sort(
+                (a, b) => a - b
+              );
 
               return uniqueIndices.map((index, i) => {
                 const token = tokens[index];
@@ -529,7 +531,9 @@ export function TokenSwipePill({
                         outline: "none",
                         cursor: "pointer",
                         backgroundColor:
-                          index === currentIndex ? colors.white : colors.zinc[600],
+                          index === currentIndex
+                            ? colors.white
+                            : colors.zinc[600],
                         width: index === currentIndex ? "0.75rem" : "0.375rem",
                       }}
                       aria-label={`Select ${token.symbol} (${index + 1} of ${total})`}

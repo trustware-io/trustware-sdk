@@ -73,6 +73,10 @@ export interface Token {
   iconUrl?: string;
   /** Token balance if wallet connected (as string to preserve precision) */
   balance?: string;
+
+  chainId: string | number;
+
+  usdPrice: number | undefined;
 }
 
 /**
