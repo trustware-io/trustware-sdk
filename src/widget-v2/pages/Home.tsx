@@ -1,9 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
 import { mergeStyles } from "../lib/utils";
-import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from "../styles/tokens";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+  shadows,
+} from "../styles/tokens";
 import { useDeposit } from "../context/DepositContext";
 import { useWalletDetection } from "../../wallets/detect";
-
+import { UniversalConnector } from "@reown/appkit-universal-connector";
+import { getUniversalConnector } from "src/config/walletconnect";
 /**
  * Fiat payment option definition
  */
@@ -488,8 +496,9 @@ export function Home({ style }: HomeProps): React.ReactElement {
 
     // If already connected, go to select token
     if (walletAddress) {
-      console.log("[TW Home] Already connected, navigating to select-token");
-      setCurrentStep("select-token");
+      console.log("[TW Home] Already connected, navigating to crypto-pay");
+      // setCurrentStep("select-token");
+      setCurrentStep("crypto-pay");
       return;
     }
 
@@ -500,7 +509,8 @@ export function Home({ style }: HomeProps): React.ReactElement {
       console.log(
         "[TW Home] connectWallet succeeded, navigating to select-token"
       );
-      setCurrentStep("select-token");
+      // setCurrentStep("select-token");
+      setCurrentStep("crypto-pay");
     } catch (err) {
       console.error("[TW Home] Failed to connect wallet:", err);
     }
@@ -518,6 +528,38 @@ export function Home({ style }: HomeProps): React.ReactElement {
   const browserWallets = detectedWallets.filter(
     (w) => w.meta.id !== "walletconnect"
   );
+
+  const [universalConnector, setUniversalConnector] =
+    useState<UniversalConnector>();
+  const [session, setSession] = useState<any>();
+
+  // Initialize the Universal Connector on component mount
+  useEffect(() => {
+    getUniversalConnector().then(setUniversalConnector);
+  }, []);
+
+  // Set the session state in case it changes
+  useEffect(() => {
+    setSession(universalConnector?.provider.session);
+  }, [universalConnector?.provider.session]);
+
+  const handleWalletConnect = async () => {
+    if (!universalConnector) {
+      return;
+    }
+
+    const { session: providerSession } = await universalConnector.connect();
+
+    if (providerSession) {
+      setSession(providerSession);
+      console.log("✅ WalletConnect session approved", {
+        providerSession,
+      });
+      setCurrentStep("select-token");
+      // setStatus("connected");
+      // onNext();
+    }
+  };
 
   return (
     <div style={mergeStyles(containerStyle, style)}>
@@ -573,7 +615,14 @@ export function Home({ style }: HomeProps): React.ReactElement {
         {/* Payment Options - Dropdown Pills */}
         <div style={paymentOptionsContainerStyle}>
           {/* Pay with Crypto Dropdown */}
-          <div style={isCryptoDropdownOpen ? dropdownWrapperOpenStyle : dropdownWrapperStyle} ref={cryptoDropdownRef}>
+          <div
+            style={
+              isCryptoDropdownOpen
+                ? dropdownWrapperOpenStyle
+                : dropdownWrapperStyle
+            }
+            ref={cryptoDropdownRef}
+          >
             <button
               type="button"
               onClick={() => {
@@ -676,10 +725,11 @@ export function Home({ style }: HomeProps): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => {
-                      const wcWallet = detectedWallets.find(
-                        (w) => w.meta.id === "walletconnect"
-                      );
-                      if (wcWallet) handleWalletSelect(wcWallet);
+                      // const wcWallet = detectedWallets.find(
+                      //   (w) => w.meta.id === "walletconnect"
+                      // );
+                      // if (wcWallet) handleWalletSelect(wcWallet);
+                      handleWalletConnect();
                     }}
                     style={walletButtonStyle}
                   >
@@ -696,7 +746,11 @@ export function Home({ style }: HomeProps): React.ReactElement {
                       <span style={walletNameStyle}>WalletConnect</span>
                     </div>
                     <svg
-                      style={{ width: "1rem", height: "1rem", color: colors.mutedForeground }}
+                      style={{
+                        width: "1rem",
+                        height: "1rem",
+                        color: colors.mutedForeground,
+                      }}
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -715,7 +769,14 @@ export function Home({ style }: HomeProps): React.ReactElement {
           </div>
 
           {/* Pay with Fiat Dropdown */}
-          <div style={isFiatDropdownOpen ? dropdownWrapperOpenStyle : dropdownWrapperStyle} ref={fiatDropdownRef}>
+          <div
+            style={
+              isFiatDropdownOpen
+                ? dropdownWrapperOpenStyle
+                : dropdownWrapperStyle
+            }
+            ref={fiatDropdownRef}
+          >
             <button
               type="button"
               onClick={() => {

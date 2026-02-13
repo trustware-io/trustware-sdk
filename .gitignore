@@ -19,3 +19,4 @@ coverage/
 .worktrees/
 .security-key
 logs/security/
+commented.txt
