@@ -25,12 +25,14 @@ export interface UseTokensResult {
 function mapTokenDefToToken(tokenDef: TokenDef): Token {
   return {
     address: tokenDef.address,
+    chainId: tokenDef.chainId,
     symbol: tokenDef.symbol,
     name: tokenDef.name,
     decimals: tokenDef.decimals,
     iconUrl: tokenDef.logoURI,
     // balance is populated separately when wallet is connected
     balance: undefined,
+    usdPrice: tokenDef.usdPrice,
   };
 }
 
@@ -38,7 +40,7 @@ function mapTokenDefToToken(tokenDef: TokenDef): Token {
  * Hook to load available tokens for a selected chain from the registry.
  * Supports filtering tokens by name or symbol.
  */
-export function useTokens(chainId: number | null): UseTokensResult {
+export function useTokens(chainId: number | null | undefined): UseTokensResult {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function useTokens(chainId: number | null): UseTokensResult {
     setSearchQuery("");
     setError(null);
 
-    if (chainId === null) {
+    if (chainId === undefined) {
       setIsLoading(false);
       return;
     }
@@ -69,7 +71,13 @@ export function useTokens(chainId: number | null): UseTokensResult {
         if (cancelled) return;
 
         // Get tokens for the selected chain
-        const tokenDefs = registry.tokens(chainId);
+        const tokenDefs =
+          chainId === null ? registry.allTokens() : registry.tokens(chainId);
+
+        // console.log("[useTokens] Loaded tokens from registry:", {
+        //   tokenDefs,
+        //   chainId,
+        // });
 
         // Filter, dedupe by address, and sort tokens
         const seenAddresses = new Set<string>();
@@ -98,8 +106,13 @@ export function useTokens(chainId: number | null): UseTokensResult {
             if (!aIsStable && bIsStable) return 1;
             return a.symbol.localeCompare(b.symbol);
           });
-
-        setTokens(loadedTokens);
+        // console.log({
+        //   loadedTokens,
+        // });
+        if (loadedTokens !== undefined) {
+          setTokens(loadedTokens);
+        }
+        // setTokens(loadedTokens);
       } catch (err) {
         if (!cancelled) {
           const message =

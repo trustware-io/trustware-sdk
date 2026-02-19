@@ -1,11 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
-import type { Token } from "../context/DepositContext";
+import type { Token, YourTokenData } from "../context/DepositContext";
 
 export interface SwipeToConfirmTokensProps {
   /** Token being sent/deposited */
-  fromToken: Token;
+  fromToken: Token | YourTokenData;
   /** URL to destination token icon */
   toTokenIcon?: string;
   /** Destination token symbol (e.g., 'USDC') */
@@ -267,7 +267,8 @@ export function SwipeToConfirmTokens({
   useEffect(() => {
     return () => {
       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-      if (longPressAnimationRef.current) cancelAnimationFrame(longPressAnimationRef.current);
+      if (longPressAnimationRef.current)
+        cancelAnimationFrame(longPressAnimationRef.current);
     };
   }, []);
 
@@ -284,7 +285,8 @@ export function SwipeToConfirmTokens({
   const handleMouseUp = useCallback(() => handleDragEnd(), [handleDragEnd]);
 
   const handleTouchStart = (_e: React.TouchEvent) => handleDragStart();
-  const handleTouchMove = (e: React.TouchEvent) => handleDragMove(e.touches[0].clientX);
+  const handleTouchMove = (e: React.TouchEvent) =>
+    handleDragMove(e.touches[0].clientX);
   const handleTouchEnd = () => handleDragEnd();
 
   useEffect(() => {
@@ -301,18 +303,21 @@ export function SwipeToConfirmTokens({
   const progress = getProgress();
   const effectiveProgress = isLongPressing ? longPressProgress : progress;
 
-  const getTokenInitials = (symbol: string) => symbol.slice(0, 2).toUpperCase();
+  const getTokenInitials = (symbol: string) =>
+    symbol?.slice(0, 2).toUpperCase();
 
   const getAriaLabel = () => {
     if (!isWalletConnected) return "Connect your wallet to deposit";
     if (isComplete) return "Transaction confirmed";
-    if (isLongPressing) return `Confirming... ${Math.round(longPressProgress * 100)}% complete.`;
+    if (isLongPressing)
+      return `Confirming... ${Math.round(longPressProgress * 100)}% complete.`;
     return `Confirm transaction. Swipe right to confirm.`;
   };
 
-  const trackBg = effectiveProgress > 0
-    ? `linear-gradient(to right, rgb(34, 197, 94) ${effectiveProgress * 100}%, rgb(39, 39, 42) ${effectiveProgress * 100}%)`
-    : "rgb(39, 39, 42)";
+  const trackBg =
+    effectiveProgress > 0
+      ? `linear-gradient(to right, rgb(34, 197, 94) ${effectiveProgress * 100}%, rgb(39, 39, 42) ${effectiveProgress * 100}%)`
+      : "rgb(39, 39, 42)";
 
   return (
     <div style={mergeStyles(containerStyle, style)}>
@@ -334,9 +339,16 @@ export function SwipeToConfirmTokens({
         )}
       >
         {/* Swipe text */}
-        <div style={mergeStyles(trackTextStyle, effectiveProgress > 0.15 && { opacity: 0 })}>
+        <div
+          style={mergeStyles(
+            trackTextStyle,
+            effectiveProgress > 0.15 && { opacity: 0 }
+          )}
+        >
           <span style={swipeTextStyle}>
-            {isWalletConnected ? "Swipe to confirm" : "Connect your wallet to deposit"}
+            {isWalletConnected
+              ? "Swipe to confirm"
+              : "Connect your wallet to deposit"}
           </span>
         </div>
 
@@ -344,8 +356,22 @@ export function SwipeToConfirmTokens({
         {isLongPressing && !isComplete && (
           <div style={countdownContainerStyle}>
             <div style={countdownInnerStyle}>
-              <svg style={{ width: "2rem", height: "2rem", transform: "rotate(-90deg)" }} viewBox="0 0 36 36">
-                <circle stroke={colors.zinc[600]} strokeWidth="3" fill="transparent" r="15.9155" cx="18" cy="18" />
+              <svg
+                style={{
+                  width: "2rem",
+                  height: "2rem",
+                  transform: "rotate(-90deg)",
+                }}
+                viewBox="0 0 36 36"
+              >
+                <circle
+                  stroke={colors.zinc[600]}
+                  strokeWidth="3"
+                  fill="transparent"
+                  r="15.9155"
+                  cx="18"
+                  cy="18"
+                />
                 <circle
                   stroke={colors.white}
                   strokeWidth="3"
@@ -359,7 +385,10 @@ export function SwipeToConfirmTokens({
                 />
               </svg>
               <span style={countdownTextStyle}>
-                {Math.ceil((1 - longPressProgress) * (LONG_PRESS_DURATION / 1000) * 10) / 10}s
+                {Math.ceil(
+                  (1 - longPressProgress) * (LONG_PRESS_DURATION / 1000) * 10
+                ) / 10}
+                s
               </span>
             </div>
           </div>
@@ -368,8 +397,18 @@ export function SwipeToConfirmTokens({
         {/* Checkmark on complete */}
         {isComplete && (
           <div style={checkmarkContainerStyle}>
-            <svg style={{ width: "1.5rem", height: "1.5rem", color: colors.white }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            <svg
+              style={{ width: "1.5rem", height: "1.5rem", color: colors.white }}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={3}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
           </div>
         )}
@@ -380,9 +419,16 @@ export function SwipeToConfirmTokens({
           style={mergeStyles(
             thumbStyle,
             { left: `${dragX + padding}px` },
-            { transition: isDragging ? "transform 0.1s" : "left 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s" },
+            {
+              transition: isDragging
+                ? "transform 0.1s"
+                : "left 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s",
+            },
             isDragging && { transform: "translateY(-50%) scale(1.05)" },
-            isLongPressing && { transform: "translateY(-50%) scale(1.1)", boxShadow: `0 0 0 2px ${colors.green[500]}` },
+            isLongPressing && {
+              transform: "translateY(-50%) scale(1.1)",
+              boxShadow: `0 0 0 2px ${colors.green[500]}`,
+            },
             isComplete && { backgroundColor: colors.green[500] }
           )}
           onMouseDown={handleMouseDown}
@@ -391,26 +437,60 @@ export function SwipeToConfirmTokens({
           onTouchEnd={handleTouchEnd}
         >
           {fromToken.iconUrl ? (
-            <img src={fromToken.iconUrl} alt={fromToken.symbol} style={tokenIconStyle} />
+            <img
+              src={fromToken.iconUrl}
+              alt={fromToken.symbol}
+              style={tokenIconStyle}
+            />
           ) : (
-            <span style={{ fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.white }}>
-              {getTokenInitials(fromToken.symbol)}
+            <span
+              style={{
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.bold,
+                color: colors.white,
+              }}
+            >
+              {getTokenInitials(fromToken.symbol as string)}
             </span>
           )}
         </div>
 
         {/* Destination Icon */}
         {toTokenIcon && (
-          <div style={mergeStyles(destinationIconStyle, { right: `${padding}px`, opacity: 0.2 + effectiveProgress * 0.8 })}>
-            <img src={toTokenIcon} alt={toTokenSymbol || "destination"} style={tokenIconStyle} />
+          <div
+            style={mergeStyles(destinationIconStyle, {
+              right: `${padding}px`,
+              opacity: 0.2 + effectiveProgress * 0.8,
+            })}
+          >
+            <img
+              src={toTokenIcon}
+              alt={toTokenSymbol || "destination"}
+              style={tokenIconStyle}
+            />
           </div>
         )}
 
         {/* Chevron hint */}
         {!toTokenIcon && !isComplete && (
-          <div style={mergeStyles(destinationIconStyle, { right: `${padding}px`, opacity: 0.3 + effectiveProgress * 0.7 })}>
-            <svg style={chevronIconStyle} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          <div
+            style={mergeStyles(destinationIconStyle, {
+              right: `${padding}px`,
+              opacity: 0.3 + effectiveProgress * 0.7,
+            })}
+          >
+            <svg
+              style={chevronIconStyle}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
             </svg>
           </div>
         )}
