@@ -311,7 +311,11 @@ export function DepositProvider({
 
   const { tokens } = useTokens(null);
 
-  const { isLoading, error, chains } = useChains();
+  const {
+    // isLoading,
+    // error,
+    chains,
+  } = useChains();
 
   useEffect(() => {
     if (!walletAddress || !chains) {
