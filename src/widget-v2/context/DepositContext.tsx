@@ -10,7 +10,6 @@ import { walletManager } from "../../wallets/manager";
 import { useWalletDetection } from "../../wallets/detect";
 import type { ChainDef, DetectedWallet, WalletInterFaceAPI } from "../../types";
 import { useChains, useTokens } from "../hooks";
-import { DEFAULT_CHAINS } from "../pages/CryptoPay";
 import { getBalances } from "src/core/balances";
 import { resolveChainLabel } from "src/utils";
 
@@ -315,7 +314,7 @@ export function DepositProvider({
   const { isLoading, error, chains } = useChains();
 
   useEffect(() => {
-    if (!walletAddress) {
+    if (!walletAddress || !chains) {
       setYourWalletTokens([]);
       return;
     }
@@ -329,7 +328,7 @@ export function DepositProvider({
     async function loadWalletTokens() {
       try {
         const arr = await Promise.all(
-          DEFAULT_CHAINS.map(async (chain) => {
+          chains.map(async (chain) => {
             const arr = await getBalances(
               chain.chainId as string | number,
               walletAddress as string
@@ -351,7 +350,7 @@ export function DepositProvider({
           //setSelectedChain
           chainInfo &&
             setSelectedChain({
-              chainId: tokensWithBalance[0].chainId,
+              chainId: tokensWithBalance[0].chainId as number,
               name: resolveChainLabel(chainInfo as ChainDef),
               shortName:
                 chainInfo?.nativeCurrency?.symbol ??
@@ -407,7 +406,7 @@ export function DepositProvider({
             };
           });
 
-          setYourWalletTokens(tokenWithChainUriArray);
+          setYourWalletTokens(tokenWithChainUriArray as any);
 
           const findtokenwithBalance = tokenWithChainUriArray.find(
             (t) => Number(t.balance) > 0
@@ -420,18 +419,23 @@ export function DepositProvider({
               chainData: ChainDef;
             }
           );
+
+          setSelectedChain(findtokenwithBalance?.chainData as Chain);
+
+          return (cancelled = true);
         }
       } catch (err) {
         console.error("Failed to load balances:", err);
         if (!cancelled) setYourWalletTokens([]);
+        return (cancelled = true);
       }
     }
 
     loadWalletTokens();
 
-    return () => {
-      cancelled = true;
-    };
+    // return () => {
+    //   cancelled = true;
+    // };
   }, [
     chains,
     selectedChain,

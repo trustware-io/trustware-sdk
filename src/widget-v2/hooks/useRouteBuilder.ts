@@ -125,7 +125,7 @@ export function useRouteBuilder(
 
     // Parse the route key to get params
     const params = JSON.parse(routeKey);
-    console.log("[useRouteBuilder] Building route with params:", params);
+    // console.log("[useRouteBuilder] Building route with params:", params);
 
     // Create new abort controller
     const ac = new AbortController();
@@ -143,7 +143,7 @@ export function useRouteBuilder(
 
         // Get destination config from SDK config
         const config = TrustwareConfigStore.get();
-        console.log("[useRouteBuilder] Config routes:", config.routes);
+        // console.log("[useRouteBuilder] Config routes:", config.routes);
         const { toChain, toToken, toAddress, defaultSlippage } = config.routes;
 
         // Ensure we have a destination address

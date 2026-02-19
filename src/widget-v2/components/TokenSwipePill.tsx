@@ -340,7 +340,7 @@ export function TokenSwipePill({
           iconUrl: string;
         }
       )?.iconUrl;
-    return url.toString();
+    return url?.toString();
   }, [selectedToken]);
 
   return (

@@ -26,7 +26,7 @@ import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
 import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
-import { getBalances } from "src/core/balances";
+
 import { useChains } from "../hooks";
 import { resolveChainLabel } from "src/utils";
 import { ChainDef } from "src";
@@ -292,63 +292,6 @@ const footerBrandStyle: React.CSSProperties = {
   color: colors.foreground,
 };
 
-export const DEFAULT_CHAINS = [
-  {
-    name: "ethereum",
-    type: "evm",
-    chainId: 1,
-    networkName: "Ethereum Mainnet",
-  },
-  {
-    name: "arbitrum",
-    type: "evm",
-    chainId: 42161,
-    networkName: "Arbitrum One",
-  },
-  {
-    name: "avalanche",
-    type: "evm",
-    chainId: 43114,
-    networkName: "Avalanche C-Chain",
-  },
-  {
-    name: "bnb",
-    type: "evm",
-    chainId: 56,
-    networkName: "BNB Smart Chain",
-  },
-  {
-    name: "polygon",
-    type: "evm",
-    chainId: 137,
-    networkName: "Polygon Mainnet",
-  },
-  // {
-  //   name: "sei",
-  //   type: "cosmos",
-  //   chainId: "pacific-1",
-  //   networkName: "Sei Mainnet",
-  // },
-  // {
-  //   name: "solana",
-  //   type: "non-evm",
-  //   cluster: ["mainnet-beta", "testnet", "devnet"],
-  //   networkName: "Solana",
-  // },
-  // {
-  //   name: "bitcoin",
-  //   type: "non-evm",
-  //   networkName: "Bitcoin",
-  //   identifiers: ["mainnet", "testnet", "regtest"],
-  // },
-  {
-    name: "base",
-    type: "evm",
-    chainId: 8453,
-    networkName: "Base Mainnet",
-  },
-];
-
 function usdToTokenAmount(amt: string, tkPrice: string | undefined): number {
   if (tkPrice === undefined || tkPrice === "0") return 0;
   return Number(amt) / Number(tkPrice);
@@ -358,7 +301,7 @@ function usdToTokenAmount(amt: string, tkPrice: string | undefined): number {
  * Displays transaction summary with fees and allows last-minute token changes.
  * Includes SwipeToConfirmTokens for secure transaction confirmation.
  */
-export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
+export function CryptoPay({ style }: CryptoPayProps) {
   const {
     amount,
     setAmount,
@@ -415,14 +358,6 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
   // Parse amount for display
   const parsedAmount = parseFloat(amount) || 0;
 
-  // Calculate token amount from USD
-  const tokenAmount = useMemo(() => {
-    if (!selectedToken || parsedAmount === 0) return 0;
-    // For simplicity, assume 1:1 for stablecoins, otherwise we'd need price data
-    // In production this would come from the route result
-    return parsedAmount;
-  }, [selectedToken, parsedAmount]);
-
   // Max amount based on token balance (if available)
   const maxAmount = useMemo(() => {
     if (!selectedToken?.balance) return 1000; // Default max
@@ -433,20 +368,13 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
     return Math.min(balance / 10 ** selectedToken.decimals, 10000); // Cap at 10k for slider
   }, [selectedToken]);
 
-  // const maxAmountUSD = useMemo(() => {
-  //   if (!selectedToken?.usdPrice || !selectedToken?.balance) return 1000; // Default max
-  //   // Parse balance and convert from smallest unit
-  //   console.log({ maxAmount: selectedToken });
-  //   const balance = parseFloat(selectedToken.balance);
-  //   if (isNaN(balance)) return 1000;
-  //   // Assume balance is in token units (already converted)
-
-  //   return Math.min(balance * selectedToken.usdPrice, 10000); // Cap at 10k for slider
-  // }, [selectedToken]);
-  const [isReady, setIsReady] = useState(false);
-  useEffect(() => {
-    if (selectedToken !== null && yourWalletTokens.length > 0) {
-      return setIsReady(true);
+  const isReady = useMemo(() => {
+    if (
+      selectedToken !== null &&
+      yourWalletTokens.length > 0 &&
+      (selectedToken as YourTokenData).chainData !== undefined
+    ) {
+      return true;
     }
   }, [selectedToken, yourWalletTokens.length]);
 
@@ -505,28 +433,6 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
   const handleTokenChange = useCallback(
     async (token: typeof selectedToken) => {
       if (token) {
-        // if (token.balance !== undefined) return setSelectedToken(token);
-
-        // const balance = await getBalances(
-        //   selectedChain?.chainId as string | number,
-        //   walletAddress as string
-        // );
-
-        // const match = balance.find(
-        //   (b) => b.contract?.toLowerCase() === token.address.toLowerCase()
-        // );
-        // const tokenWithBalance = {
-        //   ...token,
-        //   balance: (match
-        //     ? Number(match.balance) / 10 ** token.decimals
-        //     : "0"
-        //   ).toString(),
-        // };
-
-        // const chainInfo = chains.find(
-        //   (c) => Number(c.chainId) === Number(token.chainId)
-        // );
-
         setSelectedToken(token);
         setSelectedChain((token as YourTokenData).chainData as Chain);
       }
@@ -799,16 +705,17 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
 
           {/* Bottom Action - Swipe to Confirm */}
           <div style={actionContainerStyle}>
-            {selectedToken && (
-              <SwipeToConfirmTokens
-                fromToken={selectedToken}
-                toTokenSymbol={destinationConfig?.toToken || "USDC"}
-                toChainName={destinationConfig?.toChain || "Base"}
-                onConfirm={handleConfirm}
-                disabled={!canConfirm}
-                isWalletConnected={isWalletConnected}
-              />
-            )}
+            {selectedToken !== null &&
+              (selectedToken as YourTokenData).chainData !== undefined && (
+                <SwipeToConfirmTokens
+                  fromToken={selectedToken}
+                  toTokenSymbol={destinationConfig?.toToken || "USDC"}
+                  toChainName={destinationConfig?.toChain || "Base"}
+                  onConfirm={handleConfirm}
+                  disabled={!canConfirm}
+                  isWalletConnected={isWalletConnected}
+                />
+              )}
           </div>
 
           {/* Footer */}
