@@ -1,5 +1,5 @@
 /* core/balances.ts */
-import type { BalanceRow } from "../types/";
+import type { BalanceRow, WalletAddressBalanceWrapper } from "../types/";
 import { apiBase, jsonHeaders } from "./http";
 import { Registry } from "../registry";
 
@@ -22,6 +22,22 @@ export async function getBalances(
   if (!r.ok) throw new Error(`balances: HTTP ${r.status}`);
   const j = await r.json();
   const rows: BalanceRow[] = Array.isArray(j) ? j : (j.data ?? []);
+  return rows;
+}
+export async function getBalancesByAddress(
+  address: string
+): Promise<WalletAddressBalanceWrapper[]> {
+  const url = `${apiBase()}/data/balances/${address}`;
+  const r = await fetch(url, {
+    method: "GET",
+    credentials: "omit",
+    headers: jsonHeaders(),
+  });
+  if (!r.ok) throw new Error(`balances: HTTP ${r.status}`);
+  const j = await r.json();
+  const rows: WalletAddressBalanceWrapper[] = Array.isArray(j)
+    ? j
+    : (j.results ?? []);
   return rows;
 }
 

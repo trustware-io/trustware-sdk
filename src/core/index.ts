@@ -7,13 +7,15 @@ import type {
 import { TrustwareConfigStore } from "../config/store";
 import { walletManager } from "../wallets/manager";
 import { buildRoute, submitReceipt, getStatus, pollStatus } from "./routes";
-import { getBalances } from "./balances";
+import { getBalances, getBalancesByAddress } from "./balances";
 import { sendRouteTransaction, runTopUp } from "./tx";
 import {
   validateSdkAccess,
   RateLimitError,
   parseRateLimitHeaders,
 } from "./http";
+import { useChains } from "./useChains";
+import { useTokens } from "./useTokens";
 
 // simple memo to avoid re-validating same key repeatedly
 let _lastValidatedKey: string | null = null;
@@ -84,6 +86,9 @@ export const Trustware = {
   getStatus,
   pollStatus,
   getBalances,
+  getBalancesByAddress,
+  useChains,
+  useTokens,
 
   // ---- Tx helpers ----
   sendRouteTransaction,

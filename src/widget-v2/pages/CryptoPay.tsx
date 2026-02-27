@@ -1,4 +1,10 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useMemo,
+  useEffect,
+  useCallback,
+} from "react";
 import { mergeStyles } from "../lib/utils";
 import {
   colors,
@@ -7,14 +13,23 @@ import {
   fontWeight,
   borderRadius,
 } from "../styles/tokens";
-import { useDeposit } from "../context/DepositContext";
+import {
+  Chain,
+  Token,
+  useDeposit,
+  YourTokenData,
+} from "../context/DepositContext";
 import { useRouteBuilder } from "../hooks/useRouteBuilder";
-import { useTokens } from "../hooks/useTokens";
+import { useTokens } from "../../core/useTokens";
 import { useTransactionSubmit } from "../hooks/useTransactionSubmit";
 import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
 import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
+
+import { useChains } from "../hooks";
+import { resolveChainLabel } from "src/utils";
+import { ChainDef } from "src";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
@@ -277,22 +292,28 @@ const footerBrandStyle: React.CSSProperties = {
   color: colors.foreground,
 };
 
+function usdToTokenAmount(amt: string, tkPrice: string | undefined): number {
+  if (tkPrice === undefined || tkPrice === "0") return 0;
+  return Number(amt) / Number(tkPrice);
+}
 /**
  * CryptoPay confirmation page.
  * Displays transaction summary with fees and allows last-minute token changes.
  * Includes SwipeToConfirmTokens for secure transaction confirmation.
  */
-export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
+export function CryptoPay({ style }: CryptoPayProps) {
   const {
     amount,
     setAmount,
     selectedToken,
     setSelectedToken,
     selectedChain,
+    setSelectedChain,
     walletAddress,
     walletStatus,
     goBack,
     setCurrentStep,
+    yourWalletTokens,
   } = useDeposit();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -310,10 +331,6 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
   // Transaction submission hook
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
 
-  // Get available tokens for the selected chain
-  const { tokens } = useTokens(selectedChain?.chainId ?? null);
-
-  // Get destination config from SDK config
   const destinationConfig = useMemo(() => {
     try {
       const config = TrustwareConfigStore.get();
@@ -341,14 +358,6 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
   // Parse amount for display
   const parsedAmount = parseFloat(amount) || 0;
 
-  // Calculate token amount from USD
-  const tokenAmount = useMemo(() => {
-    if (!selectedToken || parsedAmount === 0) return 0;
-    // For simplicity, assume 1:1 for stablecoins, otherwise we'd need price data
-    // In production this would come from the route result
-    return parsedAmount;
-  }, [selectedToken, parsedAmount]);
-
   // Max amount based on token balance (if available)
   const maxAmount = useMemo(() => {
     if (!selectedToken?.balance) return 1000; // Default max
@@ -356,8 +365,18 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
     const balance = parseFloat(selectedToken.balance);
     if (isNaN(balance)) return 1000;
     // Assume balance is in token units (already converted)
-    return Math.min(balance, 10000); // Cap at 10k for slider
+    return Math.min(balance / 10 ** selectedToken.decimals, 10000); // Cap at 10k for slider
   }, [selectedToken]);
+
+  const isReady = useMemo(() => {
+    if (
+      selectedToken !== null &&
+      yourWalletTokens.length > 0 &&
+      (selectedToken as YourTokenData).chainData !== undefined
+    ) {
+      return true;
+    }
+  }, [selectedToken, yourWalletTokens.length]);
 
   /**
    * Handle amount input changes with decimal sanitization
@@ -370,6 +389,20 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
       parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
     setAmount(sanitized);
   };
+
+  const _combinedAmountObj = useMemo(() => {
+    if (selectedToken?.usdPrice !== undefined) {
+      const tokenAmt = usdToTokenAmount(
+        amount,
+        selectedToken.usdPrice.toString()
+      );
+      return {
+        usdAmount: amount,
+        tokenAmount: tokenAmt.toString(),
+      };
+    }
+    return undefined;
+  }, [selectedToken?.usdPrice, amount]);
 
   /**
    * Handle click on the amount display to start editing
@@ -397,11 +430,15 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
   /**
    * Handle token change from TokenSwipePill
    */
-  const handleTokenChange = (token: typeof selectedToken) => {
-    if (token) {
-      setSelectedToken(token);
-    }
-  };
+  const handleTokenChange = useCallback(
+    async (token: typeof selectedToken) => {
+      if (token) {
+        setSelectedToken(token);
+        setSelectedChain((token as YourTokenData).chainData as Chain);
+      }
+    },
+    [setSelectedChain, setSelectedToken]
+  );
 
   /**
    * Handle expand click to navigate to token selection
@@ -433,6 +470,27 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
     !isSubmitting &&
     !!routeResult;
 
+  const [_maxAmountUSD, setMaxAmountUSD] = useState<undefined | number>();
+
+  useEffect(() => {
+    if (!selectedToken?.usdPrice || !selectedToken?.balance) return;
+
+    const balance = parseFloat(selectedToken.balance);
+
+    if (isNaN(balance)) {
+      return setMaxAmountUSD(1000);
+    } else {
+      return setMaxAmountUSD(
+        Math.min(
+          (balance / 10 ** selectedToken.decimals) * selectedToken.usdPrice,
+          10000
+        )
+      );
+    }
+
+    // return Math.min(balance * selectedToken.usdPrice, 10000); // Cap at 10k for slider
+  }, [selectedChain, selectedToken, yourWalletTokens]);
+
   return (
     <div style={mergeStyles(containerStyle, style)}>
       {/* Header */}
@@ -460,215 +518,231 @@ export function CryptoPay({ style }: CryptoPayProps): React.ReactElement {
         <h1 style={headerTitleStyle}>Confirm Deposit</h1>
       </div>
 
-      {/* Content */}
-      <div style={contentStyle}>
-        {/* Enter Amount Label */}
-        <p style={enterAmountLabelStyle}>Enter an amount</p>
+      {isReady ? (
+        <>
+          {/* Content */}
+          <div style={contentStyle}>
+            {/* Enter Amount Label */}
+            <p style={enterAmountLabelStyle}>Enter an amount</p>
 
-        {/* Large Amount Display */}
-        <div style={amountDisplayContainerStyle}>
-          <span style={amountDisplayStyle} onClick={handleAmountClick}>
-            <span style={dollarSignStyle}>$</span>
-            <span style={amountValueContainerStyle}>
-              <span
-                style={{
-                  color:
-                    parsedAmount > 0
-                      ? colors.foreground
-                      : "rgba(161, 161, 170, 0.4)",
-                }}
-              >
-                {isEditing
-                  ? amount || "0"
-                  : parsedAmount > 0
-                    ? parsedAmount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : "0"}
+            {/* Large Amount Display */}
+            <div style={amountDisplayContainerStyle}>
+              <span style={amountDisplayStyle} onClick={handleAmountClick}>
+                <span style={dollarSignStyle}>$</span>
+                <span style={amountValueContainerStyle}>
+                  <span
+                    style={{
+                      color:
+                        parsedAmount > 0
+                          ? colors.foreground
+                          : "rgba(161, 161, 170, 0.4)",
+                    }}
+                  >
+                    {isEditing
+                      ? amount || "0"
+                      : parsedAmount > 0
+                        ? parsedAmount.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : "0"}
+                  </span>
+                  {!isEditing && parsedAmount === 0 && (
+                    <span style={{ color: "rgba(161, 161, 170, 0.4)" }}>
+                      .00
+                    </span>
+                  )}
+                  <input
+                    ref={amountInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={handleAmountChange}
+                    onBlur={() => setIsEditing(false)}
+                    style={amountInputStyle}
+                    aria-label="Deposit amount"
+                  />
+                </span>
               </span>
-              {!isEditing && parsedAmount === 0 && (
-                <span style={{ color: "rgba(161, 161, 170, 0.4)" }}>.00</span>
-              )}
-              <input
-                ref={amountInputRef}
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={handleAmountChange}
-                onBlur={() => setIsEditing(false)}
-                style={amountInputStyle}
-                aria-label="Deposit amount"
-              />
-            </span>
-          </span>
-        </div>
+            </div>
 
-        {/* Token Amount Conversion */}
-        {selectedToken && (
-          <div style={tokenConversionStyle}>
-            <span style={tokenAmountStyle}>
-              {tokenAmount > 0
-                ? tokenAmount.toLocaleString(undefined, {
-                    maximumFractionDigits: 5,
-                  })
-                : "0"}{" "}
-              {selectedToken.symbol}
-            </span>
-            <svg
-              style={conversionIconStyle}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-              />
-            </svg>
-          </div>
-        )}
-
-        {/* Balance + Max Button */}
-        {selectedToken?.balance && (
-          <div style={balanceContainerStyle}>
-            <span style={balanceTextStyle}>
-              Balance{" "}
-              {parseFloat(selectedToken.balance).toLocaleString(undefined, {
-                maximumFractionDigits: 8,
-              })}
-            </span>
-            <button
-              type="button"
-              onClick={() => handleSliderChange(maxAmount)}
-              style={maxButtonStyle}
-            >
-              Max
-            </button>
-          </div>
-        )}
-
-        {/* Token Swipe Pill */}
-        {selectedToken && tokens.length > 0 && (
-          <div style={tokenPillContainerStyle}>
-            <TokenSwipePill
-              tokens={tokens}
-              selectedToken={selectedToken}
-              onTokenChange={handleTokenChange}
-              onExpandClick={handleExpandTokens}
-              selectedChain={selectedChain}
-              walletAddress={walletAddress}
-            />
-          </div>
-        )}
-
-        {/* Amount Slider */}
-        <div style={sliderContainerStyle}>
-          <AmountSlider
-            value={parsedAmount}
-            onChange={handleSliderChange}
-            max={maxAmount}
-            min={minDeposit}
-            disabled={!selectedToken}
-          />
-        </div>
-
-        {/* Fee Summary */}
-        <div style={feeSummaryStyle}>
-          {isLoadingRoute ? (
-            <div style={feeLoadingStyle}>
-              <svg
-                style={spinnerStyle}
-                viewBox="0 0 24 24"
-                fill="none"
-                className="tw-animate-spin"
-              >
-                <circle
-                  style={{ opacity: 0.25 }}
-                  cx="12"
-                  cy="12"
-                  r="10"
+            {/* Token Amount Conversion */}
+            {selectedToken && (
+              <div style={tokenConversionStyle}>
+                <span style={tokenAmountStyle}>
+                  {Number(_combinedAmountObj?.tokenAmount ?? 0) > 0
+                    ? parseFloat(
+                        (_combinedAmountObj?.tokenAmount ?? 0).toString()
+                      ).toLocaleString(undefined, {
+                        maximumFractionDigits: 5,
+                      })
+                    : "0"}{" "}
+                  {selectedToken.symbol}
+                </span>
+                <svg
+                  style={conversionIconStyle}
+                  viewBox="0 0 24 24"
+                  fill="none"
                   stroke="currentColor"
-                  strokeWidth="4"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                  />
+                </svg>
+              </div>
+            )}
+
+            {/* Balance + Max Button */}
+            {selectedToken?.balance && (
+              <div style={balanceContainerStyle}>
+                <span style={balanceTextStyle}>
+                  Balance{" "}
+                  {(
+                    Number(selectedToken.balance) /
+                    10 ** selectedToken.decimals
+                  )
+                    ?.toFixed(Number(selectedToken.balance) !== 0 ? 4 : 2)
+                    ?.toLocaleString()}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSliderChange(maxAmount)}
+                  style={maxButtonStyle}
+                >
+                  Max
+                </button>
+              </div>
+            )}
+
+            {/* Token Swipe Pill */}
+            {selectedToken && yourWalletTokens.length > 0 && (
+              <div style={tokenPillContainerStyle}>
+                <TokenSwipePill
+                  tokens={yourWalletTokens}
+                  selectedToken={selectedToken}
+                  onTokenChange={handleTokenChange}
+                  onExpandClick={handleExpandTokens}
+                  selectedChain={selectedChain}
+                  walletAddress={walletAddress}
                 />
+              </div>
+            )}
+
+            {/* Amount Slider */}
+            {selectedToken && _maxAmountUSD != undefined && (
+              <div style={sliderContainerStyle}>
+                <AmountSlider
+                  value={parsedAmount}
+                  onChange={handleSliderChange}
+                  max={_maxAmountUSD}
+                  min={minDeposit}
+                  disabled={!selectedToken}
+                />
+              </div>
+            )}
+
+            {/* Fee Summary */}
+            <div style={feeSummaryStyle}>
+              {isLoadingRoute ? (
+                <div style={feeLoadingStyle}>
+                  <svg
+                    style={spinnerStyle}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="tw-animate-spin"
+                  >
+                    <circle
+                      style={{ opacity: 0.25 }}
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      style={{ opacity: 0.75 }}
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <span style={feeLoadingTextStyle}>Calculating fees...</span>
+                </div>
+              ) : routeError ? (
+                <div style={feeErrorStyle}>
+                  <p style={feeErrorTextStyle}>{routeError}</p>
+                </div>
+              ) : (
+                <>
+                  {/* Network Fee */}
+                  <div style={feeRowStyle}>
+                    <span style={feeLabelStyle}>Network fee</span>
+                    <span style={feeValueStyle}>
+                      {networkFees ? `$${networkFees}` : "—"}
+                    </span>
+                  </div>
+
+                  {/* Divider */}
+                  <div style={feeDividerStyle} />
+
+                  {/* You'll receive */}
+                  <div style={receiveRowStyle}>
+                    <span style={receiveLabelStyle}>You&apos;ll receive</span>
+                    <span style={receiveValueStyle}>
+                      {estimatedReceive
+                        ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : parsedAmount > 0
+                          ? `~$${(parsedAmount * 0.99).toFixed(2)}`
+                          : "—"}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Action - Swipe to Confirm */}
+          <div style={actionContainerStyle}>
+            {selectedToken !== null &&
+              (selectedToken as YourTokenData).chainData !== undefined && (
+                <SwipeToConfirmTokens
+                  fromToken={selectedToken}
+                  toTokenSymbol={destinationConfig?.toToken || "USDC"}
+                  toChainName={destinationConfig?.toChain || "Base"}
+                  onConfirm={handleConfirm}
+                  disabled={!canConfirm}
+                  isWalletConnected={isWalletConnected}
+                />
+              )}
+          </div>
+
+          {/* Footer */}
+          <div style={footerStyle}>
+            <div style={footerContentStyle}>
+              <svg
+                style={lockIconStyle}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
                 <path
-                  style={{ opacity: 0.75 }}
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                 />
               </svg>
-              <span style={feeLoadingTextStyle}>Calculating fees...</span>
+              <span style={footerTextStyle}>
+                Secured by <span style={footerBrandStyle}>Trustware</span>
+              </span>
             </div>
-          ) : routeError ? (
-            <div style={feeErrorStyle}>
-              <p style={feeErrorTextStyle}>{routeError}</p>
-            </div>
-          ) : (
-            <>
-              {/* Network Fee */}
-              <div style={feeRowStyle}>
-                <span style={feeLabelStyle}>Network fee</span>
-                <span style={feeValueStyle}>
-                  {networkFees ? `$${networkFees}` : "—"}
-                </span>
-              </div>
-
-              {/* Divider */}
-              <div style={feeDividerStyle} />
-
-              {/* You'll receive */}
-              <div style={receiveRowStyle}>
-                <span style={receiveLabelStyle}>You&apos;ll receive</span>
-                <span style={receiveValueStyle}>
-                  {estimatedReceive
-                    ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : parsedAmount > 0
-                      ? `~$${(parsedAmount * 0.99).toFixed(2)}`
-                      : "—"}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Bottom Action - Swipe to Confirm */}
-      <div style={actionContainerStyle}>
-        {selectedToken && (
-          <SwipeToConfirmTokens
-            fromToken={selectedToken}
-            toTokenSymbol={destinationConfig?.toToken || "USDC"}
-            toChainName={destinationConfig?.toChain || "Base"}
-            onConfirm={handleConfirm}
-            disabled={!canConfirm}
-            isWalletConnected={isWalletConnected}
-          />
-        )}
-      </div>
-
-      {/* Footer */}
-      <div style={footerStyle}>
-        <div style={footerContentStyle}>
-          <svg
-            style={lockIconStyle}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-            />
-          </svg>
-          <span style={footerTextStyle}>
-            Secured by <span style={footerBrandStyle}>Trustware</span>
-          </span>
-        </div>
-      </div>
+          </div>
+        </>
+      ) : (
+        <h4>Loading....</h4>
+      )}
     </div>
   );
 }
