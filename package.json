@@ -2,7 +2,7 @@
   "name": "@trustware/sdk",
   "version": "1.0.7",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Trustware",
   "repository": {
     "type": "git",
