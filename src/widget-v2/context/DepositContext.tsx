@@ -8,9 +8,14 @@ import React, {
 } from "react";
 import { walletManager } from "../../wallets/manager";
 import { useWalletDetection } from "../../wallets/detect";
-import type { ChainDef, DetectedWallet, WalletInterFaceAPI } from "../../types";
+import type {
+  BalanceRow,
+  ChainDef,
+  DetectedWallet,
+  WalletInterFaceAPI,
+} from "../../types";
 import { useChains, useTokens } from "../hooks";
-import { getBalances } from "src/core/balances";
+import { getBalances, getBalancesByAddress } from "src/core/balances";
 import { resolveChainLabel } from "src/utils";
 
 /**
@@ -311,14 +316,10 @@ export function DepositProvider({
 
   const { tokens } = useTokens(null);
 
-  const {
-    // isLoading,
-    // error,
-    chains,
-  } = useChains();
+  const { chains } = useChains();
 
   useEffect(() => {
-    if (!walletAddress || !chains) {
+    if (!walletAddress || chains.length === 0) {
       setYourWalletTokens([]);
       return;
     }
@@ -331,60 +332,28 @@ export function DepositProvider({
 
     async function loadWalletTokens() {
       try {
-        const arr = await Promise.all(
-          chains.map(async (chain) => {
-            const arr = await getBalances(
-              chain.chainId as string | number,
-              walletAddress as string
-            );
-            return arr.map((b) => ({ ...b, chainId: chain.chainId }));
-          })
+        const arr = await getBalancesByAddress(walletAddress as string);
+
+        const flatenedTokenWithBalancesArr = arr.flatMap((obj) =>
+          obj.balances?.map((balance) => ({
+            ...balance,
+            chain_id: obj.chain_id,
+          }))
         );
 
         // ...............................................................//
-        const tokensWithBalance = arr
-          .flat()
-          .filter((b) => Number(b.balance) > 0);
 
-        if (tokensWithBalance.length > 0 && chains.length > 0) {
-          const chainInfo = chains.find(
-            (c) => Number(c.chainId) === Number(tokensWithBalance[0].chainId)
-          );
-
-          //setSelectedChain
-          chainInfo &&
-            setSelectedChain({
-              chainId: tokensWithBalance[0].chainId as number,
-              name: resolveChainLabel(chainInfo as ChainDef),
-              shortName:
-                chainInfo?.nativeCurrency?.symbol ??
-                resolveChainLabel(chainInfo).slice(0, 3).toUpperCase(),
-              iconUrl: chainInfo.chainIconURI,
-              isPopular: [1, 137, 8453].includes(Number(chainInfo.chainId)),
-              nativeToken: chainInfo.nativeCurrency?.symbol ?? "ETH",
-              explorerUrl: chainInfo.blockExplorerUrls?.[0],
-            });
-
-          // console.log("Balances by chain:", {
-          //   arr: arr.flat(),
-          //   fltArr: tokensWithBalance,
-          //   tokens,
-          //   chainInfo,
-          //   chains,
-          // });
-
-          // ...............................................................//
-        }
-
-        const updatedArr = arr.flat().map((b) => {
+        const updatedArr = (
+          flatenedTokenWithBalancesArr ?? ([] as BalanceRow[])
+        ).map((b) => {
           const _foundObj = tokens.find(
             (t) =>
-              (t.address.toLowerCase() === b.contract?.toLowerCase() &&
-                t.symbol?.toUpperCase() == b.symbol?.toUpperCase()) ||
-              (t.symbol.toUpperCase() == b.symbol?.toUpperCase() &&
-                t.chainId.toString() == b.chainId.toString()) ||
-              (t.symbol?.toUpperCase() === b.symbol?.toUpperCase() &&
-                b.category === "native")
+              (t.address.toLowerCase() === b?.contract?.toLowerCase() &&
+                t.symbol?.toUpperCase() == b?.symbol?.toUpperCase()) ||
+              (t.symbol.toUpperCase() == b?.symbol?.toUpperCase() &&
+                t.chainId.toString() == b?.chain_id?.toString()) ||
+              (t.symbol?.toUpperCase() === b?.symbol?.toUpperCase() &&
+                b?.category === "native")
           );
           return {
             ...b,
@@ -392,16 +361,19 @@ export function DepositProvider({
             decimals: b?.decimals,
             name: _foundObj?.name,
             iconUrl: _foundObj?.iconUrl,
-            chainId: b.chainId,
+            chainId: b?.chain_id,
             usdPrice: _foundObj?.usdPrice,
-            address: _foundObj?.address || b.contract,
+            address: _foundObj?.address || b?.contract,
           };
         });
 
         if (!cancelled) {
-          const tokenWithChainUriArray = updatedArr.map((t) => {
+          const tokenWithChainUriArray = updatedArr?.map((t) => {
             const chain = chains.find(
-              (c) => c.chainId.toString() == t.chainId.toString()
+              (c) =>
+                c.chainId.toString() == t?.chain_id?.toString() ||
+                c.networkName?.toLowerCase() === t.chain_key?.toLowerCase() ||
+                c.networkName?.toLowerCase() === t?.name?.toLowerCase()
             );
             return {
               ...t,
@@ -410,7 +382,11 @@ export function DepositProvider({
             };
           });
 
-          setYourWalletTokens(tokenWithChainUriArray as any);
+          setYourWalletTokens(
+            tokenWithChainUriArray.sort(
+              (a, b) => Number(b.balance) - Number(a.balance)
+            ) as any
+          );
 
           const findtokenwithBalance = tokenWithChainUriArray.find(
             (t) => Number(t.balance) > 0
@@ -431,7 +407,7 @@ export function DepositProvider({
       } catch (err) {
         console.error("Failed to load balances:", err);
         if (!cancelled) setYourWalletTokens([]);
-        return (cancelled = true);
+        // return (cancelled = true);
       }
     }
 
@@ -443,11 +419,7 @@ export function DepositProvider({
   }, [
     chains,
     selectedChain,
-    selectedChain?.chainId,
     selectedToken,
-    setSelectedChain,
-    setSelectedToken,
-    setYourWalletTokens,
     tokens,
     walletAddress,
     yourWalletTokens.length,

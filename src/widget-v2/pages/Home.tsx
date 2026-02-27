@@ -76,133 +76,133 @@ export interface HomeProps {
 }
 
 // Styles
-const containerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  minHeight: "500px",
-};
+// const containerStyle: React.CSSProperties = {
+//   display: "flex",
+//   flexDirection: "column",
+//   minHeight: "500px",
+// };
 
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: `${spacing[4]} ${spacing[4]}`,
-  borderBottom: `1px solid ${colors.border}`,
-};
+// const headerStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "center",
+//   padding: `${spacing[4]} ${spacing[4]}`,
+//   borderBottom: `1px solid ${colors.border}`,
+// };
 
-const headerTitleStyle: React.CSSProperties = {
-  fontSize: fontSize.lg,
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
+// const headerTitleStyle: React.CSSProperties = {
+//   fontSize: fontSize.lg,
+//   fontWeight: fontWeight.semibold,
+//   color: colors.foreground,
+// };
 
-const contentStyle: React.CSSProperties = {
-  flex: 1,
-  padding: `0 ${spacing[6]}`,
-  overflow: "visible",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  position: "relative",
-};
+// const contentStyle: React.CSSProperties = {
+//   flex: 1,
+//   padding: `0 ${spacing[6]}`,
+//   overflow: "visible",
+//   display: "flex",
+//   flexDirection: "column",
+//   alignItems: "center",
+//   justifyContent: "center",
+//   position: "relative",
+// };
 
-const enterAmountLabelStyle: React.CSSProperties = {
-  fontSize: fontSize.base,
-  color: colors.mutedForeground,
-  marginBottom: spacing[4],
-};
+// const enterAmountLabelStyle: React.CSSProperties = {
+//   fontSize: fontSize.base,
+//   color: colors.mutedForeground,
+//   marginBottom: spacing[4],
+// };
 
-const amountDisplayContainerStyle: React.CSSProperties = {
-  textAlign: "center",
-  position: "relative",
-  marginBottom: spacing[8],
-};
+// const amountDisplayContainerStyle: React.CSSProperties = {
+//   textAlign: "center",
+//   position: "relative",
+//   marginBottom: spacing[8],
+// };
 
-const amountDisplayStyle: React.CSSProperties = {
-  fontSize: "3.75rem",
-  fontWeight: fontWeight.bold,
-  letterSpacing: "-0.025em",
-  cursor: "pointer",
-};
+// const amountDisplayStyle: React.CSSProperties = {
+//   fontSize: "3.75rem",
+//   fontWeight: fontWeight.bold,
+//   letterSpacing: "-0.025em",
+//   cursor: "pointer",
+// };
 
-const dollarSignStyle: React.CSSProperties = {
-  color: colors.foreground,
-};
+// const dollarSignStyle: React.CSSProperties = {
+//   color: colors.foreground,
+// };
 
-const amountValueContainerStyle: React.CSSProperties = {
-  position: "relative",
-  display: "inline-block",
-  minWidth: "1ch",
-};
+// const amountValueContainerStyle: React.CSSProperties = {
+//   position: "relative",
+//   display: "inline-block",
+//   minWidth: "1ch",
+// };
 
-const amountInputStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  width: "100%",
-  backgroundColor: "transparent",
-  border: "none",
-  outline: "none",
-  padding: 0,
-  margin: 0,
-  textAlign: "center",
-  color: "transparent",
-  fontSize: "3.75rem",
-  fontWeight: fontWeight.bold,
-  letterSpacing: "-0.025em",
-  caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
-};
+// const amountInputStyle: React.CSSProperties = {
+//   position: "absolute",
+//   inset: 0,
+//   width: "100%",
+//   backgroundColor: "transparent",
+//   border: "none",
+//   outline: "none",
+//   padding: 0,
+//   margin: 0,
+//   textAlign: "center",
+//   color: "transparent",
+//   fontSize: "3.75rem",
+//   fontWeight: fontWeight.bold,
+//   letterSpacing: "-0.025em",
+//   caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
+// };
 
-const paymentOptionsContainerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[3],
-  alignItems: "center",
-  position: "relative",
-  zIndex: 10,
-  minHeight: "6rem", // Fixed height to prevent layout shift when dropdown opens
-};
+// const paymentOptionsContainerStyle: React.CSSProperties = {
+//   display: "flex",
+//   flexDirection: "column",
+//   gap: spacing[3],
+//   alignItems: "center",
+//   position: "relative",
+//   zIndex: 10,
+//   minHeight: "6rem", // Fixed height to prevent layout shift when dropdown opens
+// };
 
-const dropdownButtonStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: spacing[3],
-  padding: `${spacing[3]} ${spacing[6]}`,
-  borderRadius: "9999px",
-  transition: "all 0.2s",
-  backgroundColor: "rgba(161, 161, 170, 0.1)",
-  width: "14rem",
-  border: "none",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontSize: fontSize.sm,
-  lineHeight: 1.5,
-  outline: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
-  appearance: "none",
-};
+// const dropdownButtonStyle: React.CSSProperties = {
+//   display: "inline-flex",
+//   alignItems: "center",
+//   gap: spacing[3],
+//   padding: `${spacing[3]} ${spacing[6]}`,
+//   borderRadius: "9999px",
+//   transition: "all 0.2s",
+//   backgroundColor: "rgba(161, 161, 170, 0.1)",
+//   width: "14rem",
+//   border: "none",
+//   cursor: "pointer",
+//   fontFamily: "inherit",
+//   fontSize: fontSize.sm,
+//   lineHeight: 1.5,
+//   outline: "none",
+//   WebkitAppearance: "none",
+//   MozAppearance: "none",
+//   appearance: "none",
+// };
 
-const dropdownIconStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-  color: colors.mutedForeground,
-};
+// const dropdownIconStyle: React.CSSProperties = {
+//   width: "1.25rem",
+//   height: "1.25rem",
+//   color: colors.mutedForeground,
+// };
 
-const dropdownTextStyle: React.CSSProperties = {
-  fontWeight: fontWeight.medium,
-  fontSize: fontSize.sm,
-  color: colors.foreground,
-  flex: 1,
-  textAlign: "left",
-};
+// const dropdownTextStyle: React.CSSProperties = {
+//   fontWeight: fontWeight.medium,
+//   fontSize: fontSize.sm,
+//   color: colors.foreground,
+//   flex: 1,
+//   textAlign: "left",
+// };
 
-const chevronStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-  color: colors.mutedForeground,
-  transition: "transform 0.2s",
-};
+// const chevronStyle: React.CSSProperties = {
+//   width: "1rem",
+//   height: "1rem",
+//   color: colors.mutedForeground,
+//   transition: "transform 0.2s",
+// };
 
 const dropdownWrapperStyle: React.CSSProperties = {
   position: "relative",
@@ -215,204 +215,204 @@ const dropdownWrapperOpenStyle: React.CSSProperties = {
   zIndex: 100, // Higher z-index when open to overlay other elements
 };
 
-const dropdownMenuStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "100%",
-  left: "50%",
-  transform: "translateX(-50%)",
-  marginTop: spacing[2],
-  width: "16rem",
-  backgroundColor: colors.card,
-  borderRadius: borderRadius.xl,
-  boxShadow: shadows.large,
-  border: `1px solid rgba(63, 63, 70, 0.5)`,
-  zIndex: 100,
-  overflow: "hidden",
-  animation: "tw-fade-in 0.2s ease-out",
-};
+// const dropdownMenuStyle: React.CSSProperties = {
+//   position: "absolute",
+//   top: "100%",
+//   left: "50%",
+//   transform: "translateX(-50%)",
+//   marginTop: spacing[2],
+//   width: "16rem",
+//   backgroundColor: colors.card,
+//   borderRadius: borderRadius.xl,
+//   boxShadow: shadows.large,
+//   border: `1px solid rgba(63, 63, 70, 0.5)`,
+//   zIndex: 100,
+//   overflow: "hidden",
+//   animation: "tw-fade-in 0.2s ease-out",
+// };
 
-const dropdownSectionStyle: React.CSSProperties = {
-  padding: spacing[3],
-};
+// const dropdownSectionStyle: React.CSSProperties = {
+//   padding: spacing[3],
+// };
 
-const dropdownSectionHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[2],
-  marginBottom: spacing[2],
-};
+// const dropdownSectionHeaderStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   gap: spacing[2],
+//   marginBottom: spacing[2],
+// };
 
-const greenDotStyle: React.CSSProperties = {
-  width: "0.375rem",
-  height: "0.375rem",
-  borderRadius: "9999px",
-  backgroundColor: colors.green[500],
-};
+// const greenDotStyle: React.CSSProperties = {
+//   width: "0.375rem",
+//   height: "0.375rem",
+//   borderRadius: "9999px",
+//   backgroundColor: colors.green[500],
+// };
 
-const primaryDotStyle: React.CSSProperties = {
-  width: "0.375rem",
-  height: "0.375rem",
-  borderRadius: "9999px",
-  backgroundColor: colors.primary,
-};
+// const primaryDotStyle: React.CSSProperties = {
+//   width: "0.375rem",
+//   height: "0.375rem",
+//   borderRadius: "9999px",
+//   backgroundColor: colors.primary,
+// };
 
-const dropdownSectionTitleStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.medium,
-  color: colors.primary,
-};
+// const dropdownSectionTitleStyle: React.CSSProperties = {
+//   fontSize: fontSize.xs,
+//   fontWeight: fontWeight.medium,
+//   color: colors.primary,
+// };
 
-const walletListStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[1],
-};
+// const walletListStyle: React.CSSProperties = {
+//   display: "flex",
+//   flexDirection: "column",
+//   gap: spacing[1],
+// };
 
-const walletButtonStyle: React.CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: spacing[2],
-  borderRadius: borderRadius.lg,
-  transition: "background-color 0.2s",
-  border: "none",
-  backgroundColor: "transparent",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontSize: fontSize.sm,
-  outline: "none",
-};
+// const walletButtonStyle: React.CSSProperties = {
+//   width: "100%",
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "space-between",
+//   padding: spacing[2],
+//   borderRadius: borderRadius.lg,
+//   transition: "background-color 0.2s",
+//   border: "none",
+//   backgroundColor: "transparent",
+//   cursor: "pointer",
+//   fontFamily: "inherit",
+//   fontSize: fontSize.sm,
+//   outline: "none",
+// };
 
-const walletInfoStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[2],
-};
+// const walletInfoStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   gap: spacing[2],
+// };
 
-const walletIconStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  borderRadius: borderRadius.lg,
-  objectFit: "cover",
-};
+// const walletIconStyle: React.CSSProperties = {
+//   width: "2rem",
+//   height: "2rem",
+//   borderRadius: borderRadius.lg,
+//   objectFit: "cover",
+// };
 
-const walletIconFallbackStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  borderRadius: borderRadius.lg,
-  backgroundColor: colors.muted,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
+// const walletIconFallbackStyle: React.CSSProperties = {
+//   width: "2rem",
+//   height: "2rem",
+//   borderRadius: borderRadius.lg,
+//   backgroundColor: colors.muted,
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "center",
+// };
 
-const walletIconFallbackTextStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.bold,
-  color: colors.mutedForeground,
-};
+// const walletIconFallbackTextStyle: React.CSSProperties = {
+//   fontSize: fontSize.xs,
+//   fontWeight: fontWeight.bold,
+//   color: colors.mutedForeground,
+// };
 
-const walletNameStyle: React.CSSProperties = {
-  fontWeight: fontWeight.medium,
-  fontSize: fontSize.sm,
-  color: colors.foreground,
-};
+// const walletNameStyle: React.CSSProperties = {
+//   fontWeight: fontWeight.medium,
+//   fontSize: fontSize.sm,
+//   color: colors.foreground,
+// };
 
-const radioCircleStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-  borderRadius: "9999px",
-  border: `2px solid rgba(161, 161, 170, 0.3)`,
-};
+// const radioCircleStyle: React.CSSProperties = {
+//   width: "1rem",
+//   height: "1rem",
+//   borderRadius: "9999px",
+//   border: `2px solid rgba(161, 161, 170, 0.3)`,
+// };
 
-const dividerStyle: React.CSSProperties = {
-  borderTop: `1px solid rgba(63, 63, 70, 0.5)`,
-};
+// const dividerStyle: React.CSSProperties = {
+//   borderTop: `1px solid rgba(63, 63, 70, 0.5)`,
+// };
 
-const wcIconContainerStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  borderRadius: borderRadius.lg,
-  backgroundColor: "rgba(59, 130, 246, 0.1)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
+// const wcIconContainerStyle: React.CSSProperties = {
+//   width: "2rem",
+//   height: "2rem",
+//   borderRadius: borderRadius.lg,
+//   backgroundColor: "rgba(59, 130, 246, 0.1)",
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "center",
+// };
 
-const wcIconStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-  color: colors.blue[500],
-};
+// const wcIconStyle: React.CSSProperties = {
+//   width: "1.25rem",
+//   height: "1.25rem",
+//   color: colors.blue[500],
+// };
 
-const comingSoonBannerStyle: React.CSSProperties = {
-  padding: `${spacing[2]} ${spacing[3]}`,
-  backgroundColor: "rgba(245, 158, 11, 0.1)",
-  borderBottom: "1px solid rgba(245, 158, 11, 0.2)",
-};
+// const comingSoonBannerStyle: React.CSSProperties = {
+//   padding: `${spacing[2]} ${spacing[3]}`,
+//   backgroundColor: "rgba(245, 158, 11, 0.1)",
+//   borderBottom: "1px solid rgba(245, 158, 11, 0.2)",
+// };
 
-const comingSoonTextStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.medium,
-  color: colors.amber[600],
-  textAlign: "center",
-};
+// const comingSoonTextStyle: React.CSSProperties = {
+//   fontSize: fontSize.xs,
+//   fontWeight: fontWeight.medium,
+//   color: colors.amber[600],
+//   textAlign: "center",
+// };
 
-const fiatMethodButtonStyle: React.CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: spacing[2],
-  borderRadius: borderRadius.lg,
-  opacity: 0.5,
-  cursor: "not-allowed",
-  border: "none",
-  backgroundColor: "transparent",
-  fontFamily: "inherit",
-  fontSize: fontSize.sm,
-  outline: "none",
-};
+// const fiatMethodButtonStyle: React.CSSProperties = {
+//   width: "100%",
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "space-between",
+//   padding: spacing[2],
+//   borderRadius: borderRadius.lg,
+//   opacity: 0.5,
+//   cursor: "not-allowed",
+//   border: "none",
+//   backgroundColor: "transparent",
+//   fontFamily: "inherit",
+//   fontSize: fontSize.sm,
+//   outline: "none",
+// };
 
-const fiatMethodIconStyle: React.CSSProperties = {
-  color: colors.mutedForeground,
-};
+// const fiatMethodIconStyle: React.CSSProperties = {
+//   color: colors.mutedForeground,
+// };
 
-const noWalletsTextStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  color: colors.mutedForeground,
-  textAlign: "center",
-  padding: `${spacing[2]} 0`,
-};
+// const noWalletsTextStyle: React.CSSProperties = {
+//   fontSize: fontSize.xs,
+//   color: colors.mutedForeground,
+//   textAlign: "center",
+//   padding: `${spacing[2]} 0`,
+// };
 
-const footerStyle: React.CSSProperties = {
-  padding: `${spacing[4]} ${spacing[6]}`,
-  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-};
+// const footerStyle: React.CSSProperties = {
+//   padding: `${spacing[4]} ${spacing[6]}`,
+//   borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+// };
 
-const footerContentStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: spacing[2],
-};
+// const footerContentStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "center",
+//   gap: spacing[2],
+// };
 
-const lockIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-  color: colors.mutedForeground,
-};
+// const lockIconStyle: React.CSSProperties = {
+//   width: "0.875rem",
+//   height: "0.875rem",
+//   color: colors.mutedForeground,
+// };
 
-const footerTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
+// const footerTextStyle: React.CSSProperties = {
+//   fontSize: fontSize.sm,
+//   color: colors.mutedForeground,
+// };
 
-const footerBrandStyle: React.CSSProperties = {
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
+// const footerBrandStyle: React.CSSProperties = {
+//   fontWeight: fontWeight.semibold,
+//   color: colors.foreground,
+// };
 
 /**
  * Home page for the deposit widget.
@@ -562,22 +562,89 @@ export function Home({ style }: HomeProps): React.ReactElement {
   };
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "500px",
+      }}
+    >
       {/* Header */}
-      <div style={headerStyle}>
-        <h1 style={headerTitleStyle}>Deposit</h1>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: `${spacing[4]} ${spacing[4]}`,
+          borderBottom: `1px solid ${colors.border}`,
+        }}
+      >
+        <h1
+          style={{
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.semibold,
+            color: colors.foreground,
+          }}
+        >
+          Deposit
+        </h1>
       </div>
 
       {/* Content */}
-      <div style={contentStyle}>
+      <div
+        style={{
+          flex: 1,
+          padding: `0 ${spacing[6]}`,
+          overflow: "visible",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+        }}
+      >
         {/* Enter Amount Label */}
-        <p style={enterAmountLabelStyle}>Enter an amount</p>
+        <p
+          style={{
+            fontSize: fontSize.base,
+            color: colors.mutedForeground,
+            marginBottom: spacing[4],
+          }}
+        >
+          Enter an amount
+        </p>
 
         {/* Large Amount Display */}
-        <div style={amountDisplayContainerStyle}>
-          <span style={amountDisplayStyle} onClick={handleAmountClick}>
-            <span style={dollarSignStyle}>$</span>
-            <span style={amountValueContainerStyle}>
+        <div
+          style={{
+            textAlign: "center",
+            position: "relative",
+            marginBottom: spacing[8],
+          }}
+        >
+          <span
+            style={{
+              fontSize: "3.75rem",
+              fontWeight: fontWeight.bold,
+              letterSpacing: "-0.025em",
+              cursor: "pointer",
+            }}
+            onClick={handleAmountClick}
+          >
+            <span
+              style={{
+                color: colors.foreground,
+              }}
+            >
+              $
+            </span>
+            <span
+              style={{
+                position: "relative",
+                display: "inline-block",
+                minWidth: "1ch",
+              }}
+            >
               <span
                 style={{
                   color:
@@ -605,7 +672,22 @@ export function Home({ style }: HomeProps): React.ReactElement {
                 value={amount}
                 onChange={handleAmountChange}
                 onBlur={() => setIsEditing(false)}
-                style={amountInputStyle}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  outline: "none",
+                  padding: 0,
+                  margin: 0,
+                  textAlign: "center",
+                  color: "transparent",
+                  fontSize: "3.75rem",
+                  fontWeight: fontWeight.bold,
+                  letterSpacing: "-0.025em",
+                  caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
+                }}
                 aria-label="Deposit amount"
               />
             </span>
@@ -613,7 +695,17 @@ export function Home({ style }: HomeProps): React.ReactElement {
         </div>
 
         {/* Payment Options - Dropdown Pills */}
-        <div style={paymentOptionsContainerStyle}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: spacing[3],
+            alignItems: "center",
+            position: "relative",
+            zIndex: 10,
+            minHeight: "6rem",
+          }}
+        >
           {/* Pay with Crypto Dropdown */}
           <div
             style={
@@ -629,11 +721,33 @@ export function Home({ style }: HomeProps): React.ReactElement {
                 setIsCryptoDropdownOpen(!isCryptoDropdownOpen);
                 setIsFiatDropdownOpen(false);
               }}
-              style={dropdownButtonStyle}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: spacing[3],
+                padding: `${spacing[3]} ${spacing[6]}`,
+                borderRadius: "9999px",
+                transition: "all 0.2s",
+                backgroundColor: "rgba(161, 161, 170, 0.1)",
+                width: "14rem",
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: fontSize.sm,
+                lineHeight: 1.5,
+                outline: "none",
+                WebkitAppearance: "none",
+                MozAppearance: "none",
+                appearance: "none",
+              }}
             >
               {/* Wallet Icon */}
               <svg
-                style={dropdownIconStyle}
+                style={{
+                  width: "1.25rem",
+                  height: "1.25rem",
+                  color: colors.mutedForeground,
+                }}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -645,13 +759,26 @@ export function Home({ style }: HomeProps): React.ReactElement {
                   d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
                 />
               </svg>
-              <span style={dropdownTextStyle}>Pay with crypto</span>
+              <span
+                style={{
+                  fontWeight: fontWeight.medium,
+                  fontSize: fontSize.sm,
+                  color: colors.foreground,
+                  flex: 1,
+                  textAlign: "left",
+                }}
+              >
+                Pay with crypto
+              </span>
               {/* Chevron */}
               <svg
-                style={mergeStyles(
-                  chevronStyle,
-                  isCryptoDropdownOpen && { transform: "rotate(180deg)" }
-                )}
+                style={{
+                  width: "1rem",
+                  height: "1rem",
+                  color: colors.mutedForeground,
+                  transition: "transform 0.2s",
+                  transform: isCryptoDropdownOpen ? "rotate(180deg)" : "none",
+                }}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -667,12 +794,52 @@ export function Home({ style }: HomeProps): React.ReactElement {
 
             {/* Crypto Dropdown Menu */}
             {isCryptoDropdownOpen && (
-              <div style={dropdownMenuStyle}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  marginTop: spacing[2],
+                  width: "16rem",
+                  backgroundColor: colors.card,
+                  borderRadius: borderRadius.xl,
+                  boxShadow: shadows.large,
+                  border: `1px solid rgba(63, 63, 70, 0.5)`,
+                  zIndex: 100,
+                  overflow: "hidden",
+                  animation: "tw-fade-in 0.2s ease-out",
+                }}
+              >
                 {/* Detected Wallets Section */}
-                <div style={dropdownSectionStyle}>
-                  <div style={dropdownSectionHeaderStyle}>
-                    <div style={greenDotStyle} />
-                    <span style={dropdownSectionTitleStyle}>
+                <div
+                  style={{
+                    padding: spacing[3],
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[2],
+                      marginBottom: spacing[2],
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "0.375rem",
+                        height: "0.375rem",
+                        borderRadius: "9999px",
+                        backgroundColor: colors.green[500],
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: fontSize.xs,
+                        fontWeight: fontWeight.medium,
+                        color: colors.primary,
+                      }}
+                    >
                       {browserWallets.length > 0
                         ? "Detected Wallets"
                         : "No Wallets Detected"}
@@ -680,48 +847,123 @@ export function Home({ style }: HomeProps): React.ReactElement {
                   </div>
 
                   {browserWallets.length > 0 ? (
-                    <div style={walletListStyle}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: spacing[1],
+                      }}
+                    >
                       {browserWallets.map((wallet) => (
                         <button
                           key={wallet.meta.id}
                           type="button"
                           onClick={() => handleWalletSelect(wallet)}
-                          style={walletButtonStyle}
+                          style={{
+                            width: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: spacing[2],
+                            borderRadius: borderRadius.lg,
+                            transition: "background-color 0.2s",
+                            border: "none",
+                            backgroundColor: "transparent",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            fontSize: fontSize.sm,
+                            outline: "none",
+                          }}
                         >
-                          <div style={walletInfoStyle}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: spacing[2],
+                            }}
+                          >
                             {wallet.meta.logo ? (
                               <img
                                 src={wallet.meta.logo}
                                 alt={wallet.meta.name}
-                                style={walletIconStyle}
+                                style={{
+                                  width: "2rem",
+                                  height: "2rem",
+                                  borderRadius: borderRadius.lg,
+                                  objectFit: "cover",
+                                }}
                               />
                             ) : (
-                              <div style={walletIconFallbackStyle}>
-                                <span style={walletIconFallbackTextStyle}>
+                              <div
+                                style={{
+                                  width: "2rem",
+                                  height: "2rem",
+                                  borderRadius: borderRadius.lg,
+                                  backgroundColor: colors.muted,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: fontSize.xs,
+                                    fontWeight: fontWeight.bold,
+                                    color: colors.mutedForeground,
+                                  }}
+                                >
                                   {wallet.meta.name.slice(0, 2).toUpperCase()}
                                 </span>
                               </div>
                             )}
-                            <span style={walletNameStyle}>
+                            <span
+                              style={{
+                                fontWeight: fontWeight.medium,
+                                fontSize: fontSize.sm,
+                                color: colors.foreground,
+                              }}
+                            >
                               {wallet.meta.name}
                             </span>
                           </div>
-                          <div style={radioCircleStyle} />
+                          <div
+                            style={{
+                              width: "1rem",
+                              height: "1rem",
+                              borderRadius: "9999px",
+                              border: `2px solid rgba(161, 161, 170, 0.3)`,
+                            }}
+                          />
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p style={noWalletsTextStyle}>
+                    <p
+                      style={{
+                        fontSize: fontSize.xs,
+                        color: colors.mutedForeground,
+                        textAlign: "center",
+                        padding: `${spacing[2]} 0`,
+                      }}
+                    >
                       Install a wallet extension like MetaMask to continue
                     </p>
                   )}
                 </div>
 
                 {/* Divider */}
-                <div style={dividerStyle} />
+                <div
+                  style={{
+                    borderTop: `1px solid rgba(63, 63, 70, 0.5)`,
+                  }}
+                />
 
                 {/* WalletConnect Option */}
-                <div style={dropdownSectionStyle}>
+                <div
+                  style={{
+                    padding: spacing[3],
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => {
@@ -731,19 +973,61 @@ export function Home({ style }: HomeProps): React.ReactElement {
                       // if (wcWallet) handleWalletSelect(wcWallet);
                       handleWalletConnect();
                     }}
-                    style={walletButtonStyle}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: spacing[2],
+                      borderRadius: borderRadius.lg,
+                      transition: "background-color 0.2s",
+                      border: "none",
+                      backgroundColor: "transparent",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      fontSize: fontSize.sm,
+                      outline: "none",
+                    }}
                   >
-                    <div style={walletInfoStyle}>
-                      <div style={wcIconContainerStyle}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: spacing[2],
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "2rem",
+                          height: "2rem",
+                          borderRadius: borderRadius.lg,
+                          backgroundColor: "rgba(59, 130, 246, 0.1)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
                         <svg
-                          style={wcIconStyle}
+                          style={{
+                            width: "1.25rem",
+                            height: "1.25rem",
+                            color: colors.blue[500],
+                          }}
                           viewBox="0 0 24 24"
                           fill="currentColor"
                         >
                           <path d="M6.09 10.56c3.26-3.2 8.56-3.2 11.82 0l.39.39a.4.4 0 010 .58l-1.34 1.31a.21.21 0 01-.3 0l-.54-.53c-2.28-2.23-5.97-2.23-8.24 0l-.58.56a.21.21 0 01-.3 0L5.66 11.6a.4.4 0 010-.58l.43-.46zm14.6 2.72l1.2 1.17a.4.4 0 010 .58l-5.38 5.27a.43.43 0 01-.6 0l-3.82-3.74a.11.11 0 00-.15 0l-3.82 3.74a.43.43 0 01-.6 0L2.15 15.03a.4.4 0 010-.58l1.2-1.17a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0z" />
                         </svg>
                       </div>
-                      <span style={walletNameStyle}>WalletConnect</span>
+                      <span
+                        style={{
+                          fontWeight: fontWeight.medium,
+                          fontSize: fontSize.sm,
+                          color: colors.foreground,
+                        }}
+                      >
+                        WalletConnect
+                      </span>
                     </div>
                     <svg
                       style={{
@@ -783,11 +1067,33 @@ export function Home({ style }: HomeProps): React.ReactElement {
                 setIsFiatDropdownOpen(!isFiatDropdownOpen);
                 setIsCryptoDropdownOpen(false);
               }}
-              style={dropdownButtonStyle}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: spacing[3],
+                padding: `${spacing[3]} ${spacing[6]}`,
+                borderRadius: "9999px",
+                transition: "all 0.2s",
+                backgroundColor: "rgba(161, 161, 170, 0.1)",
+                width: "14rem",
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: fontSize.sm,
+                lineHeight: 1.5,
+                outline: "none",
+                WebkitAppearance: "none",
+                MozAppearance: "none",
+                appearance: "none",
+              }}
             >
               {/* Credit Card Icon */}
               <svg
-                style={dropdownIconStyle}
+                style={{
+                  width: "1.25rem",
+                  height: "1.25rem",
+                  color: colors.mutedForeground,
+                }}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -796,13 +1102,26 @@ export function Home({ style }: HomeProps): React.ReactElement {
                 <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
                 <line x1="1" y1="10" x2="23" y2="10" />
               </svg>
-              <span style={dropdownTextStyle}>Pay with fiat</span>
+              <span
+                style={{
+                  fontWeight: fontWeight.medium,
+                  fontSize: fontSize.sm,
+                  color: colors.foreground,
+                  flex: 1,
+                  textAlign: "left",
+                }}
+              >
+                Pay with fiat
+              </span>
               {/* Chevron */}
               <svg
-                style={mergeStyles(
-                  chevronStyle,
-                  isFiatDropdownOpen && { transform: "rotate(180deg)" }
-                )}
+                style={{
+                  width: "1rem",
+                  height: "1rem",
+                  color: colors.mutedForeground,
+                  transition: "transform 0.2s",
+                  transform: `${isFiatDropdownOpen ? "rotate(180deg)" : "none"}`,
+                }}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -818,35 +1137,133 @@ export function Home({ style }: HomeProps): React.ReactElement {
 
             {/* Fiat Dropdown Menu */}
             {isFiatDropdownOpen && (
-              <div style={dropdownMenuStyle}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  marginTop: spacing[2],
+                  width: "16rem",
+                  backgroundColor: colors.card,
+                  borderRadius: borderRadius.xl,
+                  boxShadow: shadows.large,
+                  border: `1px solid rgba(63, 63, 70, 0.5)`,
+                  zIndex: 100,
+                  overflow: "hidden",
+                  animation: "tw-fade-in 0.2s ease-out",
+                }}
+              >
                 {/* Coming Soon Banner */}
-                <div style={comingSoonBannerStyle}>
-                  <p style={comingSoonTextStyle}>Coming Soon</p>
+                <div
+                  style={{
+                    padding: `${spacing[2]} ${spacing[3]}`,
+                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                    borderBottom: "1px solid rgba(245, 158, 11, 0.2)",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: fontSize.xs,
+                      fontWeight: fontWeight.medium,
+                      color: colors.amber[600],
+                      textAlign: "center",
+                    }}
+                  >
+                    Coming Soon
+                  </p>
                 </div>
 
                 {/* Payment Methods Section */}
-                <div style={dropdownSectionStyle}>
-                  <div style={dropdownSectionHeaderStyle}>
-                    <div style={primaryDotStyle} />
-                    <span style={dropdownSectionTitleStyle}>
+                <div
+                  style={{
+                    padding: spacing[3],
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[2],
+                      marginBottom: spacing[2],
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "0.375rem",
+                        height: "0.375rem",
+                        borderRadius: "9999px",
+                        backgroundColor: colors.primary,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: fontSize.xs,
+                        fontWeight: fontWeight.medium,
+                        color: colors.primary,
+                      }}
+                    >
                       Payment Methods
                     </span>
                   </div>
 
-                  <div style={walletListStyle}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: spacing[1],
+                    }}
+                  >
                     {fiatOptions.map((method) => (
                       <button
                         key={method.id}
                         type="button"
                         onClick={() => handleFiatSelect(method)}
                         disabled
-                        style={fiatMethodButtonStyle}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: spacing[2],
+                          borderRadius: borderRadius.lg,
+                          opacity: 0.5,
+                          cursor: "not-allowed",
+                          border: "none",
+                          backgroundColor: "transparent",
+                          fontFamily: "inherit",
+                          fontSize: fontSize.sm,
+                          outline: "none",
+                        }}
                       >
-                        <div style={walletInfoStyle}>
-                          <span style={fiatMethodIconStyle}>{method.icon}</span>
-                          <span style={walletNameStyle}>{method.name}</span>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: spacing[2],
+                          }}
+                        >
+                          <span style={{ color: colors.mutedForeground }}>
+                            {method.icon}
+                          </span>
+                          <span
+                            style={{
+                              fontWeight: fontWeight.medium,
+                              fontSize: fontSize.sm,
+                              color: colors.foreground,
+                            }}
+                          >
+                            {method.name}
+                          </span>
                         </div>
-                        <div style={radioCircleStyle} />
+                        <div
+                          style={{
+                            width: "1rem",
+                            height: "1rem",
+                            borderRadius: "9999px",
+                            border: `2px solid rgba(161, 161, 170, 0.3)`,
+                          }}
+                        />
                       </button>
                     ))}
                   </div>
@@ -858,10 +1275,26 @@ export function Home({ style }: HomeProps): React.ReactElement {
       </div>
 
       {/* Footer */}
-      <div style={footerStyle}>
-        <div style={footerContentStyle}>
+      <div
+        style={{
+          padding: `${spacing[4]} ${spacing[6]}`,
+          borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: spacing[2],
+          }}
+        >
           <svg
-            style={lockIconStyle}
+            style={{
+              width: "0.875rem",
+              height: "0.875rem",
+              color: colors.mutedForeground,
+            }}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -873,8 +1306,21 @@ export function Home({ style }: HomeProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span style={footerTextStyle}>
-            Secured by <span style={footerBrandStyle}>Trustware</span>
+          <span
+            style={{
+              fontSize: fontSize.sm,
+              color: colors.mutedForeground,
+            }}
+          >
+            Secured by{" "}
+            <span
+              style={{
+                fontWeight: fontWeight.semibold,
+                color: colors.foreground,
+              }}
+            >
+              Trustware
+            </span>
           </span>
         </div>
       </div>

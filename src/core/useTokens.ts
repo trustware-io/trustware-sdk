@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Registry } from "../../registry";
-import { apiBase } from "../../core/http";
-import type { TokenDef } from "../../types/";
-import type { Token } from "../context/DepositContext";
+import { Registry } from "../registry";
+import { apiBase } from "./http";
+import type { TokenDef } from "../types";
+import type { Token } from "../widget-v2/context/DepositContext";
 
 export interface UseTokensResult {
   /** All available tokens for the selected chain */
@@ -50,11 +50,10 @@ export function useTokens(chainId: number | null | undefined): UseTokensResult {
 
   useEffect(() => {
     // Reset state when chainId changes
-    setTokens([]);
     setSearchQuery("");
     setError(null);
 
-    if (chainId === undefined) {
+    if (chainId === undefined || tokens.length > 0) {
       setIsLoading(false);
       return;
     }
@@ -70,7 +69,7 @@ export function useTokens(chainId: number | null | undefined): UseTokensResult {
 
         if (cancelled) return;
 
-        // Get tokens for the selected chain
+        // Get tokens for the selected chain. if set to <null>, get all tokens.
         const tokenDefs =
           chainId === null ? registry.allTokens() : registry.tokens(chainId);
 

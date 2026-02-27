@@ -10,8 +10,8 @@ import {
 
 import { useDeposit } from "../context/DepositContext";
 import type { Chain, Token, YourTokenData } from "../context/DepositContext";
-import { useChains } from "../hooks/useChains";
-import { useTokens } from "../hooks/useTokens";
+// import { useChains } from "../hooks/useChains";
+// import { useTokens } from "../hooks/useTokens";
 import { resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 import {
@@ -85,6 +85,7 @@ import {
   walletBadgeStyle,
 } from "./styles";
 import { getBalances } from "src/core/balances";
+import { useChains, useTokens } from "../hooks";
 
 export interface SelectTokenProps {
   /** Additional inline styles */
@@ -123,7 +124,6 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     goBack,
     walletAddress,
     yourWalletTokens,
-    setYourWalletTokens,
   } = useDeposit();
   const { popularChains, otherChains, isLoading, error } = useChains();
   const {
@@ -577,15 +577,30 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                         position: "relative",
                       }}
                     >
-                      <img
-                        src={
-                          token.iconUrl ||
-                          (token as typeof token & { logo_url: string })
-                            .logo_url
-                        }
-                        alt={token.symbol}
-                        style={tokenIconStyle}
-                      />
+                      {token.iconUrl ||
+                      (token as typeof token & { logo_url: string })
+                        .logo_url ? (
+                        <img
+                          src={
+                            token.iconUrl ||
+                            (token as typeof token & { logo_url: string })
+                              .logo_url
+                          }
+                          alt={token.symbol}
+                          style={tokenIconStyle}
+                        />
+                      ) : (
+                        <div
+                          // style={{
+                          //   borderRadius: "10px",
+                          //   padding: "5px",
+                          //   minWidth: "30px",
+                          // }}
+                          style={tokenIconStyle}
+                        >
+                          <span style={tokenSymbolStyle}>{token.symbol}</span>
+                        </div>
+                      )}
                       <div
                         style={{
                           position: "absolute",
@@ -650,7 +665,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   </span>
                 </div>
 
-                {filteredTokens.map((token) => (
+                {filteredTokens.map((token: Token) => (
                   <button
                     key={token.address}
                     type="button"

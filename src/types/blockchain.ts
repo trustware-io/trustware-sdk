@@ -23,6 +23,14 @@ export type BalanceRow = {
   name?: string;
 };
 
+export type WalletAddressBalanceWrapper = {
+  chain_id: string;
+  balances: BalanceRow[];
+  count: number;
+  error: string | null;
+  source: string;
+};
+
 export type ChainType = "evm" | "cosmos" | "solana" | "btc" | string;
 
 export interface NativeCurrency {

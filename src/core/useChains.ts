@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Registry } from "../../registry";
-import { apiBase } from "../../core/http";
-import type { ChainDef } from "../../types/";
-import { resolveChainLabel } from "../../utils";
+import { Registry } from "../registry";
+import { apiBase } from "./http";
+import type { ChainDef } from "../types";
+import { resolveChainLabel } from "../utils";
 
 export interface UseChainsResult {
   /** All available chains */
@@ -36,6 +36,8 @@ export function useChains(): UseChainsResult {
   const registry = useMemo(() => new Registry(apiBase()), []);
 
   useEffect(() => {
+    if (chains.length > 0) return;
+
     let cancelled = false;
 
     const loadChains = async () => {
@@ -48,19 +50,18 @@ export function useChains(): UseChainsResult {
         if (cancelled) return;
 
         // Filter and sort chains
-        const loadedChains = registry
-          .chains()
-          .filter((chain) => chain.visible !== false)
-          .filter((chain) => {
-            // Only include EVM chains
-            const type = (chain.type ?? chain.chainType)
-              ?.toString()
-              .toLowerCase();
-            return !type || type === "evm";
-          })
-          .sort((a, b) =>
-            resolveChainLabel(a).localeCompare(resolveChainLabel(b))
-          );
+        const loadedChains = registry.chains();
+        // .filter((chain) => chain.visible !== false);
+        // .filter((chain) => {
+        //   // Only include EVM chains
+        //   const type = (chain.type ?? chain.chainType)
+        //     ?.toString()
+        //     .toLowerCase();
+        //   return !type || type === "evm";
+        // })
+        // .sort((a, b) =>
+        //   resolveChainLabel(a).localeCompare(resolveChainLabel(b))
+        // );
 
         setChains(loadedChains);
       } catch (err) {

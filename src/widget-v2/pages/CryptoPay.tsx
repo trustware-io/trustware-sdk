@@ -20,7 +20,7 @@ import {
   YourTokenData,
 } from "../context/DepositContext";
 import { useRouteBuilder } from "../hooks/useRouteBuilder";
-import { useTokens } from "../hooks/useTokens";
+import { useTokens } from "../../core/useTokens";
 import { useTransactionSubmit } from "../hooks/useTransactionSubmit";
 import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
