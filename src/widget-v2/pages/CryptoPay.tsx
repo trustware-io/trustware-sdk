@@ -30,6 +30,10 @@ import { TrustwareConfigStore } from "../../config/store";
 import { useChains } from "../hooks";
 import { resolveChainLabel } from "src/utils";
 import { ChainDef } from "src";
+import {
+  getNativeTokenAddress,
+  normalizeChainKey,
+} from "../helpers/chainHelpers";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
@@ -316,6 +320,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
     yourWalletTokens,
   } = useDeposit();
 
+  const { chains } = useChains();
+
   const [isEditing, setIsEditing] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
 
@@ -327,6 +333,26 @@ export function CryptoPay({ style }: CryptoPayProps) {
     error: routeError,
     routeResult,
   } = useRouteBuilder();
+
+  //  const routeState = useSquidRoute({
+  //    backendBase,
+  //    fromChain: selectedChain ?? undefined,
+  //    fromChainId: selectedChain?.chainId,
+  //    toChain: toChain ?? undefined,
+  //    toChainId,
+  //    fromToken: (selectedToken?.address ??
+  //      getNativeTokenAddress(
+  //        selectedChain?.type ?? selectedChain?.chainType
+  //      )) as string,
+  //    toToken,
+  //    fromAmountWei: amount || undefined,
+  //    fromAmountUsd: amountUsd || undefined,
+  //    fromAddress: fromAddress || undefined,
+  //    toAddress: link?.receiver_address || undefined,
+  //    refundAddress: refundAddress || undefined,
+  //    slippage: 1,
+  //   //  linkId: link?.id,
+  //  });
 
   // Transaction submission hook
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
@@ -343,6 +369,63 @@ export function CryptoPay({ style }: CryptoPayProps) {
       return null;
     }
   }, []);
+
+  const _combinedAmountObj = useMemo(() => {
+    if (selectedToken?.usdPrice !== undefined) {
+      const tokenAmt = usdToTokenAmount(
+        amount,
+        selectedToken.usdPrice.toString()
+      );
+      return {
+        usdAmount: amount,
+        tokenAmount: tokenAmt.toString(),
+      };
+    }
+    return undefined;
+  }, [selectedToken?.usdPrice, amount]);
+
+  const routeConfig = useMemo(() => {
+    try {
+      const config = TrustwareConfigStore.get();
+      const toChainId = config.routes.toChain;
+      const toChainKey = normalizeChainKey(toChainId);
+      if (!toChainKey) return null;
+      const toChain =
+        chains.find(
+          (chain) => normalizeChainKey(chain.chainId ?? chain.id) === toChainKey
+        ) ?? null;
+
+      return {
+        // backendBase,
+        fromChain: selectedChain ?? undefined,
+        fromChainId: selectedChain?.chainId,
+        toChain: toChain,
+        toChainId: toChainId,
+        toToken: config.routes.toToken,
+        toAddress: config.routes.toAddress,
+        fromToken: (selectedToken?.address ??
+          getNativeTokenAddress(
+            selectedChain?.type ?? selectedChain?.chainType
+          )) as string,
+        fromAmountWei: BigInt(amount.trim()) || undefined,
+        fromAmountUsd: _combinedAmountObj?.usdAmount || undefined,
+        fromAddress: walletAddress || undefined,
+        refundAddress: walletAddress || undefined,
+        slippage: 1,
+      };
+    } catch {
+      return null;
+    }
+  }, [
+    _combinedAmountObj?.usdAmount,
+    amount,
+    chains,
+    selectedChain,
+    selectedToken?.address,
+    walletAddress,
+  ]);
+
+  const routeState = useRouteBuilder(routeConfig);
 
   // Minimum deposit from SDK config
   const minDeposit = useMemo(() => {
@@ -389,20 +472,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
       parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
     setAmount(sanitized);
   };
-
-  const _combinedAmountObj = useMemo(() => {
-    if (selectedToken?.usdPrice !== undefined) {
-      const tokenAmt = usdToTokenAmount(
-        amount,
-        selectedToken.usdPrice.toString()
-      );
-      return {
-        usdAmount: amount,
-        tokenAmount: tokenAmt.toString(),
-      };
-    }
-    return undefined;
-  }, [selectedToken?.usdPrice, amount]);
 
   /**
    * Handle click on the amount display to start editing

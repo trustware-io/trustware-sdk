@@ -153,9 +153,9 @@ export interface DepositContextValue {
   /** Set the selected token */
   setSelectedToken: (token: Token | null | YourTokenData) => void;
   /** Currently selected blockchain network */
-  selectedChain: Chain | null;
+  selectedChain: ChainDef | null;
   /** Set the selected chain */
-  setSelectedChain: (chain: Chain | null) => void;
+  setSelectedChain: (chain: ChainDef | null) => void;
   /** Deposit amount as string (to preserve decimal precision) */
   amount: string;
   /** Set the deposit amount */
@@ -239,7 +239,7 @@ export function DepositProvider({
   const [selectedToken, setSelectedToken] = useState<
     Token | null | YourTokenData
   >(null);
-  const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
+  const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
   const [yourWalletTokens, setYourWalletTokens] = useState<YourTokenData[]>([]);
 

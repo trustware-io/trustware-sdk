@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Trustware } from "../../core";
 import { TrustwareConfigStore } from "../../config/store";
 import { useDeposit } from "../context/DepositContext";
-import type { BuildRouteResult } from "../../types";
+import type { BuildRouteResult, ChainDef } from "../../types";
 
 /**
  * Route building state
@@ -31,6 +31,19 @@ export interface UseRouteBuilderOptions {
   debounceMs?: number;
   /** Whether to automatically build routes (default: true) */
   enabled?: boolean;
+
+    fromChain: ChainDef | undefined;
+    fromChainId: string | number | undefined;
+    toChain: ChainDef | null;
+    toChainId: string;
+    toToken: string;
+    toAddress: string | undefined;
+    fromToken: string;
+    fromAmountWei: bigint | undefined;
+    fromAmountUsd: string | undefined;
+    fromAddress: string | undefined;
+    refundAddress: string | undefined;
+    slippage: number;
 }
 
 /**
@@ -42,7 +55,20 @@ export interface UseRouteBuilderOptions {
  * @returns Route building state including fees and estimated receive amount
  */
 export function useRouteBuilder(
-  options: UseRouteBuilderOptions = {}
+  options: UseRouteBuilderOptions = {
+        fromChain: {} as ChainDef,
+    fromChainId: '',
+    toChain:{} as ChainDef ,
+    toChainId: '',
+    toToken: '',
+    toAddress: '',
+    fromToken: '',
+    fromAmountWei: 0n,
+    fromAmountUsd: '',
+    fromAddress: '',
+    refundAddress: '',
+    slippage: 0,
+  }
 ): RouteBuilderState {
   const { debounceMs = 300, enabled = true } = options;
 
@@ -159,10 +185,28 @@ export function useRouteBuilder(
           fromToken: params.fromToken,
           toToken,
           fromAmount: params.fromAmount,
+          fromAmountUsd:
+          fromAmountUSD:
           fromAddress: params.fromAddress,
           toAddress: destinationAddress,
           slippage: defaultSlippage,
+          slippageBps:
         });
+
+        {
+    // "fromChain": "43114",
+    // "toChain": "43114",
+    // "fromToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    // "toToken": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+    // "fromAmount": "10800150691113940",
+    // "fromAddress": "0xA3345d8139e61c93c5D154D9F6E311eB4C6F1154",
+    // "toAddress": "0x40695edf6e3c6be65122162b7d7b7f6c5418037b",
+    // "fromAmountUsd": "0.10",
+    // "slippage": 1,
+    // "linkId": "48a1411c-8efc-4660-97fa-9214ca7280f7",
+    // "slippageBps": 100,
+    // "fromAmountUSD": "0.10"
+}
 
         // Check if aborted
         if (ac.signal.aborted) return;
