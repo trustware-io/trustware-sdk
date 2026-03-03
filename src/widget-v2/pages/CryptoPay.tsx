@@ -37,11 +37,11 @@ export interface CryptoPayProps {
 }
 
 // Styles
-const containerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  minHeight: "500px",
-};
+// const containerStyle: React.CSSProperties = {
+//   display: "flex",
+//   flexDirection: "column",
+//   minHeight: "500px",
+// };
 
 const headerStyle: React.CSSProperties = {
   display: "flex",
@@ -50,247 +50,247 @@ const headerStyle: React.CSSProperties = {
   borderBottom: `1px solid ${colors.border}`,
 };
 
-const backButtonStyle: React.CSSProperties = {
-  padding: spacing[1],
-  marginRight: spacing[2],
-  borderRadius: borderRadius.lg,
-  transition: "background-color 0.2s",
-  backgroundColor: "transparent",
-  border: 0,
-  cursor: "pointer",
-};
+// const backButtonStyle: React.CSSProperties = {
+//   padding: spacing[1],
+//   marginRight: spacing[2],
+//   borderRadius: borderRadius.lg,
+//   transition: "background-color 0.2s",
+//   backgroundColor: "transparent",
+//   border: 0,
+//   cursor: "pointer",
+// };
 
-const backIconStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-  color: colors.foreground,
-};
+// const backIconStyle: React.CSSProperties = {
+//   width: "1.25rem",
+//   height: "1.25rem",
+//   color: colors.foreground,
+// };
 
-const headerTitleStyle: React.CSSProperties = {
-  flex: 1,
-  fontSize: fontSize.lg,
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-  textAlign: "center",
-  marginRight: "1.75rem",
-};
+// const headerTitleStyle: React.CSSProperties = {
+//   flex: 1,
+//   fontSize: fontSize.lg,
+//   fontWeight: fontWeight.semibold,
+//   color: colors.foreground,
+//   textAlign: "center",
+//   marginRight: "1.75rem",
+// };
 
-const contentStyle: React.CSSProperties = {
-  flex: 1,
-  padding: `0 ${spacing[6]}`,
-  overflowY: "auto",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-};
+// const contentStyle: React.CSSProperties = {
+//   flex: 1,
+//   padding: `0 ${spacing[6]}`,
+//   overflowY: "auto",
+//   display: "flex",
+//   flexDirection: "column",
+//   alignItems: "center",
+// };
 
-const enterAmountLabelStyle: React.CSSProperties = {
-  fontSize: fontSize.base,
-  color: colors.mutedForeground,
-  marginBottom: spacing[4],
-  marginTop: spacing[4],
-};
+// const enterAmountLabelStyle: React.CSSProperties = {
+//   fontSize: fontSize.base,
+//   color: colors.mutedForeground,
+//   marginBottom: spacing[4],
+//   marginTop: spacing[4],
+// };
 
-const amountDisplayContainerStyle: React.CSSProperties = {
-  textAlign: "center",
-  position: "relative",
-  marginBottom: spacing[4],
-};
+// const amountDisplayContainerStyle: React.CSSProperties = {
+//   textAlign: "center",
+//   position: "relative",
+//   marginBottom: spacing[4],
+// };
 
-const amountDisplayStyle: React.CSSProperties = {
-  fontSize: "3.75rem",
-  fontWeight: fontWeight.bold,
-  letterSpacing: "-0.025em",
-  cursor: "pointer",
-};
+// const amountDisplayStyle: React.CSSProperties = {
+//   fontSize: "3.75rem",
+//   fontWeight: fontWeight.bold,
+//   letterSpacing: "-0.025em",
+//   cursor: "pointer",
+// };
 
-const dollarSignStyle: React.CSSProperties = {
-  color: colors.foreground,
-};
+// const dollarSignStyle: React.CSSProperties = {
+//   color: colors.foreground,
+// };
 
-const amountValueContainerStyle: React.CSSProperties = {
-  position: "relative",
-  display: "inline-block",
-  minWidth: "1ch",
-};
+// const amountValueContainerStyle: React.CSSProperties = {
+//   position: "relative",
+//   display: "inline-block",
+//   minWidth: "1ch",
+// };
 
-const amountInputStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  width: "100%",
-  backgroundColor: "transparent",
-  border: "none",
-  outline: "none",
-  padding: 0,
-  margin: 0,
-  textAlign: "center",
-  color: "transparent",
-  fontSize: "3.75rem",
-  fontWeight: fontWeight.bold,
-  letterSpacing: "-0.025em",
-  caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
-};
+// const amountInputStyle: React.CSSProperties = {
+//   position: "absolute",
+//   inset: 0,
+//   width: "100%",
+//   backgroundColor: "transparent",
+//   border: "none",
+//   outline: "none",
+//   padding: 0,
+//   margin: 0,
+//   textAlign: "center",
+//   color: "transparent",
+//   fontSize: "3.75rem",
+//   fontWeight: fontWeight.bold,
+//   letterSpacing: "-0.025em",
+//   caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
+// };
 
-const tokenConversionStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[2],
-  marginTop: spacing[2],
-};
+// const tokenConversionStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   gap: spacing[2],
+//   marginTop: spacing[2],
+// };
 
-const tokenAmountStyle: React.CSSProperties = {
-  fontSize: fontSize.lg,
-  color: colors.mutedForeground,
-};
+// const tokenAmountStyle: React.CSSProperties = {
+//   fontSize: fontSize.lg,
+//   color: colors.mutedForeground,
+// };
 
-const conversionIconStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-  color: colors.mutedForeground,
-};
+// const conversionIconStyle: React.CSSProperties = {
+//   width: "1rem",
+//   height: "1rem",
+//   color: colors.mutedForeground,
+// };
 
-const balanceContainerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[3],
-  marginTop: spacing[2],
-};
+// const balanceContainerStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   gap: spacing[3],
+//   marginTop: spacing[2],
+// };
 
-const balanceTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.semibold,
-  color: colors.primary,
-};
+// const balanceTextStyle: React.CSSProperties = {
+//   fontSize: fontSize.sm,
+//   fontWeight: fontWeight.semibold,
+//   color: colors.primary,
+// };
 
-const maxButtonStyle: React.CSSProperties = {
-  padding: `${spacing[1]} ${spacing[3]}`,
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.medium,
-  color: colors.mutedForeground,
-  backgroundColor: colors.muted,
-  borderRadius: "9999px",
-  transition: "background-color 0.2s",
-  border: 0,
-  cursor: "pointer",
-};
+// const maxButtonStyle: React.CSSProperties = {
+//   padding: `${spacing[1]} ${spacing[3]}`,
+//   fontSize: fontSize.xs,
+//   fontWeight: fontWeight.medium,
+//   color: colors.mutedForeground,
+//   backgroundColor: colors.muted,
+//   borderRadius: "9999px",
+//   transition: "background-color 0.2s",
+//   border: 0,
+//   cursor: "pointer",
+// };
 
-const tokenPillContainerStyle: React.CSSProperties = {
-  marginTop: spacing[6],
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[3],
-};
+// const tokenPillContainerStyle: React.CSSProperties = {
+//   marginTop: spacing[6],
+//   display: "flex",
+//   flexDirection: "column",
+//   gap: spacing[3],
+// };
 
-const sliderContainerStyle: React.CSSProperties = {
-  width: "100%",
-  marginTop: spacing[8],
-  padding: `0 ${spacing[2]}`,
-};
+// const sliderContainerStyle: React.CSSProperties = {
+//   width: "100%",
+//   marginTop: spacing[8],
+//   padding: `0 ${spacing[2]}`,
+// };
 
-const feeSummaryStyle: React.CSSProperties = {
-  width: "100%",
-  marginTop: spacing[6],
-  padding: spacing[4],
-  borderRadius: borderRadius.xl,
-  backgroundColor: "rgba(63, 63, 70, 0.5)",
-};
+// const feeSummaryStyle: React.CSSProperties = {
+//   width: "100%",
+//   marginTop: spacing[6],
+//   padding: spacing[4],
+//   borderRadius: borderRadius.xl,
+//   backgroundColor: "rgba(63, 63, 70, 0.5)",
+// };
 
-const feeLoadingStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: `${spacing[2]} 0`,
-};
+// const feeLoadingStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "center",
+//   padding: `${spacing[2]} 0`,
+// };
 
-const spinnerStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-  color: colors.mutedForeground,
-};
+// const spinnerStyle: React.CSSProperties = {
+//   width: "1.25rem",
+//   height: "1.25rem",
+//   color: colors.mutedForeground,
+// };
 
-const feeLoadingTextStyle: React.CSSProperties = {
-  marginLeft: spacing[2],
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
+// const feeLoadingTextStyle: React.CSSProperties = {
+//   marginLeft: spacing[2],
+//   fontSize: fontSize.sm,
+//   color: colors.mutedForeground,
+// };
 
-const feeErrorStyle: React.CSSProperties = {
-  textAlign: "center",
-  padding: `${spacing[2]} 0`,
-};
+// const feeErrorStyle: React.CSSProperties = {
+//   textAlign: "center",
+//   padding: `${spacing[2]} 0`,
+// };
 
-const feeErrorTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.destructive,
-};
+// const feeErrorTextStyle: React.CSSProperties = {
+//   fontSize: fontSize.sm,
+//   color: colors.destructive,
+// };
 
-const feeRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  fontSize: fontSize.sm,
-};
+// const feeRowStyle: React.CSSProperties = {
+//   display: "flex",
+//   justifyContent: "space-between",
+//   fontSize: fontSize.sm,
+// };
 
-const feeLabelStyle: React.CSSProperties = {
-  color: colors.mutedForeground,
-};
+// const feeLabelStyle: React.CSSProperties = {
+//   color: colors.mutedForeground,
+// };
 
-const feeValueStyle: React.CSSProperties = {
-  fontWeight: fontWeight.medium,
-  color: colors.foreground,
-};
+// const feeValueStyle: React.CSSProperties = {
+//   fontWeight: fontWeight.medium,
+//   color: colors.foreground,
+// };
 
-const feeDividerStyle: React.CSSProperties = {
-  height: "1px",
-  backgroundColor: colors.border,
-  margin: `${spacing[2]} 0`,
-};
+// const feeDividerStyle: React.CSSProperties = {
+//   height: "1px",
+//   backgroundColor: colors.border,
+//   margin: `${spacing[2]} 0`,
+// };
 
-const receiveRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-};
+// const receiveRowStyle: React.CSSProperties = {
+//   display: "flex",
+//   justifyContent: "space-between",
+// };
 
-const receiveLabelStyle: React.CSSProperties = {
-  color: colors.mutedForeground,
-  fontSize: fontSize.sm,
-};
+// const receiveLabelStyle: React.CSSProperties = {
+//   color: colors.mutedForeground,
+//   fontSize: fontSize.sm,
+// };
 
-const receiveValueStyle: React.CSSProperties = {
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
+// const receiveValueStyle: React.CSSProperties = {
+//   fontWeight: fontWeight.semibold,
+//   color: colors.foreground,
+// };
 
-const actionContainerStyle: React.CSSProperties = {
-  padding: `${spacing[4]} ${spacing[6]}`,
-};
+// const actionContainerStyle: React.CSSProperties = {
+//   padding: `${spacing[4]} ${spacing[6]}`,
+// };
 
-const footerStyle: React.CSSProperties = {
-  padding: `${spacing[4]} ${spacing[6]}`,
-  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-};
+// const footerStyle: React.CSSProperties = {
+//   padding: `${spacing[4]} ${spacing[6]}`,
+//   borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+// };
 
-const footerContentStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: spacing[2],
-};
+// const footerContentStyle: React.CSSProperties = {
+//   display: "flex",
+//   alignItems: "center",
+//   justifyContent: "center",
+//   gap: spacing[2],
+// };
 
-const lockIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-  color: colors.mutedForeground,
-};
+// const lockIconStyle: React.CSSProperties = {
+//   width: "0.875rem",
+//   height: "0.875rem",
+//   color: colors.mutedForeground,
+// };
 
-const footerTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
+// const footerTextStyle: React.CSSProperties = {
+//   fontSize: fontSize.sm,
+//   color: colors.mutedForeground,
+// };
 
-const footerBrandStyle: React.CSSProperties = {
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
+// const footerBrandStyle: React.CSSProperties = {
+//   fontWeight: fontWeight.semibold,
+//   color: colors.foreground,
+// };
 
 function usdToTokenAmount(amt: string, tkPrice: string | undefined): number {
   if (tkPrice === undefined || tkPrice === "0") return 0;
@@ -492,17 +492,44 @@ export function CryptoPay({ style }: CryptoPayProps) {
   }, [selectedChain, selectedToken, yourWalletTokens]);
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "500px",
+        // ...style,
+      }}
+    >
       {/* Header */}
-      <div style={headerStyle}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: `${spacing[4]} ${spacing[4]}`,
+          borderBottom: `1px solid ${colors.border}`,
+          ...style,
+        }}
+      >
         <button
           type="button"
           onClick={goBack}
-          style={backButtonStyle}
+          style={{
+            padding: spacing[1],
+            marginRight: spacing[2],
+            borderRadius: borderRadius.lg,
+            transition: "background-color 0.2s",
+            backgroundColor: "transparent",
+            border: 0,
+            cursor: "pointer",
+          }}
           aria-label="Go back"
         >
           <svg
-            style={backIconStyle}
+            style={{
+              width: "1.25rem",
+              height: "1.25rem",
+              color: colors.foreground,
+            }}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -515,21 +542,76 @@ export function CryptoPay({ style }: CryptoPayProps) {
             />
           </svg>
         </button>
-        <h1 style={headerTitleStyle}>Confirm Deposit</h1>
+        <h1
+          style={{
+            flex: 1,
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.semibold,
+            color: colors.foreground,
+            textAlign: "center",
+            marginRight: "1.75rem",
+          }}
+        >
+          Confirm Deposit
+        </h1>
       </div>
 
       {isReady ? (
         <>
           {/* Content */}
-          <div style={contentStyle}>
+          <div
+            style={{
+              flex: 1,
+              padding: `0 ${spacing[6]}`,
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
             {/* Enter Amount Label */}
-            <p style={enterAmountLabelStyle}>Enter an amount</p>
+            <p
+              style={{
+                fontSize: fontSize.base,
+                color: colors.mutedForeground,
+                marginBottom: spacing[4],
+                marginTop: spacing[4],
+              }}
+            >
+              Enter an amount
+            </p>
 
             {/* Large Amount Display */}
-            <div style={amountDisplayContainerStyle}>
-              <span style={amountDisplayStyle} onClick={handleAmountClick}>
-                <span style={dollarSignStyle}>$</span>
-                <span style={amountValueContainerStyle}>
+            <div
+              style={{
+                textAlign: "center",
+                position: "relative",
+                marginBottom: spacing[4],
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "3.75rem",
+                  fontWeight: fontWeight.bold,
+                  letterSpacing: "-0.025em",
+                  cursor: "pointer",
+                }}
+                onClick={handleAmountClick}
+              >
+                <span
+                  style={{
+                    color: colors.foreground,
+                  }}
+                >
+                  $
+                </span>
+                <span
+                  style={{
+                    position: "relative",
+                    display: "inline-block",
+                    minWidth: "1ch",
+                  }}
+                >
                   <span
                     style={{
                       color:
@@ -559,7 +641,22 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     value={amount}
                     onChange={handleAmountChange}
                     onBlur={() => setIsEditing(false)}
-                    style={amountInputStyle}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      outline: "none",
+                      padding: 0,
+                      margin: 0,
+                      textAlign: "center",
+                      color: "transparent",
+                      fontSize: "3.75rem",
+                      fontWeight: fontWeight.bold,
+                      letterSpacing: "-0.025em",
+                      caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
+                    }}
                     aria-label="Deposit amount"
                   />
                 </span>
@@ -568,8 +665,20 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
             {/* Token Amount Conversion */}
             {selectedToken && (
-              <div style={tokenConversionStyle}>
-                <span style={tokenAmountStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: spacing[2],
+                  marginTop: spacing[2],
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: fontSize.lg,
+                    color: colors.mutedForeground,
+                  }}
+                >
                   {Number(_combinedAmountObj?.tokenAmount ?? 0) > 0
                     ? parseFloat(
                         (_combinedAmountObj?.tokenAmount ?? 0).toString()
@@ -580,7 +689,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   {selectedToken.symbol}
                 </span>
                 <svg
-                  style={conversionIconStyle}
+                  style={{
+                    width: "1rem",
+                    height: "1rem",
+                    color: colors.mutedForeground,
+                  }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -597,8 +710,21 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
             {/* Balance + Max Button */}
             {selectedToken?.balance && (
-              <div style={balanceContainerStyle}>
-                <span style={balanceTextStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: spacing[3],
+                  marginTop: spacing[2],
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: fontSize.sm,
+                    fontWeight: fontWeight.semibold,
+                    color: colors.primary,
+                  }}
+                >
                   Balance{" "}
                   {(
                     Number(selectedToken.balance) /
@@ -610,7 +736,17 @@ export function CryptoPay({ style }: CryptoPayProps) {
                 <button
                   type="button"
                   onClick={() => handleSliderChange(maxAmount)}
-                  style={maxButtonStyle}
+                  style={{
+                    padding: `${spacing[1]} ${spacing[3]}`,
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.medium,
+                    color: colors.mutedForeground,
+                    backgroundColor: colors.muted,
+                    borderRadius: "9999px",
+                    transition: "background-color 0.2s",
+                    border: 0,
+                    cursor: "pointer",
+                  }}
                 >
                   Max
                 </button>
@@ -619,7 +755,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
             {/* Token Swipe Pill */}
             {selectedToken && yourWalletTokens.length > 0 && (
-              <div style={tokenPillContainerStyle}>
+              <div
+                style={{
+                  marginTop: spacing[6],
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: spacing[3],
+                }}
+              >
                 <TokenSwipePill
                   tokens={yourWalletTokens}
                   selectedToken={selectedToken}
@@ -633,7 +776,13 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
             {/* Amount Slider */}
             {selectedToken && _maxAmountUSD != undefined && (
-              <div style={sliderContainerStyle}>
+              <div
+                style={{
+                  width: "100%",
+                  marginTop: spacing[8],
+                  padding: `0 ${spacing[2]}`,
+                }}
+              >
                 <AmountSlider
                   value={parsedAmount}
                   onChange={handleSliderChange}
@@ -645,11 +794,30 @@ export function CryptoPay({ style }: CryptoPayProps) {
             )}
 
             {/* Fee Summary */}
-            <div style={feeSummaryStyle}>
+            <div
+              style={{
+                width: "100%",
+                marginTop: spacing[6],
+                padding: spacing[4],
+                borderRadius: borderRadius.xl,
+                backgroundColor: "rgba(63, 63, 70, 0.5)",
+              }}
+            >
               {isLoadingRoute ? (
-                <div style={feeLoadingStyle}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: `${spacing[2]} 0`,
+                  }}
+                >
                   <svg
-                    style={spinnerStyle}
+                    style={{
+                      width: "1.25rem",
+                      height: "1.25rem",
+                      color: colors.mutedForeground,
+                    }}
                     viewBox="0 0 24 24"
                     fill="none"
                     className="tw-animate-spin"
@@ -668,29 +836,89 @@ export function CryptoPay({ style }: CryptoPayProps) {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  <span style={feeLoadingTextStyle}>Calculating fees...</span>
+                  <span
+                    style={{
+                      marginLeft: spacing[2],
+                      fontSize: fontSize.sm,
+                      color: colors.mutedForeground,
+                    }}
+                  >
+                    Calculating fees...
+                  </span>
                 </div>
               ) : routeError ? (
-                <div style={feeErrorStyle}>
-                  <p style={feeErrorTextStyle}>{routeError}</p>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: `${spacing[2]} 0`,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: fontSize.sm,
+                      color: colors.destructive,
+                    }}
+                  >
+                    {routeError}
+                  </p>
                 </div>
               ) : (
                 <>
                   {/* Network Fee */}
-                  <div style={feeRowStyle}>
-                    <span style={feeLabelStyle}>Network fee</span>
-                    <span style={feeValueStyle}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: fontSize.sm,
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: colors.mutedForeground,
+                      }}
+                    >
+                      Network fee
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: fontWeight.medium,
+                        color: colors.foreground,
+                      }}
+                    >
                       {networkFees ? `$${networkFees}` : "—"}
                     </span>
                   </div>
 
                   {/* Divider */}
-                  <div style={feeDividerStyle} />
+                  <div
+                    style={{
+                      height: "1px",
+                      backgroundColor: colors.border,
+                      margin: `${spacing[2]} 0`,
+                    }}
+                  />
 
                   {/* You'll receive */}
-                  <div style={receiveRowStyle}>
-                    <span style={receiveLabelStyle}>You&apos;ll receive</span>
-                    <span style={receiveValueStyle}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: colors.mutedForeground,
+                        fontSize: fontSize.sm,
+                      }}
+                    >
+                      You&apos;ll receive
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: fontWeight.semibold,
+                        color: colors.foreground,
+                      }}
+                    >
                       {estimatedReceive
                         ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : parsedAmount > 0
@@ -704,7 +932,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
           </div>
 
           {/* Bottom Action - Swipe to Confirm */}
-          <div style={actionContainerStyle}>
+          <div
+            style={{
+              padding: `${spacing[4]} ${spacing[6]}`,
+            }}
+          >
             {selectedToken !== null &&
               (selectedToken as YourTokenData).chainData !== undefined && (
                 <SwipeToConfirmTokens
@@ -719,10 +951,26 @@ export function CryptoPay({ style }: CryptoPayProps) {
           </div>
 
           {/* Footer */}
-          <div style={footerStyle}>
-            <div style={footerContentStyle}>
+          <div
+            style={{
+              padding: `${spacing[4]} ${spacing[6]}`,
+              borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: spacing[2],
+              }}
+            >
               <svg
-                style={lockIconStyle}
+                style={{
+                  width: "0.875rem",
+                  height: "0.875rem",
+                  color: colors.mutedForeground,
+                }}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -734,8 +982,21 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                 />
               </svg>
-              <span style={footerTextStyle}>
-                Secured by <span style={footerBrandStyle}>Trustware</span>
+              <span
+                style={{
+                  fontSize: fontSize.sm,
+                  color: colors.mutedForeground,
+                }}
+              >
+                Secured by{" "}
+                <span
+                  style={{
+                    fontWeight: fontWeight.semibold,
+                    color: colors.foreground,
+                  }}
+                >
+                  Trustware
+                </span>
               </span>
             </div>
           </div>
