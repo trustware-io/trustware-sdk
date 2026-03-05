@@ -1,6 +1,52 @@
 /* core/routes.ts */
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
-import type { BuildRouteResult, RouteParams, Transaction } from "../types";
+import type {
+  BuildRouteResult,
+  RouteParams,
+  RoutePlan,
+  Transaction,
+} from "../types";
+import { TrustwareConfigStore } from "src/config/store";
+
+export type BuildRouteBody = {
+  fromChain: string; // e.g. "43114"
+  toChain: string; // link.chain_id
+  fromToken: string;
+  toToken: string;
+  fromAmount: string; // wei string
+  fromAddress: string;
+  toAddress: string;
+  fromAmountUsd?: string; // optional USD string
+  refundAddress?: string;
+  direction?: string; // "deposit" | "withdraw" | "cross"
+  slippage?: number; // bps or %
+  linkId?: string; // optional link identifier
+  // optional passthrough:
+  memo?: string;
+};
+
+export type TxRequest = {
+  to?: string;
+  target?: string;
+  data: string;
+  value?: string; // wei string
+  gasLimit?: string; // wei string
+  maxFeePerGas?: string; // wei string
+  maxPriorityFeePerGas?: string; // wei string
+  chainId?: number | string; // sometimes provided by BE
+  gasPrice?: string; // wei string, legacy gas price (optional if EIP-1559 fields are present)
+};
+
+export type BuildRouteResponse = {
+  intentId?: string;
+  route?: RoutePlan;
+  data?: {
+    intentId?: string;
+    route?: RoutePlan;
+  };
+  error?: string;
+  message?: string;
+};
 
 // @title Build Route
 // @description Builds a cross-chain or same-chain route based on the provided parameters. Returns a RouteIntent object containing details of the route.
@@ -26,7 +72,7 @@ import type { BuildRouteResult, RouteParams, Transaction } from "../types";
 //   toAddress: '0xYourDestinationAddress',
 //   slippage: 0.5, // Optional
 //   };
-export async function buildRoute(p: RouteParams): Promise<BuildRouteResult> {
+export async function buildRoute1(p: RouteParams): Promise<BuildRouteResult> {
   const r = await rateLimitedFetch(`${apiBase()}/squid/route`, {
     method: "POST",
     headers: jsonHeaders(),
@@ -36,6 +82,73 @@ export async function buildRoute(p: RouteParams): Promise<BuildRouteResult> {
   await assertOK(r);
   const j = await r.json();
   return j.data as BuildRouteResult;
+}
+
+export async function buildRoute(
+  // backendBase: string,
+  body: BuildRouteBody,
+  signal?: AbortSignal
+): Promise<{
+  intentId: string;
+  txReq: TxRequest;
+  actions: unknown[];
+  finalExchangeRate: {
+    fromAmountUSD?: string;
+    toAmountMinUSD?: string;
+  };
+  route: RoutePlan | undefined;
+}> {
+  try {
+    // const url = `${backendBase.replace(/\/?$/, "/")}api/routes/route`;
+    const cfg = TrustwareConfigStore.get();
+    const url = `${apiBase()}/routes/route`;
+    const payload = {
+      ...body,
+      slippageBps:
+        body.slippage === undefined
+          ? undefined
+          : Math.round(body.slippage * 100),
+      fromAmountUSD: body.fromAmountUsd,
+    };
+    console.log("buildRoute payload", { payload });
+    const r = await rateLimitedFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
+      body: JSON.stringify(payload),
+      signal,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let json: BuildRouteResponse = {};
+    try {
+      json = await r.json();
+    } catch {}
+
+    if (!r.ok) {
+      const msg = json?.error || json?.message || "Failed to build route";
+      throw new Error(msg);
+    }
+
+    const intentId = json?.data?.intentId ?? json?.intentId ?? "";
+    const route = json?.data?.route ?? json?.route;
+    const txReq: TxRequest | undefined = route?.execution?.transaction;
+    const actions = Array.isArray(route?.steps) ? route.steps : [];
+    const estimate = route?.estimate ?? {};
+
+    const finalExchangeRate = {
+      fromAmountUSD: (estimate as { fromAmountUsd?: string }).fromAmountUsd,
+      toAmountMinUSD: estimate?.toAmountUsd,
+    };
+
+    if (!txReq?.data || !(txReq?.to || txReq?.target)) {
+      throw new Error("Invalid route: missing transactionRequest target/data");
+    }
+
+    return { intentId, txReq, actions, finalExchangeRate, route };
+  } catch (e) {
+    if (e instanceof Error) console.error(e.message, e.name || "buildRoute");
+    throw e;
+  }
 }
 
 // @title Submit Receipt

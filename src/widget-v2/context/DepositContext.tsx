@@ -95,6 +95,8 @@ export interface Token {
   decimals: number;
   /** URL to token icon/logo */
   iconUrl?: string;
+  logoURI?: string;
+
   /** Token balance if wallet connected (as string to preserve precision) */
   balance?: string;
 
@@ -348,32 +350,57 @@ export function DepositProvider({
         ).map((b) => {
           const _foundObj = tokens.find(
             (t) =>
-              (t.address.toLowerCase() === b?.contract?.toLowerCase() &&
-                t.symbol?.toUpperCase() == b?.symbol?.toUpperCase()) ||
-              (t.symbol.toUpperCase() == b?.symbol?.toUpperCase() &&
-                t.chainId.toString() == b?.chain_id?.toString()) ||
-              (t.symbol?.toUpperCase() === b?.symbol?.toUpperCase() &&
-                b?.category === "native")
+              // (t.address.toLowerCase() === b?.contract?.toLowerCase() &&
+              //   t.symbol?.toUpperCase() == b?.symbol?.toUpperCase()) ||
+              // (t.symbol.toUpperCase() == b?.symbol?.toUpperCase() &&
+              //   t.chainId.toString() == b?.chain_id?.toString()) ||
+              // (t.symbol?.toUpperCase() === b?.symbol?.toUpperCase() &&
+              //   b?.category === "native")
+
+              t.symbol.toUpperCase() == b?.symbol?.toUpperCase() &&
+              t.chainId.toString() == b?.chain_id?.toString()
           );
           return {
             ...b,
             symbol: b?.symbol,
             decimals: b?.decimals,
             name: _foundObj?.name,
-            iconUrl: _foundObj?.iconUrl,
+            iconUrl: _foundObj?.logoURI,
             chainId: b?.chain_id,
             usdPrice: _foundObj?.usdPrice,
             address: _foundObj?.address || b?.contract,
           };
         });
 
+        const foundSEIChains = chains.filter(
+          (t) => t.networkName?.toLowerCase() === "sei"
+        );
+
+        const foundSEITokens = tokens.filter(
+          (t) => t.name?.toLowerCase() === "sei"
+        );
+
+        const foundAvax = tokens.filter(
+          (t) => t.symbol?.toLowerCase() === "avax"
+        );
+
+        console.log({
+          foundSEIChains,
+          foundSEITokens,
+          flatenedTokenWithBalancesArr,
+          arr,
+          foundAvax,
+        });
+
         if (!cancelled) {
           const tokenWithChainUriArray = updatedArr?.map((t) => {
             const chain = chains.find(
               (c) =>
-                c.chainId.toString() == t?.chain_id?.toString() ||
-                c.networkName?.toLowerCase() === t.chain_key?.toLowerCase() ||
-                c.networkName?.toLowerCase() === t?.name?.toLowerCase()
+                // c.chainId.toString() == t?.chain_id?.toString() ||
+                // c.networkName?.toLowerCase() === t.chain_key?.toLowerCase() ||
+                // c.networkName?.toLowerCase() === t?.name?.toLowerCase()
+
+                (t.chainId ?? t.chain_id)?.toString() === c?.chainId?.toString()
             );
             return {
               ...t,

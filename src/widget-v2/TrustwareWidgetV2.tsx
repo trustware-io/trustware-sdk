@@ -182,7 +182,7 @@ function WidgetContent({
     const state: PersistedState = {
       currentStep,
       amount,
-      selectedChainId: selectedChain?.chainId,
+      selectedChainId: selectedChain?.chainId as number,
       selectedTokenAddress: selectedToken?.address,
       transactionHash: transactionHash ?? undefined,
       transactionStatus:

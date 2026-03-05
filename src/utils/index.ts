@@ -47,29 +47,50 @@ export function parseDecimalToWeiUnsafe(
   }
 }
 
+// export function weiToDecimalString(
+//   wei: bigint,
+//   decimals: number,
+//   maxFrac = 8
+// ): string {
+//   const neg = wei < 0n;
+//   const value = neg ? -wei : wei;
+//   const base = BigInt(10) ** BigInt(decimals);
+//   const intPart = value / base;
+//   const fracPart = value % base;
+//   let fracStr = decimals > 0 ? fracPart.toString().padStart(decimals, "0") : "";
+//   if (decimals > 0) {
+//     fracStr = fracStr.slice(0, Math.min(maxFrac, decimals)).replace(/0+$/, "");
+//   }
+//   return `${neg ? "-" : ""}${intPart.toString()}${fracStr ? `.${fracStr}` : ""}`;
+// }
+
 export function weiToDecimalString(
   wei: bigint,
   decimals: number,
-  maxFrac = 8
+  maxFrac = 6
 ): string {
-  const neg = wei < 0n;
-  const value = neg ? -wei : wei;
-  const base = BigInt(10) ** BigInt(decimals);
-  const intPart = value / base;
-  const fracPart = value % base;
-  let fracStr = decimals > 0 ? fracPart.toString().padStart(decimals, "0") : "";
-  if (decimals > 0) {
-    fracStr = fracStr.slice(0, Math.min(maxFrac, decimals)).replace(/0+$/, "");
-  }
-  return `${neg ? "-" : ""}${intPart.toString()}${fracStr ? `.${fracStr}` : ""}`;
+  const base = 10n ** BigInt(decimals);
+  const intPart = wei / base;
+  const fracPart = wei % base;
+  if (fracPart === 0n) return intPart.toString();
+  const fracStr = fracPart
+    .toString()
+    .padStart(decimals, "0")
+    .replace(/0+$/, "");
+  const trimmed = fracStr.slice(0, maxFrac).replace(/0+$/, "");
+  return trimmed ? `${intPart.toString()}.${trimmed}` : intPart.toString();
 }
 
+// export function divRoundDown(a: bigint, b: bigint): bigint {
+//   if (b === 0n) return 0n;
+//   const q = a / b;
+//   const r = a % b;
+//   if ((a ^ b) >= 0 || r === 0n) return q; // same sign or exact
+//   return q; // we want floor toward -∞; with non-negative inputs it's just q
+// }
 export function divRoundDown(a: bigint, b: bigint): bigint {
   if (b === 0n) return 0n;
-  const q = a / b;
-  const r = a % b;
-  if ((a ^ b) >= 0 || r === 0n) return q; // same sign or exact
-  return q; // we want floor toward -∞; with non-negative inputs it's just q
+  return a / b;
 }
 
 export function shortenAddress(address: string, chars = 4) {

@@ -19,7 +19,10 @@ import {
   useDeposit,
   YourTokenData,
 } from "../context/DepositContext";
-import { useRouteBuilder } from "../hooks/useRouteBuilder";
+import {
+  useRouteBuilder,
+  UseRouteBuilderOptions,
+} from "../hooks/useRouteBuilder";
 import { useTokens } from "../../core/useTokens";
 import { useTransactionSubmit } from "../hooks/useTransactionSubmit";
 import { TokenSwipePill } from "../components/TokenSwipePill";
@@ -28,12 +31,16 @@ import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
 
 import { useChains } from "../hooks";
-import { resolveChainLabel } from "src/utils";
+import { divRoundDown, resolveChainLabel, weiToDecimalString } from "src/utils";
 import { ChainDef } from "src";
 import {
   getNativeTokenAddress,
+  isNativeTokenAddress,
+  isZeroAddrLike,
   normalizeChainKey,
+  parseDecimalToWei,
 } from "../helpers/chainHelpers";
+import { calculateGasFees } from "../helpers/feesHelpers";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
@@ -54,247 +61,19 @@ const headerStyle: React.CSSProperties = {
   borderBottom: `1px solid ${colors.border}`,
 };
 
-// const backButtonStyle: React.CSSProperties = {
-//   padding: spacing[1],
-//   marginRight: spacing[2],
-//   borderRadius: borderRadius.lg,
-//   transition: "background-color 0.2s",
-//   backgroundColor: "transparent",
-//   border: 0,
-//   cursor: "pointer",
-// };
+// import { usePublicClient, useWalletClient } from "wagmi";
+import { createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
 
-// const backIconStyle: React.CSSProperties = {
-//   width: "1.25rem",
-//   height: "1.25rem",
-//   color: colors.foreground,
-// };
-
-// const headerTitleStyle: React.CSSProperties = {
-//   flex: 1,
-//   fontSize: fontSize.lg,
-//   fontWeight: fontWeight.semibold,
-//   color: colors.foreground,
-//   textAlign: "center",
-//   marginRight: "1.75rem",
-// };
-
-// const contentStyle: React.CSSProperties = {
-//   flex: 1,
-//   padding: `0 ${spacing[6]}`,
-//   overflowY: "auto",
-//   display: "flex",
-//   flexDirection: "column",
-//   alignItems: "center",
-// };
-
-// const enterAmountLabelStyle: React.CSSProperties = {
-//   fontSize: fontSize.base,
-//   color: colors.mutedForeground,
-//   marginBottom: spacing[4],
-//   marginTop: spacing[4],
-// };
-
-// const amountDisplayContainerStyle: React.CSSProperties = {
-//   textAlign: "center",
-//   position: "relative",
-//   marginBottom: spacing[4],
-// };
-
-// const amountDisplayStyle: React.CSSProperties = {
-//   fontSize: "3.75rem",
-//   fontWeight: fontWeight.bold,
-//   letterSpacing: "-0.025em",
-//   cursor: "pointer",
-// };
-
-// const dollarSignStyle: React.CSSProperties = {
-//   color: colors.foreground,
-// };
-
-// const amountValueContainerStyle: React.CSSProperties = {
-//   position: "relative",
-//   display: "inline-block",
-//   minWidth: "1ch",
-// };
-
-// const amountInputStyle: React.CSSProperties = {
-//   position: "absolute",
-//   inset: 0,
-//   width: "100%",
-//   backgroundColor: "transparent",
-//   border: "none",
-//   outline: "none",
-//   padding: 0,
-//   margin: 0,
-//   textAlign: "center",
-//   color: "transparent",
-//   fontSize: "3.75rem",
-//   fontWeight: fontWeight.bold,
-//   letterSpacing: "-0.025em",
-//   caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
-// };
-
-// const tokenConversionStyle: React.CSSProperties = {
-//   display: "flex",
-//   alignItems: "center",
-//   gap: spacing[2],
-//   marginTop: spacing[2],
-// };
-
-// const tokenAmountStyle: React.CSSProperties = {
-//   fontSize: fontSize.lg,
-//   color: colors.mutedForeground,
-// };
-
-// const conversionIconStyle: React.CSSProperties = {
-//   width: "1rem",
-//   height: "1rem",
-//   color: colors.mutedForeground,
-// };
-
-// const balanceContainerStyle: React.CSSProperties = {
-//   display: "flex",
-//   alignItems: "center",
-//   gap: spacing[3],
-//   marginTop: spacing[2],
-// };
-
-// const balanceTextStyle: React.CSSProperties = {
-//   fontSize: fontSize.sm,
-//   fontWeight: fontWeight.semibold,
-//   color: colors.primary,
-// };
-
-// const maxButtonStyle: React.CSSProperties = {
-//   padding: `${spacing[1]} ${spacing[3]}`,
-//   fontSize: fontSize.xs,
-//   fontWeight: fontWeight.medium,
-//   color: colors.mutedForeground,
-//   backgroundColor: colors.muted,
-//   borderRadius: "9999px",
-//   transition: "background-color 0.2s",
-//   border: 0,
-//   cursor: "pointer",
-// };
-
-// const tokenPillContainerStyle: React.CSSProperties = {
-//   marginTop: spacing[6],
-//   display: "flex",
-//   flexDirection: "column",
-//   gap: spacing[3],
-// };
-
-// const sliderContainerStyle: React.CSSProperties = {
-//   width: "100%",
-//   marginTop: spacing[8],
-//   padding: `0 ${spacing[2]}`,
-// };
-
-// const feeSummaryStyle: React.CSSProperties = {
-//   width: "100%",
-//   marginTop: spacing[6],
-//   padding: spacing[4],
-//   borderRadius: borderRadius.xl,
-//   backgroundColor: "rgba(63, 63, 70, 0.5)",
-// };
-
-// const feeLoadingStyle: React.CSSProperties = {
-//   display: "flex",
-//   alignItems: "center",
-//   justifyContent: "center",
-//   padding: `${spacing[2]} 0`,
-// };
-
-// const spinnerStyle: React.CSSProperties = {
-//   width: "1.25rem",
-//   height: "1.25rem",
-//   color: colors.mutedForeground,
-// };
-
-// const feeLoadingTextStyle: React.CSSProperties = {
-//   marginLeft: spacing[2],
-//   fontSize: fontSize.sm,
-//   color: colors.mutedForeground,
-// };
-
-// const feeErrorStyle: React.CSSProperties = {
-//   textAlign: "center",
-//   padding: `${spacing[2]} 0`,
-// };
-
-// const feeErrorTextStyle: React.CSSProperties = {
-//   fontSize: fontSize.sm,
-//   color: colors.destructive,
-// };
-
-// const feeRowStyle: React.CSSProperties = {
-//   display: "flex",
-//   justifyContent: "space-between",
-//   fontSize: fontSize.sm,
-// };
-
-// const feeLabelStyle: React.CSSProperties = {
-//   color: colors.mutedForeground,
-// };
-
-// const feeValueStyle: React.CSSProperties = {
-//   fontWeight: fontWeight.medium,
-//   color: colors.foreground,
-// };
-
-// const feeDividerStyle: React.CSSProperties = {
-//   height: "1px",
-//   backgroundColor: colors.border,
-//   margin: `${spacing[2]} 0`,
-// };
-
-// const receiveRowStyle: React.CSSProperties = {
-//   display: "flex",
-//   justifyContent: "space-between",
-// };
-
-// const receiveLabelStyle: React.CSSProperties = {
-//   color: colors.mutedForeground,
-//   fontSize: fontSize.sm,
-// };
-
-// const receiveValueStyle: React.CSSProperties = {
-//   fontWeight: fontWeight.semibold,
-//   color: colors.foreground,
-// };
-
-// const actionContainerStyle: React.CSSProperties = {
-//   padding: `${spacing[4]} ${spacing[6]}`,
-// };
-
-// const footerStyle: React.CSSProperties = {
-//   padding: `${spacing[4]} ${spacing[6]}`,
-//   borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-// };
-
-// const footerContentStyle: React.CSSProperties = {
-//   display: "flex",
-//   alignItems: "center",
-//   justifyContent: "center",
-//   gap: spacing[2],
-// };
-
-// const lockIconStyle: React.CSSProperties = {
-//   width: "0.875rem",
-//   height: "0.875rem",
-//   color: colors.mutedForeground,
-// };
-
-// const footerTextStyle: React.CSSProperties = {
-//   fontSize: fontSize.sm,
-//   color: colors.mutedForeground,
-// };
-
-// const footerBrandStyle: React.CSSProperties = {
-//   fontWeight: fontWeight.semibold,
-//   color: colors.foreground,
-// };
+function normalizeTokenAddressForCompare(
+  chain: ChainDef,
+  addr?: string
+): string {
+  const chainType = (chain.type ?? chain.chainType ?? "").toLowerCase();
+  const a = (addr ?? "").trim();
+  if (chainType === "solana") return a;
+  return a.toLowerCase();
+}
 
 function usdToTokenAmount(amt: string, tkPrice: string | undefined): number {
   if (tkPrice === undefined || tkPrice === "0") return 0;
@@ -324,15 +103,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const [isEditing, setIsEditing] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
-
-  // Get route info with fees
-  const {
-    isLoadingRoute,
-    networkFees,
-    estimatedReceive,
-    error: routeError,
-    routeResult,
-  } = useRouteBuilder();
 
   //  const routeState = useSquidRoute({
   //    backendBase,
@@ -384,6 +154,32 @@ export function CryptoPay({ style }: CryptoPayProps) {
     return undefined;
   }, [selectedToken?.usdPrice, amount]);
 
+  const tokenPriceUSD =
+    typeof selectedToken?.usdPrice === "number" &&
+    isFinite(selectedToken?.usdPrice) &&
+    selectedToken.usdPrice > 0
+      ? selectedToken.usdPrice
+      : 0;
+
+  const hasUsdPrice =
+    typeof tokenPriceUSD === "number" &&
+    isFinite(tokenPriceUSD) &&
+    tokenPriceUSD > 0;
+
+  // compute wei from the current input+mode
+  const amountWei: bigint | null = useMemo(() => {
+    if (!amount?.trim()) return null;
+
+    if (!hasUsdPrice) return null;
+    const tokenDecimals = selectedToken?.decimals ?? 18;
+    const usdStr = amount.trim();
+    if (!/^\d*\.?\d*$/.test(usdStr)) return null;
+    const usdVal = Number(usdStr);
+    if (!isFinite(usdVal)) return null;
+    const tokenUnits = usdVal / tokenPriceUSD!;
+    return parseDecimalToWei(String(tokenUnits), tokenDecimals);
+  }, [amount, hasUsdPrice, selectedToken?.decimals, tokenPriceUSD]);
+
   const routeConfig = useMemo(() => {
     try {
       const config = TrustwareConfigStore.get();
@@ -395,10 +191,10 @@ export function CryptoPay({ style }: CryptoPayProps) {
           (chain) => normalizeChainKey(chain.chainId ?? chain.id) === toChainKey
         ) ?? null;
 
-      return {
+      const object = {
         // backendBase,
-        fromChain: selectedChain ?? undefined,
-        fromChainId: selectedChain?.chainId,
+        fromChain: selectedChain?.chainId ?? selectedChain?.id ?? undefined,
+        fromChainId: selectedChain?.chainId ?? selectedChain?.id,
         toChain: toChain,
         toChainId: toChainId,
         toToken: config.routes.toToken,
@@ -407,25 +203,44 @@ export function CryptoPay({ style }: CryptoPayProps) {
           getNativeTokenAddress(
             selectedChain?.type ?? selectedChain?.chainType
           )) as string,
-        fromAmountWei: BigInt(amount.trim()) || undefined,
+        fromAmountWei: amountWei || undefined,
         fromAmountUsd: _combinedAmountObj?.usdAmount || undefined,
         fromAddress: walletAddress || undefined,
         refundAddress: walletAddress || undefined,
         slippage: 1,
       };
-    } catch {
-      return null;
+
+      console.log("Resolved route config:", {
+        object,
+        selectedToken,
+        selectedChain,
+      });
+
+      return object as UseRouteBuilderOptions;
+    } catch (error) {
+      console.error("Error building route config:", error);
+      return {} as UseRouteBuilderOptions;
     }
   }, [
     _combinedAmountObj?.usdAmount,
-    amount,
+    amountWei,
     chains,
     selectedChain,
-    selectedToken?.address,
+    selectedToken,
     walletAddress,
   ]);
 
-  const routeState = useRouteBuilder(routeConfig);
+  // const routeState = useRouteBuilder(routeConfig as UseRouteBuilderOptions);
+
+  // Get route info with fees
+
+  const {
+    isLoadingRoute,
+    networkFees,
+    estimatedReceive,
+    error: routeError,
+    routeResult,
+  } = useRouteBuilder(routeConfig as UseRouteBuilderOptions);
 
   // Minimum deposit from SDK config
   const minDeposit = useMemo(() => {
@@ -438,7 +253,201 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
   }, []);
 
-  // Parse amount for display
+  // const gasFee = useMemo(() => {
+  //   const gasLimit = routeResult?.txReq?.gasLimit
+  //     ? BigInt(routeResult.txReq.gasLimit)
+  //     : undefined;
+
+  //   const effectiveGasPrice = routeResult?.txReq?.maxFeePerGas
+  //     ? BigInt(routeResult.txReq.maxFeePerGas)
+  //     : undefined;
+
+  //   if (gasLimit === undefined || effectiveGasPrice === undefined)
+  //     return undefined;
+
+  //   // const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
+  //   const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
+  //   const gasFeeDecimal = weiToDecimalString(
+  //     gasFeeWei,
+  //     selectedToken?.decimals ?? 18,
+  //     6
+  //   );
+  //   const gasFeeUsd = hasUsdPrice
+  //     ? (Number(gasFeeWei) / 10 ** (selectedToken?.decimals ?? 18)) *
+  //       tokenPriceUSD
+  //     : undefined;
+
+  //   return { gasFeeDecimal, gasFeeUsd };
+  // }, [
+  //   hasUsdPrice,
+  //   routeResult?.txReq.gasLimit,
+  //   routeResult?.txReq.maxFeePerGas,
+  //   selectedToken?.decimals,
+  //   tokenPriceUSD,
+  // ]);
+
+  const [gasReservationWei, setGasReservationWei] = useState<bigint>(0n);
+
+  const chainType = selectedChain?.type ?? selectedChain?.chainType;
+  const chainTypeNormalized = (chainType ?? "").toLowerCase();
+  const evmChainId = useMemo(() => {
+    const numeric = Number(selectedChain?.chainId ?? selectedChain?.id);
+    return Number.isFinite(numeric) ? numeric : undefined;
+  }, [selectedChain]);
+  // const publicClient = usePublicClient({ chainId: evmChainId });
+  const client = createPublicClient({
+    chain: mainnet, // or your custom chain object
+    transport: http(),
+  });
+
+  const isNativeSelected = useMemo(() => {
+    const address = selectedToken?.address;
+
+    return (
+      isNativeTokenAddress(address, chainType) ||
+      isZeroAddrLike(address, chainType) ||
+      normalizeTokenAddressForCompare(selectedChain as ChainDef, address) ===
+        normalizeTokenAddressForCompare(
+          selectedChain as ChainDef,
+          getNativeTokenAddress(chainType)
+        )
+    );
+  }, [chainType, selectedChain, selectedToken?.address]);
+
+  const estimateGasReservationWei = useCallback(async () => {
+    if (!isNativeSelected) {
+      setGasReservationWei(0n);
+      return 0n;
+    }
+    // if (!routeResult?.txReq?.data || !client || !walletAddress) {
+    //   setGasReservationWei(0n);
+    //   return 0n;
+    // }
+
+    let gasLimit: bigint | undefined;
+    let effectiveGasPrice: bigint | undefined;
+
+    // const txReq =
+    //   routeResult?. === "ready" ? routeResult.txReq : undefined;
+    const txReq = routeResult?.txReq;
+    const txTo = txReq?.to ?? txReq?.target;
+    const fromAccount = walletAddress as `0x${string}` | undefined;
+
+    if (
+      chainTypeNormalized === "evm" &&
+      txReq?.data &&
+      txTo &&
+      client &&
+      fromAccount
+    ) {
+      try {
+        const request = {
+          account: fromAccount,
+          to: txTo as `0x${string}`,
+          data: txReq.data as `0x${string}`,
+          value: txReq.value ? BigInt(txReq.value) : undefined,
+        };
+        gasLimit = await client.estimateGas(request);
+      } catch {
+        gasLimit = undefined;
+      }
+
+      try {
+        effectiveGasPrice = txReq.maxFeePerGas
+          ? BigInt(txReq.maxFeePerGas)
+          : await client.getGasPrice();
+      } catch {
+        effectiveGasPrice = undefined;
+      }
+    }
+
+    // fallback: try route/provider gas metadata when available
+    if (!gasLimit) {
+      try {
+        gasLimit = txReq?.gasLimit ? BigInt(txReq.gasLimit) : undefined;
+      } catch {
+        gasLimit = undefined;
+      }
+    }
+    if (!effectiveGasPrice) {
+      try {
+        effectiveGasPrice = txReq?.maxFeePerGas
+          ? BigInt(txReq.maxFeePerGas)
+          : undefined;
+      } catch {
+        effectiveGasPrice = undefined;
+      }
+    }
+
+    if (!gasLimit || !effectiveGasPrice) {
+      setGasReservationWei(0n);
+      return 0n;
+    }
+
+    const reservedWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
+    console.log({ reservedWei });
+    setGasReservationWei(reservedWei);
+    return reservedWei;
+  }, [
+    chainTypeNormalized,
+    client,
+    isNativeSelected,
+    routeResult?.txReq,
+    walletAddress,
+  ]);
+
+  useEffect(() => {
+    if (routeResult) {
+      console.log("[CryptoPay]: Estimating gas reservation...");
+      estimateGasReservationWei().then((reservation) => {
+        console.log({ reservation });
+      });
+    }
+  }, [estimateGasReservationWei, routeResult]);
+
+  // useEffect(() => {
+
+  // },[])
+
+  // const errors: string[] = useMemo(() => {
+  //   const errs: string[] = [];
+  //   if (isLoadingRoute) return errs;
+
+  //   // const amountWei = amount ? parseUnits(amount, selectedToken?.decimals) : 0n;
+  //   const balanceWei = selectedToken?.balance ?? 0n;
+
+  //   if (
+  //     isNativeSelected &&
+  //     Number(gasReservationWei) >= Number(balanceWei) &&
+  //     Number(balanceWei) > Number(0n)
+  //   ) {
+  //     errs.push("Not enough native balance for gas.");
+  //     return errs;
+  //   }
+
+  //   if (amountWei == null || amountWei <= 0n) {
+  //     errs.push("Enter a valid amount.");
+  //     return errs;
+  //   }
+
+  //   if (balanceWei === 0n) {
+  //     errs.push("Insufficient balance.");
+  //     return errs;
+  //   }
+
+  //   if (Number(amountWei) > Number(balanceWei)) {
+  //     errs.push("Amount exceeds available balance.");
+  //   }
+  //   console.log({ errors: errs });
+  //   return errs;
+  // }, [
+  //   amountWei,
+  //   gasReservationWei,
+  //   isLoadingRoute,
+  //   isNativeSelected,
+  //   selectedToken?.balance,
+  // ]);
+
   const parsedAmount = parseFloat(amount) || 0;
 
   // Max amount based on token balance (if available)
@@ -455,7 +464,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     if (
       selectedToken !== null &&
       yourWalletTokens.length > 0 &&
-      (selectedToken as YourTokenData).chainData !== undefined
+      (selectedToken as YourTokenData)?.chainData !== undefined
     ) {
       return true;
     }
@@ -504,6 +513,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
       if (token) {
         setSelectedToken(token);
         setSelectedChain((token as YourTokenData).chainData as Chain);
+        console.log({
+          token,
+        });
       }
     },
     [setSelectedChain, setSelectedToken]
@@ -704,7 +716,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     </span>
                   )}
                   <input
-                    ref={amountInputRef}
+                    // ref={amountInputRef}
                     type="text"
                     inputMode="decimal"
                     value={amount}
@@ -837,7 +849,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   selectedToken={selectedToken}
                   onTokenChange={handleTokenChange}
                   onExpandClick={handleExpandTokens}
-                  selectedChain={selectedChain}
+                  selectedChain={selectedChain as Chain}
                   walletAddress={walletAddress}
                 />
               </div>
@@ -948,13 +960,20 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     >
                       Network fee
                     </span>
+
                     <span
                       style={{
                         fontWeight: fontWeight.medium,
                         color: colors.foreground,
                       }}
                     >
-                      {networkFees ? `$${networkFees}` : "—"}
+                      {/* {networkFees ? `$${networkFees}` : "—"} */}
+                      {weiToDecimalString(
+                        gasReservationWei,
+                        selectedToken?.decimals as number,
+                        6
+                      )}{" "}
+                      {/* ({selectedToken?.symbol}){gasFeeDisplay} */}
                     </span>
                   </div>
 

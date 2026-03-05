@@ -4,6 +4,8 @@ import { Trustware } from "../../core";
 import { TrustwareConfigStore } from "../../config/store";
 import { useDeposit } from "../context/DepositContext";
 import type { BuildRouteResult, ChainDef } from "../../types";
+import { calculateGasFeeDisplay } from "../helpers/feesHelpers";
+import { divRoundDown, weiToDecimalString } from "src/utils";
 
 /**
  * Route building state
@@ -32,18 +34,19 @@ export interface UseRouteBuilderOptions {
   /** Whether to automatically build routes (default: true) */
   enabled?: boolean;
 
-    fromChain: ChainDef | undefined;
-    fromChainId: string | number | undefined;
-    toChain: ChainDef | null;
-    toChainId: string;
-    toToken: string;
-    toAddress: string | undefined;
-    fromToken: string;
-    fromAmountWei: bigint | undefined;
-    fromAmountUsd: string | undefined;
-    fromAddress: string | undefined;
-    refundAddress: string | undefined;
-    slippage: number;
+  fromChain: ChainDef | undefined | string | number;
+  fromChainId: string | number | undefined;
+  toChain: ChainDef | null;
+  toChainId: string;
+  toToken: string;
+  toAddress: string | undefined;
+  fromToken: string;
+  fromAmountWei: bigint | undefined;
+  fromAmountUsd: string | undefined;
+  fromAddress: string | undefined;
+  refundAddress: string | undefined;
+  slippage: number;
+  direction?: string;
 }
 
 /**
@@ -54,23 +57,24 @@ export interface UseRouteBuilderOptions {
  * @param options - Configuration options
  * @returns Route building state including fees and estimated receive amount
  */
-export function useRouteBuilder(
-  options: UseRouteBuilderOptions = {
-        fromChain: {} as ChainDef,
-    fromChainId: '',
-    toChain:{} as ChainDef ,
-    toChainId: '',
-    toToken: '',
-    toAddress: '',
-    fromToken: '',
-    fromAmountWei: 0n,
-    fromAmountUsd: '',
-    fromAddress: '',
-    refundAddress: '',
-    slippage: 0,
-  }
-): RouteBuilderState {
-  const { debounceMs = 300, enabled = true } = options;
+export function useRouteBuilder({
+  enabled = true,
+  debounceMs = 300,
+  fromChain,
+  fromChainId,
+  toChain,
+  toChainId,
+  toToken,
+  toAddress,
+  fromToken,
+  fromAmountWei,
+  fromAmountUsd,
+  fromAddress,
+  refundAddress,
+  slippage,
+  direction,
+}: UseRouteBuilderOptions): RouteBuilderState {
+  // const { debounceMs = 300, enabled = true } = options;
 
   const { selectedToken, selectedChain, amount, walletAddress } = useDeposit();
 
@@ -86,7 +90,42 @@ export function useRouteBuilder(
   const abortRef = useRef<AbortController | null>(null);
 
   // Build a cache key from the route parameters
+  // const routeKey = useMemo(() => {
+  //   if (
+  //     !enabled ||
+  //     !selectedToken ||
+  //     !selectedChain ||
+  //     !amount ||
+  //     !walletAddress
+  //   ) {
+  //     return null;
+  //   }
+
+  //   // Parse amount - need to convert to smallest unit based on token decimals
+  //   const parsedAmount = parseFloat(amount);
+  //   if (isNaN(parsedAmount) || parsedAmount <= 0) {
+  //     return null;
+  //   }
+
+  //   // Convert amount to smallest unit (e.g., wei for ETH)
+  //   // Use BigInt math to avoid floating point precision issues
+  //   const decimals = selectedToken.decimals || 18;
+  //   const [whole, fraction = ""] = amount.split(".");
+  //   const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
+  //   const amountInSmallestUnit = whole + paddedFraction;
+  //   // Remove leading zeros but keep at least one digit
+  //   const fromAmountWei = amountInSmallestUnit.replace(/^0+/, "") || "0";
+
+  //   return JSON.stringify({
+  //     fromChain: selectedChain.chainId,
+  //     fromToken: selectedToken.address,
+  //     fromAmount: fromAmountWei,
+  //     fromAddress: walletAddress,
+  //   });
+  // }, [enabled, selectedToken, selectedChain, amount, walletAddress]);
+
   const routeKey = useMemo(() => {
+    // unique key for memoization/invalidation
     if (
       !enabled ||
       !selectedToken ||
@@ -97,30 +136,46 @@ export function useRouteBuilder(
       return null;
     }
 
-    // Parse amount - need to convert to smallest unit based on token decimals
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      return null;
-    }
-
-    // Convert amount to smallest unit (e.g., wei for ETH)
-    // Use BigInt math to avoid floating point precision issues
-    const decimals = selectedToken.decimals || 18;
-    const [whole, fraction = ""] = amount.split(".");
-    const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
-    const amountInSmallestUnit = whole + paddedFraction;
-    // Remove leading zeros but keep at least one digit
-    const fromAmountWei = amountInSmallestUnit.replace(/^0+/, "") || "0";
-
     return JSON.stringify({
-      fromChain: selectedChain.chainId,
-      fromToken: selectedToken.address,
-      fromAmount: fromAmountWei,
-      fromAddress: walletAddress,
-    });
+      fromChainId,
+      toChainId,
+      fromToken,
+      toToken,
+      fromAmountWei: fromAmountWei?.toString(),
+      fromAmountUsd,
+      fromAddress,
+      toAddress,
+      fromChain,
+      toChain,
+      refundAddress,
+      direction,
+      slippage,
+    } as UseRouteBuilderOptions);
   }, [enabled, selectedToken, selectedChain, amount, walletAddress]);
 
+  const hasFromChainId =
+    fromChainId !== undefined &&
+    fromChainId !== null &&
+    String(fromChainId).trim() !== "";
+  const hasToChainId =
+    toChainId !== undefined &&
+    toChainId !== null &&
+    String(toChainId).trim() !== "";
+
   useEffect(() => {
+    if (
+      !fromChain ||
+      !toChain ||
+      !hasFromChainId ||
+      !hasToChainId ||
+      !fromToken ||
+      !toToken ||
+      !fromAmountWei ||
+      !fromAddress ||
+      !toAddress
+    )
+      return;
+
     console.log(
       "[useRouteBuilder] Effect triggered, routeKey:",
       routeKey ? "exists" : "null"
@@ -179,34 +234,42 @@ export function useRouteBuilder(
         }
 
         // Build the route
+        console.log("buildRoute Called", {
+          params,
+          toChain,
+          toToken,
+          toAddress,
+          defaultSlippage,
+        });
+
         const result = await Trustware.buildRoute({
           fromChain: String(params.fromChain),
           toChain,
           fromToken: params.fromToken,
           toToken,
-          fromAmount: params.fromAmount,
-          fromAmountUsd:
-          fromAmountUSD:
+          fromAmount: params.fromAmountWei,
+          fromAmountUsd: params.fromAmountUsd,
+          // fromAmountUSD:params.fromAmountUsd,
           fromAddress: params.fromAddress,
           toAddress: destinationAddress,
           slippage: defaultSlippage,
-          slippageBps:
+          // slippageBps: params.slippageBps || 100,
         });
 
         {
-    // "fromChain": "43114",
-    // "toChain": "43114",
-    // "fromToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-    // "toToken": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
-    // "fromAmount": "10800150691113940",
-    // "fromAddress": "0xA3345d8139e61c93c5D154D9F6E311eB4C6F1154",
-    // "toAddress": "0x40695edf6e3c6be65122162b7d7b7f6c5418037b",
-    // "fromAmountUsd": "0.10",
-    // "slippage": 1,
-    // "linkId": "48a1411c-8efc-4660-97fa-9214ca7280f7",
-    // "slippageBps": 100,
-    // "fromAmountUSD": "0.10"
-}
+          // "fromChain": "43114",
+          // "toChain": "43114",
+          // "fromToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          // "toToken": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+          // "fromAmount": "10800150691113940",
+          // "fromAddress": "0xA3345d8139e61c93c5D154D9F6E311eB4C6F1154",
+          // "toAddress": "0x40695edf6e3c6be65122162b7d7b7f6c5418037b",
+          // "fromAmountUsd": "0.10",
+          // "slippage": 1,
+          // "linkId": "48a1411c-8efc-4660-97fa-9214ca7280f7",
+          // "slippageBps": 100,
+          // "fromAmountUSD": "0.10"
+        }
 
         // Check if aborted
         if (ac.signal.aborted) return;
@@ -222,9 +285,9 @@ export function useRouteBuilder(
 
         // Calculate network fees (gas + bridge fees in USD)
         let networkFeesUSD: string | null = null;
-        if (estimate?.fromAmountUSD && estimate?.toAmountMinUSD) {
-          const fromUSD = parseFloat(estimate.fromAmountUSD);
-          const toMinUSD = parseFloat(estimate.toAmountMinUSD);
+        if (estimate?.fromAmountUsd && estimate?.toAmountMinUsd) {
+          const fromUSD = parseFloat(estimate.fromAmountUsd);
+          const toMinUSD = parseFloat(estimate.toAmountMinUsd);
           if (!isNaN(fromUSD) && !isNaN(toMinUSD)) {
             const feesDiff = fromUSD - toMinUSD;
             networkFeesUSD = feesDiff > 0 ? feesDiff.toFixed(2) : "0.00";
@@ -244,10 +307,10 @@ export function useRouteBuilder(
         // Priority: USD value > formatted token amount > raw amount converted
         let estimatedReceive: string | null = null;
 
-        if (estimate?.toAmountUSD) {
-          estimatedReceive = estimate.toAmountUSD;
-        } else if (estimate?.toAmountMinUSD) {
-          estimatedReceive = estimate.toAmountMinUSD;
+        if (estimate?.toAmountUsd) {
+          estimatedReceive = estimate.toAmountUsd;
+        } else if (estimate?.toAmountMinUsd) {
+          estimatedReceive = estimate.toAmountMinUsd;
         } else if (estimate?.toAmount) {
           // Convert from smallest unit - assume 6 decimals for stablecoins, 18 for others
           const toToken = config.routes.toToken?.toLowerCase() || "";
@@ -266,6 +329,48 @@ export function useRouteBuilder(
             .slice(0, 2);
           estimatedReceive = `${whole}.${fractionStr}`;
         }
+
+        // calculateGasFeeDisplay(
+        //   {
+        //     gasLimit: result?.txReq.gasLimit ?? "0",
+        //     gasPrice: result?.txReq.gasPrice ?? "0",
+        //     maxFeePerGas: result?.txReq.maxFeePerGas,
+        //   },
+        //   selectedToken?.usdPrice ?? 0,
+        //   selectedToken?.decimals ?? 18
+        // ); // TODO: pass actual native token price
+
+        const gasLimit = result?.txReq?.gasLimit
+          ? BigInt(result.txReq.gasLimit)
+          : undefined;
+
+        const effectiveGasPrice = result?.txReq?.maxFeePerGas
+          ? BigInt(result.txReq.maxFeePerGas)
+          : undefined;
+
+        if (gasLimit === undefined || effectiveGasPrice === undefined)
+          return undefined;
+
+        // const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
+        const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
+        const gasFeeDecimal = weiToDecimalString(
+          gasFeeWei,
+          selectedToken?.decimals ?? 18,
+          6
+        );
+        const gasFeeUsd =
+          gasFeeWei && selectedToken?.usdPrice
+            ? (Number(gasFeeWei) / 10 ** (selectedToken?.decimals ?? 18)) *
+              selectedToken?.usdPrice
+            : undefined;
+        // console.log({
+        //   gasLimit,
+        //   effectiveGasPrice,
+        //   gasFeeWei,
+        //   gasFeeDecimal,
+        //   gasFeeUsd,
+        // });
+        // return { gasFeeDecimal, gasFeeUsd };
 
         setState({
           isLoadingRoute: false,
@@ -290,6 +395,13 @@ export function useRouteBuilder(
           intentId: null,
           routeResult: null,
         });
+      } finally {
+        if (!ac.signal.aborted) {
+          setState((prev) => ({
+            ...prev,
+            isLoadingRoute: false,
+          }));
+        }
       }
     }, debounceMs);
 
@@ -297,7 +409,28 @@ export function useRouteBuilder(
       clearTimeout(timeout);
       ac.abort();
     };
-  }, [routeKey, debounceMs, walletAddress]);
+  }, [
+    routeKey,
+    fromChainId,
+    toChainId,
+    fromToken,
+    toToken,
+    fromAmountWei,
+    fromAmountUsd,
+    fromAddress,
+    toAddress,
+    fromChain,
+    toChain,
+    refundAddress,
+    direction,
+    slippage,
+    hasFromChainId,
+    hasToChainId,
+    selectedChain,
+    selectedToken,
+    amount,
+    walletAddress,
+  ]);
 
   return state;
 }

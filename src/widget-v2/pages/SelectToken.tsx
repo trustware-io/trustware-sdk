@@ -549,11 +549,12 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   const { popularChains, otherChains, isLoading, error } = useChains();
   const {
     filteredTokens,
+    tokens,
     isLoading: isLoadingTokens,
     error: tokensError,
     searchQuery,
     setSearchQuery,
-  } = useTokens(selectedChain?.chainId ?? null);
+  } = useTokens((selectedChain?.chainId as number) ?? null);
 
   /**
    * Handle chain selection
@@ -571,7 +572,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
       isPopular: [1, 137, 8453].includes(chainId),
       nativeToken: chain.nativeCurrency?.symbol ?? "ETH",
       explorerUrl: chain.blockExplorerUrls?.[0],
-    });
+    } as Chain);
   };
 
   // Get balance in USD
@@ -1089,7 +1090,6 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                     marginBottom: spacing[2],
                   }}
                 >
-                  {/* <Sparkles className="w-3.5 h-3.5 text-primary" /> */}
                   <span
                     style={{
                       fontSize: "0.75rem",
@@ -1101,12 +1101,12 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   </span>
                 </div>
 
-                {filteredTokens.map((token: Token) => (
+                {tokens.map((token: Token, i) => (
                   <button
-                    key={token.address}
                     type="button"
                     onClick={() => handleTokenSelect(token)}
                     style={tokenButtonStyle}
+                    key={`${token.address}-${i}`}
                   >
                     {/* Token Icon */}
                     {token.iconUrl ? (

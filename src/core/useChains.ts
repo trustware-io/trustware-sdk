@@ -3,6 +3,11 @@ import { Registry } from "../registry";
 import { apiBase } from "./http";
 import type { ChainDef } from "../types";
 import { resolveChainLabel } from "../utils";
+import {
+  canonicalChainKeyForLink,
+  canonicalSeiChainKey,
+  normalizeChainType,
+} from "src/widget-v2/helpers/chainHelpers";
 
 export interface UseChainsResult {
   /** All available chains */
@@ -15,6 +20,8 @@ export interface UseChainsResult {
   isLoading: boolean;
   /** Error message if loading failed */
   error: string | null;
+
+  chainMap: Map<string, ChainDef>;
 }
 
 /** Chain IDs for popular chains */
@@ -24,12 +31,49 @@ const POPULAR_CHAIN_IDS = new Set([
   8453, // Base
 ]);
 
+function filterSupportedChains(chains: ChainDef[]): ChainDef[] {
+  const supportedChainTypes = new Set(["evm", "solana", "cosmos", "bitcoin"]);
+  return chains.filter((chain) => {
+    const chainType = normalizeChainType(chain);
+    if (!chainType) return false;
+    if (!supportedChainTypes.has(chainType)) {
+      return false;
+    }
+    if (chainType === "evm") {
+      // hide none working chains for now [Hedera]
+      const evmKey = canonicalChainKeyForLink(chain);
+      console.log(
+        "Checking EVM chain:",
+        chain.chainId,
+        "canonical key:",
+        evmKey
+      );
+      const disabledEvmChains = new Set(["hedera", "295"]);
+      if (evmKey && disabledEvmChains.has(evmKey)) {
+        return false;
+      }
+    }
+    if (chainType === "cosmos") {
+      const seiKey = canonicalSeiChainKey(chain.chainId ?? chain.id);
+      if (seiKey !== "sei" && seiKey !== "pacific-1") {
+        return false;
+      }
+    }
+    // hide bitcoin for now until we have a better address resoultion for btc maybe wait for squid. or use lifi not sure yet
+    if (chainType === "bitcoin") {
+      return false;
+    }
+    return true;
+  });
+}
+
 /**
  * Hook to load available chains from the registry.
  * Returns chains split into popular and other categories.
  */
 export function useChains(): UseChainsResult {
   const [chains, setChains] = useState<ChainDef[]>([]);
+  const [chainMap, setChainMap] = useState<Map<string, ChainDef>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,8 +106,18 @@ export function useChains(): UseChainsResult {
         // .sort((a, b) =>
         //   resolveChainLabel(a).localeCompare(resolveChainLabel(b))
         // );
+        const chainMap: Map<string, ChainDef> = new Map(
+          loadedChains.map((chain) => [
+            (chain.chainId ?? chain.id) as string,
+            chain,
+          ])
+        );
 
-        setChains(loadedChains);
+        setChainMap(chainMap);
+
+        console.log({ chainMap });
+
+        setChains(filterSupportedChains(loadedChains));
       } catch (err) {
         if (!cancelled) {
           const message =
@@ -112,6 +166,7 @@ export function useChains(): UseChainsResult {
 
   return {
     chains,
+    chainMap,
     popularChains,
     otherChains,
     isLoading,
