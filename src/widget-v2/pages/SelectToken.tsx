@@ -16,6 +16,7 @@ import { resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 import { getBalances } from "src/core/balances";
 import { useChains, useTokens } from "../hooks";
+import { sortTokensByPopularity } from "../helpers/tokenPopularity";
 
 export interface SelectTokenProps {
   /** Additional inline styles */
@@ -628,6 +629,44 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     return selectedChain.chainId === chainId;
   };
 
+  const normalizedSearchQuery = searchQuery.toLowerCase().trim();
+
+  const matchesSearch = useCallback(
+    (token: { symbol?: string; name?: string; address?: string }) => {
+      if (!normalizedSearchQuery) {
+        return true;
+      }
+
+      const symbol = token.symbol?.toLowerCase() ?? "";
+      const name = token.name?.toLowerCase() ?? "";
+      const address = token.address?.toLowerCase() ?? "";
+
+      return (
+        symbol.includes(normalizedSearchQuery) ||
+        name.includes(normalizedSearchQuery) ||
+        address.includes(normalizedSearchQuery)
+      );
+    },
+    [normalizedSearchQuery]
+  );
+
+  const filteredWalletTokens = useMemo(() => {
+    if (!selectedChain?.chainId) {
+      return [];
+    }
+
+    const walletTokensOnSelectedChain = (yourWalletTokens ?? []).filter(
+      (token) => {
+        return (
+          Number(token.chainId) === Number(selectedChain.chainId) &&
+          matchesSearch(token)
+        );
+      }
+    );
+
+    return sortTokensByPopularity(walletTokensOnSelectedChain);
+  }, [matchesSearch, selectedChain?.chainId, yourWalletTokens]);
+
   /**
    * Render a single chain item
    */
@@ -978,7 +1017,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
             ) : (
               // Token list
               <div style={tokenListStyle}>
-                {yourWalletTokens?.length > 0 ? (
+                {filteredWalletTokens.length > 0 ? (
                   <div
                     style={{
                       display: "flex",
@@ -1002,7 +1041,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   </div>
                 ) : null}
 
-                {yourWalletTokens?.map((token, i) => (
+                {filteredWalletTokens?.map((token, i) => (
                   <button
                     onClick={() => handleYourTokenSelect(token)}
                     style={tokenButtonStyle}
@@ -1101,7 +1140,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   </span>
                 </div>
 
-                {tokens.map((token: Token, i) => (
+                {filteredTokens.map((token: Token, i) => (
                   <button
                     type="button"
                     onClick={() => handleTokenSelect(token)}

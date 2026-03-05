@@ -8,11 +8,26 @@ export class Registry {
   private _chainsById = new Map<string, ChainDef>();
   private _tokensByChain = new Map<string, TokenDef[]>();
   private _loaded = false;
+  private _loadingPromise: Promise<void> | null = null;
 
   constructor(private baseURL: string) {}
 
   async ensureLoaded() {
     if (this._loaded) return;
+    if (this._loadingPromise) {
+      await this._loadingPromise;
+      return;
+    }
+
+    this._loadingPromise = this.load();
+    try {
+      await this._loadingPromise;
+    } finally {
+      this._loadingPromise = null;
+    }
+  }
+
+  private async load() {
     const cfg = TrustwareConfigStore.get();
 
     const [chainsRes, tokensRes] = await Promise.all([

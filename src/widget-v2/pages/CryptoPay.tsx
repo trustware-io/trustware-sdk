@@ -842,6 +842,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   display: "flex",
                   flexDirection: "column",
                   gap: spacing[3],
+                  width: "100%",
                 }}
               >
                 <TokenSwipePill

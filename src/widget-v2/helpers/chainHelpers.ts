@@ -10,6 +10,12 @@ export const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as const;
 export const NATIVE_SOLANA =
   "So11111111111111111111111111111111111111111" as const;
 
+type TokenAddressLookupEntry = {
+  address: string;
+  symbol: string;
+  chainId: string | number;
+};
+
 export function getNativeTokenAddress(chainType?: ChainDef["type"] | null) {
   const normalized = chainType?.toLowerCase?.();
   return normalized === "solana" ? NATIVE_SOLANA : NATIVE_EVM;
@@ -118,4 +124,43 @@ export function isNativeTokenAddress(
     normalizeAddress(address, chainType) ===
     normalizeAddress(getNativeTokenAddress(chainType), chainType)
   );
+}
+
+/**
+ * Canonicalizes token identifiers across indexer and registry sources,
+ * with cosmos native denom support (e.g. Sei "usei").
+ */
+export function canonicalTokenAddressForChain(
+  chain: ChainDef,
+  address?: string,
+  chainTokens: TokenAddressLookupEntry[] = []
+): string {
+  const chainType = normalizeChainType(chain);
+  const rawAddress = (address ?? "").trim();
+
+  // Solana is base58 and case-sensitive.
+  if (chainType === "solana") return rawAddress;
+
+  if (chainType === "cosmos") {
+    const chainIdKey = normalizeChainKey(chain.chainId ?? chain.id ?? "");
+    const nativeSymbol = chain.nativeCurrency?.symbol?.toUpperCase?.();
+    const nativeFromRegistry = chainTokens.find(
+      (token) =>
+        normalizeChainKey(token.chainId) === chainIdKey &&
+        token.symbol?.toUpperCase?.() === nativeSymbol
+    );
+    const nativeDenom = (nativeFromRegistry?.address ?? "usei").toLowerCase();
+
+    if (rawAddress.toLowerCase() === NATIVE_EVM) {
+      return nativeDenom;
+    }
+
+    return rawAddress.toLowerCase();
+  }
+
+  const lowerAddress = rawAddress.toLowerCase();
+  if (lowerAddress === "0x0000000000000000000000000000000000000000") {
+    return NATIVE_EVM;
+  }
+  return lowerAddress;
 }

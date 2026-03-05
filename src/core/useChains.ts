@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Registry } from "../registry";
-import { apiBase } from "./http";
+import { getSharedRegistry } from "./registryClient";
 import type { ChainDef } from "../types";
 import { resolveChainLabel } from "../utils";
 import {
@@ -77,7 +76,7 @@ export function useChains(): UseChainsResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const registry = useMemo(() => new Registry(apiBase()), []);
+  const registry = getSharedRegistry();
 
   useEffect(() => {
     if (chains.length > 0) return;
