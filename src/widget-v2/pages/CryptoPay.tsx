@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
@@ -15,7 +14,7 @@ import {
 } from "../styles/tokens";
 import {
   Chain,
-  Token,
+  // Token,
   useDeposit,
   YourTokenData,
 } from "../context/DepositContext";
@@ -23,7 +22,6 @@ import {
   useRouteBuilder,
   UseRouteBuilderOptions,
 } from "../hooks/useRouteBuilder";
-import { useTokens } from "../../core/useTokens";
 import { useTransactionSubmit } from "../hooks/useTransactionSubmit";
 import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
@@ -31,7 +29,7 @@ import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
 
 import { useChains } from "../hooks";
-import { divRoundDown, resolveChainLabel, weiToDecimalString } from "src/utils";
+import { divRoundDown, weiToDecimalString } from "src/utils";
 import { ChainDef } from "src";
 import {
   getNativeTokenAddress,
@@ -40,26 +38,12 @@ import {
   normalizeChainKey,
   parseDecimalToWei,
 } from "../helpers/chainHelpers";
-import { calculateGasFees } from "../helpers/feesHelpers";
+import { toast } from "../components/Toast";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
   style?: React.CSSProperties;
 }
-
-// Styles
-// const containerStyle: React.CSSProperties = {
-//   display: "flex",
-//   flexDirection: "column",
-//   minHeight: "500px",
-// };
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: `${spacing[4]} ${spacing[4]}`,
-  borderBottom: `1px solid ${colors.border}`,
-};
 
 // import { usePublicClient, useWalletClient } from "wagmi";
 import { createPublicClient, http } from "viem";
@@ -97,32 +81,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
     goBack,
     setCurrentStep,
     yourWalletTokens,
+    errorMessage,
+    setErrorMessage,
   } = useDeposit();
 
   const { chains } = useChains();
 
   const [isEditing, setIsEditing] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
-
-  //  const routeState = useSquidRoute({
-  //    backendBase,
-  //    fromChain: selectedChain ?? undefined,
-  //    fromChainId: selectedChain?.chainId,
-  //    toChain: toChain ?? undefined,
-  //    toChainId,
-  //    fromToken: (selectedToken?.address ??
-  //      getNativeTokenAddress(
-  //        selectedChain?.type ?? selectedChain?.chainType
-  //      )) as string,
-  //    toToken,
-  //    fromAmountWei: amount || undefined,
-  //    fromAmountUsd: amountUsd || undefined,
-  //    fromAddress: fromAddress || undefined,
-  //    toAddress: link?.receiver_address || undefined,
-  //    refundAddress: refundAddress || undefined,
-  //    slippage: 1,
-  //   //  linkId: link?.id,
-  //  });
 
   // Transaction submission hook
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
@@ -192,7 +158,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
         ) ?? null;
 
       const object = {
-        // backendBase,
         fromChain: selectedChain?.chainId ?? selectedChain?.id ?? undefined,
         fromChainId: selectedChain?.chainId ?? selectedChain?.id,
         toChain: toChain,
@@ -210,11 +175,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
         slippage: 1,
       };
 
-      console.log("Resolved route config:", {
-        object,
-        selectedToken,
-        selectedChain,
-      });
+      // console.log("Resolved route config:", {
+      //   object,
+      //   selectedToken,
+      //   selectedChain,
+      // });
 
       return object as UseRouteBuilderOptions;
     } catch (error) {
@@ -230,14 +195,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
     walletAddress,
   ]);
 
-  // const routeState = useRouteBuilder(routeConfig as UseRouteBuilderOptions);
-
   // Get route info with fees
-
   const {
     isLoadingRoute,
-    networkFees,
-    estimatedReceive,
+    // networkFees,
+    // estimatedReceive,
     error: routeError,
     routeResult,
   } = useRouteBuilder(routeConfig as UseRouteBuilderOptions);
@@ -253,47 +215,10 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
   }, []);
 
-  // const gasFee = useMemo(() => {
-  //   const gasLimit = routeResult?.txReq?.gasLimit
-  //     ? BigInt(routeResult.txReq.gasLimit)
-  //     : undefined;
-
-  //   const effectiveGasPrice = routeResult?.txReq?.maxFeePerGas
-  //     ? BigInt(routeResult.txReq.maxFeePerGas)
-  //     : undefined;
-
-  //   if (gasLimit === undefined || effectiveGasPrice === undefined)
-  //     return undefined;
-
-  //   // const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-  //   const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-  //   const gasFeeDecimal = weiToDecimalString(
-  //     gasFeeWei,
-  //     selectedToken?.decimals ?? 18,
-  //     6
-  //   );
-  //   const gasFeeUsd = hasUsdPrice
-  //     ? (Number(gasFeeWei) / 10 ** (selectedToken?.decimals ?? 18)) *
-  //       tokenPriceUSD
-  //     : undefined;
-
-  //   return { gasFeeDecimal, gasFeeUsd };
-  // }, [
-  //   hasUsdPrice,
-  //   routeResult?.txReq.gasLimit,
-  //   routeResult?.txReq.maxFeePerGas,
-  //   selectedToken?.decimals,
-  //   tokenPriceUSD,
-  // ]);
-
   const [gasReservationWei, setGasReservationWei] = useState<bigint>(0n);
 
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
-  const evmChainId = useMemo(() => {
-    const numeric = Number(selectedChain?.chainId ?? selectedChain?.id);
-    return Number.isFinite(numeric) ? numeric : undefined;
-  }, [selectedChain]);
   // const publicClient = usePublicClient({ chainId: evmChainId });
   const client = createPublicClient({
     chain: mainnet, // or your custom chain object
@@ -319,10 +244,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
       setGasReservationWei(0n);
       return 0n;
     }
-    // if (!routeResult?.txReq?.data || !client || !walletAddress) {
-    //   setGasReservationWei(0n);
-    //   return 0n;
-    // }
 
     let gasLimit: bigint | undefined;
     let effectiveGasPrice: bigint | undefined;
@@ -385,7 +306,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
 
     const reservedWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-    console.log({ reservedWei });
+
+    // console.log({ reservedWei });
     setGasReservationWei(reservedWei);
     return reservedWei;
   }, [
@@ -398,55 +320,46 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   useEffect(() => {
     if (routeResult) {
-      console.log("[CryptoPay]: Estimating gas reservation...");
       estimateGasReservationWei().then((reservation) => {
-        console.log({ reservation });
+        return reservation;
       });
     }
   }, [estimateGasReservationWei, routeResult]);
 
-  // useEffect(() => {
+  const amountToReceive = routeResult?.route?.estimate?.toAmountUsd;
 
-  // },[])
+  useEffect(() => {
+    const balance =
+      Number(selectedToken?.balance) / 10 ** (selectedToken?.decimals ?? 18);
+    if (Number(_combinedAmountObj?.tokenAmount) > balance) {
+      // console.log("[CryptoPay] Insufficient balance");
+      toast.error("Failed", "Insufficient balance");
+      return setErrorMessage("Insufficient balance");
+    }
+    if (
+      isNativeSelected &&
+      Number(gasReservationWei) >= Number(selectedToken?.balance) &&
+      Number(selectedToken?.balance) > Number(0n)
+    ) {
+      // console.log("[CryptoPay] Not enough native balance for gas.");
+      toast.error("Failed", "Not enough native balance for gas.");
+      setErrorMessage("Not enough native balance for gas.");
+      return;
+    }
 
-  // const errors: string[] = useMemo(() => {
-  //   const errs: string[] = [];
-  //   if (isLoadingRoute) return errs;
+    const timer = setTimeout(() => {
+      setErrorMessage(null);
+    }, 1000);
 
-  //   // const amountWei = amount ? parseUnits(amount, selectedToken?.decimals) : 0n;
-  //   const balanceWei = selectedToken?.balance ?? 0n;
-
-  //   if (
-  //     isNativeSelected &&
-  //     Number(gasReservationWei) >= Number(balanceWei) &&
-  //     Number(balanceWei) > Number(0n)
-  //   ) {
-  //     errs.push("Not enough native balance for gas.");
-  //     return errs;
-  //   }
-
-  //   if (amountWei == null || amountWei <= 0n) {
-  //     errs.push("Enter a valid amount.");
-  //     return errs;
-  //   }
-
-  //   if (balanceWei === 0n) {
-  //     errs.push("Insufficient balance.");
-  //     return errs;
-  //   }
-
-  //   if (Number(amountWei) > Number(balanceWei)) {
-  //     errs.push("Amount exceeds available balance.");
-  //   }
-  //   console.log({ errors: errs });
-  //   return errs;
-  // }, [
-  //   amountWei,
-  //   gasReservationWei,
-  //   isLoadingRoute,
-  //   isNativeSelected,
-  //   selectedToken?.balance,
-  // ]);
+    return () => clearTimeout(timer);
+  }, [
+    _combinedAmountObj?.tokenAmount,
+    gasReservationWei,
+    isNativeSelected,
+    selectedToken?.balance,
+    selectedToken?.decimals,
+    setErrorMessage,
+  ]);
 
   const parsedAmount = parseFloat(amount) || 0;
 
@@ -513,9 +426,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
       if (token) {
         setSelectedToken(token);
         setSelectedChain((token as YourTokenData).chainData as Chain);
-        console.log({
-          token,
-        });
+        // console.log({
+        //   token,
+        // });
       }
     },
     [setSelectedChain, setSelectedToken]
@@ -865,11 +778,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
                 }}
               >
                 <AmountSlider
-                  value={parsedAmount}
+                  value={(errorMessage?.length ?? 0) > 0 ? 0 : parsedAmount}
                   onChange={handleSliderChange}
                   max={_maxAmountUSD}
                   min={minDeposit}
-                  disabled={!selectedToken}
+                  disabled={!selectedToken || (errorMessage?.length ?? 0) > 0}
                 />
               </div>
             )}
@@ -1007,11 +920,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
                         color: colors.foreground,
                       }}
                     >
-                      {estimatedReceive
-                        ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : parsedAmount > 0
-                          ? `~$${(parsedAmount * 0.99).toFixed(2)}`
-                          : "—"}
+                      {amountToReceive
+                        ? `~$${parseFloat(amountToReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : "—"}
                     </span>
                   </div>
                 </>

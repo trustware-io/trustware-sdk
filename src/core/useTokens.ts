@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Registry } from "../registry";
 import { apiBase } from "./http";
-import type { TokenDef } from "../types";
 import type { Token } from "../widget-v2/context/DepositContext";
 import { normalizeChainType } from "src/widget-v2/helpers/chainHelpers";
 import { useChains } from "./useChains";
@@ -19,23 +18,6 @@ export interface UseTokensResult {
   searchQuery: string;
   /** Set the search query to filter tokens */
   setSearchQuery: (query: string) => void;
-}
-
-/**
- * Convert TokenDef from registry to Token interface used by context
- */
-function mapTokenDefToToken(tokenDef: TokenDef): Token {
-  return {
-    address: tokenDef.address,
-    chainId: tokenDef.chainId,
-    symbol: tokenDef.symbol,
-    name: tokenDef.name,
-    decimals: tokenDef.decimals,
-    iconUrl: tokenDef.logoURI,
-    // balance is populated separately when wallet is connected
-    balance: undefined,
-    usdPrice: tokenDef.usdPrice,
-  };
 }
 
 /**
@@ -126,11 +108,11 @@ export function useTokens(chainId: number | null | undefined): UseTokensResult {
         //   tokenDefs,
         // });
         if (filteredTokens !== undefined) {
-          console.log({
-            filteredTokens,
-            filteredTokens1,
-            chainMap,
-          });
+          // console.log({
+          //   filteredTokens,
+          //   filteredTokens1,
+          //   chainMap,
+          // });
           setTokens(filteredTokens as Token[]);
         }
         // setTokens(loadedTokens);

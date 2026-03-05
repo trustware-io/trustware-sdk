@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { Registry } from "../registry";
 import { apiBase } from "./http";
 import type { ChainDef } from "../types";
-import { resolveChainLabel } from "../utils";
 import {
   canonicalChainKeyForLink,
   canonicalSeiChainKey,
@@ -42,12 +41,12 @@ function filterSupportedChains(chains: ChainDef[]): ChainDef[] {
     if (chainType === "evm") {
       // hide none working chains for now [Hedera]
       const evmKey = canonicalChainKeyForLink(chain);
-      console.log(
-        "Checking EVM chain:",
-        chain.chainId,
-        "canonical key:",
-        evmKey
-      );
+      // console.log(
+      //   "Checking EVM chain:",
+      //   chain.chainId,
+      //   "canonical key:",
+      //   evmKey
+      // );
       const disabledEvmChains = new Set(["hedera", "295"]);
       if (evmKey && disabledEvmChains.has(evmKey)) {
         return false;
@@ -106,8 +105,9 @@ export function useChains(): UseChainsResult {
         // .sort((a, b) =>
         //   resolveChainLabel(a).localeCompare(resolveChainLabel(b))
         // );
+        const supportedChains = filterSupportedChains(loadedChains);
         const chainMap: Map<string, ChainDef> = new Map(
-          loadedChains.map((chain) => [
+          supportedChains.map((chain) => [
             (chain.chainId ?? chain.id) as string,
             chain,
           ])
@@ -115,9 +115,7 @@ export function useChains(): UseChainsResult {
 
         setChainMap(chainMap);
 
-        console.log({ chainMap });
-
-        setChains(filterSupportedChains(loadedChains));
+        setChains(supportedChains);
       } catch (err) {
         if (!cancelled) {
           const message =
@@ -137,7 +135,7 @@ export function useChains(): UseChainsResult {
     return () => {
       cancelled = true;
     };
-  }, [registry]);
+  }, [registry, chains.length]);
 
   // Split chains into popular and other
   const { popularChains, otherChains } = useMemo(() => {

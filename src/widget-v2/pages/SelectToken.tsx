@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback } from "react";
 import { mergeStyles } from "../lib/utils";
 import {
   colors,
@@ -10,8 +10,7 @@ import {
 
 import { useDeposit } from "../context/DepositContext";
 import type { Chain, Token, YourTokenData } from "../context/DepositContext";
-// import { useChains } from "../hooks/useChains";
-// import { useTokens } from "../hooks/useTokens";
+
 import { resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 import { getBalances } from "src/core/balances";

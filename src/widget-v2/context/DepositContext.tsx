@@ -350,13 +350,6 @@ export function DepositProvider({
         ).map((b) => {
           const _foundObj = tokens.find(
             (t) =>
-              // (t.address.toLowerCase() === b?.contract?.toLowerCase() &&
-              //   t.symbol?.toUpperCase() == b?.symbol?.toUpperCase()) ||
-              // (t.symbol.toUpperCase() == b?.symbol?.toUpperCase() &&
-              //   t.chainId.toString() == b?.chain_id?.toString()) ||
-              // (t.symbol?.toUpperCase() === b?.symbol?.toUpperCase() &&
-              //   b?.category === "native")
-
               t.symbol.toUpperCase() == b?.symbol?.toUpperCase() &&
               t.chainId.toString() == b?.chain_id?.toString()
           );
@@ -372,34 +365,10 @@ export function DepositProvider({
           };
         });
 
-        const foundSEIChains = chains.filter(
-          (t) => t.networkName?.toLowerCase() === "sei"
-        );
-
-        const foundSEITokens = tokens.filter(
-          (t) => t.name?.toLowerCase() === "sei"
-        );
-
-        const foundAvax = tokens.filter(
-          (t) => t.symbol?.toLowerCase() === "avax"
-        );
-
-        console.log({
-          foundSEIChains,
-          foundSEITokens,
-          flatenedTokenWithBalancesArr,
-          arr,
-          foundAvax,
-        });
-
         if (!cancelled) {
           const tokenWithChainUriArray = updatedArr?.map((t) => {
             const chain = chains.find(
               (c) =>
-                // c.chainId.toString() == t?.chain_id?.toString() ||
-                // c.networkName?.toLowerCase() === t.chain_key?.toLowerCase() ||
-                // c.networkName?.toLowerCase() === t?.name?.toLowerCase()
-
                 (t.chainId ?? t.chain_id)?.toString() === c?.chainId?.toString()
             );
             return {
