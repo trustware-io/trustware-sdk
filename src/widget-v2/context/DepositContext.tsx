@@ -46,6 +46,7 @@ export interface YourTokenData {
   chain_key: string;
   category: "native" | "erc20" | "spl" | "btc";
   contract?: `0x${string}`;
+  /** Raw smallest-unit balance string (e.g. wei/lamports) */
   balance: string;
 }
 
@@ -102,7 +103,7 @@ export interface Token {
   iconUrl?: string;
   logoURI?: string;
 
-  /** Token balance if wallet connected (as string to preserve precision) */
+  /** Raw smallest-unit balance string (e.g. wei/lamports) when wallet connected */
   balance?: string;
 
   chainId: string | number;

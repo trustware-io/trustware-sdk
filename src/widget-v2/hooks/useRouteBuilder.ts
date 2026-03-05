@@ -41,8 +41,8 @@ export interface UseRouteBuilderOptions {
   toToken: string;
   toAddress: string | undefined;
   fromToken: string;
-  fromAmountWei: bigint | undefined;
-  fromAmountUsd: string | undefined;
+  fromAmountWei: bigint;
+  fromAmountUsd?: string;
   fromAddress: string | undefined;
   refundAddress: string | undefined;
   slippage: number;
@@ -141,7 +141,7 @@ export function useRouteBuilder({
       toChainId,
       fromToken,
       toToken,
-      fromAmountWei: fromAmountWei?.toString(),
+      fromAmountWei: fromAmountWei.toString(),
       fromAmountUsd,
       fromAddress,
       toAddress,
@@ -151,7 +151,26 @@ export function useRouteBuilder({
       direction,
       slippage,
     } as UseRouteBuilderOptions);
-  }, [enabled, selectedToken, selectedChain, amount, walletAddress]);
+  }, [
+    amount,
+    direction,
+    enabled,
+    fromAddress,
+    fromAmountUsd,
+    fromAmountWei,
+    fromChain,
+    fromChainId,
+    fromToken,
+    refundAddress,
+    selectedChain,
+    selectedToken,
+    slippage,
+    toAddress,
+    toChain,
+    toChainId,
+    toToken,
+    walletAddress,
+  ]);
 
   const hasFromChainId =
     fromChainId !== undefined &&

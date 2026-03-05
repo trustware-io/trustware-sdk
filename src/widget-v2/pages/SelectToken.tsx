@@ -16,7 +16,7 @@ import { resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 import { getBalances } from "src/core/balances";
 import { useChains, useTokens } from "../hooks";
-import { sortTokensByPopularity } from "../helpers/tokenPopularity";
+import { rawToDecimal } from "../helpers/tokenAmount";
 
 export interface SelectTokenProps {
   /** Additional inline styles */
@@ -26,19 +26,15 @@ export interface SelectTokenProps {
 /**
  * Format a token balance for display
  */
-function formatTokenBalance(balance: string, decimals: number): string {
-  try {
-    const value = parseFloat(balance) / Math.pow(10, decimals);
-    if (value === 0) return "0";
-    if (value < 0.0001) return "<0.0001";
-    if (value < 1) return value.toFixed(4);
-    if (value < 1000) return value.toFixed(2);
-    return value.toLocaleString(undefined, {
-      maximumFractionDigits: 2,
-    });
-  } catch {
-    return balance;
-  }
+function formatTokenBalance(balanceRaw: string, decimals: number): string {
+  const normalized = Number(rawToDecimal(balanceRaw, decimals));
+  if (!isFinite(normalized) || normalized <= 0) return "0";
+  if (normalized < 0.0001) return "<0.0001";
+  if (normalized < 1) return normalized.toFixed(4);
+  if (normalized < 1000) return normalized.toFixed(2);
+  return normalized.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
 }
 
 // Styles
@@ -595,10 +591,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     );
     const tokenWithBalance = {
       ...token,
-      balance: (match
-        ? Number(match.balance) / 10 ** token.decimals
-        : "0"
-      ).toString(),
+      balance: match?.balance?.toString?.() ?? "0",
     };
 
     const concToken = {
@@ -655,16 +648,12 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
       return [];
     }
 
-    const walletTokensOnSelectedChain = (yourWalletTokens ?? []).filter(
-      (token) => {
-        return (
-          Number(token.chainId) === Number(selectedChain.chainId) &&
-          matchesSearch(token)
-        );
-      }
-    );
-
-    return sortTokensByPopularity(walletTokensOnSelectedChain);
+    return (yourWalletTokens ?? []).filter((token) => {
+      return (
+        Number(token.chainId) === Number(selectedChain.chainId) &&
+        matchesSearch(token)
+      );
+    });
   }, [matchesSearch, selectedChain?.chainId, yourWalletTokens]);
 
   /**
@@ -1041,7 +1030,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   </div>
                 ) : null}
 
-                {filteredWalletTokens?.map((token, i) => (
+                {filteredWalletTokens.map((token, i) => (
                   <button
                     onClick={() => handleYourTokenSelect(token)}
                     style={tokenButtonStyle}
@@ -1110,9 +1099,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                         <span style={tokenSymbolStyle}>{token.symbol}</span>
                       </div>
                       <span style={tokenNameStyle}>
-                        {(Number(token.balance) / 10 ** token.decimals)
-                          ?.toFixed(Number(token.balance) !== 0 ? 4 : 2)
-                          ?.toLocaleString()}{" "}
+                        {formatTokenBalance(token.balance, token.decimals)}{" "}
                         {token.symbol}
                       </span>
                     </div>

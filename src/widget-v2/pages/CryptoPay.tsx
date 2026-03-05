@@ -38,8 +38,8 @@ import {
   isNativeTokenAddress,
   isZeroAddrLike,
   normalizeChainKey,
-  parseDecimalToWei,
 } from "../helpers/chainHelpers";
+import { decimalToRaw, rawToDecimal } from "../helpers/tokenAmount";
 import { calculateGasFees } from "../helpers/feesHelpers";
 
 export interface CryptoPayProps {
@@ -75,10 +75,6 @@ function normalizeTokenAddressForCompare(
   return a.toLowerCase();
 }
 
-function usdToTokenAmount(amt: string, tkPrice: string | undefined): number {
-  if (tkPrice === undefined || tkPrice === "0") return 0;
-  return Number(amt) / Number(tkPrice);
-}
 /**
  * CryptoPay confirmation page.
  * Displays transaction summary with fees and allows last-minute token changes.
@@ -102,6 +98,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
   const { chains } = useChains();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
+    "usd"
+  );
   const amountInputRef = useRef<HTMLInputElement>(null);
 
   //  const routeState = useSquidRoute({
@@ -140,20 +139,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
   }, []);
 
-  const _combinedAmountObj = useMemo(() => {
-    if (selectedToken?.usdPrice !== undefined) {
-      const tokenAmt = usdToTokenAmount(
-        amount,
-        selectedToken.usdPrice.toString()
-      );
-      return {
-        usdAmount: amount,
-        tokenAmount: tokenAmt.toString(),
-      };
-    }
-    return undefined;
-  }, [selectedToken?.usdPrice, amount]);
-
   const tokenPriceUSD =
     typeof selectedToken?.usdPrice === "number" &&
     isFinite(selectedToken?.usdPrice) &&
@@ -166,45 +151,114 @@ export function CryptoPay({ style }: CryptoPayProps) {
     isFinite(tokenPriceUSD) &&
     tokenPriceUSD > 0;
 
-  // compute wei from the current input+mode
-  const amountWei: bigint | null = useMemo(() => {
-    if (!amount?.trim()) return null;
+  useEffect(() => {
+    if (!hasUsdPrice && amountInputMode === "usd") {
+      setAmountInputMode("token");
+    }
+  }, [amountInputMode, hasUsdPrice]);
 
-    if (!hasUsdPrice) return null;
+  const amountComputation = useMemo(() => {
+    const rawAmount = amount?.trim();
+    if (!rawAmount) {
+      return {
+        fromAmountWei: null,
+        tokenAmount: null,
+        usdAmount: null,
+        validationError: "Enter an amount to continue.",
+      };
+    }
+
+    if (!/^\d*\.?\d*$/.test(rawAmount)) {
+      return {
+        fromAmountWei: null,
+        tokenAmount: null,
+        usdAmount: null,
+        validationError: "Use numbers only for amount.",
+      };
+    }
+
     const tokenDecimals = selectedToken?.decimals ?? 18;
-    const usdStr = amount.trim();
-    if (!/^\d*\.?\d*$/.test(usdStr)) return null;
-    const usdVal = Number(usdStr);
-    if (!isFinite(usdVal)) return null;
-    const tokenUnits = usdVal / tokenPriceUSD!;
-    return parseDecimalToWei(String(tokenUnits), tokenDecimals);
-  }, [amount, hasUsdPrice, selectedToken?.decimals, tokenPriceUSD]);
+    const parsedAmount = Number(rawAmount);
+    if (!isFinite(parsedAmount) || parsedAmount <= 0) {
+      return {
+        fromAmountWei: null,
+        tokenAmount: null,
+        usdAmount: null,
+        validationError: "Enter an amount greater than 0.",
+      };
+    }
 
-  const routeConfig = useMemo(() => {
+    if (amountInputMode === "usd") {
+      if (!hasUsdPrice) {
+        return {
+          fromAmountWei: null,
+          tokenAmount: null,
+          usdAmount: rawAmount,
+          validationError:
+            "USD pricing is unavailable for this token. Switch to token amount mode.",
+        };
+      }
+
+      const tokenUnits = parsedAmount / tokenPriceUSD;
+      if (!isFinite(tokenUnits) || tokenUnits <= 0) {
+        return {
+          fromAmountWei: null,
+          tokenAmount: null,
+          usdAmount: rawAmount,
+          validationError: "Unable to convert USD to token amount.",
+        };
+      }
+
+      return {
+        fromAmountWei: BigInt(decimalToRaw(String(tokenUnits), tokenDecimals)),
+        tokenAmount: String(tokenUnits),
+        usdAmount: rawAmount,
+        validationError: null,
+      };
+    }
+
+    return {
+      fromAmountWei: BigInt(decimalToRaw(rawAmount, tokenDecimals)),
+      tokenAmount: rawAmount,
+      usdAmount: hasUsdPrice ? String(parsedAmount * tokenPriceUSD) : undefined,
+      validationError: null,
+    };
+  }, [
+    amount,
+    amountInputMode,
+    hasUsdPrice,
+    selectedToken?.decimals,
+    tokenPriceUSD,
+  ]);
+
+  const amountWei = amountComputation.fromAmountWei;
+
+  const routeConfig = useMemo<UseRouteBuilderOptions>(() => {
     try {
       const config = TrustwareConfigStore.get();
       const toChainId = config.routes.toChain;
       const toChainKey = normalizeChainKey(toChainId);
-      if (!toChainKey) return null;
-      const toChain =
-        chains.find(
-          (chain) => normalizeChainKey(chain.chainId ?? chain.id) === toChainKey
-        ) ?? null;
+      const toChain = toChainKey
+        ? (chains.find(
+            (chain) =>
+              normalizeChainKey(chain.chainId ?? chain.id) === toChainKey
+          ) ?? null)
+        : null;
 
-      const object = {
-        // backendBase,
-        fromChain: selectedChain?.chainId ?? selectedChain?.id ?? undefined,
+      const object: UseRouteBuilderOptions = {
+        fromChain: selectedChain?.chainId ?? selectedChain?.id ?? "",
         fromChainId: selectedChain?.chainId ?? selectedChain?.id,
-        toChain: toChain,
-        toChainId: toChainId,
+        toChain,
+        toChainId,
         toToken: config.routes.toToken,
         toAddress: config.routes.toAddress,
-        fromToken: (selectedToken?.address ??
+        fromToken:
+          selectedToken?.address ??
           getNativeTokenAddress(
             selectedChain?.type ?? selectedChain?.chainType
-          )) as string,
-        fromAmountWei: amountWei || undefined,
-        fromAmountUsd: _combinedAmountObj?.usdAmount || undefined,
+          ),
+        fromAmountWei: amountWei ?? 0n,
+        fromAmountUsd: amountComputation.usdAmount || undefined,
         fromAddress: walletAddress || undefined,
         refundAddress: walletAddress || undefined,
         slippage: 1,
@@ -216,13 +270,25 @@ export function CryptoPay({ style }: CryptoPayProps) {
         selectedChain,
       });
 
-      return object as UseRouteBuilderOptions;
+      return object;
     } catch (error) {
       console.error("Error building route config:", error);
-      return {} as UseRouteBuilderOptions;
+      return {
+        fromChain: "",
+        fromChainId: undefined,
+        toChain: null,
+        toChainId: "",
+        toToken: "",
+        toAddress: undefined,
+        fromToken: "",
+        fromAmountWei: 0n,
+        fromAddress: undefined,
+        refundAddress: undefined,
+        slippage: 1,
+      };
     }
   }, [
-    _combinedAmountObj?.usdAmount,
+    amountComputation.usdAmount,
     amountWei,
     chains,
     selectedChain,
@@ -230,17 +296,54 @@ export function CryptoPay({ style }: CryptoPayProps) {
     walletAddress,
   ]);
 
-  // const routeState = useRouteBuilder(routeConfig as UseRouteBuilderOptions);
-
-  // Get route info with fees
-
   const {
     isLoadingRoute,
     networkFees,
     estimatedReceive,
-    error: routeError,
+    error: routeBuilderError,
     routeResult,
-  } = useRouteBuilder(routeConfig as UseRouteBuilderOptions);
+  } = useRouteBuilder(routeConfig);
+
+  const routePrerequisiteError = useMemo(() => {
+    if (!selectedChain) return "Select a source chain to fetch a route.";
+    if (!selectedToken) return "Select a token to fetch a route.";
+    if (!walletAddress) return "Connect your wallet to fetch a route.";
+    if (!routeConfig.toAddress) {
+      return "Destination address missing. Please check widget configuration.";
+    }
+    if (!amountComputation.fromAmountWei) {
+      return amountComputation.validationError;
+    }
+    return null;
+  }, [
+    amountComputation.fromAmountWei,
+    amountComputation.validationError,
+    routeConfig.toAddress,
+    selectedChain,
+    selectedToken,
+    walletAddress,
+  ]);
+
+  const routeError = routePrerequisiteError || routeBuilderError;
+
+  useEffect(() => {
+    if (!routePrerequisiteError && amountComputation.fromAmountWei) {
+      console.log("[CryptoPay] Route prerequisites satisfied", {
+        chainId: selectedChain?.chainId ?? selectedChain?.id,
+        token: selectedToken?.address,
+        fromAddress: walletAddress,
+        toAddress: routeConfig.toAddress,
+      });
+    }
+  }, [
+    amountComputation.fromAmountWei,
+    routeConfig.toAddress,
+    routePrerequisiteError,
+    selectedChain?.chainId,
+    selectedChain?.id,
+    selectedToken?.address,
+    walletAddress,
+  ]);
 
   // Minimum deposit from SDK config
   const minDeposit = useMemo(() => {
@@ -450,15 +553,25 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const parsedAmount = parseFloat(amount) || 0;
 
-  // Max amount based on token balance (if available)
-  const maxAmount = useMemo(() => {
-    if (!selectedToken?.balance) return 1000; // Default max
-    // Parse balance and convert from smallest unit
-    const balance = parseFloat(selectedToken.balance);
-    if (isNaN(balance)) return 1000;
-    // Assume balance is in token units (already converted)
-    return Math.min(balance / 10 ** selectedToken.decimals, 10000); // Cap at 10k for slider
-  }, [selectedToken]);
+  const normalizedTokenBalance = useMemo(() => {
+    if (!selectedToken?.balance) return 0;
+    const normalized = Number(
+      rawToDecimal(selectedToken.balance, selectedToken.decimals ?? 18)
+    );
+    return Number.isFinite(normalized) ? normalized : 0;
+  }, [selectedToken?.balance, selectedToken?.decimals]);
+
+  const maxTokenAmount = useMemo(
+    () => Math.min(normalizedTokenBalance, 10000),
+    [normalizedTokenBalance]
+  );
+
+  const maxUsdAmount = useMemo(() => {
+    if (!hasUsdPrice) return undefined;
+    return Math.min(maxTokenAmount * tokenPriceUSD, 10000);
+  }, [hasUsdPrice, maxTokenAmount, tokenPriceUSD]);
+
+  const sliderMax = amountInputMode === "usd" ? maxUsdAmount : maxTokenAmount;
 
   const isReady = useMemo(() => {
     if (
@@ -551,27 +664,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
     !isSubmitting &&
     !!routeResult;
 
-  const [_maxAmountUSD, setMaxAmountUSD] = useState<undefined | number>();
-
-  useEffect(() => {
-    if (!selectedToken?.usdPrice || !selectedToken?.balance) return;
-
-    const balance = parseFloat(selectedToken.balance);
-
-    if (isNaN(balance)) {
-      return setMaxAmountUSD(1000);
-    } else {
-      return setMaxAmountUSD(
-        Math.min(
-          (balance / 10 ** selectedToken.decimals) * selectedToken.usdPrice,
-          10000
-        )
-      );
-    }
-
-    // return Math.min(balance * selectedToken.usdPrice, 10000); // Cap at 10k for slider
-  }, [selectedChain, selectedToken, yourWalletTokens]);
-
   return (
     <div
       style={{
@@ -661,6 +753,52 @@ export function CryptoPay({ style }: CryptoPayProps) {
             >
               Enter an amount
             </p>
+            <div
+              style={{
+                display: "flex",
+                gap: spacing[2],
+                marginBottom: spacing[2],
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setAmountInputMode("usd")}
+                disabled={!hasUsdPrice}
+                style={{
+                  padding: `${spacing[1]} ${spacing[3]}`,
+                  borderRadius: "9999px",
+                  border: 0,
+                  cursor: hasUsdPrice ? "pointer" : "not-allowed",
+                  backgroundColor:
+                    amountInputMode === "usd" ? colors.primary : colors.muted,
+                  color:
+                    amountInputMode === "usd"
+                      ? colors.background
+                      : colors.foreground,
+                  opacity: hasUsdPrice ? 1 : 0.6,
+                }}
+              >
+                USD
+              </button>
+              <button
+                type="button"
+                onClick={() => setAmountInputMode("token")}
+                style={{
+                  padding: `${spacing[1]} ${spacing[3]}`,
+                  borderRadius: "9999px",
+                  border: 0,
+                  cursor: "pointer",
+                  backgroundColor:
+                    amountInputMode === "token" ? colors.primary : colors.muted,
+                  color:
+                    amountInputMode === "token"
+                      ? colors.background
+                      : colors.foreground,
+                }}
+              >
+                {selectedToken?.symbol || "Token"}
+              </button>
+            </div>
 
             {/* Large Amount Display */}
             <div
@@ -684,7 +822,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     color: colors.foreground,
                   }}
                 >
-                  $
+                  {amountInputMode === "usd" ? "$" : ""}
                 </span>
                 <span
                   style={{
@@ -760,9 +898,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     color: colors.mutedForeground,
                   }}
                 >
-                  {Number(_combinedAmountObj?.tokenAmount ?? 0) > 0
+                  {Number(amountComputation.tokenAmount ?? 0) > 0
                     ? parseFloat(
-                        (_combinedAmountObj?.tokenAmount ?? 0).toString()
+                        (amountComputation.tokenAmount ?? 0).toString()
                       ).toLocaleString(undefined, {
                         maximumFractionDigits: 5,
                       })
@@ -806,17 +944,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     color: colors.primary,
                   }}
                 >
-                  Balance{" "}
-                  {(
-                    Number(selectedToken.balance) /
-                    10 ** selectedToken.decimals
-                  )
-                    ?.toFixed(Number(selectedToken.balance) !== 0 ? 4 : 2)
-                    ?.toLocaleString()}
+                  Balance ({selectedToken.symbol}){" "}
+                  {normalizedTokenBalance.toLocaleString(undefined, {
+                    maximumFractionDigits: 6,
+                  })}
                 </span>
                 <button
                   type="button"
-                  onClick={() => handleSliderChange(maxAmount)}
+                  onClick={() => handleSliderChange(sliderMax ?? 0)}
                   style={{
                     padding: `${spacing[1]} ${spacing[3]}`,
                     fontSize: fontSize.xs,
@@ -829,7 +964,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     cursor: "pointer",
                   }}
                 >
-                  Max
+                  {amountInputMode === "usd"
+                    ? "Max $"
+                    : `Max ${selectedToken.symbol}`}
                 </button>
               </div>
             )}
@@ -842,7 +979,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   display: "flex",
                   flexDirection: "column",
                   gap: spacing[3],
-                  width: "100%",
                 }}
               >
                 <TokenSwipePill
@@ -857,7 +993,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
             )}
 
             {/* Amount Slider */}
-            {selectedToken && _maxAmountUSD != undefined && (
+            {selectedToken && sliderMax !== undefined && (
               <div
                 style={{
                   width: "100%",
@@ -865,11 +1001,22 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   padding: `0 ${spacing[2]}`,
                 }}
               >
+                <p
+                  style={{
+                    fontSize: fontSize.xs,
+                    color: colors.mutedForeground,
+                    marginBottom: spacing[2],
+                    textAlign: "center",
+                  }}
+                >
+                  Slider unit:{" "}
+                  {amountInputMode === "usd" ? "$ USD" : selectedToken.symbol}
+                </p>
                 <AmountSlider
                   value={parsedAmount}
                   onChange={handleSliderChange}
-                  max={_maxAmountUSD}
-                  min={minDeposit}
+                  max={sliderMax}
+                  min={amountInputMode === "usd" ? minDeposit : 0}
                   disabled={!selectedToken}
                 />
               </div>
