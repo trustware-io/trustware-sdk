@@ -378,7 +378,8 @@ function WidgetInner({
   closeRequestRef,
   showThemeToggle,
 }: WidgetInnerProps): React.ReactElement {
-  const { transactionStatus, resetState, resolvedTheme } = useDeposit();
+  const { transactionStatus, resetState, resolvedTheme, errorMessage } =
+    useDeposit();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   /**

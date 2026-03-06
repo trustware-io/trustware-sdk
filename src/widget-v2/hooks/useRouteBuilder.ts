@@ -4,8 +4,6 @@ import { Trustware } from "../../core";
 import { TrustwareConfigStore } from "../../config/store";
 import { useDeposit } from "../context/DepositContext";
 import type { BuildRouteResult, ChainDef } from "../../types";
-import { calculateGasFeeDisplay } from "../helpers/feesHelpers";
-import { divRoundDown, weiToDecimalString } from "src/utils";
 
 /**
  * Route building state
@@ -76,7 +74,8 @@ export function useRouteBuilder({
 }: UseRouteBuilderOptions): RouteBuilderState {
   // const { debounceMs = 300, enabled = true } = options;
 
-  const { selectedToken, selectedChain, amount, walletAddress } = useDeposit();
+  const { selectedToken, selectedChain, amount, walletAddress, errorMessage } =
+    useDeposit();
 
   const [state, setState] = useState<RouteBuilderState>({
     isLoadingRoute: false,
@@ -90,39 +89,6 @@ export function useRouteBuilder({
   const abortRef = useRef<AbortController | null>(null);
 
   // Build a cache key from the route parameters
-  // const routeKey = useMemo(() => {
-  //   if (
-  //     !enabled ||
-  //     !selectedToken ||
-  //     !selectedChain ||
-  //     !amount ||
-  //     !walletAddress
-  //   ) {
-  //     return null;
-  //   }
-
-  //   // Parse amount - need to convert to smallest unit based on token decimals
-  //   const parsedAmount = parseFloat(amount);
-  //   if (isNaN(parsedAmount) || parsedAmount <= 0) {
-  //     return null;
-  //   }
-
-  //   // Convert amount to smallest unit (e.g., wei for ETH)
-  //   // Use BigInt math to avoid floating point precision issues
-  //   const decimals = selectedToken.decimals || 18;
-  //   const [whole, fraction = ""] = amount.split(".");
-  //   const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
-  //   const amountInSmallestUnit = whole + paddedFraction;
-  //   // Remove leading zeros but keep at least one digit
-  //   const fromAmountWei = amountInSmallestUnit.replace(/^0+/, "") || "0";
-
-  //   return JSON.stringify({
-  //     fromChain: selectedChain.chainId,
-  //     fromToken: selectedToken.address,
-  //     fromAmount: fromAmountWei,
-  //     fromAddress: walletAddress,
-  //   });
-  // }, [enabled, selectedToken, selectedChain, amount, walletAddress]);
 
   const routeKey = useMemo(() => {
     // unique key for memoization/invalidation
@@ -195,23 +161,16 @@ export function useRouteBuilder({
     )
       return;
 
-    console.log(
-      "[useRouteBuilder] Effect triggered, routeKey:",
-      routeKey ? "exists" : "null"
-    );
+    // console.log(
+    //   "[useRouteBuilder] Effect triggered, routeKey:",
+    //   routeKey ? "exists" : "null"
+    // );
 
     // Abort any pending request
     abortRef.current?.abort();
 
     // Clear state if we don't have all required params
     if (!routeKey) {
-      console.log("[useRouteBuilder] No routeKey - missing params:", {
-        enabled,
-        hasToken: !!selectedToken,
-        hasChain: !!selectedChain,
-        amount,
-        hasWallet: !!walletAddress,
-      });
       setState({
         isLoadingRoute: false,
         networkFees: null,
@@ -261,6 +220,10 @@ export function useRouteBuilder({
           defaultSlippage,
         });
 
+        const shouldBuildRoute = errorMessage === null || errorMessage === "";
+
+        if (!shouldBuildRoute) return;
+
         const result = await Trustware.buildRoute({
           fromChain: String(params.fromChain),
           toChain,
@@ -275,21 +238,6 @@ export function useRouteBuilder({
           // slippageBps: params.slippageBps || 100,
         });
 
-        {
-          // "fromChain": "43114",
-          // "toChain": "43114",
-          // "fromToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-          // "toToken": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
-          // "fromAmount": "10800150691113940",
-          // "fromAddress": "0xA3345d8139e61c93c5D154D9F6E311eB4C6F1154",
-          // "toAddress": "0x40695edf6e3c6be65122162b7d7b7f6c5418037b",
-          // "fromAmountUsd": "0.10",
-          // "slippage": 1,
-          // "linkId": "48a1411c-8efc-4660-97fa-9214ca7280f7",
-          // "slippageBps": 100,
-          // "fromAmountUSD": "0.10"
-        }
-
         // Check if aborted
         if (ac.signal.aborted) return;
 
@@ -298,9 +246,9 @@ export function useRouteBuilder({
         const fees = estimate?.fees;
 
         // Debug: log the full estimate object
-        console.log("[useRouteBuilder] Route result:", result);
-        console.log("[useRouteBuilder] Estimate:", estimate);
-        console.log("[useRouteBuilder] Fees:", fees);
+        // console.log("[useRouteBuilder] Route result:", result);
+        // console.log("[useRouteBuilder] Estimate:", estimate);
+        // console.log("[useRouteBuilder] Fees:", fees);
 
         // Calculate network fees (gas + bridge fees in USD)
         let networkFeesUSD: string | null = null;
@@ -348,48 +296,6 @@ export function useRouteBuilder({
             .slice(0, 2);
           estimatedReceive = `${whole}.${fractionStr}`;
         }
-
-        // calculateGasFeeDisplay(
-        //   {
-        //     gasLimit: result?.txReq.gasLimit ?? "0",
-        //     gasPrice: result?.txReq.gasPrice ?? "0",
-        //     maxFeePerGas: result?.txReq.maxFeePerGas,
-        //   },
-        //   selectedToken?.usdPrice ?? 0,
-        //   selectedToken?.decimals ?? 18
-        // ); // TODO: pass actual native token price
-
-        const gasLimit = result?.txReq?.gasLimit
-          ? BigInt(result.txReq.gasLimit)
-          : undefined;
-
-        const effectiveGasPrice = result?.txReq?.maxFeePerGas
-          ? BigInt(result.txReq.maxFeePerGas)
-          : undefined;
-
-        if (gasLimit === undefined || effectiveGasPrice === undefined)
-          return undefined;
-
-        // const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-        const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-        const gasFeeDecimal = weiToDecimalString(
-          gasFeeWei,
-          selectedToken?.decimals ?? 18,
-          6
-        );
-        const gasFeeUsd =
-          gasFeeWei && selectedToken?.usdPrice
-            ? (Number(gasFeeWei) / 10 ** (selectedToken?.decimals ?? 18)) *
-              selectedToken?.usdPrice
-            : undefined;
-        // console.log({
-        //   gasLimit,
-        //   effectiveGasPrice,
-        //   gasFeeWei,
-        //   gasFeeDecimal,
-        //   gasFeeUsd,
-        // });
-        // return { gasFeeDecimal, gasFeeUsd };
 
         setState({
           isLoadingRoute: false,
@@ -449,6 +355,7 @@ export function useRouteBuilder({
     selectedToken,
     amount,
     walletAddress,
+    errorMessage,
   ]);
 
   return state;

@@ -1,6 +1,13 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { mergeStyles } from "../lib/utils";
-import { colors, spacing, fontSize, fontWeight, shadows, borderRadius } from "../styles/tokens";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  shadows,
+  borderRadius,
+} from "../styles/tokens";
 
 export interface ToastData {
   id: string;
@@ -29,7 +36,10 @@ const baseToastStyle: React.CSSProperties = {
   transition: "all 0.2s ease-out",
 };
 
-const variantStyles: Record<ToastData["variant"] & string, React.CSSProperties> = {
+const variantStyles: Record<
+  ToastData["variant"] & string,
+  React.CSSProperties
+> = {
   default: {
     border: `1px solid ${colors.border}`,
     backgroundColor: colors.card,
@@ -37,8 +47,11 @@ const variantStyles: Record<ToastData["variant"] & string, React.CSSProperties> 
   },
   destructive: {
     border: "1px solid rgba(239, 68, 68, 0.5)",
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    color: colors.red[600],
+    // backgroundColor: "rgba(239, 68, 68, 0.1)",
+    backgroundColor: "rgba(239, 68, 68, 0.88)",
+    // color: colors.red[600],
+    fontWeight: fontWeight.semibold,
+    color: colors.white,
   },
   success: {
     border: "1px solid rgba(34, 197, 94, 0.5)",

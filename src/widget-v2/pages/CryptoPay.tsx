@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
@@ -23,7 +22,6 @@ import {
   useRouteBuilder,
   UseRouteBuilderOptions,
 } from "../hooks/useRouteBuilder";
-import { useTokens } from "../../core/useTokens";
 import { useTransactionSubmit } from "../hooks/useTransactionSubmit";
 import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
@@ -31,7 +29,7 @@ import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
 
 import { useChains } from "../hooks";
-import { divRoundDown, resolveChainLabel, weiToDecimalString } from "src/utils";
+import { divRoundDown, weiToDecimalString } from "src/utils";
 import { ChainDef } from "src";
 import {
   getNativeTokenAddress,
@@ -40,28 +38,12 @@ import {
   normalizeChainKey,
 } from "../helpers/chainHelpers";
 import { decimalToRaw, rawToDecimal } from "../helpers/tokenAmount";
-import { calculateGasFees } from "../helpers/feesHelpers";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
   style?: React.CSSProperties;
 }
 
-// Styles
-// const containerStyle: React.CSSProperties = {
-//   display: "flex",
-//   flexDirection: "column",
-//   minHeight: "500px",
-// };
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: `${spacing[4]} ${spacing[4]}`,
-  borderBottom: `1px solid ${colors.border}`,
-};
-
-// import { usePublicClient, useWalletClient } from "wagmi";
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
 
@@ -102,26 +84,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
     "usd"
   );
   const amountInputRef = useRef<HTMLInputElement>(null);
-
-  //  const routeState = useSquidRoute({
-  //    backendBase,
-  //    fromChain: selectedChain ?? undefined,
-  //    fromChainId: selectedChain?.chainId,
-  //    toChain: toChain ?? undefined,
-  //    toChainId,
-  //    fromToken: (selectedToken?.address ??
-  //      getNativeTokenAddress(
-  //        selectedChain?.type ?? selectedChain?.chainType
-  //      )) as string,
-  //    toToken,
-  //    fromAmountWei: amount || undefined,
-  //    fromAmountUsd: amountUsd || undefined,
-  //    fromAddress: fromAddress || undefined,
-  //    toAddress: link?.receiver_address || undefined,
-  //    refundAddress: refundAddress || undefined,
-  //    slippage: 1,
-  //   //  linkId: link?.id,
-  //  });
 
   // Transaction submission hook
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
@@ -355,39 +317,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
       return 0;
     }
   }, []);
-
-  // const gasFee = useMemo(() => {
-  //   const gasLimit = routeResult?.txReq?.gasLimit
-  //     ? BigInt(routeResult.txReq.gasLimit)
-  //     : undefined;
-
-  //   const effectiveGasPrice = routeResult?.txReq?.maxFeePerGas
-  //     ? BigInt(routeResult.txReq.maxFeePerGas)
-  //     : undefined;
-
-  //   if (gasLimit === undefined || effectiveGasPrice === undefined)
-  //     return undefined;
-
-  //   // const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-  //   const gasFeeWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-  //   const gasFeeDecimal = weiToDecimalString(
-  //     gasFeeWei,
-  //     selectedToken?.decimals ?? 18,
-  //     6
-  //   );
-  //   const gasFeeUsd = hasUsdPrice
-  //     ? (Number(gasFeeWei) / 10 ** (selectedToken?.decimals ?? 18)) *
-  //       tokenPriceUSD
-  //     : undefined;
-
-  //   return { gasFeeDecimal, gasFeeUsd };
-  // }, [
-  //   hasUsdPrice,
-  //   routeResult?.txReq.gasLimit,
-  //   routeResult?.txReq.maxFeePerGas,
-  //   selectedToken?.decimals,
-  //   tokenPriceUSD,
-  // ]);
 
   const [gasReservationWei, setGasReservationWei] = useState<bigint>(0n);
 

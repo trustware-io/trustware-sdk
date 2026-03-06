@@ -120,7 +120,7 @@ export function useTokens(chainId: number | null | undefined): UseTokensResult {
               token.address.toLowerCase().includes(query)
           );
 
-    return sortTokensByPopularity(source); 
+    return sortTokensByPopularity(source);
   }, [tokens, searchQuery]);
 
   return {

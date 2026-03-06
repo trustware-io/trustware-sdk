@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
