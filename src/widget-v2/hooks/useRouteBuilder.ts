@@ -39,7 +39,7 @@ export interface UseRouteBuilderOptions {
   toToken: string;
   toAddress: string | undefined;
   fromToken: string;
-  fromAmountWei: bigint;
+  fromAmountWei: bigint | string;
   fromAmountUsd?: string;
   fromAddress: string | undefined;
   refundAddress: string | undefined;
@@ -107,7 +107,7 @@ export function useRouteBuilder({
       toChainId,
       fromToken,
       toToken,
-      fromAmountWei,
+      fromAmountWei: fromAmountWei.toString(), //toString() fixed the Error: <- Do not know how to serialize a BigInt->
       fromAmountUsd,
       fromAddress,
       toAddress,
