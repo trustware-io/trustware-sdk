@@ -107,7 +107,7 @@ export function useRouteBuilder({
       toChainId,
       fromToken,
       toToken,
-      fromAmountWei: fromAmountWei.toString(),
+      fromAmountWei,
       fromAmountUsd,
       fromAddress,
       toAddress,
