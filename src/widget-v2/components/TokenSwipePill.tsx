@@ -70,13 +70,10 @@ const carouselContainerStyle: React.CSSProperties = {
 const tokenIconContainerStyle: React.CSSProperties = {
   width: "2.5rem",
   height: "2.5rem",
-  borderRadius: "9999px",
   overflow: "hidden",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  backgroundColor: colors.white,
-  boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
 };
 
 const tokenIconStyle: React.CSSProperties = {
