@@ -213,7 +213,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
         toChain,
         toChainId,
         toToken: config.routes.toToken,
-        toAddress: config.routes.toAddress,
+        toAddress: config.routes.toAddress || walletAddress || undefined,
         fromToken:
           selectedToken?.address ??
           getNativeTokenAddress(
