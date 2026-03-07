@@ -48,7 +48,7 @@ export function useTransactionSubmit() {
    */
   const submitTransaction = useCallback(
     async (routeResult: BuildRouteResult): Promise<string | null> => {
-      if (!routeResult?.route?.transactionRequest) {
+      if (!routeResult?.txReq) {
         const errorMsg = "Invalid route data. Please try again.";
         setState({
           isSubmitting: false,
@@ -77,7 +77,7 @@ export function useTransactionSubmit() {
         // Send the transaction to the wallet for signing
         const hash = await Trustware.sendRouteTransaction(
           routeResult,
-          fallbackChainId
+          Number(fallbackChainId)
         );
 
         // Transaction was signed and submitted

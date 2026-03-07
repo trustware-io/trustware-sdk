@@ -16,7 +16,8 @@ export async function sendRouteTransaction(
 ): Promise<`0x${string}`> {
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
-  const tr = b.route.transactionRequest;
+  // const tr = b.route?.transactionRequest;
+  const tr = b?.txReq;
   const to = tr.to as `0x${string}`;
   const data = tr.data as `0x${string}`;
   const value = tr.value ? BigInt(tr.value) : 0n;

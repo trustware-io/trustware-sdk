@@ -1,15 +1,21 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
-import type { Token, Chain } from "../context/DepositContext";
+import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 
 export interface TokenSwipePillProps {
   /** List of tokens to display in the carousel */
-  tokens: Token[];
+  tokens: Token[] | YourTokenData[];
   /** Currently selected token */
-  selectedToken: Token;
+  selectedToken: Token | YourTokenData;
   /** Callback when a token is selected */
-  onTokenChange: (token: Token) => void;
+  onTokenChange: (token: Token | YourTokenData) => void;
   /** Callback when expand/dropdown button is clicked */
   onExpandClick?: () => void;
   /** Currently selected chain (for displaying chain info) */
@@ -64,13 +70,10 @@ const carouselContainerStyle: React.CSSProperties = {
 const tokenIconContainerStyle: React.CSSProperties = {
   width: "2.5rem",
   height: "2.5rem",
-  borderRadius: "9999px",
   overflow: "hidden",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  backgroundColor: colors.white,
-  boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
 };
 
 const tokenIconStyle: React.CSSProperties = {
@@ -192,7 +195,7 @@ export function TokenSwipePill({
   selectedToken,
   onTokenChange,
   onExpandClick,
-  selectedChain,
+  // selectedChain,
   walletAddress,
   style,
 }: TokenSwipePillProps): React.ReactElement | null {
@@ -317,12 +320,33 @@ export function TokenSwipePill({
    * Generate fallback initials from token symbol
    */
   const getTokenInitials = (symbol: string) => {
-    return symbol.slice(0, 2).toUpperCase();
+    return symbol?.slice(0, 2).toUpperCase();
   };
 
   // Don't render if no tokens
   if (tokens.length === 0) {
     return null;
+  }
+
+  const chainBadge = useMemo(() => {
+    const url =
+      (selectedToken as YourTokenData).chainData?.chainIconURI ||
+      (
+        (selectedToken as YourTokenData)
+          .chainData as YourTokenData["chainData"] & {
+          iconUrl: string;
+        }
+      )?.iconUrl;
+    return url?.toString();
+  }, [selectedToken]);
+
+  function validateIconUrl(url: string | undefined, isCenter: boolean) {
+    if (url === undefined) return "";
+    if (!isCenter) return url;
+    if (url !== (selectedToken.iconUrl ?? selectedToken.logoURI)) {
+      return selectedToken.iconUrl ?? selectedToken.logoURI ?? "";
+    }
+    return url;
   }
 
   return (
@@ -382,9 +406,7 @@ export function TokenSwipePill({
                   key={`carousel-${index}-${token.address}`}
                   style={{
                     position: "absolute",
-                    transition: isDragging
-                      ? "all 75ms"
-                      : "all 200ms ease-out",
+                    transition: isDragging ? "all 75ms" : "all 200ms ease-out",
                     transform: `translateX(${currentOffset}px) scale(${scale})`,
                     opacity,
                     filter: `blur(${blur}px)`,
@@ -393,24 +415,28 @@ export function TokenSwipePill({
                 >
                   <div style={{ position: "relative" }}>
                     <div style={tokenIconContainerStyle}>
-                      {token.iconUrl ? (
+                      {validateIconUrl(token.iconUrl, isCenter) ? (
                         <img
-                          src={token.iconUrl}
+                          src={validateIconUrl(token.iconUrl, isCenter)}
                           alt={token.symbol}
                           style={tokenIconStyle}
                         />
                       ) : (
                         <span style={tokenInitialsStyle}>
-                          {getTokenInitials(token.symbol)}
+                          {getTokenInitials(token.symbol as string)}
                         </span>
                       )}
                     </div>
                     {/* Chain Icon - only on center token */}
-                    {isCenter && selectedChain?.iconUrl && (
+
+                    {isCenter && (selectedToken as YourTokenData).chainData && (
                       <div style={chainIconContainerStyle}>
                         <img
-                          src={selectedChain.iconUrl}
-                          alt={selectedChain.name}
+                          src={chainBadge}
+                          alt={
+                            (selectedToken as YourTokenData).chainData
+                              ?.networkName
+                          }
                           style={chainIconStyle}
                         />
                       </div>
@@ -463,7 +489,9 @@ export function TokenSwipePill({
                       outline: "none",
                       cursor: "pointer",
                       backgroundColor:
-                        index === currentIndex ? colors.white : colors.zinc[600],
+                        index === currentIndex
+                          ? colors.white
+                          : colors.zinc[600],
                       width: index === currentIndex ? "0.75rem" : "0.375rem",
                     }}
                     aria-label={`Select ${token.symbol}`}
@@ -495,7 +523,9 @@ export function TokenSwipePill({
               }
 
               // Dedupe and sort
-              const uniqueIndices = [...new Set(visibleIndices)].sort((a, b) => a - b);
+              const uniqueIndices = [...new Set(visibleIndices)].sort(
+                (a, b) => a - b
+              );
 
               return uniqueIndices.map((index, i) => {
                 const token = tokens[index];
@@ -529,7 +559,9 @@ export function TokenSwipePill({
                         outline: "none",
                         cursor: "pointer",
                         backgroundColor:
-                          index === currentIndex ? colors.white : colors.zinc[600],
+                          index === currentIndex
+                            ? colors.white
+                            : colors.zinc[600],
                         width: index === currentIndex ? "0.75rem" : "0.375rem",
                       }}
                       aria-label={`Select ${token.symbol} (${index + 1} of ${total})`}
@@ -579,7 +611,12 @@ export function TokenSwipePill({
       >
         <div>
           <p style={tokenSymbolStyle}>{selectedToken.symbol}</p>
-          {selectedChain && <p style={chainNameStyle}>{selectedChain.name}</p>}
+          {(selectedToken as YourTokenData).chainData && (
+            <p style={chainNameStyle}>
+              {(selectedToken as YourTokenData)?.chainData?.networkName ||
+                ((selectedToken as YourTokenData)?.chainData as Chain)?.name}
+            </p>
+          )}
         </div>
         {/* Chevron Down icon */}
         <svg

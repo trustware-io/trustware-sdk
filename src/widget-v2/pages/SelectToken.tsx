@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useMemo } from "react";
 import { mergeStyles } from "../lib/utils";
 import {
   colors,
@@ -7,12 +7,15 @@ import {
   fontWeight,
   borderRadius,
 } from "../styles/tokens";
+
 import { useDeposit } from "../context/DepositContext";
-import type { Token } from "../context/DepositContext";
-import { useChains } from "../hooks/useChains";
-import { useTokens } from "../hooks/useTokens";
+import type { Chain, Token, YourTokenData } from "../context/DepositContext";
+
 import { resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
+import { getBalances } from "src/core/balances";
+import { useChains, useTokens } from "../hooks";
+import { rawToDecimal } from "../helpers/tokenAmount";
 
 export interface SelectTokenProps {
   /** Additional inline styles */
@@ -22,36 +25,33 @@ export interface SelectTokenProps {
 /**
  * Format a token balance for display
  */
-function formatTokenBalance(balance: string, decimals: number): string {
-  try {
-    const value = parseFloat(balance) / Math.pow(10, decimals);
-    if (value === 0) return "0";
-    if (value < 0.0001) return "<0.0001";
-    if (value < 1) return value.toFixed(4);
-    if (value < 1000) return value.toFixed(2);
-    return value.toLocaleString(undefined, {
-      maximumFractionDigits: 2,
-    });
-  } catch {
-    return balance;
-  }
+function formatTokenBalance(balanceRaw: string, decimals: number): string {
+  const normalized = Number(rawToDecimal(balanceRaw, decimals));
+  if (!isFinite(normalized) || normalized <= 0) return "0";
+  if (normalized < 0.0001) return "<0.0001";
+  if (normalized < 1) return normalized.toFixed(4);
+  if (normalized < 1000) return normalized.toFixed(2);
+  return normalized.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
 }
 
 // Styles
-const containerStyle: React.CSSProperties = {
+export const containerStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   minHeight: "500px",
+  maxHeight: "70vh",
 };
 
-const headerStyle: React.CSSProperties = {
+export const headerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   padding: `${spacing[4]} ${spacing[4]}`,
   borderBottom: `1px solid ${colors.border}`,
 };
 
-const backButtonStyle: React.CSSProperties = {
+export const backButtonStyle: React.CSSProperties = {
   padding: spacing[1],
   marginRight: spacing[2],
   borderRadius: borderRadius.lg,
@@ -61,13 +61,13 @@ const backButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const backIconStyle: React.CSSProperties = {
+export const backIconStyle: React.CSSProperties = {
   width: "1.25rem",
   height: "1.25rem",
   color: colors.foreground,
 };
 
-const headerTitleStyle: React.CSSProperties = {
+export const headerTitleStyle: React.CSSProperties = {
   flex: 1,
   fontSize: fontSize.lg,
   fontWeight: fontWeight.semibold,
@@ -76,14 +76,14 @@ const headerTitleStyle: React.CSSProperties = {
   marginRight: "1.75rem",
 };
 
-const contentStyle: React.CSSProperties = {
+export const contentStyle: React.CSSProperties = {
   flex: 1,
   display: "flex",
   overflow: "hidden",
 };
 
 // Left column styles
-const leftColumnStyle: React.CSSProperties = {
+export const leftColumnStyle: React.CSSProperties = {
   width: "140px",
   borderRight: `1px solid ${colors.border}`,
   display: "flex",
@@ -91,12 +91,12 @@ const leftColumnStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const columnHeaderStyle: React.CSSProperties = {
+export const columnHeaderStyle: React.CSSProperties = {
   padding: `${spacing[2]} ${spacing[3]}`,
   borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
 };
 
-const columnLabelStyle: React.CSSProperties = {
+export const columnLabelStyle: React.CSSProperties = {
   fontSize: fontSize.xs,
   fontWeight: fontWeight.medium,
   color: colors.mutedForeground,
@@ -104,51 +104,51 @@ const columnLabelStyle: React.CSSProperties = {
   letterSpacing: "0.05em",
 };
 
-const chainListContainerStyle: React.CSSProperties = {
+export const chainListContainerStyle: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   padding: `${spacing[2]} ${spacing[1]}`,
 };
 
-const skeletonContainerStyle: React.CSSProperties = {
+export const skeletonContainerStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: spacing[2],
   padding: `0 ${spacing[2]}`,
 };
 
-const skeletonRowStyle: React.CSSProperties = {
+export const skeletonRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: spacing[3],
   padding: `${spacing[2]} 0`,
 };
 
-const skeletonCircleStyle: React.CSSProperties = {
+export const skeletonCircleStyle: React.CSSProperties = {
   width: "2rem",
   height: "2rem",
   borderRadius: "9999px",
   backgroundColor: colors.muted,
 };
 
-const skeletonTextStyle: React.CSSProperties = {
+export const skeletonTextStyle: React.CSSProperties = {
   flex: 1,
   height: "1rem",
   backgroundColor: colors.muted,
   borderRadius: borderRadius.md,
 };
 
-const errorTextStyle: React.CSSProperties = {
+export const errorTextStyle: React.CSSProperties = {
   padding: `${spacing[3]} ${spacing[4]}`,
   textAlign: "center",
 };
 
-const errorMessageStyle: React.CSSProperties = {
+export const errorMessageStyle: React.CSSProperties = {
   fontSize: fontSize.sm,
   color: colors.destructive,
 };
 
-const retryLinkStyle: React.CSSProperties = {
+export const retryLinkStyle: React.CSSProperties = {
   marginTop: spacing[2],
   fontSize: fontSize.xs,
   color: colors.primary,
@@ -158,15 +158,15 @@ const retryLinkStyle: React.CSSProperties = {
   textDecoration: "underline",
 };
 
-const sectionStyle: React.CSSProperties = {
+export const sectionStyle: React.CSSProperties = {
   marginBottom: spacing[2],
 };
 
-const sectionHeaderStyle: React.CSSProperties = {
+export const sectionHeaderStyle: React.CSSProperties = {
   padding: `${spacing[1.5]} ${spacing[3]}`,
 };
 
-const sectionLabelStyle: React.CSSProperties = {
+export const sectionLabelStyle: React.CSSProperties = {
   fontSize: "10px",
   fontWeight: fontWeight.medium,
   color: "rgba(161, 161, 170, 0.7)",
@@ -174,7 +174,7 @@ const sectionLabelStyle: React.CSSProperties = {
   letterSpacing: "0.05em",
 };
 
-const chainButtonStyle: React.CSSProperties = {
+export const chainButtonStyle: React.CSSProperties = {
   width: "100%",
   display: "flex",
   alignItems: "center",
@@ -187,12 +187,12 @@ const chainButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const chainButtonSelectedStyle: React.CSSProperties = {
+export const chainButtonSelectedStyle: React.CSSProperties = {
   border: `1px solid ${colors.primary}`,
   backgroundColor: "rgba(59, 130, 246, 0.1)",
 };
 
-const chainIconStyle: React.CSSProperties = {
+export const chainIconStyle: React.CSSProperties = {
   width: "2rem",
   height: "2rem",
   borderRadius: "9999px",
@@ -200,7 +200,7 @@ const chainIconStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const chainIconFallbackStyle: React.CSSProperties = {
+export const chainIconFallbackStyle: React.CSSProperties = {
   width: "2rem",
   height: "2rem",
   borderRadius: "9999px",
@@ -211,19 +211,19 @@ const chainIconFallbackStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const chainIconFallbackTextStyle: React.CSSProperties = {
+export const chainIconFallbackTextStyle: React.CSSProperties = {
   fontSize: fontSize.xs,
   fontWeight: fontWeight.semibold,
   color: colors.mutedForeground,
 };
 
-const chainNameContainerStyle: React.CSSProperties = {
+export const chainNameContainerStyle: React.CSSProperties = {
   flex: 1,
   textAlign: "left",
   minWidth: 0,
 };
 
-const chainNameStyle: React.CSSProperties = {
+export const chainNameStyle: React.CSSProperties = {
   fontSize: fontSize.sm,
   fontWeight: fontWeight.medium,
   color: colors.foreground,
@@ -233,7 +233,7 @@ const chainNameStyle: React.CSSProperties = {
   display: "block",
 };
 
-const selectionIndicatorStyle: React.CSSProperties = {
+export const selectionIndicatorStyle: React.CSSProperties = {
   width: "1.25rem",
   height: "1.25rem",
   borderRadius: "9999px",
@@ -244,43 +244,43 @@ const selectionIndicatorStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const checkIconStyle: React.CSSProperties = {
+export const checkIconStyle: React.CSSProperties = {
   width: "0.75rem",
   height: "0.75rem",
   color: colors.primaryForeground,
 };
 
-const emptyStateStyle: React.CSSProperties = {
+export const emptyStateStyle: React.CSSProperties = {
   padding: `${spacing[3]} ${spacing[4]}`,
   textAlign: "center",
 };
 
-const emptyTextStyle: React.CSSProperties = {
+export const emptyTextStyle: React.CSSProperties = {
   fontSize: fontSize.sm,
   color: colors.mutedForeground,
 };
 
 // Right column styles
-const rightColumnStyle: React.CSSProperties = {
+export const rightColumnStyle: React.CSSProperties = {
   flex: 1,
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
 };
 
-const tokenHeaderStyle: React.CSSProperties = {
+export const tokenHeaderStyle: React.CSSProperties = {
   padding: `${spacing[2]} ${spacing[3]}`,
   borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
 };
 
-const tokenHeaderRowStyle: React.CSSProperties = {
+export const tokenHeaderRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: spacing[2],
   marginBottom: spacing[2],
 };
 
-const walletBadgeStyle: React.CSSProperties = {
+export const walletBadgeStyle: React.CSSProperties = {
   fontSize: "10px",
   color: colors.primary,
   backgroundColor: "rgba(59, 130, 246, 0.1)",
@@ -288,11 +288,11 @@ const walletBadgeStyle: React.CSSProperties = {
   borderRadius: borderRadius.md,
 };
 
-const searchContainerStyle: React.CSSProperties = {
+export const searchContainerStyle: React.CSSProperties = {
   position: "relative",
 };
 
-const searchIconStyle: React.CSSProperties = {
+export const searchIconStyle: React.CSSProperties = {
   position: "absolute",
   left: spacing[2.5],
   top: "50%",
@@ -302,7 +302,7 @@ const searchIconStyle: React.CSSProperties = {
   color: colors.mutedForeground,
 };
 
-const searchInputStyle: React.CSSProperties = {
+export const searchInputStyle: React.CSSProperties = {
   width: "100%",
   paddingLeft: spacing[8],
   paddingRight: spacing[3],
@@ -317,7 +317,7 @@ const searchInputStyle: React.CSSProperties = {
   transition: "all 0.2s",
 };
 
-const clearSearchButtonStyle: React.CSSProperties = {
+export const clearSearchButtonStyle: React.CSSProperties = {
   position: "absolute",
   right: spacing[2.5],
   top: "50%",
@@ -330,19 +330,19 @@ const clearSearchButtonStyle: React.CSSProperties = {
   transition: "background-color 0.2s",
 };
 
-const clearIconStyle: React.CSSProperties = {
+export const clearIconStyle: React.CSSProperties = {
   width: "0.875rem",
   height: "0.875rem",
   color: colors.mutedForeground,
 };
 
-const tokenListContainerStyle: React.CSSProperties = {
+export const tokenListContainerStyle: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   padding: `${spacing[2]} ${spacing[1]}`,
 };
 
-const centeredContainerStyle: React.CSSProperties = {
+export const centeredContainerStyle: React.CSSProperties = {
   height: "100%",
   display: "flex",
   alignItems: "center",
@@ -350,42 +350,42 @@ const centeredContainerStyle: React.CSSProperties = {
   padding: `0 ${spacing[4]}`,
 };
 
-const centeredContentStyle: React.CSSProperties = {
+export const centeredContentStyle: React.CSSProperties = {
   textAlign: "center",
 };
 
-const placeholderIconStyle: React.CSSProperties = {
+export const placeholderIconStyle: React.CSSProperties = {
   width: "3rem",
   height: "3rem",
   margin: `0 auto ${spacing[3]}`,
   color: "rgba(161, 161, 170, 0.5)",
 };
 
-const smallIconStyle: React.CSSProperties = {
+export const smallIconStyle: React.CSSProperties = {
   width: "2.5rem",
   height: "2.5rem",
   margin: `0 auto ${spacing[2]}`,
 };
 
-const tokenSkeletonRowStyle: React.CSSProperties = {
+export const tokenSkeletonRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: spacing[3],
   padding: `${spacing[2.5]} ${spacing[2]}`,
 };
 
-const tokenSkeletonCircleStyle: React.CSSProperties = {
+export const tokenSkeletonCircleStyle: React.CSSProperties = {
   width: "2.25rem",
   height: "2.25rem",
   borderRadius: "9999px",
   backgroundColor: colors.muted,
 };
 
-const tokenSkeletonTextContainerStyle: React.CSSProperties = {
+export const tokenSkeletonTextContainerStyle: React.CSSProperties = {
   flex: 1,
 };
 
-const tokenSkeletonTextSmStyle: React.CSSProperties = {
+export const tokenSkeletonTextSmStyle: React.CSSProperties = {
   height: "1rem",
   width: "4rem",
   backgroundColor: colors.muted,
@@ -393,27 +393,27 @@ const tokenSkeletonTextSmStyle: React.CSSProperties = {
   marginBottom: spacing[1.5],
 };
 
-const tokenSkeletonTextLgStyle: React.CSSProperties = {
+export const tokenSkeletonTextLgStyle: React.CSSProperties = {
   height: "0.75rem",
   width: "6rem",
   backgroundColor: colors.muted,
   borderRadius: borderRadius.md,
 };
 
-const tokenSkeletonBalanceStyle: React.CSSProperties = {
+export const tokenSkeletonBalanceStyle: React.CSSProperties = {
   height: "1rem",
   width: "3.5rem",
   backgroundColor: colors.muted,
   borderRadius: borderRadius.md,
 };
 
-const tokenListStyle: React.CSSProperties = {
+export const tokenListStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: spacing[0.5],
 };
 
-const tokenButtonStyle: React.CSSProperties = {
+export const tokenButtonStyle: React.CSSProperties = {
   width: "100%",
   display: "flex",
   alignItems: "center",
@@ -426,7 +426,7 @@ const tokenButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const tokenIconStyle: React.CSSProperties = {
+export const tokenIconStyle: React.CSSProperties = {
   width: "2.25rem",
   height: "2.25rem",
   borderRadius: "9999px",
@@ -434,7 +434,7 @@ const tokenIconStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const tokenIconFallbackStyle: React.CSSProperties = {
+export const tokenIconFallbackStyle: React.CSSProperties = {
   width: "2.25rem",
   height: "2.25rem",
   borderRadius: "9999px",
@@ -445,25 +445,25 @@ const tokenIconFallbackStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const tokenIconFallbackTextStyle: React.CSSProperties = {
+export const tokenIconFallbackTextStyle: React.CSSProperties = {
   fontSize: fontSize.sm,
   fontWeight: fontWeight.semibold,
   color: colors.primary,
 };
 
-const tokenInfoStyle: React.CSSProperties = {
+export const tokenInfoStyle: React.CSSProperties = {
   flex: 1,
   textAlign: "left",
   minWidth: 0,
 };
 
-const tokenSymbolContainerStyle: React.CSSProperties = {
+export const tokenSymbolContainerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: spacing[1.5],
 };
 
-const tokenSymbolStyle: React.CSSProperties = {
+export const tokenSymbolStyle: React.CSSProperties = {
   fontSize: fontSize.sm,
   fontWeight: fontWeight.semibold,
   color: colors.foreground,
@@ -472,7 +472,7 @@ const tokenSymbolStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const tokenNameStyle: React.CSSProperties = {
+export const tokenNameStyle: React.CSSProperties = {
   fontSize: fontSize.xs,
   color: colors.mutedForeground,
   overflow: "hidden",
@@ -481,48 +481,48 @@ const tokenNameStyle: React.CSSProperties = {
   display: "block",
 };
 
-const tokenBalanceContainerStyle: React.CSSProperties = {
+export const tokenBalanceContainerStyle: React.CSSProperties = {
   textAlign: "right",
   flexShrink: 0,
 };
 
-const tokenBalanceStyle: React.CSSProperties = {
+export const tokenBalanceStyle: React.CSSProperties = {
   fontSize: fontSize.sm,
   fontWeight: fontWeight.medium,
   color: colors.foreground,
 };
 
-const chevronStyle: React.CSSProperties = {
+export const chevronStyle: React.CSSProperties = {
   width: "1rem",
   height: "1rem",
   color: colors.mutedForeground,
   flexShrink: 0,
 };
 
-const footerStyle: React.CSSProperties = {
+export const footerStyle: React.CSSProperties = {
   padding: `${spacing[4]} ${spacing[6]}`,
   borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
 };
 
-const footerContentStyle: React.CSSProperties = {
+export const footerContentStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   gap: spacing[2],
 };
 
-const lockIconStyle: React.CSSProperties = {
+export const lockIconStyle: React.CSSProperties = {
   width: "0.875rem",
   height: "0.875rem",
   color: colors.mutedForeground,
 };
 
-const footerTextStyle: React.CSSProperties = {
+export const footerTextStyle: React.CSSProperties = {
   fontSize: fontSize.sm,
   color: colors.mutedForeground,
 };
 
-const footerBrandStyle: React.CSSProperties = {
+export const footerBrandStyle: React.CSSProperties = {
   fontWeight: fontWeight.semibold,
   color: colors.foreground,
 };
@@ -540,21 +540,24 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     setCurrentStep,
     goBack,
     walletAddress,
+    yourWalletTokens,
   } = useDeposit();
   const { popularChains, otherChains, isLoading, error } = useChains();
   const {
     filteredTokens,
+    tokens,
     isLoading: isLoadingTokens,
     error: tokensError,
     searchQuery,
     setSearchQuery,
-  } = useTokens(selectedChain?.chainId ?? null);
+  } = useTokens((selectedChain?.chainId as number) ?? null);
 
   /**
    * Handle chain selection
    */
   const handleChainSelect = (chain: ChainDef) => {
     // Convert ChainDef to our Chain interface for context
+    // console.log({ chainselect: chain });
     const chainId = Number(chain.chainId ?? chain.id);
     setSelectedChain({
       chainId,
@@ -564,18 +567,52 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
         resolveChainLabel(chain).slice(0, 3).toUpperCase(),
       iconUrl: chain.chainIconURI,
       isPopular: [1, 137, 8453].includes(chainId),
-      nativeToken: chain.nativeCurrency?.symbol ?? "ETH",
+      nativeToken: chain.nativeCurrency?.symbol,
       explorerUrl: chain.blockExplorerUrls?.[0],
-    });
+    } as Chain);
   };
+
+  // Get balance in USD
 
   /**
    * Handle token selection
    */
-  const handleTokenSelect = (token: Token) => {
-    setSelectedToken(token);
+  const handleTokenSelect = async (token: Token) => {
+    // console.log({ selectToken: token });
+    if (token.balance !== undefined)
+      return (setSelectedToken(token), setCurrentStep("crypto-pay"));
+
+    const balance = await getBalances(
+      selectedChain?.chainId as string | number,
+      walletAddress as string
+    );
+
+    const match = balance.find(
+      (b) => b.contract?.toLowerCase() === token.address.toLowerCase()
+    );
+    const tokenWithBalance = {
+      ...token,
+      balance: match?.balance?.toString?.() ?? "0",
+    };
+
+    const concToken = {
+      ...tokenWithBalance,
+      chainData: selectedChain as Chain,
+    } as unknown as YourTokenData;
+
+    setSelectedToken(concToken);
+
     setCurrentStep("crypto-pay");
   };
+
+  const handleYourTokenSelect = useCallback(
+    (token: YourTokenData) => {
+      setSelectedToken(token);
+      setSelectedChain(token.chainData as Chain);
+      setCurrentStep("crypto-pay");
+    },
+    [setCurrentStep, setSelectedChain, setSelectedToken]
+  );
 
   /**
    * Check if a chain is currently selected
@@ -585,6 +622,40 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     const chainId = Number(chain.chainId ?? chain.id);
     return selectedChain.chainId === chainId;
   };
+
+  const normalizedSearchQuery = searchQuery.toLowerCase().trim();
+
+  const matchesSearch = useCallback(
+    (token: { symbol?: string; name?: string; address?: string }) => {
+      if (!normalizedSearchQuery) {
+        return true;
+      }
+
+      const symbol = token.symbol?.toLowerCase() ?? "";
+      const name = token.name?.toLowerCase() ?? "";
+      const address = token.address?.toLowerCase() ?? "";
+
+      return (
+        symbol.includes(normalizedSearchQuery) ||
+        name.includes(normalizedSearchQuery) ||
+        address.includes(normalizedSearchQuery)
+      );
+    },
+    [normalizedSearchQuery]
+  );
+
+  const filteredWalletTokens = useMemo(() => {
+    if (!selectedChain?.chainId) {
+      return [];
+    }
+
+    return (yourWalletTokens ?? []).filter((token) => {
+      return (
+        Number(token.chainId) === Number(selectedChain.chainId) &&
+        matchesSearch(token)
+      );
+    });
+  }, [matchesSearch, selectedChain?.chainId, yourWalletTokens]);
 
   /**
    * Render a single chain item
@@ -644,9 +715,24 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   };
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "500px",
+        maxHeight: "70vh",
+        ...style,
+      }}
+    >
       {/* Header */}
-      <div style={headerStyle}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: `${spacing[4]} ${spacing[4]}`,
+          borderBottom: `1px solid ${colors.border}`,
+        }}
+      >
         <button
           type="button"
           onClick={goBack}
@@ -774,6 +860,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   <circle cx="11" cy="11" r="8" />
                   <path strokeLinecap="round" d="m21 21-4.35-4.35" />
                 </svg>
+
                 <input
                   type="text"
                   placeholder="Search tokens..."
@@ -781,6 +868,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={searchInputStyle}
                 />
+
                 {searchQuery && (
                   <button
                     type="button"
@@ -919,12 +1007,133 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
             ) : (
               // Token list
               <div style={tokenListStyle}>
-                {filteredTokens.map((token) => (
+                {filteredWalletTokens.length > 0 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.375rem",
+                      paddingLeft: "0.5rem",
+                      paddingRight: "0.5rem",
+                      marginBottom: spacing[2],
+                    }}
+                  >
+                    {/* <Sparkles className="w-3.5 h-3.5 text-primary" /> */}
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        lineHeight: "1rem",
+                        color: colors.primary,
+                      }}
+                    >
+                      Your tokens
+                    </span>
+                  </div>
+                ) : null}
+
+                {filteredWalletTokens.map((token, i) => (
                   <button
-                    key={token.address}
+                    onClick={() => handleYourTokenSelect(token)}
+                    style={tokenButtonStyle}
+                    key={`${token.address}-${i}`}
+                  >
+                    {/* Token Icon with Chain Badge */}
+                    <div
+                      style={{
+                        position: "relative",
+                      }}
+                    >
+                      {token.iconUrl ||
+                      (token as typeof token & { logo_url: string })
+                        .logo_url ? (
+                        <img
+                          src={
+                            token.iconUrl ||
+                            (token as typeof token & { logo_url: string })
+                              .logo_url
+                          }
+                          alt={token.symbol}
+                          style={tokenIconStyle}
+                        />
+                      ) : (
+                        <div
+                          // style={{
+                          //   borderRadius: "10px",
+                          //   padding: "5px",
+                          //   minWidth: "30px",
+                          // }}
+                          style={tokenIconStyle}
+                        >
+                          <span style={tokenSymbolStyle}>{token.symbol}</span>
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "-0.125rem",
+                          right: "-0.125rem",
+                          width: "1rem",
+                          height: "1rem",
+                          borderRadius: "100%",
+                          backgroundColor: colors.background,
+                          border: `2px solid ${colors.background}`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <img
+                          src={token.chainIconURI}
+                          alt={token.chainId?.toString()}
+                          style={{
+                            width: "0.875rem",
+                            height: "0.875rem",
+                            borderRadius: "9999px",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Token Info */}
+                    <div style={tokenInfoStyle}>
+                      <div style={tokenSymbolContainerStyle}>
+                        <span style={tokenSymbolStyle}>{token.symbol}</span>
+                      </div>
+                      <span style={tokenNameStyle}>
+                        {formatTokenBalance(token.balance, token.decimals)}{" "}
+                        {token.symbol}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                    paddingLeft: "0.5rem",
+                    paddingRight: "0.5rem",
+                    marginBottom: spacing[2],
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      lineHeight: "1rem",
+                      color: colors.primary,
+                    }}
+                  >
+                    Popular tokens
+                  </span>
+                </div>
+
+                {filteredTokens.map((token: Token, i) => (
+                  <button
                     type="button"
                     onClick={() => handleTokenSelect(token)}
                     style={tokenButtonStyle}
+                    key={`${token.address}-${i}`}
                   >
                     {/* Token Icon */}
                     {token.iconUrl ? (
