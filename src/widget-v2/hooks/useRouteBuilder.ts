@@ -231,11 +231,10 @@ export function useRouteBuilder({
           toToken,
           fromAmount: params.fromAmountWei,
           fromAmountUsd: params.fromAmountUsd,
-          // fromAmountUSD:params.fromAmountUsd,
           fromAddress: params.fromAddress,
           toAddress: destinationAddress,
           slippage: defaultSlippage,
-          // slippageBps: params.slippageBps || 100,
+          direction: params.direction,
         });
 
         // Check if aborted

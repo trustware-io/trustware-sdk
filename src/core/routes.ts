@@ -18,7 +18,7 @@ export type BuildRouteBody = {
   toAddress: string;
   fromAmountUsd?: string; // optional USD string
   refundAddress?: string;
-  direction?: string; // "deposit" | "withdraw" | "cross"
+  direction?: string; // "swap" | "deposit" | "withdraw" | "cross"
   slippage?: number; // bps or %
   linkId?: string; // optional link identifier
   // optional passthrough:
