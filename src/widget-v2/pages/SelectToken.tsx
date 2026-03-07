@@ -557,6 +557,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
    */
   const handleChainSelect = (chain: ChainDef) => {
     // Convert ChainDef to our Chain interface for context
+    // console.log({ chainselect: chain });
     const chainId = Number(chain.chainId ?? chain.id);
     setSelectedChain({
       chainId,
@@ -566,7 +567,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
         resolveChainLabel(chain).slice(0, 3).toUpperCase(),
       iconUrl: chain.chainIconURI,
       isPopular: [1, 137, 8453].includes(chainId),
-      nativeToken: chain.nativeCurrency?.symbol ?? "ETH",
+      nativeToken: chain.nativeCurrency?.symbol,
       explorerUrl: chain.blockExplorerUrls?.[0],
     } as Chain);
   };
@@ -577,6 +578,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
    * Handle token selection
    */
   const handleTokenSelect = async (token: Token) => {
+    // console.log({ selectToken: token });
     if (token.balance !== undefined)
       return (setSelectedToken(token), setCurrentStep("crypto-pay"));
 

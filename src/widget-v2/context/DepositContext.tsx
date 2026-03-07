@@ -40,6 +40,7 @@ export interface YourTokenData {
   decimals: number;
   name: string;
   iconUrl: string;
+  logoURI?: string;
   chainId: number | string;
   usdPrice: number | undefined;
   address: string;

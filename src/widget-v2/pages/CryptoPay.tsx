@@ -195,7 +195,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const amountWei = amountComputation.fromAmountWei;
 
-  const routeConfig = useMemo<UseRouteBuilderOptions>(() => {
+  const routeConfig = useMemo(() => {
     try {
       const config = TrustwareConfigStore.get();
       const toChainId = config.routes.toChain;
@@ -227,11 +227,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
         direction: config.routes.routeType,
       };
 
-      console.log("Resolved route config:", {
-        object,
-        selectedToken,
-        selectedChain,
-      });
+      // console.log("Resolved route config:", {
+      //   object,
+      //   selectedToken,
+      //   selectedChain,
+      // });
 
       return object;
     } catch (error) {
@@ -248,6 +248,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
         fromAddress: undefined,
         refundAddress: undefined,
         slippage: 1,
+        direction: "",
       };
     }
   }, [
@@ -585,6 +586,34 @@ export function CryptoPay({ style }: CryptoPayProps) {
     await submitTransaction(routeResult);
   };
 
+  const orderedTokens = useMemo(() => {
+    const index = yourWalletTokens.findIndex(
+      (t) => t.address?.toLowerCase() === selectedToken?.address?.toLowerCase()
+    );
+
+    let _tok: YourTokenData[] = [];
+
+    //  if (index === -1) return yourWalletTokens;
+    if (index === -1) {
+      const appended = [...yourWalletTokens];
+      appended.push(selectedToken as YourTokenData);
+      _tok = [...appended.slice(index), ...appended.slice(0, index)];
+      console.log("APPENDED");
+    } else {
+      console.log("NOT APPENDED");
+      _tok = yourWalletTokens;
+    }
+
+    console.log({ _tok });
+
+    return _tok;
+
+    //  return [
+    //    ...yourWalletTokens.slice(index),
+    //    ...yourWalletTokens.slice(0, index),
+    //  ];
+  }, [yourWalletTokens, selectedToken]);
+
   const isWalletConnected = walletStatus === "connected";
   const canConfirm =
     parsedAmount > 0 &&
@@ -912,7 +941,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                 }}
               >
                 <TokenSwipePill
-                  tokens={yourWalletTokens}
+                  tokens={orderedTokens}
                   selectedToken={selectedToken}
                   onTokenChange={handleTokenChange}
                   onExpandClick={handleExpandTokens}

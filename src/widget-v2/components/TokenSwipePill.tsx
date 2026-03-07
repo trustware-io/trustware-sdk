@@ -340,6 +340,15 @@ export function TokenSwipePill({
     return url?.toString();
   }, [selectedToken]);
 
+  function validateIconUrl(url: string | undefined, isCenter: boolean) {
+    if (url === undefined) return "";
+    if (!isCenter) return url;
+    if (url !== (selectedToken.iconUrl ?? selectedToken.logoURI)) {
+      return selectedToken.iconUrl ?? selectedToken.logoURI ?? "";
+    }
+    return url;
+  }
+
   return (
     <div
       ref={containerRef}
@@ -406,9 +415,9 @@ export function TokenSwipePill({
                 >
                   <div style={{ position: "relative" }}>
                     <div style={tokenIconContainerStyle}>
-                      {token.iconUrl ? (
+                      {validateIconUrl(token.iconUrl, isCenter) ? (
                         <img
-                          src={token.iconUrl}
+                          src={validateIconUrl(token.iconUrl, isCenter)}
                           alt={token.symbol}
                           style={tokenIconStyle}
                         />
