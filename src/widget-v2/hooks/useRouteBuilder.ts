@@ -44,7 +44,6 @@ export interface UseRouteBuilderOptions {
   fromAddress: string | undefined;
   refundAddress: string | undefined;
   slippage: number;
-  direction?: string;
 }
 
 /**
@@ -70,7 +69,6 @@ export function useRouteBuilder({
   fromAddress,
   refundAddress,
   slippage,
-  direction,
 }: UseRouteBuilderOptions): RouteBuilderState {
   // const { debounceMs = 300, enabled = true } = options;
 
@@ -114,12 +112,10 @@ export function useRouteBuilder({
       fromChain,
       toChain,
       refundAddress,
-      direction,
       slippage,
     } as UseRouteBuilderOptions);
   }, [
     amount,
-    direction,
     enabled,
     fromAddress,
     fromAmountUsd,
@@ -234,7 +230,6 @@ export function useRouteBuilder({
           fromAddress: params.fromAddress,
           toAddress: destinationAddress,
           slippage: defaultSlippage,
-          direction: params.direction,
         });
 
         // Check if aborted
@@ -346,7 +341,6 @@ export function useRouteBuilder({
     fromChain,
     toChain,
     refundAddress,
-    direction,
     slippage,
     hasFromChainId,
     hasToChainId,
