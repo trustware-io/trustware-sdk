@@ -22,6 +22,7 @@ import {
   getNativeTokenAddress,
   normalizeChainKey,
 } from "../helpers/chainHelpers";
+import { useTrustware } from "src/provider";
 
 /**
  * localStorage key for persisting theme preference
@@ -222,6 +223,8 @@ export function DepositProvider({
   children,
   initialStep = "home",
 }: DepositProviderProps): React.ReactElement {
+  const { emitError, emitEvent } = useTrustware();
+
   const [currentStep, setCurrentStepInternal] =
     useState<NavigationStep>(initialStep);
   const [stepHistory, setStepHistory] = useState<NavigationStep[]>([

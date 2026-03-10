@@ -30,7 +30,7 @@ import { TrustwareConfigStore } from "../../config/store";
 
 import { useChains } from "../hooks";
 import { divRoundDown, weiToDecimalString } from "src/utils";
-import { ChainDef } from "src";
+import { ChainDef, useTrustware } from "src";
 import {
   getNativeTokenAddress,
   isNativeTokenAddress,
@@ -46,6 +46,9 @@ export interface CryptoPayProps {
 
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
+import { toast } from "../components/Toast";
+import { TrustwareError } from "src/errors/TrustwareError";
+import { TrustwareErrorCode } from "src/errors/errorCodes";
 
 function normalizeTokenAddressForCompare(
   chain: ChainDef,
@@ -75,6 +78,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     goBack,
     setCurrentStep,
     yourWalletTokens,
+    currentStep,
   } = useDeposit();
 
   const { chains } = useChains();
@@ -121,14 +125,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const amountComputation = useMemo(() => {
     const rawAmount = amount?.trim();
-    if (!rawAmount) {
-      return {
-        fromAmountWei: null,
-        tokenAmount: null,
-        usdAmount: null,
-        validationError: "Enter an amount to continue.",
-      };
-    }
+    // if (!rawAmount) {
+    //   return {
+    //     fromAmountWei: null,
+    //     tokenAmount: null,
+    //     usdAmount: null,
+    //     validationError: "Enter an amount to continue.",
+    //   };
+    // }
 
     if (!/^\d*\.?\d*$/.test(rawAmount)) {
       return {
@@ -268,20 +272,49 @@ export function CryptoPay({ style }: CryptoPayProps) {
     routeResult,
   } = useRouteBuilder(routeConfig);
 
+  const isReady = useMemo(() => {
+    if (
+      selectedToken !== null &&
+      yourWalletTokens.length > 0 &&
+      (selectedToken as YourTokenData)?.chainData !== undefined
+    ) {
+      return true;
+    }
+  }, [selectedToken, yourWalletTokens.length]);
+
   const routePrerequisiteError = useMemo(() => {
-    if (!selectedChain) return "Select a source chain to fetch a route.";
-    if (!selectedToken) return "Select a token to fetch a route.";
-    if (!walletAddress) return "Connect your wallet to fetch a route.";
+    if (!isReady) return;
+    // const error = new Map<string, string>();
+    if (!selectedChain) {
+      // error.set("from_chain", "Select a source chain to fetch a route.");
+      return "Select a source chain to fetch a route.";
+    }
+
+    if (!selectedToken) {
+      // error.set("from_token", "Select a token to fetch a route.");
+      return "Select a token to fetch a route.";
+    }
+
+    if (!walletAddress) {
+      // error.set("from_address", "Connect your wallet to fetch a route.");
+      return "Connect your wallet to fetch a route.";
+    }
     if (!routeConfig.toAddress) {
+      // error.set(
+      //   "to_address",
+      //   "Destination address missing. Please check widget configuration."
+      // );
       return "Destination address missing. Please check widget configuration.";
     }
     if (!amountComputation.fromAmountWei) {
+      // error.set("amount_wei", amountComputation.validationError || "");
       return amountComputation.validationError;
     }
     return null;
   }, [
     amountComputation.fromAmountWei,
     amountComputation.validationError,
+    isReady,
     routeConfig.toAddress,
     selectedChain,
     selectedToken,
@@ -289,6 +322,31 @@ export function CryptoPay({ style }: CryptoPayProps) {
   ]);
 
   const routeError = routePrerequisiteError || routeBuilderError;
+
+  const { emitError, emitEvent } = useTrustware();
+
+  useEffect(() => {
+    if (currentStep != "crypto-pay") return;
+
+    emitError?.(
+      new TrustwareError({
+        code: TrustwareErrorCode.INPUT_ERROR,
+        message: routeError as string,
+        userMessage: "Transaction failed. Please try again.",
+        cause: routeError,
+      })
+    );
+
+    if (routePrerequisiteError || routeBuilderError) {
+      toast.error(routePrerequisiteError || (routeBuilderError as string));
+    }
+  }, [
+    currentStep,
+    emitError,
+    routeBuilderError,
+    routeError,
+    routePrerequisiteError,
+  ]);
 
   useEffect(() => {
     if (!routePrerequisiteError && amountComputation.fromAmountWei) {
@@ -439,49 +497,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
   }, [estimateGasReservationWei, routeResult]);
 
-  // useEffect(() => {
-
-  // },[])
-
-  // const errors: string[] = useMemo(() => {
-  //   const errs: string[] = [];
-  //   if (isLoadingRoute) return errs;
-
-  //   // const amountWei = amount ? parseUnits(amount, selectedToken?.decimals) : 0n;
-  //   const balanceWei = selectedToken?.balance ?? 0n;
-
-  //   if (
-  //     isNativeSelected &&
-  //     Number(gasReservationWei) >= Number(balanceWei) &&
-  //     Number(balanceWei) > Number(0n)
-  //   ) {
-  //     errs.push("Not enough native balance for gas.");
-  //     return errs;
-  //   }
-
-  //   if (amountWei == null || amountWei <= 0n) {
-  //     errs.push("Enter a valid amount.");
-  //     return errs;
-  //   }
-
-  //   if (balanceWei === 0n) {
-  //     errs.push("Insufficient balance.");
-  //     return errs;
-  //   }
-
-  //   if (Number(amountWei) > Number(balanceWei)) {
-  //     errs.push("Amount exceeds available balance.");
-  //   }
-  //   console.log({ errors: errs });
-  //   return errs;
-  // }, [
-  //   amountWei,
-  //   gasReservationWei,
-  //   isLoadingRoute,
-  //   isNativeSelected,
-  //   selectedToken?.balance,
-  // ]);
-
   const parsedAmount = parseFloat(amount) || 0;
 
   const normalizedTokenBalance = useMemo(() => {
@@ -503,16 +518,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
   }, [hasUsdPrice, maxTokenAmount, tokenPriceUSD]);
 
   const sliderMax = amountInputMode === "usd" ? maxUsdAmount : maxTokenAmount;
-
-  const isReady = useMemo(() => {
-    if (
-      selectedToken !== null &&
-      yourWalletTokens.length > 0 &&
-      (selectedToken as YourTokenData)?.chainData !== undefined
-    ) {
-      return true;
-    }
-  }, [selectedToken, yourWalletTokens.length]);
 
   /**
    * Handle amount input changes with decimal sanitization
@@ -593,25 +598,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
     let _tok: YourTokenData[] = [];
 
-    //  if (index === -1) return yourWalletTokens;
     if (index === -1) {
       const appended = [...yourWalletTokens];
       appended.push(selectedToken as YourTokenData);
       _tok = [...appended.slice(index), ...appended.slice(0, index)];
-      console.log("APPENDED");
     } else {
-      console.log("NOT APPENDED");
       _tok = yourWalletTokens;
     }
-
-    console.log({ _tok });
-
     return _tok;
-
-    //  return [
-    //    ...yourWalletTokens.slice(index),
-    //    ...yourWalletTokens.slice(0, index),
-    //  ];
   }, [yourWalletTokens, selectedToken]);
 
   const isWalletConnected = walletStatus === "connected";
@@ -1034,7 +1028,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     Calculating fees...
                   </span>
                 </div>
-              ) : routeError ? (
+              ) : !amount?.trim() ? (
                 <div
                   style={{
                     textAlign: "center",
@@ -1043,11 +1037,12 @@ export function CryptoPay({ style }: CryptoPayProps) {
                 >
                   <p
                     style={{
-                      fontSize: fontSize.sm,
-                      color: colors.destructive,
+                      fontSize: fontSize.base,
+                      color: colors.mutedForeground,
                     }}
                   >
-                    {routeError}
+                    {/* {routeError} */}
+                    Enter an amount to continue.
                   </p>
                 </div>
               ) : (

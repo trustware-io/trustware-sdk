@@ -1,6 +1,7 @@
 "use client";
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -12,6 +13,8 @@ import type { TrustwareConfigOptions } from "./types";
 import type { WalletInterFaceAPI } from "./types";
 import { walletManager } from "./wallets/manager";
 import { useWireDetectionIntoManager } from "./wallets/manager";
+import { TrustwareError } from "./errors/TrustwareError";
+import { TrustwareEvent } from "./events/events";
 
 export type Status = "idle" | "initializing" | "ready" | "error";
 
@@ -19,6 +22,8 @@ export type Ctx = {
   status: Status;
   errors?: string;
   core: typeof Trustware;
+  emitError?: (error: TrustwareError) => void;
+  emitEvent?: (event: TrustwareEvent) => void;
 };
 
 export const Ctx = createContext<Ctx>({ status: "idle", core: Trustware });
@@ -36,6 +41,27 @@ export function TrustwareProvider({
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [errors, setErrors] = useState<string>();
+
+  const emitError = useCallback(
+    (error: TrustwareError) => {
+      config.onError?.(error);
+
+      config.onEvent?.({
+        type: "error",
+        error,
+      });
+
+      console.warn("[Trustware SDK]", error);
+    },
+    [config]
+  );
+
+  const emitEvent = useCallback(
+    (event: TrustwareEvent) => {
+      config.onEvent?.(event);
+    },
+    [config]
+  );
 
   // Push detection results → manager (no UI, runs behind the scenes)
   useWireDetectionIntoManager();
@@ -77,8 +103,8 @@ export function TrustwareProvider({
   }, [config, wallet, autoDetect]);
 
   const value = useMemo<Ctx>(
-    () => ({ status, errors, core: Trustware }),
-    [status, errors]
+    () => ({ status, errors, core: Trustware, emitError, emitEvent }),
+    [status, errors, emitError, emitEvent]
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
