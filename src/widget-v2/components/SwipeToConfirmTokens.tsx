@@ -20,6 +20,8 @@ export interface SwipeToConfirmTokensProps {
   isWalletConnected?: boolean;
   /** Additional inline styles */
   style?: React.CSSProperties;
+
+  text: string;
 }
 
 const containerStyle: React.CSSProperties = {
@@ -141,6 +143,7 @@ export function SwipeToConfirmTokens({
   disabled = false,
   isWalletConnected = false,
   style,
+  text,
 }: SwipeToConfirmTokensProps): React.ReactElement {
   const [dragX, setDragX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -346,9 +349,10 @@ export function SwipeToConfirmTokens({
           )}
         >
           <span style={swipeTextStyle}>
-            {isWalletConnected
+            {/* {isWalletConnected
               ? "Swipe to confirm"
-              : "Connect your wallet to deposit"}
+              : "Connect your wallet to deposit"} */}
+            {text}
           </span>
         </div>
 

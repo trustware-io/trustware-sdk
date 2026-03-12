@@ -12,12 +12,7 @@ import {
   fontWeight,
   borderRadius,
 } from "../styles/tokens";
-import {
-  Chain,
-  Token,
-  useDeposit,
-  YourTokenData,
-} from "../context/DepositContext";
+import { Chain, useDeposit, YourTokenData } from "../context/DepositContext";
 import {
   useRouteBuilder,
   UseRouteBuilderOptions,
@@ -29,7 +24,11 @@ import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
 
 import { useChains } from "../hooks";
-import { divRoundDown, weiToDecimalString } from "src/utils";
+import {
+  divRoundDown,
+  formatTokenBalance,
+  weiToDecimalString,
+} from "src/utils";
 import { ChainDef, useTrustware } from "src";
 import {
   getNativeTokenAddress,
@@ -60,6 +59,8 @@ function normalizeTokenAddressForCompare(
   return a.toLowerCase();
 }
 
+const SHOW_FEE_SUMMARY = false;
+
 /**
  * CryptoPay confirmation page.
  * Displays transaction summary with fees and allows last-minute token changes.
@@ -79,14 +80,24 @@ export function CryptoPay({ style }: CryptoPayProps) {
     setCurrentStep,
     yourWalletTokens,
     currentStep,
+    amountInputMode,
+    setAmountInputMode,
   } = useDeposit();
+
+  const isReady = useMemo(() => {
+    if (
+      selectedToken !== null &&
+      yourWalletTokens.length > 0 &&
+      (selectedToken as YourTokenData)?.chainData !== undefined
+    ) {
+      return true;
+    }
+  }, [selectedToken, yourWalletTokens.length]);
 
   const { chains } = useChains();
 
   const [isEditing, setIsEditing] = useState(false);
-  const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
-    "usd"
-  );
+
   const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Transaction submission hook
@@ -118,10 +129,10 @@ export function CryptoPay({ style }: CryptoPayProps) {
     tokenPriceUSD > 0;
 
   useEffect(() => {
-    if (!hasUsdPrice && amountInputMode === "usd") {
+    if (isReady && !hasUsdPrice && amountInputMode === "usd") {
       setAmountInputMode("token");
     }
-  }, [amountInputMode, hasUsdPrice]);
+  }, [amountInputMode, hasUsdPrice, isReady, setAmountInputMode]);
 
   const amountComputation = useMemo(() => {
     const rawAmount = amount?.trim();
@@ -272,16 +283,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
     routeResult,
   } = useRouteBuilder(routeConfig);
 
-  const isReady = useMemo(() => {
-    if (
-      selectedToken !== null &&
-      yourWalletTokens.length > 0 &&
-      (selectedToken as YourTokenData)?.chainData !== undefined
-    ) {
-      return true;
-    }
-  }, [selectedToken, yourWalletTokens.length]);
-
   const routePrerequisiteError = useMemo(() => {
     if (!isReady) return;
     // const error = new Map<string, string>();
@@ -321,7 +322,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
     walletAddress,
   ]);
 
-  const routeError = routePrerequisiteError || routeBuilderError;
+  // const routeError = routePrerequisiteError || _routeBuilderError;
+  const routeError = routeBuilderError && "No successful provider response";
 
   const { emitError, emitEvent } = useTrustware();
 
@@ -332,13 +334,13 @@ export function CryptoPay({ style }: CryptoPayProps) {
       new TrustwareError({
         code: TrustwareErrorCode.INPUT_ERROR,
         message: routeError as string,
-        userMessage: "Transaction failed. Please try again.",
+        userMessage: routeError as string,
         cause: routeError,
       })
     );
 
     if (routePrerequisiteError || routeBuilderError) {
-      toast.error(routePrerequisiteError || (routeBuilderError as string));
+      console.error(routePrerequisiteError || (routeBuilderError as string));
     }
   }, [
     currentStep,
@@ -490,10 +492,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   useEffect(() => {
     if (routeResult) {
-      console.log("[CryptoPay]: Estimating gas reservation...");
-      estimateGasReservationWei().then((reservation) => {
-        console.log({ reservation });
-      });
+      estimateGasReservationWei().then(() => {});
     }
   }, [estimateGasReservationWei, routeResult]);
 
@@ -562,9 +561,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
       if (token) {
         setSelectedToken(token);
         setSelectedChain((token as YourTokenData).chainData as Chain);
-        console.log({
-          token,
-        });
       }
     },
     [setSelectedChain, setSelectedToken]
@@ -605,8 +601,40 @@ export function CryptoPay({ style }: CryptoPayProps) {
     } else {
       _tok = yourWalletTokens;
     }
-    return _tok;
-  }, [yourWalletTokens, selectedToken]);
+
+    /........................................................../;
+
+    if (amountInputMode !== "usd" || !amount) return _tok;
+
+    /........................................................../;
+
+    const filteredTks = _tok.filter((t) => {
+      const tokenPriceUSD =
+        typeof t?.usdPrice === "number" &&
+        isFinite(t?.usdPrice) &&
+        t.usdPrice > 0
+          ? t.usdPrice
+          : 0;
+
+      const hasUsdPrice =
+        typeof tokenPriceUSD === "number" &&
+        isFinite(tokenPriceUSD) &&
+        tokenPriceUSD > 0;
+      const tokenUsdBal =
+        hasUsdPrice &&
+        Number(formatTokenBalance(t.balance, t.decimals)) * tokenPriceUSD;
+      return hasUsdPrice && Number(tokenUsdBal) >= Number(amount?.trim());
+    });
+
+    if (filteredTks.length === 0)
+      return (
+        _tok.filter(
+          (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
+        ) ?? []
+      );
+
+    return filteredTks;
+  }, [yourWalletTokens, amountInputMode, amount, selectedToken]);
 
   const isWalletConnected = walletStatus === "connected";
   const canConfirm =
@@ -976,149 +1004,151 @@ export function CryptoPay({ style }: CryptoPayProps) {
             )}
 
             {/* Fee Summary */}
-            <div
-              style={{
-                width: "100%",
-                marginTop: spacing[6],
-                padding: spacing[4],
-                borderRadius: borderRadius.xl,
-                backgroundColor: "rgba(63, 63, 70, 0.5)",
-              }}
-            >
-              {isLoadingRoute ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: `${spacing[2]} 0`,
-                  }}
-                >
-                  <svg
-                    style={{
-                      width: "1.25rem",
-                      height: "1.25rem",
-                      color: colors.mutedForeground,
-                    }}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="tw-animate-spin"
-                  >
-                    <circle
-                      style={{ opacity: 0.25 }}
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      style={{ opacity: 0.75 }}
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  <span
-                    style={{
-                      marginLeft: spacing[2],
-                      fontSize: fontSize.sm,
-                      color: colors.mutedForeground,
-                    }}
-                  >
-                    Calculating fees...
-                  </span>
-                </div>
-              ) : !amount?.trim() ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: `${spacing[2]} 0`,
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: fontSize.base,
-                      color: colors.mutedForeground,
-                    }}
-                  >
-                    {/* {routeError} */}
-                    Enter an amount to continue.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Network Fee */}
+            {SHOW_FEE_SUMMARY && (
+              <div
+                style={{
+                  width: "100%",
+                  marginTop: spacing[6],
+                  padding: spacing[4],
+                  borderRadius: borderRadius.xl,
+                  backgroundColor: "rgba(63, 63, 70, 0.5)",
+                }}
+              >
+                {isLoadingRoute ? (
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: fontSize.sm,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: `${spacing[2]} 0`,
                     }}
                   >
+                    <svg
+                      style={{
+                        width: "1.25rem",
+                        height: "1.25rem",
+                        color: colors.mutedForeground,
+                      }}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="tw-animate-spin"
+                    >
+                      <circle
+                        style={{ opacity: 0.25 }}
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        style={{ opacity: 0.75 }}
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
                     <span
                       style={{
+                        marginLeft: spacing[2],
+                        fontSize: fontSize.sm,
                         color: colors.mutedForeground,
                       }}
                     >
-                      Network fee
-                    </span>
-
-                    <span
-                      style={{
-                        fontWeight: fontWeight.medium,
-                        color: colors.foreground,
-                      }}
-                    >
-                      {/* {networkFees ? `$${networkFees}` : "—"} */}
-                      {weiToDecimalString(
-                        gasReservationWei,
-                        selectedToken?.decimals as number,
-                        6
-                      )}{" "}
-                      {/* ({selectedToken?.symbol}){gasFeeDisplay} */}
+                      Calculating fees...
                     </span>
                   </div>
-
-                  {/* Divider */}
+                ) : !amount?.trim() ? (
                   <div
                     style={{
-                      height: "1px",
-                      backgroundColor: colors.border,
-                      margin: `${spacing[2]} 0`,
-                    }}
-                  />
-
-                  {/* You'll receive */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
+                      textAlign: "center",
+                      padding: `${spacing[2]} 0`,
                     }}
                   >
-                    <span
+                    <p
                       style={{
+                        fontSize: fontSize.base,
                         color: colors.mutedForeground,
+                      }}
+                    >
+                      {/* {routeError} */}
+                      Enter an amount to continue.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Network Fee */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
                         fontSize: fontSize.sm,
                       }}
                     >
-                      You&apos;ll receive
-                    </span>
-                    <span
+                      <span
+                        style={{
+                          color: colors.mutedForeground,
+                        }}
+                      >
+                        Network fee
+                      </span>
+
+                      <span
+                        style={{
+                          fontWeight: fontWeight.medium,
+                          color: colors.foreground,
+                        }}
+                      >
+                        {/* {networkFees ? `$${networkFees}` : "—"} */}
+                        {weiToDecimalString(
+                          gasReservationWei,
+                          selectedToken?.decimals as number,
+                          6
+                        )}{" "}
+                        {/* ({selectedToken?.symbol}){gasFeeDisplay} */}
+                      </span>
+                    </div>
+
+                    {/* Divider */}
+                    <div
                       style={{
-                        fontWeight: fontWeight.semibold,
-                        color: colors.foreground,
+                        height: "1px",
+                        backgroundColor: colors.border,
+                        margin: `${spacing[2]} 0`,
+                      }}
+                    />
+
+                    {/* You'll receive */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
                       }}
                     >
-                      {estimatedReceive
-                        ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : parsedAmount > 0
-                          ? `~$${(parsedAmount * 0.99).toFixed(2)}`
-                          : "—"}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
+                      <span
+                        style={{
+                          color: colors.mutedForeground,
+                          fontSize: fontSize.sm,
+                        }}
+                      >
+                        You&apos;ll receive
+                      </span>
+                      <span
+                        style={{
+                          fontWeight: fontWeight.semibold,
+                          color: colors.foreground,
+                        }}
+                      >
+                        {estimatedReceive
+                          ? `~$${parseFloat(estimatedReceive).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : parsedAmount > 0
+                            ? `~$${(parsedAmount * 0.99).toFixed(2)}`
+                            : "—"}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Bottom Action - Swipe to Confirm */}
@@ -1130,6 +1160,13 @@ export function CryptoPay({ style }: CryptoPayProps) {
             {selectedToken !== null &&
               (selectedToken as YourTokenData).chainData !== undefined && (
                 <SwipeToConfirmTokens
+                  text={
+                    routeError
+                      ? routeError
+                      : isWalletConnected
+                        ? "Swipe to confirm"
+                        : "Connect your wallet to deposit"
+                  }
                   fromToken={selectedToken}
                   toTokenSymbol={destinationConfig?.toToken || "USDC"}
                   toChainName={destinationConfig?.toChain || "Base"}

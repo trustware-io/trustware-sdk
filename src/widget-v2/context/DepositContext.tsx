@@ -6,6 +6,8 @@ import React, {
   useMemo,
   useEffect,
   useRef,
+  Dispatch,
+  SetStateAction,
 } from "react";
 import { walletManager } from "../../wallets/manager";
 import { useWalletDetection } from "../../wallets/detect";
@@ -204,6 +206,9 @@ export interface DepositContextValue {
   setYourWalletTokens: React.Dispatch<React.SetStateAction<YourTokenData[]>>;
 
   yourWalletTokens: YourTokenData[];
+
+  amountInputMode: "usd" | "token";
+  setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -224,6 +229,10 @@ export function DepositProvider({
   initialStep = "home",
 }: DepositProviderProps): React.ReactElement {
   const { emitError, emitEvent } = useTrustware();
+
+  const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
+    "usd"
+  );
 
   const [currentStep, setCurrentStepInternal] =
     useState<NavigationStep>(initialStep);
@@ -609,6 +618,9 @@ export function DepositProvider({
 
       yourWalletTokens,
       setYourWalletTokens,
+
+      amountInputMode,
+      setAmountInputMode,
     }),
     [
       currentStep,
@@ -632,6 +644,7 @@ export function DepositProvider({
       resolvedTheme,
       toggleTheme,
       yourWalletTokens,
+      amountInputMode,
     ]
   );
 

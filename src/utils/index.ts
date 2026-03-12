@@ -1,4 +1,5 @@
 import { ChainDef, TokenWithBalance } from "src/types/";
+import { rawToDecimal } from "src/widget-v2/helpers/tokenAmount";
 
 export function hexToRgba(hex: string, alpha = 1) {
   if (!hex?.startsWith("#")) return `rgba(0,0,0,${alpha})`;
@@ -98,18 +99,32 @@ export function shortenAddress(address: string, chars = 4) {
   return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
 }
 
-export function formatTokenBalance(token: TokenWithBalance) {
-  if (token.balance === undefined) return "0.0000";
-  try {
-    const amount = Number(token.balance) / Math.pow(10, token.decimals ?? 18);
-    if (!Number.isFinite(amount)) return "0.0000";
-    return amount.toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 4,
-    });
-  } catch {
-    return "0.0000";
-  }
+// export function formatTokenBalance(token: TokenWithBalance) {
+//   if (token.balance === undefined) return "0.0000";
+//   try {
+//     const amount = Number(token.balance) / Math.pow(10, token.decimals ?? 18);
+//     if (!Number.isFinite(amount)) return "0.0000";
+//     return amount.toLocaleString(undefined, {
+//       minimumFractionDigits: 0,
+//       maximumFractionDigits: 4,
+//     });
+//   } catch {
+//     return "0.0000";
+//   }
+// }
+
+export function formatTokenBalance(
+  balanceRaw: string,
+  decimals: number
+): string {
+  const normalized = Number(rawToDecimal(balanceRaw, decimals));
+  if (!isFinite(normalized) || normalized <= 0) return "0";
+  if (normalized < 0.0001) return "<0.0001";
+  if (normalized < 1) return normalized.toFixed(4);
+  if (normalized < 1000) return normalized.toFixed(2);
+  return normalized.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
 }
 
 export function resolveChainLabel(chain: ChainDef) {

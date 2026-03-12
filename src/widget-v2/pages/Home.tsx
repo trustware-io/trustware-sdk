@@ -89,8 +89,15 @@ const dropdownWrapperOpenStyle: React.CSSProperties = {
  * Displays a large amount input and dropdown buttons for payment method selection.
  */
 export function Home({ style }: HomeProps): React.ReactElement {
-  const { amount, setAmount, setCurrentStep, walletAddress, connectWallet } =
-    useDeposit();
+  const {
+    amount,
+    setAmount,
+    setCurrentStep,
+    walletAddress,
+    connectWallet,
+    amountInputMode,
+    setAmountInputMode,
+  } = useDeposit();
   const { detected: detectedWallets } = useWalletDetection();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -128,6 +135,7 @@ export function Home({ style }: HomeProps): React.ReactElement {
    * Handle amount input changes with decimal sanitization
    */
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    amountInputMode != "usd" && setAmountInputMode("usd");
     const raw = e.target.value.replace(/[^0-9.]/g, "");
     // Handle multiple decimal points - keep only the first one
     const parts = raw.split(".");

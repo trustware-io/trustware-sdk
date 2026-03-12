@@ -11,7 +11,7 @@ import {
 import { useDeposit } from "../context/DepositContext";
 import type { Chain, Token, YourTokenData } from "../context/DepositContext";
 
-import { resolveChainLabel } from "../../utils";
+import { formatTokenBalance, resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 import { getBalances } from "src/core/balances";
 import { useChains, useTokens } from "../hooks";
@@ -25,16 +25,6 @@ export interface SelectTokenProps {
 /**
  * Format a token balance for display
  */
-function formatTokenBalance(balanceRaw: string, decimals: number): string {
-  const normalized = Number(rawToDecimal(balanceRaw, decimals));
-  if (!isFinite(normalized) || normalized <= 0) return "0";
-  if (normalized < 0.0001) return "<0.0001";
-  if (normalized < 1) return normalized.toFixed(4);
-  if (normalized < 1000) return normalized.toFixed(2);
-  return normalized.toLocaleString(undefined, {
-    maximumFractionDigits: 2,
-  });
-}
 
 // Styles
 export const containerStyle: React.CSSProperties = {

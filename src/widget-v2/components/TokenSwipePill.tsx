@@ -545,15 +545,15 @@ export function TokenSwipePill({
                         }}
                       />
                     )}
-                    <button
-                      type="button"
+                    <div
+                      // type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onTokenChange(token);
                       }}
                       style={{
-                        height: "0.375rem",
-                        borderRadius: "9999px",
+                        height: "0.313rem",
+                        borderRadius: "3.125rem",
                         transition: "all 0.2s",
                         border: 0,
                         outline: "none",
@@ -562,7 +562,7 @@ export function TokenSwipePill({
                           index === currentIndex
                             ? colors.white
                             : colors.zinc[600],
-                        width: index === currentIndex ? "0.75rem" : "0.375rem",
+                        width: index === currentIndex ? "0.938rem" : "0.938rem",
                       }}
                       aria-label={`Select ${token.symbol} (${index + 1} of ${total})`}
                     />
