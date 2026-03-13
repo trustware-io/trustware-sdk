@@ -230,8 +230,8 @@ export function Success({ style }: SuccessProps): React.ReactElement {
       return transaction.fromChainTxUrl;
     }
     // Last fallback: construct URL based on chain if we have a hash
-    if (transactionHash && selectedChain?.explorerUrl) {
-      return `${selectedChain.explorerUrl}/tx/${transactionHash}`;
+    if (transactionHash && selectedChain?.blockExplorerUrls?.length) {
+      return `${selectedChain.blockExplorerUrls[0].replace(/\/+$/, "")}/tx/${transactionHash}`;
     }
     return null;
   }, [transaction, transactionHash, selectedChain]);
@@ -294,11 +294,15 @@ export function Success({ style }: SuccessProps): React.ReactElement {
             </p>
             <div style={tokenInfoStyle}>
               {selectedToken.iconUrl && (
-                <img src={selectedToken.iconUrl} alt="" style={tokenIconStyle} />
+                <img
+                  src={selectedToken.iconUrl}
+                  alt=""
+                  style={tokenIconStyle}
+                />
               )}
               <span style={tokenTextStyle}>
                 {selectedToken.symbol}
-                {selectedChain && ` on ${selectedChain.name}`}
+                {selectedChain && ` on ${selectedChain.networkName}`}
               </span>
             </div>
           </div>
@@ -334,7 +338,9 @@ export function Success({ style }: SuccessProps): React.ReactElement {
                 </svg>
               </a>
             ) : (
-              <span style={hashPlainStyle}>{truncateHash(transactionHash)}</span>
+              <span style={hashPlainStyle}>
+                {truncateHash(transactionHash)}
+              </span>
             )}
           </div>
         )}

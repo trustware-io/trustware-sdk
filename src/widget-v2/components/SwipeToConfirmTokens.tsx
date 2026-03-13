@@ -127,7 +127,7 @@ const chevronIconStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
+  fontSize: "12px",
   color: colors.zinc[400],
 };
 

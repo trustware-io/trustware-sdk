@@ -22,6 +22,7 @@ import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
 import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
+import { LoadingSkeleton } from "../components/Skeletons/LoadingSkeleton";
 
 import { useChains } from "../hooks";
 import {
@@ -99,6 +100,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
   const [isEditing, setIsEditing] = useState(false);
 
   const amountInputRef = useRef<HTMLInputElement>(null);
+  const gasPriceCacheRef = useRef<{
+    value?: bigint;
+    ts?: number;
+    inflight?: Promise<bigint>;
+  }>({});
 
   // Transaction submission hook
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
@@ -239,7 +245,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
         fromAddress: walletAddress || undefined,
         refundAddress: walletAddress || undefined,
         slippage: 1,
-        direction: config.routes.routeType,
       };
 
       // console.log("Resolved route config:", {
@@ -447,11 +452,37 @@ export function CryptoPay({ style }: CryptoPayProps) {
       }
 
       try {
+        const now = Date.now();
+        const cache = gasPriceCacheRef.current;
+        const cacheTtlMs = 15000;
+
+        const getCachedGasPrice = async () => {
+          if (cache.value && cache.ts && now - cache.ts < cacheTtlMs) {
+            return cache.value;
+          }
+          if (!cache.inflight) {
+            cache.inflight = client
+              .getGasPrice()
+              .then((price) => {
+                cache.value = price;
+                cache.ts = Date.now();
+                return price;
+              })
+              .finally(() => {
+                cache.inflight = undefined;
+              });
+          }
+          return cache.inflight;
+        };
+
         effectiveGasPrice = txReq.maxFeePerGas
           ? BigInt(txReq.maxFeePerGas)
-          : await client.getGasPrice();
+          : txReq.gasPrice
+            ? BigInt(txReq.gasPrice)
+            : await getCachedGasPrice();
       } catch {
-        effectiveGasPrice = undefined;
+        const cached = gasPriceCacheRef.current.value;
+        effectiveGasPrice = cached ?? undefined;
       }
     }
 
@@ -596,7 +627,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
     if (index === -1) {
       const appended = [...yourWalletTokens];
-      appended.push(selectedToken as YourTokenData);
+      if (selectedToken) {
+        appended.push(selectedToken as YourTokenData);
+      }
       _tok = [...appended.slice(index), ...appended.slice(0, index)];
     } else {
       _tok = yourWalletTokens;
@@ -604,34 +637,43 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
     /........................................................../;
 
-    if (amountInputMode !== "usd" || !amount) return _tok;
+    const normalizedTokens = _tok.filter(
+      (t) => !!t && t.balance != null && t.decimals != null
+    );
+
+    if (!amount) return normalizedTokens;
 
     /........................................................../;
 
-    const filteredTks = _tok.filter((t) => {
-      const tokenPriceUSD =
-        typeof t?.usdPrice === "number" &&
-        isFinite(t?.usdPrice) &&
-        t.usdPrice > 0
-          ? t.usdPrice
-          : 0;
+    const parsedAmount = Number(amount?.trim());
+    if (!isFinite(parsedAmount) || parsedAmount <= 0) return normalizedTokens;
 
-      const hasUsdPrice =
-        typeof tokenPriceUSD === "number" &&
-        isFinite(tokenPriceUSD) &&
-        tokenPriceUSD > 0;
-      const tokenUsdBal =
-        hasUsdPrice &&
-        Number(formatTokenBalance(t.balance, t.decimals)) * tokenPriceUSD;
-      return hasUsdPrice && Number(tokenUsdBal) >= Number(amount?.trim());
+    if (amountInputMode === "usd") {
+      const filteredTks = normalizedTokens.filter((t) => {
+        const tokenPriceUSD =
+          typeof t?.usdPrice === "number" &&
+          isFinite(t?.usdPrice) &&
+          t.usdPrice > 0
+            ? t.usdPrice
+            : 0;
+
+        const hasUsdPrice =
+          typeof tokenPriceUSD === "number" &&
+          isFinite(tokenPriceUSD) &&
+          tokenPriceUSD > 0;
+        const tokenUsdBal =
+          hasUsdPrice &&
+          Number(formatTokenBalance(t.balance, t.decimals)) * tokenPriceUSD;
+        return hasUsdPrice && Number(tokenUsdBal) >= parsedAmount;
+      });
+
+      return filteredTks;
+    }
+
+    const filteredTks = normalizedTokens.filter((t) => {
+      const tokenBal = Number(formatTokenBalance(t.balance, t.decimals));
+      return Number.isFinite(tokenBal) && tokenBal >= parsedAmount;
     });
-
-    if (filteredTks.length === 0)
-      return (
-        _tok.filter(
-          (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
-        ) ?? []
-      );
 
     return filteredTks;
   }, [yourWalletTokens, amountInputMode, amount, selectedToken]);
@@ -734,53 +776,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
             >
               Enter an amount
             </p>
-            <div
-              style={{
-                display: "flex",
-                gap: spacing[2],
-                marginBottom: spacing[2],
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setAmountInputMode("usd")}
-                disabled={!hasUsdPrice}
-                style={{
-                  padding: `${spacing[1]} ${spacing[3]}`,
-                  borderRadius: "9999px",
-                  border: 0,
-                  cursor: hasUsdPrice ? "pointer" : "not-allowed",
-                  backgroundColor:
-                    amountInputMode === "usd" ? colors.primary : colors.muted,
-                  color:
-                    amountInputMode === "usd"
-                      ? colors.background
-                      : colors.foreground,
-                  opacity: hasUsdPrice ? 1 : 0.6,
-                }}
-              >
-                USD
-              </button>
-              <button
-                type="button"
-                onClick={() => setAmountInputMode("token")}
-                style={{
-                  padding: `${spacing[1]} ${spacing[3]}`,
-                  borderRadius: "9999px",
-                  border: 0,
-                  cursor: "pointer",
-                  backgroundColor:
-                    amountInputMode === "token" ? colors.primary : colors.muted,
-                  color:
-                    amountInputMode === "token"
-                      ? colors.background
-                      : colors.foreground,
-                }}
-              >
-                {selectedToken?.symbol || "Token"}
-              </button>
-            </div>
-
+   
             {/* Large Amount Display */}
             <div
               style={{
@@ -860,10 +856,22 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     aria-label="Deposit amount"
                   />
                 </span>
+                {amountInputMode === "token" && selectedToken?.symbol && (
+                  <span
+                    style={{
+                      marginLeft: spacing[2],
+                      fontSize: fontSize.lg,
+                      fontWeight: fontWeight.semibold,
+                      color: colors.mutedForeground,
+                    }}
+                  >
+                    {selectedToken.symbol}
+                  </span>
+                )}
               </span>
             </div>
 
-            {/* Token Amount Conversion */}
+            {/* Token / USD Conversion */}
             {selectedToken && (
               <div
                 style={{
@@ -879,14 +887,29 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     color: colors.mutedForeground,
                   }}
                 >
-                  {Number(amountComputation.tokenAmount ?? 0) > 0
-                    ? parseFloat(
-                        (amountComputation.tokenAmount ?? 0).toString()
-                      ).toLocaleString(undefined, {
-                        maximumFractionDigits: 5,
-                      })
-                    : "0"}{" "}
-                  {selectedToken.symbol}
+                  {amountInputMode === "usd" ? (
+                    <>
+                      {Number(amountComputation.tokenAmount ?? 0) > 0
+                        ? parseFloat(
+                            (amountComputation.tokenAmount ?? 0).toString()
+                          ).toLocaleString(undefined, {
+                            maximumFractionDigits: 5,
+                          })
+                        : "0"}{" "}
+                      {selectedToken.symbol}
+                    </>
+                  ) : (
+                    <>
+                      {hasUsdPrice && Number(amountComputation.usdAmount ?? 0) > 0
+                        ? `$${parseFloat(
+                            (amountComputation.usdAmount ?? 0).toString()
+                          ).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : "USD pricing unavailable"}
+                    </>
+                  )}
                 </span>
                 <svg
                   style={{
@@ -898,6 +921,12 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={2}
+                  onClick={() => {
+                    setAmountInputMode((mode) =>
+                      mode === "usd" ? "token" : "usd"
+                    );
+                  }}
+                  cursor="pointer"
                 >
                   <path
                     strokeLinecap="round"
@@ -925,10 +954,19 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     color: colors.primary,
                   }}
                 >
-                  Balance ({selectedToken.symbol}){" "}
-                  {normalizedTokenBalance.toLocaleString(undefined, {
-                    maximumFractionDigits: 6,
-                  })}
+                  {amountInputMode === "usd" && hasUsdPrice
+                    ? `Balance ($) ${(
+                        normalizedTokenBalance * tokenPriceUSD
+                      ).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
+                    : `Balance (${selectedToken.symbol}) ${normalizedTokenBalance.toLocaleString(
+                        undefined,
+                        {
+                          maximumFractionDigits: 6,
+                        }
+                      )}`}
                 </span>
                 <button
                   type="button"
@@ -1229,7 +1267,16 @@ export function CryptoPay({ style }: CryptoPayProps) {
           </div>
         </>
       ) : (
-        <h4>Loading....</h4>
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <LoadingSkeleton />
+        </div>
       )}
     </div>
   );

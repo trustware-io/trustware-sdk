@@ -291,8 +291,8 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
       return transaction.fromChainTxUrl;
     }
     // Fallback: construct URL based on chain if we have a hash
-    if (transactionHash && selectedChain?.explorerUrl) {
-      return `${selectedChain.explorerUrl}/tx/${transactionHash}`;
+    if (transactionHash && selectedChain?.blockExplorerUrls?.length) {
+      return `${selectedChain.blockExplorerUrls[0].replace(/\/+$/, "")}/tx/${transactionHash}`;
     }
     return null;
   }, [transaction, transactionHash, selectedChain]);
