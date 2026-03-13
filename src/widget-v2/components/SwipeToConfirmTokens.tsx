@@ -12,6 +12,8 @@ export interface SwipeToConfirmTokensProps {
   toTokenSymbol?: string;
   /** Destination chain name (e.g., 'Base') */
   toChainName?: string;
+  fromChainName?: string;
+  dappName?: string;
   /** Callback when swipe reaches confirmation threshold */
   onConfirm: () => void;
   /** Whether the component is disabled */
@@ -139,6 +141,8 @@ export function SwipeToConfirmTokens({
   toTokenIcon,
   toTokenSymbol,
   toChainName,
+  fromChainName,
+  dappName,
   onConfirm,
   disabled = false,
   isWalletConnected = false,
@@ -503,7 +507,7 @@ export function SwipeToConfirmTokens({
       {/* Label */}
       {isWalletConnected && toChainName && (
         <span style={labelStyle}>
-          {fromToken.symbol} → {toTokenSymbol || ""} on {toChainName}
+          {fromToken.symbol} on {fromChainName} → {dappName}
         </span>
       )}
     </div>

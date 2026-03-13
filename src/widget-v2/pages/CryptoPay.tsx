@@ -113,6 +113,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     try {
       const config = TrustwareConfigStore.get();
       return {
+        dappName: config.messages?.title || "DApp",
         toChain: config.routes.toChain,
         toToken: config.routes.toToken,
         toAddress: config.routes.toAddress,
@@ -776,7 +777,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
             >
               Enter an amount
             </p>
-   
+
             {/* Large Amount Display */}
             <div
               style={{
@@ -900,7 +901,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     </>
                   ) : (
                     <>
-                      {hasUsdPrice && Number(amountComputation.usdAmount ?? 0) > 0
+                      {hasUsdPrice &&
+                      Number(amountComputation.usdAmount ?? 0) > 0
                         ? `$${parseFloat(
                             (amountComputation.usdAmount ?? 0).toString()
                           ).toLocaleString(undefined, {
@@ -1208,6 +1210,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   fromToken={selectedToken}
                   toTokenSymbol={destinationConfig?.toToken || "USDC"}
                   toChainName={destinationConfig?.toChain || "Base"}
+                  fromChainName={selectedChain?.networkName || "Unknown Chain"}
+                  dappName={destinationConfig?.dappName || "Example DApp"}
                   onConfirm={handleConfirm}
                   disabled={!canConfirm}
                   isWalletConnected={isWalletConnected}
