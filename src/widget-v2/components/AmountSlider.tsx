@@ -491,25 +491,6 @@ export function AmountSlider({
           ))}
         </div>
       </div>
-
-      {/* Current Value Display */}
-      <div style={valueDisplayContainerStyle}>
-        <div
-          style={mergeStyles(
-            valueDisplayStyle,
-            disabled && {
-              backgroundColor: colors.zinc[800],
-              color: colors.zinc[500],
-            }
-          )}
-        >
-          $
-          {value.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </div>
-      </div>
     </div>
   );
 }
