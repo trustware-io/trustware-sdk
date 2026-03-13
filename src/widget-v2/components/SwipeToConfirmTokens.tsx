@@ -209,11 +209,10 @@ export function SwipeToConfirmTokens({
       return `Confirming... ${Math.round(longPressProgress * 100)}% complete.`;
     return `Confirm transaction. Swipe right to confirm.`;
   };
-
   const trackBg =
     effectiveProgress > 0
-      ? `linear-gradient(to right, rgb(34, 197, 94) ${effectiveProgress * 100}%, rgb(39, 39, 42) ${effectiveProgress * 100}%)`
-      : "rgb(39, 39, 42)";
+      ? `linear-gradient(to right, rgb(34, 197, 94) ${effectiveProgress * 100}%, ${colors.background} ${effectiveProgress * 100}%)`
+      : colors.muted;
 
   return (
     <div
@@ -264,7 +263,7 @@ export function SwipeToConfirmTokens({
           <span
             style={{
               fontSize: fontSize.sm,
-              color: colors.white,
+              color: colors.mutedForeground,
               fontWeight: fontWeight.bold,
             }}
           >
@@ -379,7 +378,7 @@ export function SwipeToConfirmTokens({
             justifyContent: "center",
             cursor: "grab",
             zIndex: 10,
-            backgroundColor: colors.zinc[800],
+            backgroundColor: "none",
 
             left: `${dragX + padding}px`,
             ...{

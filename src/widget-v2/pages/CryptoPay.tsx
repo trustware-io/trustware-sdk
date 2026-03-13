@@ -45,7 +45,6 @@ export interface CryptoPayProps {
 
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
-import { toast } from "../components/Toast";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
 
@@ -277,7 +276,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const {
     isLoadingRoute,
-    networkFees,
+    // networkFees,
     estimatedReceive,
     error: routeBuilderError,
     routeResult,
@@ -479,7 +478,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
 
     const reservedWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-    console.log({ reservedWei });
+    // console.log({ reservedWei });
     setGasReservationWei(reservedWei);
     return reservedWei;
   }, [
@@ -587,7 +586,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
     await submitTransaction(routeResult);
   };
 
-  const prevAmountRef = useRef<string | undefined>();
   const orderedTokens = useMemo(() => {
     const index = yourWalletTokens.findIndex(
       (t) => t.address?.toLowerCase() === selectedToken?.address?.toLowerCase()
@@ -636,11 +634,16 @@ export function CryptoPay({ style }: CryptoPayProps) {
       result = filteredTks;
     }
 
-    if (prevAmountRef.current !== amount) {
-      prevAmountRef.current = amount;
-      if (result.length) {
-        setSelectedToken(result[0]);
-      }
+    const isFound = result.find(
+      (t) =>
+        t.symbol?.toLowerCase() === selectedToken?.symbol?.toLowerCase() &&
+        t?.chainData?.chainId.toString() ===
+          (selectedToken as YourTokenData)?.chainData?.chainId.toString()
+    );
+
+    if (!isFound && result.length) {
+      setSelectedToken(result[0]);
+      setSelectedChain(result[0].chainData as Chain);
     }
 
     return result;
@@ -648,8 +651,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
     yourWalletTokens,
     amountInputMode,
     amount,
-    setSelectedToken,
     selectedToken,
+    setSelectedToken,
+    setSelectedChain,
   ]);
 
   const isWalletConnected = walletStatus === "connected";

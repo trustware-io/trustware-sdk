@@ -306,9 +306,9 @@ export function AmountSlider({
               right: 0,
               height: "0.625rem",
               borderRadius: "9999px",
-              backgroundColor: "rgba(63, 63, 70, 0.8)",
+              backgroundColor: colors.background,
               boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.2)",
-              ...(disabled && { backgroundColor: "rgba(63, 63, 70, 0.4)" }),
+              ...(disabled === false && { backgroundColor: colors.muted }),
             }}
           />
 
@@ -336,12 +336,13 @@ export function AmountSlider({
                 type="button"
                 style={{
                   position: "absolute",
-                  top: "50%",
+                  top: "46%",
                   transform: "translateY(-50%)",
                   padding: "0.5rem",
                   margin: "-0.5rem",
                   border: 0,
-                  backgroundColor: "transparent",
+                  width: "100%",
+                  backgroundColor: colors.transparent,
                   cursor: "pointer",
                   outline: "none",
                   left: `${tick.position}%`,
@@ -359,7 +360,7 @@ export function AmountSlider({
                     transform: "translateX(-50%)",
                     backgroundColor: isActive
                       ? colors.emerald[400]
-                      : colors.zinc[600],
+                      : colors.zinc[400],
                     boxShadow: isActive
                       ? `0 0 4px ${colors.emerald[500]}40`
                       : "none",

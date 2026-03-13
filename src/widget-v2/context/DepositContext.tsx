@@ -355,6 +355,12 @@ export function DepositProvider({
 
     let cancelled = false;
 
+    /**
+     * Loads wallet tokens and balances for the currently connected wallet.
+     * @return {Promise<void>} Resolves when the operation is complete.
+     * @throws {Error} If an error occurs while loading the balances.
+     */
+
     async function loadWalletTokens() {
       try {
         const arr = await getBalancesByAddress(walletAddress as string);
@@ -494,8 +500,8 @@ export function DepositProvider({
    */
   const connectWallet = useCallback(async (wallet: DetectedWallet) => {
     console.log("[DepositContext] connectWallet called", {
-      walletId: wallet.meta.id,
-      hasProvider: !!wallet.provider,
+      // walletId: wallet.meta.id,
+      // hasProvider: !!wallet.provider,
     });
     try {
       await walletManager.connectDetected(wallet);

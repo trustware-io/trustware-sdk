@@ -5,8 +5,13 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import { mergeStyles } from "../lib/utils";
-import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+} from "../styles/tokens";
 import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 
 export interface TokenSwipePillProps {
@@ -205,13 +210,14 @@ export function TokenSwipePill({
         alignItems: "flex-start",
         gap: spacing[2],
         padding: `${spacing[1.5]} ${spacing[4]}`,
-        backgroundColor: "rgba(39, 39, 42, 0.4)",
-        borderRadius: "9999px",
-        border: "1px solid rgba(63, 63, 70, 0.5)",
+
+        backgroundColor: colors.background,
+        borderRadius: borderRadius.full,
+        border: `1px solid ${colors.border}`,
         userSelect: "none",
         touchAction: "none",
         ...(hasMultipleTokens && { cursor: "grab" }),
-        ...(isDragging && { backgroundColor: "rgba(39, 39, 42, 0.6)" }),
+        ...(isDragging && { backgroundColor: colors.background }),
         ...style,
       }}
       onMouseDown={handleMouseDown}
@@ -334,13 +340,14 @@ export function TokenSwipePill({
                       <div
                         style={{
                           position: "absolute",
-                          bottom: "-2px",
+                          bottom: "1px",
                           right: "-2px",
                           width: "1rem",
                           height: "1rem",
                           borderRadius: "9999px",
-                          backgroundColor: colors.zinc[900],
-                          border: `2px solid ${colors.zinc[900]}`,
+
+                          backgroundColor: "none",
+                          border: `none`,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -421,7 +428,7 @@ export function TokenSwipePill({
                       cursor: "pointer",
                       backgroundColor:
                         index === currentIndex
-                          ? colors.white
+                          ? colors.zinc[300]
                           : colors.zinc[600],
                       width: index === currentIndex ? "0.938rem" : "0.938rem",
                     }}
@@ -490,7 +497,7 @@ export function TokenSwipePill({
                         cursor: "pointer",
                         backgroundColor:
                           index === currentIndex
-                            ? colors.white
+                            ? colors.zinc[300]
                             : colors.zinc[600],
                         width: index === currentIndex ? "0.938rem" : "0.938rem",
                       }}
@@ -580,7 +587,7 @@ export function TokenSwipePill({
           <p
             style={{
               fontWeight: fontWeight.semibold,
-              color: colors.white,
+              color: colors.foreground,
               fontSize: fontSize.sm,
               lineHeight: 1.25,
               margin: 0,
