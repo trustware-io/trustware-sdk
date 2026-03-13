@@ -24,113 +24,6 @@ export interface SwipeToConfirmTokensProps {
   text: string;
 }
 
-const containerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: spacing[3],
-};
-
-const trackStyle: React.CSSProperties = {
-  position: "relative",
-  height: "3.5rem",
-  width: "100%",
-  borderRadius: "9999px",
-  overflow: "hidden",
-  userSelect: "none",
-  border: "1px solid rgba(255, 255, 255, 0.1)",
-  outline: "none",
-};
-
-const trackTextStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "opacity 0.2s",
-};
-
-const swipeTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.white,
-  fontWeight: fontWeight.bold,
-};
-
-const countdownContainerStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const countdownInnerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[2],
-};
-
-const countdownTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.white,
-  fontWeight: fontWeight.bold,
-};
-
-const checkmarkContainerStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const thumbStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "50%",
-  transform: "translateY(-50%)",
-  width: "3rem",
-  height: "3rem",
-  borderRadius: "9999px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "grab",
-  zIndex: 10,
-  backgroundColor: colors.zinc[800],
-};
-
-const tokenIconStyle: React.CSSProperties = {
-  width: "2.5rem",
-  height: "2.5rem",
-  objectFit: "contain",
-  borderRadius: "9999px",
-};
-
-const destinationIconStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "50%",
-  transform: "translateY(-50%)",
-  width: "3rem",
-  height: "3rem",
-  borderRadius: "9999px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "opacity 0.2s",
-};
-
-const chevronIconStyle: React.CSSProperties = {
-  width: "1.5rem",
-  height: "1.5rem",
-  color: colors.white,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  color: colors.zinc[400],
-};
-
 /**
  * Swipe-to-confirm component with token icons and horizontal drag interaction.
  */
@@ -323,7 +216,15 @@ export function SwipeToConfirmTokens({
       : "rgb(39, 39, 42)";
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: spacing[3],
+        ...style,
+      }}
+    >
       <div
         ref={trackRef}
         role="slider"
@@ -335,20 +236,38 @@ export function SwipeToConfirmTokens({
         tabIndex={disabled ? -1 : 0}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
-        style={mergeStyles(
-          trackStyle,
-          { background: trackBg },
-          disabled && { opacity: 0.5, cursor: "not-allowed" }
-        )}
+        style={{
+          position: "relative",
+          height: "3.5rem",
+          width: "100%",
+          borderRadius: "9999px",
+          overflow: "hidden",
+          userSelect: "none",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          outline: "none",
+          background: trackBg,
+          ...(disabled && { opacity: 0.5, cursor: "not-allowed" }),
+        }}
       >
         {/* Swipe text */}
         <div
-          style={mergeStyles(
-            trackTextStyle,
-            effectiveProgress > 0.15 && { opacity: 0 }
-          )}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "opacity 0.2s",
+            ...(effectiveProgress > 0.15 && { opacity: 0 }),
+          }}
         >
-          <span style={swipeTextStyle}>
+          <span
+            style={{
+              fontSize: fontSize.sm,
+              color: colors.white,
+              fontWeight: fontWeight.bold,
+            }}
+          >
             {/* {isWalletConnected
               ? "Swipe to confirm"
               : "Connect your wallet to deposit"} */}
@@ -358,8 +277,22 @@ export function SwipeToConfirmTokens({
 
         {/* Long-press countdown */}
         {isLongPressing && !isComplete && (
-          <div style={countdownContainerStyle}>
-            <div style={countdownInnerStyle}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing[2],
+              }}
+            >
               <svg
                 style={{
                   width: "2rem",
@@ -388,7 +321,13 @@ export function SwipeToConfirmTokens({
                   style={{ transition: "all 100ms" }}
                 />
               </svg>
-              <span style={countdownTextStyle}>
+              <span
+                style={{
+                  fontSize: fontSize.sm,
+                  color: colors.white,
+                  fontWeight: fontWeight.bold,
+                }}
+              >
                 {Math.ceil(
                   (1 - longPressProgress) * (LONG_PRESS_DURATION / 1000) * 10
                 ) / 10}
@@ -400,7 +339,15 @@ export function SwipeToConfirmTokens({
 
         {/* Checkmark on complete */}
         {isComplete && (
-          <div style={checkmarkContainerStyle}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <svg
               style={{ width: "1.5rem", height: "1.5rem", color: colors.white }}
               fill="none"
@@ -420,21 +367,34 @@ export function SwipeToConfirmTokens({
         {/* Draggable Thumb */}
         <div
           ref={thumbRef}
-          style={mergeStyles(
-            thumbStyle,
-            { left: `${dragX + padding}px` },
-            {
+          style={{
+            position: "absolute",
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: "3rem",
+            height: "3rem",
+            borderRadius: "9999px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "grab",
+            zIndex: 10,
+            backgroundColor: colors.zinc[800],
+
+            left: `${dragX + padding}px`,
+            ...{
               transition: isDragging
                 ? "transform 0.1s"
                 : "left 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s",
             },
-            isDragging && { transform: "translateY(-50%) scale(1.05)" },
-            isLongPressing && {
+
+            ...(isDragging && { transform: "translateY(-50%) scale(1.05)" }),
+            ...(isLongPressing && {
               transform: "translateY(-50%) scale(1.1)",
               boxShadow: `0 0 0 2px ${colors.green[500]}`,
-            },
-            isComplete && { backgroundColor: colors.green[500] }
-          )}
+            }),
+            ...(isComplete && { backgroundColor: colors.green[500] }),
+          }}
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
@@ -444,7 +404,12 @@ export function SwipeToConfirmTokens({
             <img
               src={fromToken.iconUrl}
               alt={fromToken.symbol}
-              style={tokenIconStyle}
+              style={{
+                width: "2.5rem",
+                height: "2.5rem",
+                objectFit: "contain",
+                borderRadius: "9999px",
+              }}
             />
           ) : (
             <span
@@ -462,15 +427,30 @@ export function SwipeToConfirmTokens({
         {/* Destination Icon */}
         {toTokenIcon && (
           <div
-            style={mergeStyles(destinationIconStyle, {
+            style={{
+              position: "absolute",
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "3rem",
+              height: "3rem",
+              borderRadius: "9999px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "opacity 0.2s",
               right: `${padding}px`,
               opacity: 0.2 + effectiveProgress * 0.8,
-            })}
+            }}
           >
             <img
               src={toTokenIcon}
               alt={toTokenSymbol || "destination"}
-              style={tokenIconStyle}
+              style={{
+                width: "2.5rem",
+                height: "2.5rem",
+                objectFit: "contain",
+                borderRadius: "9999px",
+              }}
             />
           </div>
         )}
@@ -478,13 +458,27 @@ export function SwipeToConfirmTokens({
         {/* Chevron hint */}
         {!toTokenIcon && !isComplete && (
           <div
-            style={mergeStyles(destinationIconStyle, {
+            style={{
+              position: "absolute",
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "3rem",
+              height: "3rem",
+              borderRadius: "9999px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "opacity 0.2s",
               right: `${padding}px`,
               opacity: 0.3 + effectiveProgress * 0.7,
-            })}
+            }}
           >
             <svg
-              style={chevronIconStyle}
+              style={{
+                width: "1.5rem",
+                height: "1.5rem",
+                color: colors.white,
+              }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -502,7 +496,12 @@ export function SwipeToConfirmTokens({
 
       {/* Label */}
       {isWalletConnected && toChainName && (
-        <span style={labelStyle}>
+        <span
+          style={{
+            fontSize: fontSize.xs,
+            color: colors.zinc[400],
+          }}
+        >
           {fromToken.symbol} → {toTokenSymbol || ""} on {toChainName}
         </span>
       )}

@@ -587,6 +587,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     await submitTransaction(routeResult);
   };
 
+  const prevAmountRef = useRef<string | undefined>();
   const orderedTokens = useMemo(() => {
     const index = yourWalletTokens.findIndex(
       (t) => t.address?.toLowerCase() === selectedToken?.address?.toLowerCase()
@@ -616,25 +617,40 @@ export function CryptoPay({ style }: CryptoPayProps) {
           ? t.usdPrice
           : 0;
 
-      const hasUsdPrice =
-        typeof tokenPriceUSD === "number" &&
-        isFinite(tokenPriceUSD) &&
-        tokenPriceUSD > 0;
+      const hasUsdPrice = tokenPriceUSD > 0;
+
       const tokenUsdBal =
-        hasUsdPrice &&
-        Number(formatTokenBalance(t.balance, t.decimals)) * tokenPriceUSD;
+        Number(formatTokenBalance(t?.balance, t?.decimals)) * tokenPriceUSD;
+
       return hasUsdPrice && Number(tokenUsdBal) >= Number(amount?.trim());
     });
 
-    if (filteredTks.length === 0)
-      return (
-        _tok.filter(
-          (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
-        ) ?? []
-      );
+    let result: YourTokenData[];
 
-    return filteredTks;
-  }, [yourWalletTokens, amountInputMode, amount, selectedToken]);
+    if (filteredTks.length === 0) {
+      result =
+        _tok.filter(
+          (t) => Number(formatTokenBalance(t?.balance, t?.decimals)) > 0
+        ) ?? [];
+    } else {
+      result = filteredTks;
+    }
+
+    if (prevAmountRef.current !== amount) {
+      prevAmountRef.current = amount;
+      if (result.length) {
+        setSelectedToken(result[0]);
+      }
+    }
+
+    return result;
+  }, [
+    yourWalletTokens,
+    amountInputMode,
+    amount,
+    setSelectedToken,
+    selectedToken,
+  ]);
 
   const isWalletConnected = walletStatus === "connected";
   const canConfirm =

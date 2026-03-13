@@ -1,8 +1,7 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { mergeStyles } from "../lib/utils";
+import React, { useEffect, useState } from "react";
 import { ToastContainer } from "./Toast";
 import { ALL_THEME_STYLES, ALL_ANIMATION_STYLES } from "../styles";
-import { colors, shadows, borderRadius } from "../styles/tokens";
+import { colors, shadows } from "../styles/tokens";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -50,10 +49,14 @@ export function WidgetContainer({
     }
   }, [theme]);
 
-  const containerStyle = useMemo(
-    () =>
-      mergeStyles(
-        {
+  return (
+    <>
+      {/* Inject all required CSS once */}
+      <style>{INJECTED_STYLES}</style>
+      <div
+        className={`trustware-widget tw-scrollbar-none ${className || ""}`.trim()}
+        data-theme={resolvedTheme}
+        style={{
           maxWidth: "420px",
           width: "100%",
           overflow: "visible",
@@ -67,20 +70,8 @@ export function WidgetContainer({
           position: "relative",
           WebkitFontSmoothing: "antialiased",
           MozOsxFontSmoothing: "grayscale",
-        } as React.CSSProperties,
-        style
-      ),
-    [style]
-  );
-
-  return (
-    <>
-      {/* Inject all required CSS once */}
-      <style>{INJECTED_STYLES}</style>
-      <div
-        className={`trustware-widget tw-scrollbar-none ${className || ""}`.trim()}
-        data-theme={resolvedTheme}
-        style={containerStyle}
+          ...style,
+        }}
       >
         {children}
         <ToastContainer />

@@ -26,130 +26,6 @@ interface TickMark {
   value: number;
 }
 
-const containerStyle: React.CSSProperties = {
-  width: "100%",
-};
-
-const labelsContainerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: spacing[2],
-  padding: `0 ${spacing[1]}`,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  color: colors.zinc[500],
-  fontWeight: fontWeight.medium,
-};
-
-const trackContainerStyle: React.CSSProperties = {
-  position: "relative",
-  height: "3rem",
-  display: "flex",
-  alignItems: "center",
-};
-
-const backgroundTrackStyle: React.CSSProperties = {
-  position: "absolute",
-  left: 0,
-  right: 0,
-  height: "0.625rem",
-  borderRadius: "9999px",
-  backgroundColor: "rgba(63, 63, 70, 0.8)",
-  boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.2)",
-};
-
-const activeTrackStyle: React.CSSProperties = {
-  position: "absolute",
-  left: 0,
-  height: "0.625rem",
-  borderRadius: "9999px",
-  background: `linear-gradient(90deg, ${colors.emerald[500]}, ${colors.emerald[400]})`,
-  boxShadow: `0 0 8px ${colors.emerald[500]}40`,
-  transition: "all 75ms",
-};
-
-const tickButtonStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "50%",
-  transform: "translateY(-50%)",
-  padding: "0.5rem",
-  margin: "-0.5rem",
-  border: 0,
-  backgroundColor: "transparent",
-  cursor: "pointer",
-  outline: "none",
-};
-
-const tickMarkStyle: React.CSSProperties = {
-  width: "3px",
-  height: "0.875rem",
-  borderRadius: "9999px",
-  transition: "all 0.2s",
-  transform: "translateX(-50%)",
-};
-
-const rangeInputStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  width: "100%",
-  height: "100%",
-  opacity: 0,
-  zIndex: 10,
-  touchAction: "none",
-  cursor: "pointer",
-  WebkitAppearance: "none",
-  appearance: "none",
-};
-
-const thumbStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "50%",
-  transform: "translateY(-50%)",
-  width: "1.75rem",
-  height: "1.75rem",
-  borderRadius: "9999px",
-  boxShadow: `0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 3px ${colors.emerald[500]}30`,
-  pointerEvents: "none",
-  transition: "all 75ms",
-  backgroundColor: colors.white,
-  border: `3px solid ${colors.emerald[500]}`,
-};
-
-const tickLabelsContainerStyle: React.CSSProperties = {
-  position: "relative",
-  marginTop: spacing[2],
-  height: "1.25rem",
-};
-
-const tickLabelStyle: React.CSSProperties = {
-  position: "absolute",
-  fontSize: "10px",
-  fontWeight: fontWeight.semibold,
-  transform: "translateX(-50%)",
-  letterSpacing: "-0.01em",
-};
-
-const valueDisplayContainerStyle: React.CSSProperties = {
-  marginTop: spacing[4],
-  display: "flex",
-  justifyContent: "center",
-};
-
-const valueDisplayStyle: React.CSSProperties = {
-  padding: `${spacing[1.5]} ${spacing[4]}`,
-  borderRadius: "9999px",
-  fontSize: fontSize.base,
-  fontWeight: fontWeight.bold,
-  backgroundColor: "rgba(16, 185, 129, 0.15)",
-  color: colors.emerald[400],
-  border: `1px solid ${colors.emerald[500]}30`,
-  letterSpacing: "-0.01em",
-};
-
-// Helper to round to nice numbers based on the range
 const roundToNiceNumber = (value: number, range: number): number => {
   // Determine appropriate rounding precision
   let roundingFactor: number;
@@ -379,35 +255,76 @@ export function AmountSlider({
   );
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div style={{ width: "100%", ...style }}>
       {/* Slider Track */}
       <div style={{ position: "relative" }}>
         {/* Labels */}
-        <div style={labelsContainerStyle}>
-          <span style={labelStyle}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: spacing[2],
+            padding: `0 ${spacing[1]}`,
+          }}
+        >
+          <span
+            style={{
+              fontSize: fontSize.xs,
+              color: colors.zinc[500],
+              fontWeight: fontWeight.medium,
+            }}
+          >
             ${min}
             {min > 0 ? " Min" : ""}
           </span>
-          <span style={labelStyle}>Max</span>
+          <span
+            style={{
+              fontSize: fontSize.xs,
+              color: colors.zinc[500],
+              fontWeight: fontWeight.medium,
+            }}
+          >
+            Max
+          </span>
         </div>
 
         {/* Track Container */}
-        <div style={trackContainerStyle}>
+        <div
+          style={{
+            position: "relative",
+            height: "3rem",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
           {/* Background Track */}
           <div
-            style={mergeStyles(
-              backgroundTrackStyle,
-              disabled && { backgroundColor: "rgba(63, 63, 70, 0.4)" }
-            )}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              height: "0.625rem",
+              borderRadius: "9999px",
+              backgroundColor: "rgba(63, 63, 70, 0.8)",
+              boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.2)",
+              ...(disabled && { backgroundColor: "rgba(63, 63, 70, 0.4)" }),
+            }}
           />
 
           {/* Active Track */}
           <div
-            style={mergeStyles(
-              activeTrackStyle,
-              { width: `${percentage}%` },
-              disabled && { backgroundColor: "rgba(4, 120, 87, 0.5)" }
-            )}
+            style={{
+              position: "absolute",
+              left: 0,
+              height: "0.625rem",
+              borderRadius: "9999px",
+              background: `linear-gradient(90deg, ${colors.emerald[500]}, ${colors.emerald[400]})`,
+              boxShadow: `0 0 8px ${colors.emerald[500]}40`,
+              transition: "all 75ms",
+              width: `${percentage}%`,
+              ...(disabled && { backgroundColor: "rgba(4, 120, 87, 0.5)" }),
+            }}
           />
 
           {/* Tick Marks */}
@@ -417,22 +334,36 @@ export function AmountSlider({
               <button
                 key={tick.position}
                 type="button"
-                style={mergeStyles(tickButtonStyle, {
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  padding: "0.5rem",
+                  margin: "-0.5rem",
+                  border: 0,
+                  backgroundColor: "transparent",
+                  cursor: "pointer",
+                  outline: "none",
                   left: `${tick.position}%`,
-                })}
+                }}
                 onClick={() => handleTickClick(tick.value)}
                 disabled={disabled}
                 aria-label={`Set amount to ${tick.label}`}
               >
                 <div
-                  style={mergeStyles(tickMarkStyle, {
+                  style={{
+                    width: "3px",
+                    height: "0.875rem",
+                    borderRadius: "9999px",
+                    transition: "all 0.2s",
+                    transform: "translateX(-50%)",
                     backgroundColor: isActive
                       ? colors.emerald[400]
                       : colors.zinc[600],
                     boxShadow: isActive
                       ? `0 0 4px ${colors.emerald[500]}40`
                       : "none",
-                  })}
+                  }}
                 />
               </button>
             );
@@ -446,10 +377,19 @@ export function AmountSlider({
             value={value}
             onChange={handleChange}
             disabled={disabled}
-            style={mergeStyles(
-              rangeInputStyle,
-              disabled && { cursor: "not-allowed" }
-            )}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              opacity: 0,
+              zIndex: 10,
+              touchAction: "none",
+              cursor: "pointer",
+              WebkitAppearance: "none",
+              appearance: "none",
+              ...(disabled && { cursor: "not-allowed" }),
+            }}
             aria-label="Amount slider"
             aria-valuemin={min}
             aria-valuemax={max}
@@ -459,32 +399,51 @@ export function AmountSlider({
 
           {/* Thumb */}
           <div
-            style={mergeStyles(
-              thumbStyle,
-              { left: `calc(${percentage}% - 12px)` },
-              disabled && {
+            style={{
+              position: "absolute",
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "1.75rem",
+              height: "1.75rem",
+              borderRadius: "9999px",
+              boxShadow: `0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 3px ${colors.emerald[500]}30`,
+              pointerEvents: "none",
+              transition: "all 75ms",
+              backgroundColor: colors.white,
+              border: `3px solid ${colors.emerald[500]}`,
+              left: `calc(${percentage}% - 12px)`,
+              ...(disabled && {
                 backgroundColor: colors.zinc[600],
                 border: `2px solid ${colors.zinc[500]}`,
-              }
-            )}
+              }),
+            }}
           />
         </div>
 
         {/* Tick Labels */}
-        <div style={tickLabelsContainerStyle}>
+        <div
+          style={{
+            position: "relative",
+            marginTop: spacing[2],
+            height: "1.25rem",
+          }}
+        >
           {tickMarks.map((tick) => (
             <span
               key={tick.position}
-              style={mergeStyles(
-                tickLabelStyle,
-                { left: `${tick.position}%` },
-                {
-                  color:
-                    percentage >= tick.position
-                      ? colors.zinc[400]
-                      : colors.zinc[600],
-                }
-              )}
+              style={{
+                position: "absolute",
+                fontSize: "10px",
+                fontWeight: fontWeight.semibold,
+                transform: "translateX(-50%)",
+                letterSpacing: "-0.01em",
+                left: `${tick.position}%`,
+
+                color:
+                  percentage >= tick.position
+                    ? colors.zinc[400]
+                    : colors.zinc[600],
+              }}
             >
               {tick.label}
             </span>

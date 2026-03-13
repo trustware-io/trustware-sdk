@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
@@ -20,21 +19,6 @@ export interface ToastData {
 interface ToastProps extends ToastData {
   onDismiss: (id: string) => void;
 }
-
-const baseToastStyle: React.CSSProperties = {
-  pointerEvents: "auto",
-  position: "relative",
-  display: "flex",
-  width: "100%",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: spacing[3],
-  overflow: "hidden",
-  borderRadius: borderRadius.lg,
-  padding: spacing[4],
-  boxShadow: shadows.lg,
-  transition: "all 0.2s ease-out",
-};
 
 const variantStyles: Record<
   ToastData["variant"] & string,
@@ -58,50 +42,6 @@ const variantStyles: Record<
     backgroundColor: "rgba(34, 197, 94, 0.1)",
     color: colors.green[600],
   },
-};
-
-const iconContainerStyle: React.CSSProperties = {
-  flexShrink: 0,
-};
-
-const iconStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-};
-
-const contentStyle: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.semibold,
-  margin: 0,
-};
-
-const descriptionStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  opacity: 0.8,
-  marginTop: spacing[0.5],
-  margin: 0,
-};
-
-const closeButtonStyle: React.CSSProperties = {
-  flexShrink: 0,
-  borderRadius: "0.375rem",
-  padding: spacing[1],
-  opacity: 0.7,
-  transition: "opacity 0.2s",
-  background: "none",
-  border: "none",
-  cursor: "pointer",
-  color: "inherit",
-};
-
-const closeIconStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
 };
 
 /**
@@ -138,21 +78,41 @@ function ToastItem({
     setIsExiting(true);
   };
 
-  const toastStyle = mergeStyles(
-    baseToastStyle,
-    variantStyles[variant] || variantStyles.default,
-    isExiting
-      ? { opacity: 0, transform: "translateX(1rem)" }
-      : { opacity: 1, transform: "translateX(0)" }
-  );
-
   return (
-    <div role="alert" aria-live="assertive" style={toastStyle}>
+    <div
+      role="alert"
+      aria-live="assertive"
+      style={{
+        pointerEvents: "auto",
+        position: "relative",
+        display: "flex",
+        width: "100%",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: spacing[3],
+        overflow: "hidden",
+        borderRadius: borderRadius.lg,
+        padding: spacing[4],
+        boxShadow: shadows.lg,
+        transition: "all 0.2s ease-out",
+        ...(variantStyles[variant] || variantStyles.default),
+        ...(isExiting
+          ? { opacity: 0, transform: "translateX(1rem)" }
+          : { opacity: 1, transform: "translateX(0)" }),
+      }}
+    >
       {/* Icon based on variant */}
-      <div style={iconContainerStyle}>
+      <div
+        style={{
+          flexShrink: 0,
+        }}
+      >
         {variant === "destructive" && (
           <svg
-            style={iconStyle}
+            style={{
+              width: "1.25rem",
+              height: "1.25rem",
+            }}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -167,7 +127,10 @@ function ToastItem({
         )}
         {variant === "success" && (
           <svg
-            style={iconStyle}
+            style={{
+              width: "1.25rem",
+              height: "1.25rem",
+            }}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -182,7 +145,10 @@ function ToastItem({
         )}
         {variant === "default" && (
           <svg
-            style={iconStyle}
+            style={{
+              width: "1.25rem",
+              height: "1.25rem",
+            }}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -198,19 +164,56 @@ function ToastItem({
       </div>
 
       {/* Content */}
-      <div style={contentStyle}>
-        <p style={titleStyle}>{title}</p>
-        {description && <p style={descriptionStyle}>{description}</p>}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        <p
+          style={{
+            fontSize: fontSize.sm,
+            fontWeight: fontWeight.semibold,
+            margin: 0,
+          }}
+        >
+          {title}
+        </p>
+        {description && (
+          <p
+            style={{
+              fontSize: fontSize.sm,
+              opacity: 0.8,
+              marginTop: spacing[0.5],
+              margin: 0,
+            }}
+          >
+            {description}
+          </p>
+        )}
       </div>
 
       {/* Close button */}
       <button
         onClick={handleDismiss}
-        style={closeButtonStyle}
+        style={{
+          flexShrink: 0,
+          borderRadius: "0.375rem",
+          padding: spacing[1],
+          opacity: 0.7,
+          transition: "opacity 0.2s",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "inherit",
+        }}
         aria-label="Dismiss"
       >
         <svg
-          style={closeIconStyle}
+          style={{
+            width: "1rem",
+            height: "1rem",
+          }}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -267,21 +270,6 @@ toast.error = (title: string, description?: string) =>
 toast.success = (title: string, description?: string) =>
   toast({ title, description, variant: "success" });
 
-const containerStyle: React.CSSProperties = {
-  position: "fixed",
-  bottom: spacing[4],
-  left: "50%",
-  transform: "translateX(-50%)",
-  zIndex: 50,
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[2],
-  width: "100%",
-  maxWidth: "380px",
-  padding: `0 ${spacing[4]}`,
-  pointerEvents: "none",
-};
-
 /**
  * ToastContainer - Renders all active toasts
  * Must be included in your component tree (typically in WidgetContainer)
@@ -312,7 +300,22 @@ export function ToastContainer(): React.ReactElement | null {
   }
 
   return (
-    <div style={containerStyle}>
+    <div
+      style={{
+        position: "fixed",
+        bottom: spacing[4],
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 50,
+        display: "flex",
+        flexDirection: "column",
+        gap: spacing[2],
+        width: "100%",
+        maxWidth: "380px",
+        padding: `0 ${spacing[4]}`,
+        pointerEvents: "none",
+      }}
+    >
       {activeToasts.map((toastData) => (
         <ToastItem
           key={toastData.id}
