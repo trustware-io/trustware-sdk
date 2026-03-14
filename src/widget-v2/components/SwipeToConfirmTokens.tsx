@@ -505,7 +505,7 @@ export function SwipeToConfirmTokens({
             color: colors.zinc[400],
           }}
         >
-          {fromToken.symbol} → {toTokenSymbol || ""} on {toChainName}
+          {fromToken.symbol} on {fromChainName} → {dappName}
         </span>
       )}
     </div>

@@ -432,6 +432,16 @@ export function CryptoPay({ style }: CryptoPayProps) {
     const txTo = txReq?.to ?? txReq?.target;
     const fromAccount = walletAddress as `0x${string}` | undefined;
 
+    // Skip reservation if route doesn't provide essential fields or pricing
+    if (
+      !txReq?.gasLimit ||
+      txReq?.value == null ||
+      (!txReq?.maxFeePerGas && !txReq?.gasPrice)
+    ) {
+      setGasReservationWei(0n);
+      return 0n;
+    }
+
     if (
       chainTypeNormalized === "evm" &&
       txReq?.data &&
@@ -1013,9 +1023,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     cursor: "pointer",
                   }}
                 >
-                  {amountInputMode === "usd"
-                    ? "Max $"
-                    : `Max ${selectedToken.symbol}`}
+                  Max
                 </button>
               </div>
             )}

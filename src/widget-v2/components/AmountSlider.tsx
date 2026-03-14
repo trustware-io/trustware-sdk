@@ -338,8 +338,8 @@ export function AmountSlider({
                   position: "absolute",
                   top: "46%",
                   transform: "translateY(-50%)",
-                  padding: "0.5rem",
-                  margin: "-0.5rem",
+                  padding: "0.25rem",
+                  margin: "-0.25rem",
                   border: 0,
                   width: "100%",
                   backgroundColor: colors.transparent,
@@ -353,8 +353,8 @@ export function AmountSlider({
               >
                 <div
                   style={{
-                    width: "3px",
-                    height: "0.875rem",
+                    width: "2px",
+                    height: "0.5rem",
                     borderRadius: "9999px",
                     transition: "all 0.2s",
                     transform: "translateX(-50%)",
