@@ -17,31 +17,6 @@ export interface CircularProgressProps {
   isIndeterminate?: boolean;
 }
 
-const containerStyle: React.CSSProperties = {
-  position: "relative",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const percentageContainerStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const percentageTextStyle: React.CSSProperties = {
-  fontSize: fontSize["2xl"],
-  fontWeight: fontWeight.bold,
-  color: colors.foreground,
-};
-
-const progressCircleStyle: React.CSSProperties = {
-  transition: "all 0.5s ease-out",
-};
-
 /**
  * CircularProgress component for displaying progress in a circular format.
  * Supports both determinate (with percentage) and indeterminate (spinning) modes.
@@ -58,17 +33,25 @@ export function CircularProgress({
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (progress / 100) * circumference;
 
-  const svgStyle: React.CSSProperties = isIndeterminate
-    ? { animation: "tw-spin 2s linear infinite" }
-    : {};
-
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...style,
+      }}
+    >
       <svg
         width={size}
         height={size}
         className={cn(isIndeterminate && "tw-animate-spin")}
-        style={svgStyle}
+        style={{
+          ...(isIndeterminate
+            ? { animation: "tw-spin 2s linear infinite" }
+            : {}),
+        }}
       >
         {/* Background circle */}
         <circle
@@ -92,13 +75,31 @@ export function CircularProgress({
           strokeDasharray={circumference}
           strokeDashoffset={isIndeterminate ? circumference * 0.75 : offset}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={progressCircleStyle}
+          style={{
+            transition: "all 0.5s ease-out",
+          }}
         />
       </svg>
 
       {showPercentage && !isIndeterminate && (
-        <div style={percentageContainerStyle}>
-          <span style={percentageTextStyle}>{Math.round(progress)}%</span>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <span
+            style={{
+              fontSize: fontSize["2xl"],
+              fontWeight: fontWeight.bold,
+              color: colors.foreground,
+            }}
+          >
+            {Math.round(progress)}%
+          </span>
         </div>
       )}
     </div>

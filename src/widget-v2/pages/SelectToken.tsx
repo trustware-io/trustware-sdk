@@ -1,5 +1,4 @@
 import React, { useCallback, useMemo } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
@@ -15,507 +14,11 @@ import { formatTokenBalance, resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 import { getBalances } from "src/core/balances";
 import { useChains, useTokens } from "../hooks";
-import { rawToDecimal } from "../helpers/tokenAmount";
 
 export interface SelectTokenProps {
   /** Additional inline styles */
   style?: React.CSSProperties;
 }
-
-/**
- * Format a token balance for display
- */
-
-// Styles
-export const containerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  minHeight: "500px",
-  maxHeight: "70vh",
-};
-
-export const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: `${spacing[4]} ${spacing[4]}`,
-  borderBottom: `1px solid ${colors.border}`,
-};
-
-export const backButtonStyle: React.CSSProperties = {
-  padding: spacing[1],
-  marginRight: spacing[2],
-  borderRadius: borderRadius.lg,
-  transition: "background-color 0.2s",
-  backgroundColor: "transparent",
-  border: 0,
-  cursor: "pointer",
-};
-
-export const backIconStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-  color: colors.foreground,
-};
-
-export const headerTitleStyle: React.CSSProperties = {
-  flex: 1,
-  fontSize: fontSize.lg,
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-  textAlign: "center",
-  marginRight: "1.75rem",
-};
-
-export const contentStyle: React.CSSProperties = {
-  flex: 1,
-  display: "flex",
-  overflow: "hidden",
-};
-
-// Left column styles
-export const leftColumnStyle: React.CSSProperties = {
-  width: "140px",
-  borderRight: `1px solid ${colors.border}`,
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-};
-
-export const columnHeaderStyle: React.CSSProperties = {
-  padding: `${spacing[2]} ${spacing[3]}`,
-  borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
-};
-
-export const columnLabelStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.medium,
-  color: colors.mutedForeground,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-};
-
-export const chainListContainerStyle: React.CSSProperties = {
-  flex: 1,
-  overflowY: "auto",
-  padding: `${spacing[2]} ${spacing[1]}`,
-};
-
-export const skeletonContainerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[2],
-  padding: `0 ${spacing[2]}`,
-};
-
-export const skeletonRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[3],
-  padding: `${spacing[2]} 0`,
-};
-
-export const skeletonCircleStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  borderRadius: "9999px",
-  backgroundColor: colors.muted,
-};
-
-export const skeletonTextStyle: React.CSSProperties = {
-  flex: 1,
-  height: "1rem",
-  backgroundColor: colors.muted,
-  borderRadius: borderRadius.md,
-};
-
-export const errorTextStyle: React.CSSProperties = {
-  padding: `${spacing[3]} ${spacing[4]}`,
-  textAlign: "center",
-};
-
-export const errorMessageStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.destructive,
-};
-
-export const retryLinkStyle: React.CSSProperties = {
-  marginTop: spacing[2],
-  fontSize: fontSize.xs,
-  color: colors.primary,
-  backgroundColor: "transparent",
-  border: 0,
-  cursor: "pointer",
-  textDecoration: "underline",
-};
-
-export const sectionStyle: React.CSSProperties = {
-  marginBottom: spacing[2],
-};
-
-export const sectionHeaderStyle: React.CSSProperties = {
-  padding: `${spacing[1.5]} ${spacing[3]}`,
-};
-
-export const sectionLabelStyle: React.CSSProperties = {
-  fontSize: "10px",
-  fontWeight: fontWeight.medium,
-  color: "rgba(161, 161, 170, 0.7)",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-};
-
-export const chainButtonStyle: React.CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[3],
-  padding: `${spacing[2.5]} ${spacing[3]}`,
-  borderRadius: borderRadius.lg,
-  border: "1px solid transparent",
-  transition: "all 0.2s",
-  backgroundColor: "transparent",
-  cursor: "pointer",
-};
-
-export const chainButtonSelectedStyle: React.CSSProperties = {
-  border: `1px solid ${colors.primary}`,
-  backgroundColor: "rgba(59, 130, 246, 0.1)",
-};
-
-export const chainIconStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  borderRadius: "9999px",
-  objectFit: "cover",
-  flexShrink: 0,
-};
-
-export const chainIconFallbackStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  borderRadius: "9999px",
-  backgroundColor: colors.muted,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-export const chainIconFallbackTextStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.semibold,
-  color: colors.mutedForeground,
-};
-
-export const chainNameContainerStyle: React.CSSProperties = {
-  flex: 1,
-  textAlign: "left",
-  minWidth: 0,
-};
-
-export const chainNameStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.medium,
-  color: colors.foreground,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-  display: "block",
-};
-
-export const selectionIndicatorStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-  borderRadius: "9999px",
-  backgroundColor: colors.primary,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-export const checkIconStyle: React.CSSProperties = {
-  width: "0.75rem",
-  height: "0.75rem",
-  color: colors.primaryForeground,
-};
-
-export const emptyStateStyle: React.CSSProperties = {
-  padding: `${spacing[3]} ${spacing[4]}`,
-  textAlign: "center",
-};
-
-export const emptyTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
-
-// Right column styles
-export const rightColumnStyle: React.CSSProperties = {
-  flex: 1,
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-};
-
-export const tokenHeaderStyle: React.CSSProperties = {
-  padding: `${spacing[2]} ${spacing[3]}`,
-  borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
-};
-
-export const tokenHeaderRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[2],
-  marginBottom: spacing[2],
-};
-
-export const walletBadgeStyle: React.CSSProperties = {
-  fontSize: "10px",
-  color: colors.primary,
-  backgroundColor: "rgba(59, 130, 246, 0.1)",
-  padding: `${spacing[0.5]} ${spacing[1.5]}`,
-  borderRadius: borderRadius.md,
-};
-
-export const searchContainerStyle: React.CSSProperties = {
-  position: "relative",
-};
-
-export const searchIconStyle: React.CSSProperties = {
-  position: "absolute",
-  left: spacing[2.5],
-  top: "50%",
-  transform: "translateY(-50%)",
-  width: "1rem",
-  height: "1rem",
-  color: colors.mutedForeground,
-};
-
-export const searchInputStyle: React.CSSProperties = {
-  width: "100%",
-  paddingLeft: spacing[8],
-  paddingRight: spacing[3],
-  paddingTop: spacing[2],
-  paddingBottom: spacing[2],
-  fontSize: fontSize.sm,
-  backgroundColor: "rgba(63, 63, 70, 0.5)",
-  border: `1px solid rgba(63, 63, 70, 0.5)`,
-  borderRadius: borderRadius.lg,
-  color: colors.foreground,
-  outline: "none",
-  transition: "all 0.2s",
-};
-
-export const clearSearchButtonStyle: React.CSSProperties = {
-  position: "absolute",
-  right: spacing[2.5],
-  top: "50%",
-  transform: "translateY(-50%)",
-  padding: spacing[0.5],
-  borderRadius: "9999px",
-  backgroundColor: "transparent",
-  border: 0,
-  cursor: "pointer",
-  transition: "background-color 0.2s",
-};
-
-export const clearIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-  color: colors.mutedForeground,
-};
-
-export const tokenListContainerStyle: React.CSSProperties = {
-  flex: 1,
-  overflowY: "auto",
-  padding: `${spacing[2]} ${spacing[1]}`,
-};
-
-export const centeredContainerStyle: React.CSSProperties = {
-  height: "100%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: `0 ${spacing[4]}`,
-};
-
-export const centeredContentStyle: React.CSSProperties = {
-  textAlign: "center",
-};
-
-export const placeholderIconStyle: React.CSSProperties = {
-  width: "3rem",
-  height: "3rem",
-  margin: `0 auto ${spacing[3]}`,
-  color: "rgba(161, 161, 170, 0.5)",
-};
-
-export const smallIconStyle: React.CSSProperties = {
-  width: "2.5rem",
-  height: "2.5rem",
-  margin: `0 auto ${spacing[2]}`,
-};
-
-export const tokenSkeletonRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[3],
-  padding: `${spacing[2.5]} ${spacing[2]}`,
-};
-
-export const tokenSkeletonCircleStyle: React.CSSProperties = {
-  width: "2.25rem",
-  height: "2.25rem",
-  borderRadius: "9999px",
-  backgroundColor: colors.muted,
-};
-
-export const tokenSkeletonTextContainerStyle: React.CSSProperties = {
-  flex: 1,
-};
-
-export const tokenSkeletonTextSmStyle: React.CSSProperties = {
-  height: "1rem",
-  width: "4rem",
-  backgroundColor: colors.muted,
-  borderRadius: borderRadius.md,
-  marginBottom: spacing[1.5],
-};
-
-export const tokenSkeletonTextLgStyle: React.CSSProperties = {
-  height: "0.75rem",
-  width: "6rem",
-  backgroundColor: colors.muted,
-  borderRadius: borderRadius.md,
-};
-
-export const tokenSkeletonBalanceStyle: React.CSSProperties = {
-  height: "1rem",
-  width: "3.5rem",
-  backgroundColor: colors.muted,
-  borderRadius: borderRadius.md,
-};
-
-export const tokenListStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[0.5],
-};
-
-export const tokenButtonStyle: React.CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[3],
-  padding: `${spacing[2.5]} ${spacing[3]}`,
-  borderRadius: borderRadius.lg,
-  transition: "all 0.2s",
-  backgroundColor: "transparent",
-  border: 0,
-  cursor: "pointer",
-};
-
-export const tokenIconStyle: React.CSSProperties = {
-  width: "2.25rem",
-  height: "2.25rem",
-  borderRadius: "9999px",
-  objectFit: "cover",
-  flexShrink: 0,
-};
-
-export const tokenIconFallbackStyle: React.CSSProperties = {
-  width: "2.25rem",
-  height: "2.25rem",
-  borderRadius: "9999px",
-  backgroundColor: "rgba(59, 130, 246, 0.1)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-export const tokenIconFallbackTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.semibold,
-  color: colors.primary,
-};
-
-export const tokenInfoStyle: React.CSSProperties = {
-  flex: 1,
-  textAlign: "left",
-  minWidth: 0,
-};
-
-export const tokenSymbolContainerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[1.5],
-};
-
-export const tokenSymbolStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
-
-export const tokenNameStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  color: colors.mutedForeground,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-  display: "block",
-};
-
-export const tokenBalanceContainerStyle: React.CSSProperties = {
-  textAlign: "right",
-  flexShrink: 0,
-};
-
-export const tokenBalanceStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.medium,
-  color: colors.foreground,
-};
-
-export const chevronStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-  color: colors.mutedForeground,
-  flexShrink: 0,
-};
-
-export const footerStyle: React.CSSProperties = {
-  padding: `${spacing[4]} ${spacing[6]}`,
-  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-};
-
-export const footerContentStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: spacing[2],
-};
-
-export const lockIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-  color: colors.mutedForeground,
-};
-
-export const footerTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
-
-export const footerBrandStyle: React.CSSProperties = {
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
 
 /**
  * SelectToken page with two-column layout.
@@ -661,32 +164,104 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
         key={String(key)}
         type="button"
         onClick={() => handleChainSelect(chain)}
-        style={mergeStyles(
-          chainButtonStyle,
-          isSelected && chainButtonSelectedStyle
-        )}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: spacing[3],
+          padding: `${spacing[2.5]} ${spacing[3]}`,
+          borderRadius: borderRadius.lg,
+          border: "1px solid transparent",
+          transition: "all 0.2s",
+          backgroundColor: "transparent",
+          cursor: "pointer",
+          ...(isSelected && {
+            border: `1px solid ${colors.primary}`,
+            backgroundColor: "rgba(59, 130, 246, 0.1)",
+          }),
+        }}
       >
         {/* Chain Icon */}
         {chain.chainIconURI ? (
-          <img src={chain.chainIconURI} alt={label} style={chainIconStyle} />
+          <img
+            src={chain.chainIconURI}
+            alt={label}
+            style={{
+              width: "2rem",
+              height: "2rem",
+              borderRadius: "9999px",
+              objectFit: "cover",
+              flexShrink: 0,
+            }}
+          />
         ) : (
-          <div style={chainIconFallbackStyle}>
-            <span style={chainIconFallbackTextStyle}>
+          <div
+            style={{
+              width: "2rem",
+              height: "2rem",
+              borderRadius: "9999px",
+              backgroundColor: colors.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                fontSize: fontSize.xs,
+                fontWeight: fontWeight.semibold,
+                color: colors.mutedForeground,
+              }}
+            >
               {label.slice(0, 2).toUpperCase()}
             </span>
           </div>
         )}
 
         {/* Chain Name */}
-        <div style={chainNameContainerStyle}>
-          <span style={chainNameStyle}>{label}</span>
+        <div
+          style={{
+            flex: 1,
+            textAlign: "left",
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: fontSize.sm,
+              fontWeight: fontWeight.medium,
+              color: colors.foreground,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              display: "block",
+            }}
+          >
+            {label}
+          </span>
         </div>
 
         {/* Selection indicator */}
         {isSelected && (
-          <div style={selectionIndicatorStyle}>
+          <div
+            style={{
+              width: "1.25rem",
+              height: "1.25rem",
+              borderRadius: "9999px",
+              backgroundColor: colors.primary,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
             <svg
-              style={checkIconStyle}
+              style={{
+                width: "0.75rem",
+                height: "0.75rem",
+                color: colors.primaryForeground,
+              }}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -726,11 +301,23 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
         <button
           type="button"
           onClick={goBack}
-          style={backButtonStyle}
+          style={{
+            padding: spacing[1],
+            marginRight: spacing[2],
+            borderRadius: borderRadius.lg,
+            transition: "background-color 0.2s",
+            backgroundColor: "transparent",
+            border: 0,
+            cursor: "pointer",
+          }}
           aria-label="Go back"
         >
           <svg
-            style={backIconStyle}
+            style={{
+              width: "1.25rem",
+              height: "1.25rem",
+              color: colors.foreground,
+            }}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -743,29 +330,100 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
             />
           </svg>
         </button>
-        <h1 style={headerTitleStyle}>Select Token</h1>
+        <h1
+          style={{
+            flex: 1,
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.semibold,
+            color: colors.foreground,
+            textAlign: "center",
+            marginRight: "1.75rem",
+          }}
+        >
+          Select Token
+        </h1>
       </div>
 
       {/* Content - Two Column Layout */}
-      <div style={contentStyle}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          overflow: "hidden",
+        }}
+      >
         {/* Left Column - Chain Selector */}
-        <div style={leftColumnStyle}>
-          <div style={columnHeaderStyle}>
-            <span style={columnLabelStyle}>Chain</span>
+        <div
+          style={{
+            width: "140px",
+            borderRight: `1px solid ${colors.border}`,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: `${spacing[2]} ${spacing[3]}`,
+              borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
+            }}
+          >
+            <span
+              style={{
+                fontSize: fontSize.xs,
+                fontWeight: fontWeight.medium,
+                color: colors.mutedForeground,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Chain
+            </span>
           </div>
 
-          <div style={chainListContainerStyle}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: `${spacing[2]} ${spacing[1]}`,
+            }}
+          >
             {isLoading ? (
               // Loading skeleton
-              <div style={skeletonContainerStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: spacing[2],
+                  padding: `0 ${spacing[2]}`,
+                }}
+              >
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} style={skeletonRowStyle}>
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[3],
+                      padding: `${spacing[2]} 0`,
+                    }}
+                  >
                     <div
-                      style={skeletonCircleStyle}
+                      style={{
+                        width: "2rem",
+                        height: "2rem",
+                        borderRadius: "9999px",
+                        backgroundColor: colors.muted,
+                      }}
                       className="tw-animate-pulse"
                     />
                     <div
-                      style={skeletonTextStyle}
+                      style={{
+                        flex: 1,
+                        height: "1rem",
+                        backgroundColor: colors.muted,
+                        borderRadius: borderRadius.md,
+                      }}
                       className="tw-animate-pulse"
                     />
                   </div>
@@ -773,12 +431,32 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
               </div>
             ) : error ? (
               // Error state
-              <div style={errorTextStyle}>
-                <p style={errorMessageStyle}>{error}</p>
+              <div
+                style={{
+                  padding: `${spacing[3]} ${spacing[4]}`,
+                  textAlign: "center",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: fontSize.sm,
+                    color: colors.destructive,
+                  }}
+                >
+                  {error}
+                </p>
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  style={retryLinkStyle}
+                  style={{
+                    marginTop: spacing[2],
+                    fontSize: fontSize.xs,
+                    color: colors.primary,
+                    backgroundColor: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
                 >
                   Retry
                 </button>
@@ -787,9 +465,27 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
               <>
                 {/* Popular Chains Section */}
                 {popularChains.length > 0 && (
-                  <div style={sectionStyle}>
-                    <div style={sectionHeaderStyle}>
-                      <span style={sectionLabelStyle}>Popular</span>
+                  <div
+                    style={{
+                      marginBottom: spacing[2],
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: `${spacing[1.5]} ${spacing[3]}`,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: fontWeight.medium,
+                          color: "rgba(161, 161, 170, 0.7)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        Popular
+                      </span>
                     </div>
                     {popularChains.map((chain, idx) =>
                       renderChainItem(chain, idx)
@@ -803,11 +499,21 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                     {popularChains.length > 0 && (
                       <div
                         style={{
-                          ...sectionHeaderStyle,
+                          padding: `${spacing[1.5]} ${spacing[3]}`,
                           marginTop: spacing[2],
                         }}
                       >
-                        <span style={sectionLabelStyle}>All Chains</span>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: fontWeight.medium,
+                            color: "rgba(161, 161, 170, 0.7)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          All Chains
+                        </span>
                       </div>
                     )}
                     {otherChains.map((chain, idx) =>
@@ -818,8 +524,20 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
 
                 {/* Empty state */}
                 {popularChains.length === 0 && otherChains.length === 0 && (
-                  <div style={emptyStateStyle}>
-                    <p style={emptyTextStyle}>No chains available</p>
+                  <div
+                    style={{
+                      padding: `${spacing[3]} ${spacing[4]}`,
+                      textAlign: "center",
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontSize: fontSize.sm,
+                        color: colors.mutedForeground,
+                      }}
+                    >
+                      No chains available
+                    </p>
                   </div>
                 )}
               </>
@@ -828,20 +546,71 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
         </div>
 
         {/* Right Column - Token Selector */}
-        <div style={rightColumnStyle}>
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
           {/* Header with search */}
-          <div style={tokenHeaderStyle}>
-            <div style={tokenHeaderRowStyle}>
-              <span style={columnLabelStyle}>Token</span>
+          <div
+            style={{
+              padding: `${spacing[2]} ${spacing[3]}`,
+              borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing[2],
+                marginBottom: spacing[2],
+              }}
+            >
+              <span
+                style={{
+                  fontSize: fontSize.xs,
+                  fontWeight: fontWeight.medium,
+                  color: colors.mutedForeground,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Token
+              </span>
               {walletAddress && (
-                <span style={walletBadgeStyle}>Wallet Connected</span>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    color: colors.primary,
+                    backgroundColor: "rgba(59, 130, 246, 0.1)",
+                    padding: `${spacing[0.5]} ${spacing[1.5]}`,
+                    borderRadius: borderRadius.md,
+                  }}
+                >
+                  Wallet Connected
+                </span>
               )}
             </div>
             {/* Search Input */}
             {selectedChain && (
-              <div style={searchContainerStyle}>
+              <div
+                style={{
+                  position: "relative",
+                }}
+              >
                 <svg
-                  style={searchIconStyle}
+                  style={{
+                    position: "absolute",
+                    left: spacing[2.5],
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: "1rem",
+                    height: "1rem",
+                    color: colors.mutedForeground,
+                  }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -856,18 +625,46 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   placeholder="Search tokens..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={searchInputStyle}
+                  style={{
+                    width: "100%",
+                    paddingLeft: spacing[8],
+                    paddingRight: spacing[3],
+                    paddingTop: spacing[2],
+                    paddingBottom: spacing[2],
+                    fontSize: fontSize.sm,
+                    backgroundColor: "rgba(63, 63, 70, 0.5)",
+                    border: `1px solid rgba(63, 63, 70, 0.5)`,
+                    borderRadius: borderRadius.lg,
+                    color: colors.foreground,
+                    outline: "none",
+                    transition: "all 0.2s",
+                  }}
                 />
 
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    style={clearSearchButtonStyle}
+                    style={{
+                      position: "absolute",
+                      right: spacing[2.5],
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      padding: spacing[0.5],
+                      borderRadius: "9999px",
+                      backgroundColor: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                      transition: "background-color 0.2s",
+                    }}
                     aria-label="Clear search"
                   >
                     <svg
-                      style={clearIconStyle}
+                      style={{
+                        width: "0.875rem",
+                        height: "0.875rem",
+                        color: colors.mutedForeground,
+                      }}
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -882,13 +679,36 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
           </div>
 
           {/* Token List */}
-          <div style={tokenListContainerStyle}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: `${spacing[2]} ${spacing[1]}`,
+            }}
+          >
             {!selectedChain ? (
               // No chain selected
-              <div style={centeredContainerStyle}>
-                <div style={centeredContentStyle}>
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: `0 ${spacing[4]}`,
+                }}
+              >
+                <div
+                  style={{
+                    textAlign: "center",
+                  }}
+                >
                   <svg
-                    style={placeholderIconStyle}
+                    style={{
+                      width: "3rem",
+                      height: "3rem",
+                      margin: `0 auto ${spacing[3]}`,
+                      color: "rgba(161, 161, 170, 0.5)",
+                    }}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -900,32 +720,77 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                       d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
                     />
                   </svg>
-                  <p style={emptyTextStyle}>
+                  <p
+                    style={{
+                      fontSize: fontSize.sm,
+                      color: colors.mutedForeground,
+                    }}
+                  >
                     Select a chain to view available tokens
                   </p>
                 </div>
               </div>
             ) : isLoadingTokens ? (
               // Loading skeleton
-              <div style={skeletonContainerStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: spacing[2],
+                  padding: `0 ${spacing[2]}`,
+                }}
+              >
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} style={tokenSkeletonRowStyle}>
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[3],
+                      padding: `${spacing[2.5]} ${spacing[2]}`,
+                    }}
+                  >
                     <div
-                      style={tokenSkeletonCircleStyle}
+                      style={{
+                        width: "2.25rem",
+                        height: "2.25rem",
+                        borderRadius: "9999px",
+                        backgroundColor: colors.muted,
+                      }}
                       className="tw-animate-pulse"
                     />
-                    <div style={tokenSkeletonTextContainerStyle}>
+                    <div
+                      style={{
+                        flex: 1,
+                      }}
+                    >
                       <div
-                        style={tokenSkeletonTextSmStyle}
+                        style={{
+                          height: "1rem",
+                          width: "4rem",
+                          backgroundColor: colors.muted,
+                          borderRadius: borderRadius.md,
+                          marginBottom: spacing[1.5],
+                        }}
                         className="tw-animate-pulse"
                       />
                       <div
-                        style={tokenSkeletonTextLgStyle}
+                        style={{
+                          height: "0.75rem",
+                          width: "6rem",
+                          backgroundColor: colors.muted,
+                          borderRadius: borderRadius.md,
+                        }}
                         className="tw-animate-pulse"
                       />
                     </div>
                     <div
-                      style={tokenSkeletonBalanceStyle}
+                      style={{
+                        height: "1rem",
+                        width: "3.5rem",
+                        backgroundColor: colors.muted,
+                        borderRadius: borderRadius.md,
+                      }}
                       className="tw-animate-pulse"
                     />
                   </div>
@@ -933,10 +798,27 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
               </div>
             ) : tokensError ? (
               // Error state
-              <div style={centeredContainerStyle}>
-                <div style={centeredContentStyle}>
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: `0 ${spacing[4]}`,
+                }}
+              >
+                <div
+                  style={{
+                    textAlign: "center",
+                  }}
+                >
                   <svg
-                    style={{ ...smallIconStyle, color: colors.destructive }}
+                    style={{
+                      width: "2.5rem",
+                      height: "2.5rem",
+                      margin: `0 auto ${spacing[2]}`,
+                      color: colors.destructive,
+                    }}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -947,7 +829,8 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   </svg>
                   <p
                     style={{
-                      ...emptyTextStyle,
+                      fontSize: fontSize.sm,
+
                       color: colors.destructive,
                       marginBottom: spacing[2],
                     }}
@@ -957,7 +840,15 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
-                    style={retryLinkStyle}
+                    style={{
+                      marginTop: spacing[2],
+                      fontSize: fontSize.xs,
+                      color: colors.primary,
+                      backgroundColor: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                    }}
                   >
                     Try again
                   </button>
@@ -965,10 +856,26 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
               </div>
             ) : filteredTokens.length === 0 ? (
               // No tokens found
-              <div style={centeredContainerStyle}>
-                <div style={centeredContentStyle}>
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: `0 ${spacing[4]}`,
+                }}
+              >
+                <div
+                  style={{
+                    textAlign: "center",
+                  }}
+                >
                   <svg
-                    style={smallIconStyle}
+                    style={{
+                      width: "2.5rem",
+                      height: "2.5rem",
+                      margin: `0 auto ${spacing[2]}`,
+                    }}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -978,7 +885,12 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                     <path strokeLinecap="round" d="m21 21-4.35-4.35" />
                     <path strokeLinecap="round" d="M8 11h6" />
                   </svg>
-                  <p style={emptyTextStyle}>
+                  <p
+                    style={{
+                      fontSize: fontSize.sm,
+                      color: colors.mutedForeground,
+                    }}
+                  >
                     {searchQuery
                       ? `No tokens matching "${searchQuery}"`
                       : "No tokens available"}
@@ -987,7 +899,15 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                     <button
                       type="button"
                       onClick={() => setSearchQuery("")}
-                      style={{ ...retryLinkStyle, marginTop: spacing[2] }}
+                      style={{
+                        marginTop: spacing[2],
+                        fontSize: fontSize.xs,
+                        color: colors.primary,
+                        backgroundColor: "transparent",
+                        border: 0,
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                      }}
                     >
                       Clear search
                     </button>
@@ -996,7 +916,13 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
               </div>
             ) : (
               // Token list
-              <div style={tokenListStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: spacing[0.5],
+                }}
+              >
                 {filteredWalletTokens.length > 0 ? (
                   <div
                     style={{
@@ -1024,7 +950,18 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                 {filteredWalletTokens.map((token, i) => (
                   <button
                     onClick={() => handleYourTokenSelect(token)}
-                    style={tokenButtonStyle}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[3],
+                      padding: `${spacing[2.5]} ${spacing[3]}`,
+                      borderRadius: borderRadius.lg,
+                      transition: "all 0.2s",
+                      backgroundColor: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                    }}
                     key={`${token.address}-${i}`}
                   >
                     {/* Token Icon with Chain Badge */}
@@ -1043,18 +980,36 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                               .logo_url
                           }
                           alt={token.symbol}
-                          style={tokenIconStyle}
+                          style={{
+                            width: "2.25rem",
+                            height: "2.25rem",
+                            borderRadius: "9999px",
+                            objectFit: "cover",
+                            flexShrink: 0,
+                          }}
                         />
                       ) : (
                         <div
-                          // style={{
-                          //   borderRadius: "10px",
-                          //   padding: "5px",
-                          //   minWidth: "30px",
-                          // }}
-                          style={tokenIconStyle}
+                          style={{
+                            width: "2.25rem",
+                            height: "2.25rem",
+                            borderRadius: "9999px",
+                            objectFit: "cover",
+                            flexShrink: 0,
+                          }}
                         >
-                          <span style={tokenSymbolStyle}>{token.symbol}</span>
+                          <span
+                            style={{
+                              fontSize: fontSize.sm,
+                              fontWeight: fontWeight.semibold,
+                              color: colors.foreground,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {token.symbol}
+                          </span>
                         </div>
                       )}
                       <div
@@ -1085,11 +1040,43 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                     </div>
 
                     {/* Token Info */}
-                    <div style={tokenInfoStyle}>
-                      <div style={tokenSymbolContainerStyle}>
-                        <span style={tokenSymbolStyle}>{token.symbol}</span>
+                    <div
+                      style={{
+                        flex: 1,
+                        textAlign: "left",
+                        minWidth: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: spacing[1.5],
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: fontSize.sm,
+                            fontWeight: fontWeight.semibold,
+                            color: colors.foreground,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {token.symbol}
+                        </span>
                       </div>
-                      <span style={tokenNameStyle}>
+                      <span
+                        style={{
+                          fontSize: fontSize.xs,
+                          color: colors.mutedForeground,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          display: "block",
+                        }}
+                      >
                         {formatTokenBalance(token.balance, token.decimals)}{" "}
                         {token.symbol}
                       </span>
@@ -1122,7 +1109,18 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => handleTokenSelect(token)}
-                    style={tokenButtonStyle}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[3],
+                      padding: `${spacing[2.5]} ${spacing[3]}`,
+                      borderRadius: borderRadius.lg,
+                      transition: "all 0.2s",
+                      backgroundColor: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                    }}
                     key={`${token.address}-${i}`}
                   >
                     {/* Token Icon */}
@@ -1130,7 +1128,13 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                       <img
                         src={token.iconUrl}
                         alt={token.symbol}
-                        style={tokenIconStyle}
+                        style={{
+                          width: "2.25rem",
+                          height: "2.25rem",
+                          borderRadius: "9999px",
+                          objectFit: "cover",
+                          flexShrink: 0,
+                        }}
                         onError={(e) => {
                           // Fallback to initials on image error
                           const target = e.target as HTMLImageElement;
@@ -1145,27 +1149,84 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
                     ) : null}
                     <div
                       style={{
-                        ...tokenIconFallbackStyle,
+                        width: "2.25rem",
+                        height: "2.25rem",
+                        borderRadius: "9999px",
+                        backgroundColor: "rgba(59, 130, 246, 0.1)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
                         display: token.iconUrl ? "none" : "flex",
                       }}
                     >
-                      <span style={tokenIconFallbackTextStyle}>
+                      <span
+                        style={{
+                          fontSize: fontSize.sm,
+                          fontWeight: fontWeight.semibold,
+                          color: colors.primary,
+                        }}
+                      >
                         {token.symbol.slice(0, 2).toUpperCase()}
                       </span>
                     </div>
 
                     {/* Token Info */}
-                    <div style={tokenInfoStyle}>
-                      <div style={tokenSymbolContainerStyle}>
-                        <span style={tokenSymbolStyle}>{token.symbol}</span>
+                    <div
+                      style={{
+                        flex: 1,
+                        textAlign: "left",
+                        minWidth: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: spacing[1.5],
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: fontSize.sm,
+                            fontWeight: fontWeight.semibold,
+                            color: colors.foreground,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {token.symbol}
+                        </span>
                       </div>
-                      <span style={tokenNameStyle}>{token.name}</span>
+                      <span
+                        style={{
+                          fontSize: fontSize.xs,
+                          color: colors.mutedForeground,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          display: "block",
+                        }}
+                      >
+                        {token.name}
+                      </span>
                     </div>
 
                     {/* Token Balance (if wallet connected) */}
                     {token.balance !== undefined && (
-                      <div style={tokenBalanceContainerStyle}>
-                        <span style={tokenBalanceStyle}>
+                      <div
+                        style={{
+                          textAlign: "right",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: fontSize.sm,
+                            fontWeight: fontWeight.medium,
+                            color: colors.foreground,
+                          }}
+                        >
                           {formatTokenBalance(token.balance, token.decimals)}
                         </span>
                       </div>
@@ -1173,7 +1234,12 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
 
                     {/* Chevron */}
                     <svg
-                      style={chevronStyle}
+                      style={{
+                        width: "1rem",
+                        height: "1rem",
+                        color: colors.mutedForeground,
+                        flexShrink: 0,
+                      }}
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -1194,10 +1260,26 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
       </div>
 
       {/* Footer */}
-      <div style={footerStyle}>
-        <div style={footerContentStyle}>
+      <div
+        style={{
+          padding: `${spacing[4]} ${spacing[6]}`,
+          borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: spacing[2],
+          }}
+        >
           <svg
-            style={lockIconStyle}
+            style={{
+              width: "0.875rem",
+              height: "0.875rem",
+              color: colors.mutedForeground,
+            }}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -1209,8 +1291,21 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span style={footerTextStyle}>
-            Secured by <span style={footerBrandStyle}>Trustware</span>
+          <span
+            style={{
+              fontSize: fontSize.sm,
+              color: colors.mutedForeground,
+            }}
+          >
+            Secured by{" "}
+            <span
+              style={{
+                fontWeight: fontWeight.semibold,
+                color: colors.foreground,
+              }}
+            >
+              Trustware
+            </span>
           </span>
         </div>
       </div>

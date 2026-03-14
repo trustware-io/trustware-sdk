@@ -1,5 +1,4 @@
 import React, { useMemo } from "react";
-import { mergeStyles, cn } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
 import type { TransactionStatus } from "../context/DepositContext";
 
@@ -94,64 +93,6 @@ function getSteps(
   ];
 }
 
-const containerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[3],
-};
-
-const stepRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[3],
-};
-
-const indicatorBaseStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  borderRadius: "9999px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "all 0.2s",
-  flexShrink: 0,
-};
-
-const stepIconStyle: React.CSSProperties = {
-  width: "1.5rem",
-  height: "1.5rem",
-  borderRadius: "9999px",
-  overflow: "hidden",
-  flexShrink: 0,
-};
-
-const stepIconImgStyle: React.CSSProperties = {
-  width: "100%",
-  height: "100%",
-  objectFit: "contain",
-};
-
-const checkIconStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-};
-
-const spinnerStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-  animation: "tw-spin 1s linear infinite",
-};
-
-const stepNumberStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.medium,
-};
-
-const stepLabelStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  fontWeight: fontWeight.medium,
-};
-
 /**
  * TransactionSteps component.
  * Displays a vertical list of transaction steps with visual status indicators.
@@ -178,38 +119,55 @@ export function TransactionSteps({
   );
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: spacing[3],
+        ...style,
+      }}
+    >
       {steps.map((step, index) => {
-        const indicatorStyle = mergeStyles(
-          indicatorBaseStyle,
-          step.status === "complete" && {
-            backgroundColor: colors.green[500],
-            color: colors.white,
-          },
-          step.status === "active" && {
-            backgroundColor: colors.primary,
-            color: colors.primaryForeground,
-          },
-          step.status === "pending" && {
-            backgroundColor: colors.muted,
-            color: colors.mutedForeground,
-          }
-        );
-
-        const labelStyle = mergeStyles(
-          stepLabelStyle,
-          step.status === "pending"
-            ? { color: colors.mutedForeground }
-            : { color: colors.foreground }
-        );
-
         return (
-          <div key={index} style={stepRowStyle}>
+          <div
+            key={index}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: spacing[3],
+            }}
+          >
             {/* Step indicator */}
-            <div style={indicatorStyle}>
+            <div
+              style={{
+                width: "2rem",
+                height: "2rem",
+                borderRadius: "9999px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.2s",
+                flexShrink: 0,
+                ...(step.status === "complete" && {
+                  backgroundColor: colors.green[500],
+                  color: colors.white,
+                }),
+                ...(step.status === "active" && {
+                  backgroundColor: colors.primary,
+                  color: colors.primaryForeground,
+                }),
+                ...(step.status === "pending" && {
+                  backgroundColor: colors.muted,
+                  color: colors.mutedForeground,
+                }),
+              }}
+            >
               {step.status === "complete" ? (
                 <svg
-                  style={checkIconStyle}
+                  style={{
+                    width: "1rem",
+                    height: "1rem",
+                  }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -224,7 +182,11 @@ export function TransactionSteps({
                 </svg>
               ) : step.status === "active" ? (
                 <svg
-                  style={spinnerStyle}
+                  style={{
+                    width: "1rem",
+                    height: "1rem",
+                    animation: "tw-spin 1s linear infinite",
+                  }}
                   viewBox="0 0 24 24"
                   fill="none"
                   aria-hidden="true"
@@ -244,19 +206,52 @@ export function TransactionSteps({
                   />
                 </svg>
               ) : (
-                <span style={stepNumberStyle}>{index + 1}</span>
+                <span
+                  style={{
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.medium,
+                  }}
+                >
+                  {index + 1}
+                </span>
               )}
             </div>
 
             {/* Step icon (optional) */}
             {step.icon && (
-              <div style={stepIconStyle}>
-                <img src={step.icon} alt="" style={stepIconImgStyle} />
+              <div
+                style={{
+                  width: "1.5rem",
+                  height: "1.5rem",
+                  borderRadius: "9999px",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                }}
+              >
+                <img
+                  src={step.icon}
+                  alt=""
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                  }}
+                />
               </div>
             )}
 
             {/* Step label */}
-            <span style={labelStyle}>{step.label}</span>
+            <span
+              style={{
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.medium,
+                ...(step.status === "pending"
+                  ? { color: colors.mutedForeground }
+                  : { color: colors.foreground }),
+              }}
+            >
+              {step.label}
+            </span>
           </div>
         );
       })}

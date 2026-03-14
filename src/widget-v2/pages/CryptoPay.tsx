@@ -46,7 +46,6 @@ export interface CryptoPayProps {
 
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
-import { toast } from "../components/Toast";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
 
@@ -283,7 +282,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const {
     isLoadingRoute,
-    networkFees,
+    // networkFees,
     estimatedReceive,
     error: routeBuilderError,
     routeResult,
@@ -511,7 +510,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
 
     const reservedWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-    console.log({ reservedWei });
+    // console.log({ reservedWei });
     setGasReservationWei(reservedWei);
     return reservedWei;
   }, [
@@ -619,7 +618,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     await submitTransaction(routeResult);
   };
 
-  const orderedTokens = useMemo(() => {
+    const orderedTokens = useMemo(() => {
     const index = yourWalletTokens.findIndex(
       (t) => t.address?.toLowerCase() === selectedToken?.address?.toLowerCase()
     );
@@ -631,53 +630,82 @@ export function CryptoPay({ style }: CryptoPayProps) {
       if (selectedToken) {
         appended.push(selectedToken as YourTokenData);
       }
-      _tok = [...appended.slice(index), ...appended.slice(0, index)];
+      _tok = appended;
     } else {
-      _tok = yourWalletTokens;
+      _tok = [...yourWalletTokens.slice(index), ...yourWalletTokens.slice(0, index)];
     }
-
-    /........................................................../;
 
     const normalizedTokens = _tok.filter(
       (t) => !!t && t.balance != null && t.decimals != null
     );
 
-    if (!amount) return normalizedTokens;
+    if (!amount?.trim()) return normalizedTokens;
 
-    /........................................................../;
+    const parsedAmount = Number(amount.trim());
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return normalizedTokens;
+    }
 
-    const parsedAmount = Number(amount?.trim());
-    if (!isFinite(parsedAmount) || parsedAmount <= 0) return normalizedTokens;
+    let result: YourTokenData[];
 
     if (amountInputMode === "usd") {
       const filteredTks = normalizedTokens.filter((t) => {
         const tokenPriceUSD =
           typeof t?.usdPrice === "number" &&
-          isFinite(t?.usdPrice) &&
+          Number.isFinite(t.usdPrice) &&
           t.usdPrice > 0
             ? t.usdPrice
             : 0;
 
-        const hasUsdPrice =
-          typeof tokenPriceUSD === "number" &&
-          isFinite(tokenPriceUSD) &&
-          tokenPriceUSD > 0;
-        const tokenUsdBal =
-          hasUsdPrice &&
-          Number(formatTokenBalance(t.balance, t.decimals)) * tokenPriceUSD;
-        return hasUsdPrice && Number(tokenUsdBal) >= parsedAmount;
+        if (tokenPriceUSD <= 0) return false;
+
+        const tokenBal = Number(formatTokenBalance(t.balance, t.decimals));
+        const tokenUsdBal = tokenBal * tokenPriceUSD;
+
+        return Number.isFinite(tokenUsdBal) && tokenUsdBal >= parsedAmount;
       });
 
-      return filteredTks;
+      result =
+        filteredTks.length > 0
+          ? filteredTks
+          : normalizedTokens.filter(
+              (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
+            );
+    } else {
+      const filteredTks = normalizedTokens.filter((t) => {
+        const tokenBal = Number(formatTokenBalance(t.balance, t.decimals));
+        return Number.isFinite(tokenBal) && tokenBal >= parsedAmount;
+      });
+
+      result =
+        filteredTks.length > 0
+          ? filteredTks
+          : normalizedTokens.filter(
+              (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
+            );
     }
 
-    const filteredTks = normalizedTokens.filter((t) => {
-      const tokenBal = Number(formatTokenBalance(t.balance, t.decimals));
-      return Number.isFinite(tokenBal) && tokenBal >= parsedAmount;
-    });
+    const isFound = result.find(
+      (t) =>
+        t.symbol?.toLowerCase() === selectedToken?.symbol?.toLowerCase() &&
+        t?.chainData?.chainId.toString() ===
+          (selectedToken as YourTokenData)?.chainData?.chainId.toString()
+    );
 
-    return filteredTks;
-  }, [yourWalletTokens, amountInputMode, amount, selectedToken]);
+    if (!isFound && result.length) {
+      setSelectedToken(result[0]);
+      setSelectedChain(result[0].chainData as Chain);
+    }
+
+    return result;
+  }, [
+    yourWalletTokens,
+    amountInputMode,
+    amount,
+    selectedToken,
+    setSelectedToken,
+    setSelectedChain,
+  ]);
 
   const isWalletConnected = walletStatus === "connected";
   const canConfirm =
