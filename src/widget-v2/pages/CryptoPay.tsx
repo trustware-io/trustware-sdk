@@ -30,7 +30,7 @@ import {
   formatTokenBalance,
   weiToDecimalString,
 } from "src/utils";
-import { ChainDef, useTrustware } from "src";
+import { ChainDef, Trustware, useTrustware } from "src";
 import {
   getNativeTokenAddress,
   isNativeTokenAddress,
@@ -44,8 +44,7 @@ export interface CryptoPayProps {
   style?: React.CSSProperties;
 }
 
-import { createPublicClient, http } from "viem";
-import { mainnet } from "viem/chains";
+import { createPublicClient, encodeFunctionData, erc20Abi, http } from "viem";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
 
@@ -214,7 +213,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     tokenPriceUSD,
   ]);
 
-  const amountWei = amountComputation.fromAmountWei;
+  const amountWei = amountComputation.fromAmountWei ?? 0n;
 
   const routeConfig = useMemo(() => {
     try {
@@ -389,15 +388,41 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
+  const isEvm = chainTypeNormalized === "evm";
   const evmChainId = useMemo(() => {
     const numeric = Number(selectedChain?.chainId ?? selectedChain?.id);
     return Number.isFinite(numeric) ? numeric : undefined;
   }, [selectedChain]);
-  // const publicClient = usePublicClient({ chainId: evmChainId });
-  const client = createPublicClient({
-    chain: mainnet, // or your custom chain object
-    transport: http(),
-  });
+  const rpcUrl = useMemo(() => {
+    const list = selectedChain?.rpcList;
+    if (Array.isArray(list) && list.length > 0) return list[0];
+    return selectedChain?.rpc;
+  }, [selectedChain?.rpc, selectedChain?.rpcList]);
+
+  useEffect(() => {
+    if (!rpcUrl) {
+      console.warn(
+        "[CryptoPay] Missing RPC URL for selected chain. On-chain reads may fail.",
+        {
+          chainId: selectedChain?.chainId ?? selectedChain?.id,
+          chainName: selectedChain?.networkName,
+        }
+      );
+    }
+  }, [rpcUrl, selectedChain?.chainId, selectedChain?.id, selectedChain?.networkName]);
+
+  const client = useMemo(() => {
+    if (!rpcUrl) {
+      console.warn(
+        "[CryptoPay] No RPC URL available for selected chain, skipping client creation",
+        selectedChain
+      );
+      return null;
+    }
+    return createPublicClient({
+      transport: http(rpcUrl),
+    });
+  }, [rpcUrl]);
 
   const isNativeSelected = useMemo(() => {
     const address = selectedToken?.address;
@@ -412,6 +437,157 @@ export function CryptoPay({ style }: CryptoPayProps) {
         )
     );
   }, [chainType, selectedChain, selectedToken?.address]);
+
+  const spender = useMemo(() => {
+    const txReq = routeResult?.txReq;
+    const addr = (txReq?.to ?? txReq?.target) as `0x${string}` | undefined;
+    return addr ?? null;
+  }, [routeResult?.txReq?.to, routeResult?.txReq?.target]);
+
+  const [allowanceWei, setAllowanceWei] = useState<bigint>(0n);
+  const [isReadingAllowance, setIsReadingAllowance] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+
+  const readAllowance = useCallback(async () => {
+    if (
+      !client ||
+      !isEvm ||
+      isNativeSelected ||
+      !walletAddress ||
+      !spender ||
+      !selectedToken?.address
+    ) {
+      setAllowanceWei(0n);
+      return;
+    }
+    try {
+      setIsReadingAllowance(true);
+      const res = await client.readContract({
+        address: selectedToken.address as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [walletAddress as `0x${string}`, spender],
+      });
+      setAllowanceWei((res as unknown as bigint) ?? 0n);
+    } catch {
+      setAllowanceWei(0n);
+    } finally {
+      setIsReadingAllowance(false);
+    }
+  }, [
+    client,
+    isEvm,
+    isNativeSelected,
+    selectedToken?.address,
+    spender,
+    walletAddress,
+  ]);
+
+  useEffect(() => {
+    void readAllowance();
+  }, [readAllowance]);
+
+  const needsApproval =
+    isEvm &&
+    !isNativeSelected &&
+    !!walletAddress &&
+    !!spender &&
+    amountWei > 0n &&
+    allowanceWei < amountWei;
+
+  const handleApproveExact = useCallback(async () => {
+    if (
+      isApproving ||
+      !amountWei ||
+      amountWei <= 0n ||
+      !walletAddress ||
+      !spender ||
+      !selectedToken?.address
+    ) {
+      return;
+    }
+
+    const wallet = Trustware.getWallet();
+    if (!wallet) {
+      //toast.error("Wallet not connected", "Connect your wallet to approve.");
+      return;
+    }
+
+    setIsApproving(true);
+    try {
+      const targetChain = Number(
+        routeResult?.txReq?.chainId ??
+          selectedChain?.chainId ??
+          selectedChain?.id
+      );
+      if (Number.isFinite(targetChain)) {
+        const current = await wallet.getChainId();
+        if (current !== targetChain) {
+          try {
+            await wallet.switchChain(targetChain);
+          } catch {
+            // If user cancels, the send below will fail and surface error.
+          }
+        }
+      }
+
+      const data = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [spender, amountWei],
+      });
+
+      let hash: `0x${string}`;
+      if (wallet.type === "eip1193") {
+        const from = await wallet.getAddress();
+        const params: any = {
+          from,
+          to: selectedToken.address as `0x${string}`,
+          data,
+          value: "0x0",
+        };
+        if (Number.isFinite(targetChain)) {
+          params.chainId = `0x${targetChain.toString(16)}`;
+        }
+        hash = (await wallet.request({
+          method: "eth_sendTransaction",
+          params: [params],
+        })) as `0x${string}`;
+      } else {
+        const resp = await wallet.sendTransaction({
+          to: selectedToken.address as `0x${string}`,
+          data,
+          value: 0n,
+          chainId: Number.isFinite(targetChain) ? targetChain : undefined,
+        });
+        hash = resp.hash;
+      }
+
+      if (client) {
+        await client.waitForTransactionReceipt({ hash });
+        await readAllowance();
+      } else {
+        setAllowanceWei(amountWei);
+      }
+      //toast.success("Approval confirmed", "You can now confirm the transfer.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Approval failed.";
+      //toast.error("Approval failed", message);
+    } finally {
+      setIsApproving(false);
+    }
+  }, [
+    amountWei,
+    client,
+    isApproving,
+    readAllowance,
+    routeResult?.txReq?.chainId,
+    selectedChain?.chainId,
+    selectedChain?.id,
+    selectedToken?.address,
+    spender,
+    walletAddress,
+  ]);
 
   const estimateGasReservationWei = useCallback(async () => {
     if (!isNativeSelected) {
@@ -617,7 +793,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
   /**
    * Handle swipe confirmation - submit transaction to wallet
    */
-  const handleConfirm = async () => {
+  const handleConfirm = useCallback(async () => {
     if (!routeResult) {
       // No route result available, show error
       return;
@@ -626,9 +802,17 @@ export function CryptoPay({ style }: CryptoPayProps) {
     // Submit the transaction to the wallet for signing
     // The hook handles all state updates (confirming -> processing or error)
     await submitTransaction(routeResult);
-  };
+  }, [routeResult, submitTransaction]);
 
-    const orderedTokens = useMemo(() => {
+  const handleSwipeConfirm = useCallback(async () => {
+    if (needsApproval) {
+      await handleApproveExact();
+      return;
+    }
+    await handleConfirm();
+  }, [handleApproveExact, handleConfirm, needsApproval]);
+
+  const orderedTokens = useMemo(() => {
     const index = yourWalletTokens.findIndex(
       (t) => t.address?.toLowerCase() === selectedToken?.address?.toLowerCase()
     );
@@ -642,7 +826,10 @@ export function CryptoPay({ style }: CryptoPayProps) {
       }
       _tok = appended;
     } else {
-      _tok = [...yourWalletTokens.slice(index), ...yourWalletTokens.slice(0, index)];
+      _tok = [
+        ...yourWalletTokens.slice(index),
+        ...yourWalletTokens.slice(0, index),
+      ];
     }
 
     const normalizedTokens = _tok.filter(
@@ -718,13 +905,15 @@ export function CryptoPay({ style }: CryptoPayProps) {
   ]);
 
   const isWalletConnected = walletStatus === "connected";
-  const canConfirm =
+  const canSwipe =
     parsedAmount > 0 &&
     selectedToken &&
     isWalletConnected &&
     !isLoadingRoute &&
     !isSubmitting &&
-    !!routeResult;
+    !!routeResult &&
+    !isApproving &&
+    !isReadingAllowance;
 
   return (
     <div
@@ -1239,17 +1428,23 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   text={
                     routeError
                       ? routeError
-                      : isWalletConnected
-                        ? "Swipe to confirm"
-                        : "Connect your wallet to deposit"
+                      : !isWalletConnected
+                        ? "Connect your wallet to deposit"
+                        : isApproving
+                          ? "Approving..."
+                          : isReadingAllowance
+                            ? "Checking allowance..."
+                            : needsApproval
+                              ? "Swipe to approve"
+                              : "Swipe to confirm"
                   }
                   fromToken={selectedToken}
                   toTokenSymbol={destinationConfig?.toToken || "USDC"}
                   toChainName={destinationConfig?.toChain || "Base"}
                   fromChainName={selectedChain?.networkName || "Unknown Chain"}
                   dappName={destinationConfig?.dappName || "Example DApp"}
-                  onConfirm={handleConfirm}
-                  disabled={!canConfirm}
+                  onConfirm={handleSwipeConfirm}
+                  disabled={!canSwipe}
                   isWalletConnected={isWalletConnected}
                 />
               )}
