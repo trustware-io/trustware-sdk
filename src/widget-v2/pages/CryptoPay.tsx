@@ -45,7 +45,6 @@ export interface CryptoPayProps {
 
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
-import { toast } from "../components/Toast";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
 
@@ -277,7 +276,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const {
     isLoadingRoute,
-    networkFees,
+    // networkFees,
     estimatedReceive,
     error: routeBuilderError,
     routeResult,
@@ -479,7 +478,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
 
     const reservedWei = divRoundDown(gasLimit * effectiveGasPrice * 12n, 10n);
-    console.log({ reservedWei });
+    // console.log({ reservedWei });
     setGasReservationWei(reservedWei);
     return reservedWei;
   }, [
@@ -616,25 +615,46 @@ export function CryptoPay({ style }: CryptoPayProps) {
           ? t.usdPrice
           : 0;
 
-      const hasUsdPrice =
-        typeof tokenPriceUSD === "number" &&
-        isFinite(tokenPriceUSD) &&
-        tokenPriceUSD > 0;
+      const hasUsdPrice = tokenPriceUSD > 0;
+
       const tokenUsdBal =
-        hasUsdPrice &&
-        Number(formatTokenBalance(t.balance, t.decimals)) * tokenPriceUSD;
+        Number(formatTokenBalance(t?.balance, t?.decimals)) * tokenPriceUSD;
+
       return hasUsdPrice && Number(tokenUsdBal) >= Number(amount?.trim());
     });
 
-    if (filteredTks.length === 0)
-      return (
-        _tok.filter(
-          (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
-        ) ?? []
-      );
+    let result: YourTokenData[];
 
-    return filteredTks;
-  }, [yourWalletTokens, amountInputMode, amount, selectedToken]);
+    if (filteredTks.length === 0) {
+      result =
+        _tok.filter(
+          (t) => Number(formatTokenBalance(t?.balance, t?.decimals)) > 0
+        ) ?? [];
+    } else {
+      result = filteredTks;
+    }
+
+    const isFound = result.find(
+      (t) =>
+        t.symbol?.toLowerCase() === selectedToken?.symbol?.toLowerCase() &&
+        t?.chainData?.chainId.toString() ===
+          (selectedToken as YourTokenData)?.chainData?.chainId.toString()
+    );
+
+    if (!isFound && result.length) {
+      setSelectedToken(result[0]);
+      setSelectedChain(result[0].chainData as Chain);
+    }
+
+    return result;
+  }, [
+    yourWalletTokens,
+    amountInputMode,
+    amount,
+    selectedToken,
+    setSelectedToken,
+    setSelectedChain,
+  ]);
 
   const isWalletConnected = walletStatus === "connected";
   const canConfirm =

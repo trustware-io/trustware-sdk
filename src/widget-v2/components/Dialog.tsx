@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, ReactNode } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
@@ -142,160 +141,6 @@ export const Dialog: React.FC<DialogProps> = ({
     }
   };
 
-  // Inline styles
-  //   const overlayStyle: React.CSSProperties = {
-  //     position: "fixed",
-  //     inset: 0,
-  //     backgroundColor: "rgba(0, 0, 0, 0.5)",
-  //     zIndex: 50,
-  //     animation: "fadeIn 0.2s ease-out",
-  //     display: "flex",
-  //     alignItems: "center",
-  //     justifyContent: "center",
-  //     padding: "1rem",
-  //   };
-
-  const dialogOverlayStyle: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    zIndex: zIndex[50],
-    animation: "tw-fade-in 0.2s ease-out",
-  };
-
-  //   const contentStyle: React.CSSProperties = {
-  //     position: "relative",
-  //     // backgroundColor: "white",
-  //     zIndex: 51,
-  //     width: "100%",
-  //     maxWidth: "340px",
-  //     borderRadius: "1rem",
-  //     padding: "1.5rem",
-  //     boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
-  //     animation: "slideUp 0.2s ease-out, fadeIn 0.2s ease-out",
-  //     // Dark mode support using CSS variables
-  //     backgroundColor: "var(--dialog-bg, white)",
-  //     color: "var(--dialog-text, #111827)",
-  //     ...style,
-  //   };
-  const dialogContentBaseStyle: React.CSSProperties = {
-    position: "fixed",
-    left: "50%",
-    top: "50%",
-    transform: "translate(-50%, -50%)",
-    zIndex: zIndex[50],
-    width: "90%",
-    maxWidth: "340px",
-    borderRadius: borderRadius.xl,
-    padding: spacing[6],
-    boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
-    animation: "tw-fade-in 0.2s ease-out",
-  };
-
-  const contentStyle = mergeStyles(dialogContentBaseStyle, {
-    backgroundColor: isDark ? colors.zinc[900] : colors.white,
-  });
-
-  //   const titleStyle: React.CSSProperties = {
-  //     fontSize: "1.125rem",
-  //     fontWeight: 600,
-  //     margin: 0,
-  //     color: "var(--dialog-title, #111827)",
-  //   };
-
-  const dialogTitleBaseStyle: React.CSSProperties = {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-  };
-  const titleStyle = mergeStyles(dialogTitleBaseStyle, {
-    color: isDark ? colors.white : colors.zinc[900],
-  });
-
-  //   const descriptionStyle: React.CSSProperties = {
-  //     marginTop: "0.5rem",
-  //     fontSize: "0.875rem",
-  //     color: "var(--dialog-description, #6b7280)",
-  //     marginBottom: 0,
-  //     lineHeight: 1.5,
-  //   };
-  const dialogDescriptionBaseStyle: React.CSSProperties = {
-    marginTop: spacing[2],
-    fontSize: fontSize.sm,
-  };
-
-  const descriptionStyle = mergeStyles(dialogDescriptionBaseStyle, {
-    color: isDark ? colors.zinc[400] : colors.zinc[600],
-  });
-
-  const buttonsContainerStyle: React.CSSProperties = {
-    marginTop: "1.5rem",
-    display: "flex",
-    gap: "0.75rem",
-  };
-
-  //   const baseButtonStyle: React.CSSProperties = {
-  //     flex: 1,
-  //     borderRadius: "0.75rem",
-  //     padding: "0.625rem 1rem",
-  //     fontSize: "0.875rem",
-  //     fontWeight: 500,
-  //     transition: "background-color 0.2s, transform 0.1s, box-shadow 0.2s",
-  //     cursor: "pointer",
-  //     border: "2px solid transparent",
-  //     fontFamily: "inherit",
-  //   };
-
-  //   const cancelButtonStyle: React.CSSProperties = {
-  //     ...baseButtonStyle,
-  //     backgroundColor: "var(--cancel-bg, #f3f4f6)",
-  //     color: "var(--cancel-text, #374151)",
-  //     border: "1px solid var(--cancel-border, #d1d5db)",
-  //   };
-
-  const cancelButtonBaseStyle: React.CSSProperties = {
-    flex: 1,
-    borderRadius: "0.5rem",
-    padding: `${spacing[2.5]} ${spacing[4]}`,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    transition: "background-color 0.2s",
-    cursor: "pointer",
-  };
-
-  const cancelButtonStyle = mergeStyles(
-    cancelButtonBaseStyle,
-    isDark
-      ? {
-          border: `1px solid ${colors.zinc[700]}`,
-          color: colors.zinc[300],
-          backgroundColor: "transparent",
-        }
-      : {
-          border: `1px solid ${colors.zinc[200]}`,
-          color: colors.zinc[700],
-          backgroundColor: "transparent",
-        }
-  );
-
-  //   const confirmButtonStyle: React.CSSProperties = {
-  //     ...baseButtonStyle,
-  //     backgroundColor: "var(--confirm-bg, #ef4444)",
-  //     color: "var(--confirm-text, white)",
-  //     border: 0,
-  //   };
-  const confirmButtonStyle: React.CSSProperties = {
-    flex: 1,
-    borderRadius: "0.5rem",
-    backgroundColor: colors.red[500],
-    padding: `${spacing[2.5]} ${spacing[4]}`,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    color: colors.white,
-    transition: "background-color 0.2s",
-    border: 0,
-    cursor: "pointer",
-  };
-
   // Add hover and focus styles dynamically
   const handleCancelMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.currentTarget.style.backgroundColor = "var(--cancel-hover, #e5e7eb)";
@@ -347,19 +192,42 @@ export const Dialog: React.FC<DialogProps> = ({
         aria-labelledby="dialog-title"
         aria-describedby="dialog-description"
         data-testid="dialog-overlay"
-        style={dialogOverlayStyle}
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          zIndex: zIndex[50],
+          animation: "tw-fade-in 0.2s ease-out",
+        }}
       >
         <div
           //   className="dialog-content"
           ref={dialogRef}
           data-testid="dialog-content"
-          style={contentStyle}
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: zIndex[50],
+            width: "90%",
+            maxWidth: "340px",
+            borderRadius: borderRadius.xl,
+            padding: spacing[6],
+            boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.25)",
+            animation: "tw-fade-in 0.2s ease-out",
+            backgroundColor: isDark ? colors.zinc[900] : colors.white,
+          }}
         >
           <h2
             // className="dialog-title"
             id="dialog-title"
             data-testid="dialog-title"
-            style={titleStyle}
+            style={{
+              fontSize: fontSize.lg,
+              fontWeight: fontWeight.semibold,
+              color: isDark ? colors.white : colors.zinc[900],
+            }}
           >
             {title}
           </h2>
@@ -367,14 +235,21 @@ export const Dialog: React.FC<DialogProps> = ({
             // className="dialog-description"
             id="dialog-description"
             data-testid="dialog-description"
-            style={descriptionStyle}
+            style={{
+              marginTop: spacing[2],
+              fontSize: fontSize.sm,
+            }}
           >
             {description}
           </p>
           <div
             // className="dialog-buttons-container"
             data-testid="dialog-buttons-container"
-            style={buttonsContainerStyle}
+            style={{
+              marginTop: "1.5rem",
+              display: "flex",
+              gap: "0.75rem",
+            }}
           >
             <button
               ref={firstButtonRef}
@@ -387,7 +262,26 @@ export const Dialog: React.FC<DialogProps> = ({
               onBlur={handleCancelBlur}
               aria-label={cancelText}
               data-testid="dialog-cancel-button"
-              style={cancelButtonStyle}
+              style={{
+                flex: 1,
+                borderRadius: "0.5rem",
+                padding: `${spacing[2.5]} ${spacing[4]}`,
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.medium,
+                transition: "background-color 0.2s",
+                cursor: "pointer",
+                ...(isDark
+                  ? {
+                      border: `1px solid ${colors.zinc[700]}`,
+                      color: colors.zinc[300],
+                      backgroundColor: "transparent",
+                    }
+                  : {
+                      border: `1px solid ${colors.zinc[200]}`,
+                      color: colors.zinc[700],
+                      backgroundColor: "transparent",
+                    }),
+              }}
             >
               {cancelText}
             </button>
@@ -403,7 +297,19 @@ export const Dialog: React.FC<DialogProps> = ({
               onBlur={handleConfirmBlur}
               aria-label={confirmText}
               data-testid="dialog-confirm-button"
-              style={{ borderRadius: "8px", ...confirmButtonStyle }}
+              style={{
+                // borderRadius: "8px",
+                flex: 1,
+                borderRadius: "0.5rem",
+                backgroundColor: colors.red[500],
+                padding: `${spacing[2.5]} ${spacing[4]}`,
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.medium,
+                color: colors.white,
+                transition: "background-color 0.2s",
+                border: 0,
+                cursor: "pointer",
+              }}
             >
               {confirmText}
             </button>
