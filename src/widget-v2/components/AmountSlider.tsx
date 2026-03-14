@@ -336,16 +336,20 @@ export function AmountSlider({
                 type="button"
                 style={{
                   position: "absolute",
-                  top: "46%",
-                  transform: "translateY(-50%)",
-                  padding: "0.5rem",
-                  margin: "-0.5rem",
+                  top: 0,
+                  bottom: 0,
+                  transform: "translateX(-50%)",
+                  padding: 0,
+                  margin: 0,
                   border: 0,
-                  width: "100%",
+                  width: "1.5rem",
                   backgroundColor: colors.transparent,
                   cursor: "pointer",
                   outline: "none",
                   left: `${tick.position}%`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
                 onClick={() => handleTickClick(tick.value)}
                 disabled={disabled}
@@ -353,11 +357,10 @@ export function AmountSlider({
               >
                 <div
                   style={{
-                    width: "3px",
-                    height: "0.875rem",
+                    width: "2px",
+                    height: "0.5rem",
                     borderRadius: "9999px",
                     transition: "all 0.2s",
-                    transform: "translateX(-50%)",
                     backgroundColor: isActive
                       ? colors.emerald[400]
                       : colors.zinc[400],

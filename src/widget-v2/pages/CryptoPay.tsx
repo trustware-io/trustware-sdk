@@ -22,6 +22,7 @@ import { TokenSwipePill } from "../components/TokenSwipePill";
 import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
 import { AmountSlider } from "../components/AmountSlider";
 import { TrustwareConfigStore } from "../../config/store";
+import { LoadingSkeleton } from "../components/Skeletons/LoadingSkeleton";
 
 import { useChains } from "../hooks";
 import {
@@ -29,7 +30,7 @@ import {
   formatTokenBalance,
   weiToDecimalString,
 } from "src/utils";
-import { ChainDef, useTrustware } from "src";
+import { ChainDef, Trustware, useTrustware } from "src";
 import {
   getNativeTokenAddress,
   isNativeTokenAddress,
@@ -43,8 +44,7 @@ export interface CryptoPayProps {
   style?: React.CSSProperties;
 }
 
-import { createPublicClient, http } from "viem";
-import { mainnet } from "viem/chains";
+import { createPublicClient, encodeFunctionData, erc20Abi, http } from "viem";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
 
@@ -98,6 +98,11 @@ export function CryptoPay({ style }: CryptoPayProps) {
   const [isEditing, setIsEditing] = useState(false);
 
   const amountInputRef = useRef<HTMLInputElement>(null);
+  const gasPriceCacheRef = useRef<{
+    value?: bigint;
+    ts?: number;
+    inflight?: Promise<bigint>;
+  }>({});
 
   // Transaction submission hook
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
@@ -106,6 +111,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     try {
       const config = TrustwareConfigStore.get();
       return {
+        dappName: config.messages?.title || "DApp",
         toChain: config.routes.toChain,
         toToken: config.routes.toToken,
         toAddress: config.routes.toAddress,
@@ -207,7 +213,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     tokenPriceUSD,
   ]);
 
-  const amountWei = amountComputation.fromAmountWei;
+  const amountWei = amountComputation.fromAmountWei ?? 0n;
 
   const routeConfig = useMemo(() => {
     try {
@@ -382,15 +388,46 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
+  const isEvm = chainTypeNormalized === "evm";
   const evmChainId = useMemo(() => {
     const numeric = Number(selectedChain?.chainId ?? selectedChain?.id);
     return Number.isFinite(numeric) ? numeric : undefined;
   }, [selectedChain]);
-  // const publicClient = usePublicClient({ chainId: evmChainId });
-  const client = createPublicClient({
-    chain: mainnet, // or your custom chain object
-    transport: http(),
-  });
+  const rpcUrl = useMemo(() => {
+    const list = selectedChain?.rpcList;
+    if (Array.isArray(list) && list.length > 0) return list[0];
+    return selectedChain?.rpc;
+  }, [selectedChain?.rpc, selectedChain?.rpcList]);
+
+  useEffect(() => {
+    if (!rpcUrl) {
+      console.warn(
+        "[CryptoPay] Missing RPC URL for selected chain. On-chain reads may fail.",
+        {
+          chainId: selectedChain?.chainId ?? selectedChain?.id,
+          chainName: selectedChain?.networkName,
+        }
+      );
+    }
+  }, [
+    rpcUrl,
+    selectedChain?.chainId,
+    selectedChain?.id,
+    selectedChain?.networkName,
+  ]);
+
+  const client = useMemo(() => {
+    if (!rpcUrl) {
+      console.warn(
+        "[CryptoPay] No RPC URL available for selected chain, skipping client creation",
+        selectedChain
+      );
+      return null;
+    }
+    return createPublicClient({
+      transport: http(rpcUrl),
+    });
+  }, [rpcUrl]);
 
   const isNativeSelected = useMemo(() => {
     const address = selectedToken?.address;
@@ -405,6 +442,157 @@ export function CryptoPay({ style }: CryptoPayProps) {
         )
     );
   }, [chainType, selectedChain, selectedToken?.address]);
+
+  const spender = useMemo(() => {
+    const txReq = routeResult?.txReq;
+    const addr = (txReq?.to ?? txReq?.target) as `0x${string}` | undefined;
+    return addr ?? null;
+  }, [routeResult?.txReq?.to, routeResult?.txReq?.target]);
+
+  const [allowanceWei, setAllowanceWei] = useState<bigint>(0n);
+  const [isReadingAllowance, setIsReadingAllowance] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+
+  const readAllowance = useCallback(async () => {
+    if (
+      !client ||
+      !isEvm ||
+      isNativeSelected ||
+      !walletAddress ||
+      !spender ||
+      !selectedToken?.address
+    ) {
+      setAllowanceWei(0n);
+      return;
+    }
+    try {
+      setIsReadingAllowance(true);
+      const res = await client.readContract({
+        address: selectedToken.address as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [walletAddress as `0x${string}`, spender],
+      });
+      setAllowanceWei((res as unknown as bigint) ?? 0n);
+    } catch {
+      setAllowanceWei(0n);
+    } finally {
+      setIsReadingAllowance(false);
+    }
+  }, [
+    client,
+    isEvm,
+    isNativeSelected,
+    selectedToken?.address,
+    spender,
+    walletAddress,
+  ]);
+
+  useEffect(() => {
+    void readAllowance();
+  }, [readAllowance]);
+
+  const needsApproval =
+    isEvm &&
+    !isNativeSelected &&
+    !!walletAddress &&
+    !!spender &&
+    amountWei > 0n &&
+    allowanceWei < amountWei;
+
+  const handleApproveExact = useCallback(async () => {
+    if (
+      isApproving ||
+      !amountWei ||
+      amountWei <= 0n ||
+      !walletAddress ||
+      !spender ||
+      !selectedToken?.address
+    ) {
+      return;
+    }
+
+    const wallet = Trustware.getWallet();
+    if (!wallet) {
+      //toast.error("Wallet not connected", "Connect your wallet to approve.");
+      return;
+    }
+
+    setIsApproving(true);
+    try {
+      const targetChain = Number(
+        routeResult?.txReq?.chainId ??
+          selectedChain?.chainId ??
+          selectedChain?.id
+      );
+      if (Number.isFinite(targetChain)) {
+        const current = await wallet.getChainId();
+        if (current !== targetChain) {
+          try {
+            await wallet.switchChain(targetChain);
+          } catch {
+            // If user cancels, the send below will fail and surface error.
+          }
+        }
+      }
+
+      const data = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [spender, amountWei],
+      });
+
+      let hash: `0x${string}`;
+      if (wallet.type === "eip1193") {
+        const from = await wallet.getAddress();
+        const params: any = {
+          from,
+          to: selectedToken.address as `0x${string}`,
+          data,
+          value: "0x0",
+        };
+        if (Number.isFinite(targetChain)) {
+          params.chainId = `0x${targetChain.toString(16)}`;
+        }
+        hash = (await wallet.request({
+          method: "eth_sendTransaction",
+          params: [params],
+        })) as `0x${string}`;
+      } else {
+        const resp = await wallet.sendTransaction({
+          to: selectedToken.address as `0x${string}`,
+          data,
+          value: 0n,
+          chainId: Number.isFinite(targetChain) ? targetChain : undefined,
+        });
+        hash = resp.hash;
+      }
+
+      if (client) {
+        await client.waitForTransactionReceipt({ hash });
+        await readAllowance();
+      } else {
+        setAllowanceWei(amountWei);
+      }
+      //toast.success("Approval confirmed", "You can now confirm the transfer.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Approval failed.";
+      //toast.error("Approval failed", message);
+    } finally {
+      setIsApproving(false);
+    }
+  }, [
+    amountWei,
+    client,
+    isApproving,
+    readAllowance,
+    routeResult?.txReq?.chainId,
+    selectedChain?.chainId,
+    selectedChain?.id,
+    selectedToken?.address,
+    spender,
+    walletAddress,
+  ]);
 
   const estimateGasReservationWei = useCallback(async () => {
     if (!isNativeSelected) {
@@ -424,6 +612,16 @@ export function CryptoPay({ style }: CryptoPayProps) {
     const txReq = routeResult?.txReq;
     const txTo = txReq?.to ?? txReq?.target;
     const fromAccount = walletAddress as `0x${string}` | undefined;
+
+    // Skip reservation if route doesn't provide essential fields or pricing
+    if (
+      !txReq?.gasLimit ||
+      txReq?.value == null ||
+      (!txReq?.maxFeePerGas && !txReq?.gasPrice)
+    ) {
+      setGasReservationWei(0n);
+      return 0n;
+    }
 
     if (
       chainTypeNormalized === "evm" &&
@@ -445,11 +643,37 @@ export function CryptoPay({ style }: CryptoPayProps) {
       }
 
       try {
+        const now = Date.now();
+        const cache = gasPriceCacheRef.current;
+        const cacheTtlMs = 15000;
+
+        const getCachedGasPrice = async () => {
+          if (cache.value && cache.ts && now - cache.ts < cacheTtlMs) {
+            return cache.value;
+          }
+          if (!cache.inflight) {
+            cache.inflight = client
+              .getGasPrice()
+              .then((price) => {
+                cache.value = price;
+                cache.ts = Date.now();
+                return price;
+              })
+              .finally(() => {
+                cache.inflight = undefined;
+              });
+          }
+          return cache.inflight;
+        };
+
         effectiveGasPrice = txReq.maxFeePerGas
           ? BigInt(txReq.maxFeePerGas)
-          : await client.getGasPrice();
+          : txReq.gasPrice
+            ? BigInt(txReq.gasPrice)
+            : await getCachedGasPrice();
       } catch {
-        effectiveGasPrice = undefined;
+        const cached = gasPriceCacheRef.current.value;
+        effectiveGasPrice = cached ?? undefined;
       }
     }
 
@@ -574,7 +798,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
   /**
    * Handle swipe confirmation - submit transaction to wallet
    */
-  const handleConfirm = async () => {
+  const handleConfirm = useCallback(async () => {
     if (!routeResult) {
       // No route result available, show error
       return;
@@ -583,7 +807,15 @@ export function CryptoPay({ style }: CryptoPayProps) {
     // Submit the transaction to the wallet for signing
     // The hook handles all state updates (confirming -> processing or error)
     await submitTransaction(routeResult);
-  };
+  }, [routeResult, submitTransaction]);
+
+  const handleSwipeConfirm = useCallback(async () => {
+    if (needsApproval) {
+      await handleApproveExact();
+      return;
+    }
+    await handleConfirm();
+  }, [handleApproveExact, handleConfirm, needsApproval]);
 
   const orderedTokens = useMemo(() => {
     const index = yourWalletTokens.findIndex(
@@ -594,43 +826,65 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
     if (index === -1) {
       const appended = [...yourWalletTokens];
-      appended.push(selectedToken as YourTokenData);
-      _tok = [...appended.slice(index), ...appended.slice(0, index)];
+      if (selectedToken) {
+        appended.push(selectedToken as YourTokenData);
+      }
+      _tok = appended;
     } else {
-      _tok = yourWalletTokens;
+      _tok = [
+        ...yourWalletTokens.slice(index),
+        ...yourWalletTokens.slice(0, index),
+      ];
     }
 
-    /........................................................../;
+    const normalizedTokens = _tok.filter(
+      (t) => !!t && t.balance != null && t.decimals != null
+    );
 
-    if (amountInputMode !== "usd" || !amount) return _tok;
+    if (!amount?.trim()) return normalizedTokens;
 
-    /........................................................../;
-
-    const filteredTks = _tok.filter((t) => {
-      const tokenPriceUSD =
-        typeof t?.usdPrice === "number" &&
-        isFinite(t?.usdPrice) &&
-        t.usdPrice > 0
-          ? t.usdPrice
-          : 0;
-
-      const hasUsdPrice = tokenPriceUSD > 0;
-
-      const tokenUsdBal =
-        Number(formatTokenBalance(t?.balance, t?.decimals)) * tokenPriceUSD;
-
-      return hasUsdPrice && Number(tokenUsdBal) >= Number(amount?.trim());
-    });
+    const parsedAmount = Number(amount.trim());
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return normalizedTokens;
+    }
 
     let result: YourTokenData[];
 
-    if (filteredTks.length === 0) {
+    if (amountInputMode === "usd") {
+      const filteredTks = normalizedTokens.filter((t) => {
+        const tokenPriceUSD =
+          typeof t?.usdPrice === "number" &&
+          Number.isFinite(t.usdPrice) &&
+          t.usdPrice > 0
+            ? t.usdPrice
+            : 0;
+
+        if (tokenPriceUSD <= 0) return false;
+
+        const tokenBal = Number(formatTokenBalance(t.balance, t.decimals));
+        const tokenUsdBal = tokenBal * tokenPriceUSD;
+
+        return Number.isFinite(tokenUsdBal) && tokenUsdBal >= parsedAmount;
+      });
+
       result =
-        _tok.filter(
-          (t) => Number(formatTokenBalance(t?.balance, t?.decimals)) > 0
-        ) ?? [];
+        filteredTks.length > 0
+          ? filteredTks
+          : normalizedTokens.filter(
+              (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
+            );
     } else {
-      result = filteredTks;
+      const filteredTks = normalizedTokens.filter((t) => {
+        const tokenBal = Number(formatTokenBalance(t.balance, t.decimals));
+        return Number.isFinite(tokenBal) && tokenBal >= parsedAmount;
+      });
+
+      result =
+        filteredTks.length > 0
+          ? filteredTks
+          : normalizedTokens.filter(
+              (t) => Number(formatTokenBalance(t.balance, t.decimals)) > 0
+            );
     }
 
     const isFound = result.find(
@@ -656,13 +910,15 @@ export function CryptoPay({ style }: CryptoPayProps) {
   ]);
 
   const isWalletConnected = walletStatus === "connected";
-  const canConfirm =
+  const canSwipe =
     parsedAmount > 0 &&
     selectedToken &&
     isWalletConnected &&
     !isLoadingRoute &&
     !isSubmitting &&
-    !!routeResult;
+    !!routeResult &&
+    !isApproving &&
+    !isReadingAllowance;
 
   return (
     <div
@@ -753,52 +1009,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
             >
               Enter an amount
             </p>
-            <div
-              style={{
-                display: "flex",
-                gap: spacing[2],
-                marginBottom: spacing[2],
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setAmountInputMode("usd")}
-                disabled={!hasUsdPrice}
-                style={{
-                  padding: `${spacing[1]} ${spacing[3]}`,
-                  borderRadius: "9999px",
-                  border: 0,
-                  cursor: hasUsdPrice ? "pointer" : "not-allowed",
-                  backgroundColor:
-                    amountInputMode === "usd" ? colors.primary : colors.muted,
-                  color:
-                    amountInputMode === "usd"
-                      ? colors.background
-                      : colors.foreground,
-                  opacity: hasUsdPrice ? 1 : 0.6,
-                }}
-              >
-                USD
-              </button>
-              <button
-                type="button"
-                onClick={() => setAmountInputMode("token")}
-                style={{
-                  padding: `${spacing[1]} ${spacing[3]}`,
-                  borderRadius: "9999px",
-                  border: 0,
-                  cursor: "pointer",
-                  backgroundColor:
-                    amountInputMode === "token" ? colors.primary : colors.muted,
-                  color:
-                    amountInputMode === "token"
-                      ? colors.background
-                      : colors.foreground,
-                }}
-              >
-                {selectedToken?.symbol || "Token"}
-              </button>
-            </div>
 
             {/* Large Amount Display */}
             <div
@@ -879,10 +1089,22 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     aria-label="Deposit amount"
                   />
                 </span>
+                {amountInputMode === "token" && selectedToken?.symbol && (
+                  <span
+                    style={{
+                      marginLeft: spacing[2],
+                      fontSize: fontSize.lg,
+                      fontWeight: fontWeight.semibold,
+                      color: colors.mutedForeground,
+                    }}
+                  >
+                    {selectedToken.symbol}
+                  </span>
+                )}
               </span>
             </div>
 
-            {/* Token Amount Conversion */}
+            {/* Token / USD Conversion */}
             {selectedToken && (
               <div
                 style={{
@@ -898,14 +1120,30 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     color: colors.mutedForeground,
                   }}
                 >
-                  {Number(amountComputation.tokenAmount ?? 0) > 0
-                    ? parseFloat(
-                        (amountComputation.tokenAmount ?? 0).toString()
-                      ).toLocaleString(undefined, {
-                        maximumFractionDigits: 5,
-                      })
-                    : "0"}{" "}
-                  {selectedToken.symbol}
+                  {amountInputMode === "usd" ? (
+                    <>
+                      {Number(amountComputation.tokenAmount ?? 0) > 0
+                        ? parseFloat(
+                            (amountComputation.tokenAmount ?? 0).toString()
+                          ).toLocaleString(undefined, {
+                            maximumFractionDigits: 5,
+                          })
+                        : "0"}{" "}
+                      {selectedToken.symbol}
+                    </>
+                  ) : (
+                    <>
+                      {hasUsdPrice &&
+                      Number(amountComputation.usdAmount ?? 0) > 0
+                        ? `$${parseFloat(
+                            (amountComputation.usdAmount ?? 0).toString()
+                          ).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : "USD pricing unavailable"}
+                    </>
+                  )}
                 </span>
                 <svg
                   style={{
@@ -917,6 +1155,12 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={2}
+                  onClick={() => {
+                    setAmountInputMode((mode) =>
+                      mode === "usd" ? "token" : "usd"
+                    );
+                  }}
+                  cursor="pointer"
                 >
                   <path
                     strokeLinecap="round"
@@ -944,10 +1188,19 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     color: colors.primary,
                   }}
                 >
-                  Balance ({selectedToken.symbol}){" "}
-                  {normalizedTokenBalance.toLocaleString(undefined, {
-                    maximumFractionDigits: 6,
-                  })}
+                  {amountInputMode === "usd" && hasUsdPrice
+                    ? `Balance ($) ${(
+                        normalizedTokenBalance * tokenPriceUSD
+                      ).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
+                    : `Balance (${selectedToken.symbol}) ${normalizedTokenBalance.toLocaleString(
+                        undefined,
+                        {
+                          maximumFractionDigits: 6,
+                        }
+                      )}`}
                 </span>
                 <button
                   type="button"
@@ -964,9 +1217,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                     cursor: "pointer",
                   }}
                 >
-                  {amountInputMode === "usd"
-                    ? "Max $"
-                    : `Max ${selectedToken.symbol}`}
+                  Max
                 </button>
               </div>
             )}
@@ -1182,15 +1433,23 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   text={
                     routeError
                       ? routeError
-                      : isWalletConnected
-                        ? "Swipe to confirm"
-                        : "Connect your wallet to deposit"
+                      : !isWalletConnected
+                        ? "Connect your wallet to deposit"
+                        : isApproving
+                          ? "Approving..."
+                          : isReadingAllowance
+                            ? "Checking allowance..."
+                            : needsApproval
+                              ? "Swipe to approve"
+                              : "Swipe to confirm"
                   }
                   fromToken={selectedToken}
                   toTokenSymbol={destinationConfig?.toToken || "USDC"}
                   toChainName={destinationConfig?.toChain || "Base"}
-                  onConfirm={handleConfirm}
-                  disabled={!canConfirm}
+                  fromChainName={selectedChain?.networkName || "Unknown Chain"}
+                  dappName={destinationConfig?.dappName || "Example DApp"}
+                  onConfirm={handleSwipeConfirm}
+                  disabled={!canSwipe}
                   isWalletConnected={isWalletConnected}
                 />
               )}
@@ -1248,7 +1507,16 @@ export function CryptoPay({ style }: CryptoPayProps) {
           </div>
         </>
       ) : (
-        <h4>Loading....</h4>
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <LoadingSkeleton />
+        </div>
       )}
     </div>
   );
