@@ -409,7 +409,12 @@ export function CryptoPay({ style }: CryptoPayProps) {
         }
       );
     }
-  }, [rpcUrl, selectedChain?.chainId, selectedChain?.id, selectedChain?.networkName]);
+  }, [
+    rpcUrl,
+    selectedChain?.chainId,
+    selectedChain?.id,
+    selectedChain?.networkName,
+  ]);
 
   const client = useMemo(() => {
     if (!rpcUrl) {
