@@ -238,7 +238,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
         fromAddress: walletAddress || undefined,
         refundAddress: walletAddress || undefined,
         slippage: 1,
-        direction: config.routes.routeType,
       };
 
       // console.log("Resolved route config:", {
