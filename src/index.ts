@@ -13,5 +13,6 @@ export {
 } from "./wallets/";
 export { TrustwareWidget } from "./widget/";
 export { TrustwareProvider, useTrustware } from "./provider";
+export { TrustwareError } from "./errors/TrustwareError";
 export * from "./types";
 export * from "./constants";

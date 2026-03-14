@@ -4,11 +4,11 @@ export type {
   UseRouteBuilderOptions,
 } from "./useRouteBuilder";
 
-export { useChains } from "./useChains";
-export type { UseChainsResult } from "./useChains";
+export { useChains } from "../../core/useChains";
+export type { UseChainsResult } from "../../core/useChains";
 
-export { useTokens } from "./useTokens";
-export type { UseTokensResult } from "./useTokens";
+export { useTokens } from "../../core/useTokens";
+export type { UseTokensResult } from "../../core/useTokens";
 
 export { useTransactionSubmit } from "./useTransactionSubmit";
 export type { TransactionSubmitState } from "./useTransactionSubmit";

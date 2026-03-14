@@ -10,6 +10,14 @@ class ConfigStore {
   private _cfg: ResolvedTrustwareConfig | null = null;
   private _listeners = new Set<Listener>();
 
+  isInitialized(): boolean {
+    return this._cfg != null;
+  }
+
+  peek(): ResolvedTrustwareConfig | null {
+    return this._cfg;
+  }
+
   /** Initialize or replace the config */
   init(opts: TrustwareConfigOptions) {
     this._cfg = resolveConfig(opts);

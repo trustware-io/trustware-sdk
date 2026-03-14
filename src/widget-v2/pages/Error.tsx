@@ -1,5 +1,4 @@
 import React, { useMemo, useEffect } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
@@ -170,169 +169,6 @@ function getRetryStep(
   }
 }
 
-// Styles
-const containerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  minHeight: "500px",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: `${spacing[4]} ${spacing[4]}`,
-  borderBottom: `1px solid ${colors.border}`,
-};
-
-const headerTitleStyle: React.CSSProperties = {
-  fontSize: fontSize.lg,
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
-
-const contentStyle: React.CSSProperties = {
-  flex: 1,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: `${spacing[8]} ${spacing[6]}`,
-};
-
-const errorIconContainerStyle: React.CSSProperties = {
-  width: "5rem",
-  height: "5rem",
-  borderRadius: "9999px",
-  backgroundColor: "rgba(239, 68, 68, 0.1)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  marginBottom: spacing[6],
-};
-
-const errorIconStyle: React.CSSProperties = {
-  width: "2.5rem",
-  height: "2.5rem",
-  color: colors.red[500],
-};
-
-const errorTitleStyle: React.CSSProperties = {
-  fontSize: fontSize["2xl"],
-  fontWeight: fontWeight.bold,
-  color: colors.foreground,
-  textAlign: "center",
-  marginBottom: spacing[2],
-};
-
-const errorMessageStyle: React.CSSProperties = {
-  color: colors.mutedForeground,
-  textAlign: "center",
-  marginBottom: spacing[4],
-  maxWidth: "20rem",
-};
-
-const suggestionStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-  textAlign: "center",
-  marginBottom: spacing[6],
-  maxWidth: "20rem",
-};
-
-const hashContainerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: spacing[1],
-  marginBottom: spacing[6],
-};
-
-const hashLabelStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
-
-const hashLinkStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[1.5],
-  color: colors.primary,
-  textDecoration: "none",
-};
-
-const hashTextStyle: React.CSSProperties = {
-  fontFamily: "monospace",
-  fontSize: fontSize.sm,
-};
-
-const externalIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-};
-
-const buttonsContainerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: spacing[3],
-  width: "100%",
-  maxWidth: "20rem",
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  width: "100%",
-  padding: `${spacing[3]} ${spacing[6]}`,
-  borderRadius: borderRadius.xl,
-  backgroundColor: colors.primary,
-  color: colors.primaryForeground,
-  fontWeight: fontWeight.semibold,
-  fontSize: fontSize.base,
-  transition: "background-color 0.2s",
-  border: 0,
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  width: "100%",
-  padding: `${spacing[3]} ${spacing[6]}`,
-  borderRadius: borderRadius.xl,
-  backgroundColor: "transparent",
-  color: colors.mutedForeground,
-  fontWeight: fontWeight.medium,
-  fontSize: fontSize.base,
-  transition: "background-color 0.2s",
-  border: `1px solid ${colors.border}`,
-  cursor: "pointer",
-};
-
-const footerStyle: React.CSSProperties = {
-  padding: `${spacing[4]} ${spacing[6]}`,
-  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-};
-
-const footerContentStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: spacing[2],
-};
-
-const lockIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-  color: colors.mutedForeground,
-};
-
-const footerTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
-
-const footerBrandStyle: React.CSSProperties = {
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
-
 /**
  * Error page component.
  * Displays user-friendly error messages with appropriate recovery options.
@@ -426,7 +262,11 @@ export function Error({ style }: ErrorProps): React.ReactElement {
       // X icon for user rejection
       return (
         <svg
-          style={errorIconStyle}
+          style={{
+            width: "2.5rem",
+            height: "2.5rem",
+            color: colors.red[500],
+          }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -445,7 +285,11 @@ export function Error({ style }: ErrorProps): React.ReactElement {
       // Wifi off icon for network errors
       return (
         <svg
-          style={errorIconStyle}
+          style={{
+            width: "2.5rem",
+            height: "2.5rem",
+            color: colors.red[500],
+          }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -463,7 +307,11 @@ export function Error({ style }: ErrorProps): React.ReactElement {
     // Warning triangle for other errors
     return (
       <svg
-        style={errorIconStyle}
+        style={{
+          width: "2.5rem",
+          height: "2.5rem",
+          color: colors.red[500],
+        }}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -480,41 +328,146 @@ export function Error({ style }: ErrorProps): React.ReactElement {
   };
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "500px",
+        ...style,
+      }}
+    >
       {/* Header */}
-      <div style={headerStyle}>
-        <h1 style={headerTitleStyle}>{errorTitle}</h1>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: `${spacing[4]} ${spacing[4]}`,
+          borderBottom: `1px solid ${colors.border}`,
+        }}
+      >
+        <h1
+          style={{
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.semibold,
+            color: colors.foreground,
+          }}
+        >
+          {errorTitle}
+        </h1>
       </div>
 
       {/* Content */}
-      <div style={contentStyle}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: `${spacing[8]} ${spacing[6]}`,
+        }}
+      >
         {/* Error Icon */}
-        <div style={errorIconContainerStyle}>{renderErrorIcon()}</div>
+        <div
+          style={{
+            width: "5rem",
+            height: "5rem",
+            borderRadius: "9999px",
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: spacing[6],
+          }}
+        >
+          {renderErrorIcon()}
+        </div>
 
         {/* Error Message */}
-        <h2 style={errorTitleStyle}>{errorTitle}</h2>
+        <h2
+          style={{
+            fontSize: fontSize["2xl"],
+            fontWeight: fontWeight.bold,
+            color: colors.foreground,
+            textAlign: "center",
+            marginBottom: spacing[2],
+          }}
+        >
+          {errorTitle}
+        </h2>
 
         {/* Error Details */}
-        {errorMessage && <p style={errorMessageStyle}>{errorMessage}</p>}
+        {errorMessage && (
+          <p
+            style={{
+              color: colors.mutedForeground,
+              textAlign: "center",
+              marginBottom: spacing[4],
+              maxWidth: "20rem",
+            }}
+          >
+            {errorMessage}
+          </p>
+        )}
 
         {/* Suggestion */}
-        <p style={suggestionStyle}>{errorSuggestion}</p>
+        <p
+          style={{
+            fontSize: fontSize.sm,
+            color: colors.mutedForeground,
+            textAlign: "center",
+            marginBottom: spacing[6],
+            maxWidth: "20rem",
+          }}
+        >
+          {errorSuggestion}
+        </p>
 
         {/* Transaction Hash Link (if available) */}
         {explorerUrl && (
-          <div style={hashContainerStyle}>
-            <span style={hashLabelStyle}>Transaction ID</span>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: spacing[1],
+              marginBottom: spacing[6],
+            }}
+          >
+            <span
+              style={{
+                fontSize: fontSize.sm,
+                color: colors.mutedForeground,
+              }}
+            >
+              Transaction ID
+            </span>
             <a
               href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={hashLinkStyle}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing[1.5],
+                color: colors.primary,
+                textDecoration: "none",
+              }}
             >
-              <span style={hashTextStyle}>
+              <span
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: fontSize.sm,
+                }}
+              >
                 {transactionHash!.slice(0, 8)}...{transactionHash!.slice(-6)}
               </span>
               <svg
-                style={externalIconStyle}
+                style={{
+                  width: "0.875rem",
+                  height: "0.875rem",
+                }}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -532,9 +485,32 @@ export function Error({ style }: ErrorProps): React.ReactElement {
         )}
 
         {/* Action Buttons */}
-        <div style={buttonsContainerStyle}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: spacing[3],
+            width: "100%",
+            maxWidth: "20rem",
+          }}
+        >
           {/* Try Again Button */}
-          <button type="button" onClick={handleTryAgain} style={primaryButtonStyle}>
+          <button
+            type="button"
+            onClick={handleTryAgain}
+            style={{
+              width: "100%",
+              padding: `${spacing[3]} ${spacing[6]}`,
+              borderRadius: borderRadius.xl,
+              backgroundColor: colors.primary,
+              color: colors.primaryForeground,
+              fontWeight: fontWeight.semibold,
+              fontSize: fontSize.base,
+              transition: "background-color 0.2s",
+              border: 0,
+              cursor: "pointer",
+            }}
+          >
             Try Again
           </button>
 
@@ -542,7 +518,18 @@ export function Error({ style }: ErrorProps): React.ReactElement {
           <button
             type="button"
             onClick={handleStartOver}
-            style={secondaryButtonStyle}
+            style={{
+              width: "100%",
+              padding: `${spacing[3]} ${spacing[6]}`,
+              borderRadius: borderRadius.xl,
+              backgroundColor: "transparent",
+              color: colors.mutedForeground,
+              fontWeight: fontWeight.medium,
+              fontSize: fontSize.base,
+              transition: "background-color 0.2s",
+              border: `1px solid ${colors.border}`,
+              cursor: "pointer",
+            }}
           >
             Start Over
           </button>
@@ -550,10 +537,26 @@ export function Error({ style }: ErrorProps): React.ReactElement {
       </div>
 
       {/* Footer */}
-      <div style={footerStyle}>
-        <div style={footerContentStyle}>
+      <div
+        style={{
+          padding: `${spacing[4]} ${spacing[6]}`,
+          borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: spacing[2],
+          }}
+        >
           <svg
-            style={lockIconStyle}
+            style={{
+              width: "0.875rem",
+              height: "0.875rem",
+              color: colors.mutedForeground,
+            }}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -566,8 +569,21 @@ export function Error({ style }: ErrorProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span style={footerTextStyle}>
-            Secured by <span style={footerBrandStyle}>Trustware</span>
+          <span
+            style={{
+              fontSize: fontSize.sm,
+              color: colors.mutedForeground,
+            }}
+          >
+            Secured by{" "}
+            <span
+              style={{
+                fontWeight: fontWeight.semibold,
+                color: colors.foreground,
+              }}
+            >
+              Trustware
+            </span>
           </span>
         </div>
       </div>

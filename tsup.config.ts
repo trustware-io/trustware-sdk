@@ -21,6 +21,7 @@ const baseConfig: Options = {
     "@rainbow-me/rainbowkit",
     "@walletconnect/ethereum-provider",
     "qrcode",
+    "radix-ui",
   ],
 
   // Ensure ESM files end with .mjs to match your package.json "module"/exports

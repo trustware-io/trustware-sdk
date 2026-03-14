@@ -20,14 +20,6 @@ export interface ConfettiEffectProps {
   pieceCount?: number;
 }
 
-const containerStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  pointerEvents: "none",
-  zIndex: 50,
-  overflow: "hidden",
-};
-
 /**
  * Confetti celebration effect component.
  * Renders animated confetti pieces that fall from the top of the screen.
@@ -85,7 +77,16 @@ export function ConfettiEffect({
   }
 
   return (
-    <div style={containerStyle} aria-hidden="true">
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        pointerEvents: "none",
+        zIndex: 50,
+        overflow: "hidden",
+      }}
+      aria-hidden="true"
+    >
       {pieces.map((piece) => (
         <div
           key={piece.id}

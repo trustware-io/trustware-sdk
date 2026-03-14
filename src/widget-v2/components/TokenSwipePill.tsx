@@ -1,15 +1,26 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
-import { mergeStyles } from "../lib/utils";
-import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
-import type { Token, Chain } from "../context/DepositContext";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
+import {
+  colors,
+  spacing,
+  fontSize,
+  fontWeight,
+  borderRadius,
+} from "../styles/tokens";
+import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 
 export interface TokenSwipePillProps {
   /** List of tokens to display in the carousel */
-  tokens: Token[];
+  tokens: Token[] | YourTokenData[];
   /** Currently selected token */
-  selectedToken: Token;
+  selectedToken: Token | YourTokenData;
   /** Callback when a token is selected */
-  onTokenChange: (token: Token) => void;
+  onTokenChange: (token: Token | YourTokenData) => void;
   /** Callback when expand/dropdown button is clicked */
   onExpandClick?: () => void;
   /** Currently selected chain (for displaying chain info) */
@@ -20,167 +31,11 @@ export interface TokenSwipePillProps {
   style?: React.CSSProperties;
 }
 
-const containerStyle: React.CSSProperties = {
-  position: "relative",
-  display: "inline-flex",
-  alignItems: "flex-start",
-  gap: spacing[2],
-  padding: `${spacing[1.5]} ${spacing[4]}`,
-  backgroundColor: "rgba(39, 39, 42, 0.4)",
-  borderRadius: "9999px",
-  border: "1px solid rgba(63, 63, 70, 0.5)",
-  userSelect: "none",
-  touchAction: "none",
-};
-
-const leftSectionStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-};
-
-const carouselRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  height: "3rem",
-};
-
-const chevronStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-  color: colors.zinc[500],
-};
-
-const carouselContainerStyle: React.CSSProperties = {
-  position: "relative",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "3rem",
-  width: "5rem",
-  overflow: "hidden",
-};
-
-const tokenIconContainerStyle: React.CSSProperties = {
-  width: "2.5rem",
-  height: "2.5rem",
-  borderRadius: "9999px",
-  overflow: "hidden",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  backgroundColor: colors.white,
-  boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
-};
-
-const tokenIconStyle: React.CSSProperties = {
-  width: "2rem",
-  height: "2rem",
-  objectFit: "contain",
-};
-
-const tokenInitialsStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  fontWeight: fontWeight.bold,
-  color: colors.zinc[800],
-};
-
-const chainIconContainerStyle: React.CSSProperties = {
-  position: "absolute",
-  bottom: "-2px",
-  right: "-2px",
-  width: "1rem",
-  height: "1rem",
-  borderRadius: "9999px",
-  backgroundColor: colors.zinc[900],
-  border: `2px solid ${colors.zinc[900]}`,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  overflow: "hidden",
-};
-
-const chainIconStyle: React.CSSProperties = {
-  width: "0.75rem",
-  height: "0.75rem",
-  borderRadius: "9999px",
-  objectFit: "cover",
-};
-
-const paginationContainerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[1],
-  marginTop: spacing[1],
-};
-
 /**
  * Max number of pagination dots to show
  * When there are more tokens, we show a subset with ellipsis-like behavior
  */
 const MAX_VISIBLE_DOTS = 5;
-
-const walletIndicatorStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[1],
-  marginTop: spacing[1],
-};
-
-const walletIconStyle: React.CSSProperties = {
-  width: "0.75rem",
-  height: "0.75rem",
-  color: colors.zinc[500],
-};
-
-const walletAddressStyle: React.CSSProperties = {
-  fontSize: "10px",
-  color: colors.zinc[500],
-};
-
-const dividerStyle: React.CSSProperties = {
-  width: "1px",
-  height: "2rem",
-  backgroundColor: "rgba(63, 63, 70, 0.5)",
-  alignSelf: "center",
-};
-
-const tokenInfoButtonStyle: React.CSSProperties = {
-  alignSelf: "center",
-  textAlign: "left",
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[2],
-  borderRadius: "0.5rem",
-  padding: `${spacing[1]} ${spacing[2]}`,
-  margin: `0 -${spacing[1]}`,
-  transition: "background-color 0.2s",
-  border: 0,
-  outline: "none",
-  cursor: "pointer",
-  backgroundColor: "transparent",
-};
-
-const tokenSymbolStyle: React.CSSProperties = {
-  fontWeight: fontWeight.semibold,
-  color: colors.white,
-  fontSize: fontSize.sm,
-  lineHeight: 1.25,
-  margin: 0,
-};
-
-const chainNameStyle: React.CSSProperties = {
-  fontSize: fontSize.xs,
-  color: colors.zinc[400],
-  lineHeight: 1.25,
-  margin: 0,
-};
-
-const expandChevronStyle: React.CSSProperties = {
-  width: "1rem",
-  height: "1rem",
-  color: colors.zinc[400],
-};
 
 /**
  * Horizontal carousel component for quickly switching between tokens.
@@ -192,7 +47,7 @@ export function TokenSwipePill({
   selectedToken,
   onTokenChange,
   onExpandClick,
-  selectedChain,
+  // selectedChain,
   walletAddress,
   style,
 }: TokenSwipePillProps): React.ReactElement | null {
@@ -317,7 +172,7 @@ export function TokenSwipePill({
    * Generate fallback initials from token symbol
    */
   const getTokenInitials = (symbol: string) => {
-    return symbol.slice(0, 2).toUpperCase();
+    return symbol?.slice(0, 2).toUpperCase();
   };
 
   // Don't render if no tokens
@@ -325,27 +180,74 @@ export function TokenSwipePill({
     return null;
   }
 
+  const chainBadge = useMemo(() => {
+    const url =
+      (selectedToken as YourTokenData).chainData?.chainIconURI ||
+      (
+        (selectedToken as YourTokenData)
+          .chainData as YourTokenData["chainData"] & {
+          iconUrl: string;
+        }
+      )?.iconUrl;
+    return url?.toString();
+  }, [selectedToken]);
+
+  function validateIconUrl(url: string | undefined, isCenter: boolean) {
+    if (url === undefined) return "";
+    if (!isCenter) return url;
+    if (url !== (selectedToken.iconUrl ?? selectedToken.logoURI)) {
+      return selectedToken.iconUrl ?? selectedToken.logoURI ?? "";
+    }
+    return url;
+  }
+
   return (
     <div
       ref={containerRef}
-      style={mergeStyles(
-        containerStyle,
-        hasMultipleTokens && { cursor: "grab" },
-        isDragging && { backgroundColor: "rgba(39, 39, 42, 0.6)" },
-        style
-      )}
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "flex-start",
+        gap: spacing[2],
+        padding: `${spacing[1.5]} ${spacing[4]}`,
+
+        backgroundColor: colors.background,
+        borderRadius: borderRadius.full,
+        border: `1px solid ${colors.border}`,
+        userSelect: "none",
+        touchAction: "none",
+        ...(hasMultipleTokens && { cursor: "grab" }),
+        ...(isDragging && { backgroundColor: colors.background }),
+        ...style,
+      }}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {/* Left Section: Carousel + Dots + Wallet Indicator */}
-      <div style={leftSectionStyle}>
-        <div style={carouselRowStyle}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            height: "3rem",
+          }}
+        >
           {/* Left Chevron Arrow */}
           {hasMultipleTokens && (
             <svg
-              style={chevronStyle}
+              style={{
+                width: "1rem",
+                height: "1rem",
+                color: colors.zinc[500],
+              }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -360,7 +262,17 @@ export function TokenSwipePill({
           )}
 
           {/* Carousel Container */}
-          <div style={carouselContainerStyle}>
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "3rem",
+              width: "5rem",
+              overflow: "hidden",
+            }}
+          >
             {/* Tokens in carousel */}
             {tokens.map((token, index) => {
               const pos = getPosition(index);
@@ -382,9 +294,7 @@ export function TokenSwipePill({
                   key={`carousel-${index}-${token.address}`}
                   style={{
                     position: "absolute",
-                    transition: isDragging
-                      ? "all 75ms"
-                      : "all 200ms ease-out",
+                    transition: isDragging ? "all 75ms" : "all 200ms ease-out",
                     transform: `translateX(${currentOffset}px) scale(${scale})`,
                     opacity,
                     filter: `blur(${blur}px)`,
@@ -392,26 +302,70 @@ export function TokenSwipePill({
                   }}
                 >
                   <div style={{ position: "relative" }}>
-                    <div style={tokenIconContainerStyle}>
-                      {token.iconUrl ? (
+                    <div
+                      style={{
+                        width: "2.5rem",
+                        height: "2.5rem",
+                        overflow: "hidden",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {validateIconUrl(token.iconUrl, isCenter) ? (
                         <img
-                          src={token.iconUrl}
+                          src={validateIconUrl(token.iconUrl, isCenter)}
                           alt={token.symbol}
-                          style={tokenIconStyle}
+                          style={{
+                            width: "2rem",
+                            height: "2rem",
+                            objectFit: "contain",
+                          }}
                         />
                       ) : (
-                        <span style={tokenInitialsStyle}>
-                          {getTokenInitials(token.symbol)}
+                        <span
+                          style={{
+                            fontSize: fontSize.xs,
+                            fontWeight: fontWeight.bold,
+                            color: colors.zinc[800],
+                          }}
+                        >
+                          {getTokenInitials(token.symbol as string)}
                         </span>
                       )}
                     </div>
                     {/* Chain Icon - only on center token */}
-                    {isCenter && selectedChain?.iconUrl && (
-                      <div style={chainIconContainerStyle}>
+
+                    {isCenter && (selectedToken as YourTokenData).chainData && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "1px",
+                          right: "-2px",
+                          width: "1rem",
+                          height: "1rem",
+                          borderRadius: "9999px",
+
+                          backgroundColor: "none",
+                          border: `none`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                        }}
+                      >
                         <img
-                          src={selectedChain.iconUrl}
-                          alt={selectedChain.name}
-                          style={chainIconStyle}
+                          src={chainBadge}
+                          alt={
+                            (selectedToken as YourTokenData).chainData
+                              ?.networkName
+                          }
+                          style={{
+                            width: "0.75rem",
+                            height: "0.75rem",
+                            borderRadius: "9999px",
+                            objectFit: "cover",
+                          }}
                         />
                       </div>
                     )}
@@ -424,7 +378,11 @@ export function TokenSwipePill({
           {/* Right Chevron Arrow */}
           {hasMultipleTokens && (
             <svg
-              style={chevronStyle}
+              style={{
+                width: "1rem",
+                height: "1rem",
+                color: colors.zinc[500],
+              }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -441,30 +399,38 @@ export function TokenSwipePill({
 
         {/* Pagination Dots - directly under carousel */}
         {hasMultipleTokens && (
-          <div style={paginationContainerStyle}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: spacing[1],
+              marginTop: spacing[1],
+            }}
+          >
             {(() => {
               const total = tokens.length;
 
               // If we have few tokens, show all dots
               if (total <= MAX_VISIBLE_DOTS) {
                 return tokens.map((token, index) => (
-                  <button
+                  <div
                     key={`dot-${index}-${token.address}`}
-                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       onTokenChange(token);
                     }}
                     style={{
-                      height: "0.375rem",
-                      borderRadius: "9999px",
+                      height: "0.313rem",
+                      borderRadius: "3.125rem",
                       transition: "all 0.2s",
                       border: 0,
                       outline: "none",
                       cursor: "pointer",
                       backgroundColor:
-                        index === currentIndex ? colors.white : colors.zinc[600],
-                      width: index === currentIndex ? "0.75rem" : "0.375rem",
+                        index === currentIndex
+                          ? colors.zinc[300]
+                          : colors.zinc[600],
+                      width: index === currentIndex ? "0.938rem" : "0.938rem",
                     }}
                     aria-label={`Select ${token.symbol}`}
                   />
@@ -495,7 +461,9 @@ export function TokenSwipePill({
               }
 
               // Dedupe and sort
-              const uniqueIndices = [...new Set(visibleIndices)].sort((a, b) => a - b);
+              const uniqueIndices = [...new Set(visibleIndices)].sort(
+                (a, b) => a - b
+              );
 
               return uniqueIndices.map((index, i) => {
                 const token = tokens[index];
@@ -515,22 +483,23 @@ export function TokenSwipePill({
                         }}
                       />
                     )}
-                    <button
-                      type="button"
+                    <div
                       onClick={(e) => {
                         e.stopPropagation();
                         onTokenChange(token);
                       }}
                       style={{
-                        height: "0.375rem",
-                        borderRadius: "9999px",
+                        height: "0.313rem",
+                        borderRadius: "3.125rem",
                         transition: "all 0.2s",
                         border: 0,
                         outline: "none",
                         cursor: "pointer",
                         backgroundColor:
-                          index === currentIndex ? colors.white : colors.zinc[600],
-                        width: index === currentIndex ? "0.75rem" : "0.375rem",
+                          index === currentIndex
+                            ? colors.zinc[300]
+                            : colors.zinc[600],
+                        width: index === currentIndex ? "0.938rem" : "0.938rem",
                       }}
                       aria-label={`Select ${token.symbol} (${index + 1} of ${total})`}
                     />
@@ -543,10 +512,21 @@ export function TokenSwipePill({
 
         {/* Wallet indicator - minimal */}
         {hasMultipleTokens && walletAddress && (
-          <div style={walletIndicatorStyle}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: spacing[1],
+              marginTop: spacing[1],
+            }}
+          >
             {/* Wallet icon */}
             <svg
-              style={walletIconStyle}
+              style={{
+                width: "0.75rem",
+                height: "0.75rem",
+                color: colors.zinc[500],
+              }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -558,7 +538,12 @@ export function TokenSwipePill({
                 d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
               />
             </svg>
-            <span style={walletAddressStyle}>
+            <span
+              style={{
+                fontSize: "10px",
+                color: colors.zinc[500],
+              }}
+            >
               {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
             </span>
           </div>
@@ -566,24 +551,71 @@ export function TokenSwipePill({
       </div>
 
       {/* Divider */}
-      <div style={dividerStyle} />
+      <div
+        style={{
+          width: "1px",
+          height: "2rem",
+          backgroundColor: "rgba(63, 63, 70, 0.5)",
+          alignSelf: "center",
+        }}
+      />
 
       {/* Token Info with Expand Button */}
       <button
         type="button"
-        style={tokenInfoButtonStyle}
+        style={{
+          alignSelf: "center",
+          textAlign: "left",
+          display: "flex",
+          alignItems: "center",
+          gap: spacing[2],
+          borderRadius: "0.5rem",
+          padding: `${spacing[1]} ${spacing[2]}`,
+          margin: `0 -${spacing[1]}`,
+          transition: "background-color 0.2s",
+          border: 0,
+          outline: "none",
+          cursor: "pointer",
+          backgroundColor: "transparent",
+        }}
         onClick={(e) => {
           e.stopPropagation();
           onExpandClick?.();
         }}
       >
         <div>
-          <p style={tokenSymbolStyle}>{selectedToken.symbol}</p>
-          {selectedChain && <p style={chainNameStyle}>{selectedChain.name}</p>}
+          <p
+            style={{
+              fontWeight: fontWeight.semibold,
+              color: colors.foreground,
+              fontSize: fontSize.sm,
+              lineHeight: 1.25,
+              margin: 0,
+            }}
+          >
+            {selectedToken.symbol}
+          </p>
+          {(selectedToken as YourTokenData).chainData && (
+            <p
+              style={{
+                fontSize: fontSize.xs,
+                color: colors.zinc[400],
+                lineHeight: 1.25,
+                margin: 0,
+              }}
+            >
+              {(selectedToken as YourTokenData)?.chainData?.networkName ||
+                ((selectedToken as YourTokenData)?.chainData as Chain)?.name}
+            </p>
+          )}
         </div>
         {/* Chevron Down icon */}
         <svg
-          style={expandChevronStyle}
+          style={{
+            width: "1rem",
+            height: "1rem",
+            color: colors.zinc[400],
+          }}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

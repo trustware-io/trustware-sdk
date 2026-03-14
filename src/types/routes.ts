@@ -1,3 +1,5 @@
+import { TxRequest } from "src/core/routes";
+
 export type RouteParams = {
   fromChain: string;
   toChain: string;
@@ -56,26 +58,58 @@ export type Transaction = {
   timeSpentMs?: number;
 };
 
+// export type BuildRouteResult = {
+//   intentId: string;
+//   route: {
+//     estimate: {
+//       fromAmount: string;
+//       toAmount: string;
+//       fromAmountUSD?: string;
+//       toAmountUSD?: string;
+//       toAmountMinUSD?: string;
+//       minimumReceived?: string;
+//       fees?: any;
+//       route?: any;
+//     };
+//     transactionRequest: {
+//       to: string;
+//       data: string;
+//       value?: string;
+//       chainId?: string;
+//       fromAmountUSD?: string;
+//       toAmountMinUSD?: string;
+//     };
+//   };
+// };
+
+export type RouteEstimate = {
+  fromAmount?: string;
+  toAmount?: string;
+  toAmountMin?: string;
+  fromAmountUsd?: string;
+  toAmountUsd?: string;
+  totalFeesUsd?: string;
+  toAmountMinUsd?: string;
+  fees?: unknown[];
+};
+
+export type RoutePlan = {
+  estimate?: RouteEstimate;
+  execution?: { transaction?: TxRequest };
+  steps?: unknown[];
+  provider?: string;
+  requestId?: string;
+  reliabilityScore?: number;
+  diagnostics?: { rawPayload?: unknown };
+};
+
 export type BuildRouteResult = {
   intentId: string;
-  route: {
-    estimate: {
-      fromAmount: string;
-      toAmount: string;
-      fromAmountUSD?: string;
-      toAmountUSD?: string;
-      toAmountMinUSD?: string;
-      minimumReceived?: string;
-      fees?: any;
-      route?: any;
-    };
-    transactionRequest: {
-      to: string;
-      data: string;
-      value?: string;
-      chainId?: string;
-      fromAmountUSD?: string;
-      toAmountMinUSD?: string;
-    };
+  txReq: TxRequest;
+  actions: unknown[];
+  finalExchangeRate: {
+    fromAmountUSD?: string;
+    toAmountMinUSD?: string;
   };
+  route: RoutePlan | undefined;
 };

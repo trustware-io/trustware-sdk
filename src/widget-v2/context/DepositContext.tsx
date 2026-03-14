@@ -5,10 +5,26 @@ import React, {
   useCallback,
   useMemo,
   useEffect,
+  useRef,
+  Dispatch,
+  SetStateAction,
 } from "react";
 import { walletManager } from "../../wallets/manager";
 import { useWalletDetection } from "../../wallets/detect";
-import type { DetectedWallet, WalletInterFaceAPI } from "../../types";
+import type {
+  BalanceRow,
+  ChainDef,
+  DetectedWallet,
+  WalletInterFaceAPI,
+} from "../../types";
+import { useChains, useTokens } from "../hooks";
+import { getBalancesByAddress } from "src/core/balances";
+import {
+  canonicalTokenAddressForChain,
+  getNativeTokenAddress,
+  normalizeChainKey,
+} from "../helpers/chainHelpers";
+import { useTrustware } from "src/provider";
 
 /**
  * localStorage key for persisting theme preference
@@ -19,6 +35,24 @@ const THEME_STORAGE_KEY = "trustware-widget-theme";
  * Resolved theme type (light or dark, not system)
  */
 export type ResolvedTheme = "light" | "dark";
+
+export interface YourTokenData {
+  chainIconURI: string;
+  chainData: ChainDef | undefined;
+  symbol: string;
+  decimals: number;
+  name: string;
+  iconUrl: string;
+  logoURI?: string;
+  chainId: number | string;
+  usdPrice: number | undefined;
+  address: string;
+  chain_key: string;
+  category: "native" | "erc20" | "spl" | "btc";
+  contract?: `0x${string}`;
+  /** Raw smallest-unit balance string (e.g. wei/lamports) */
+  balance: string;
+}
 
 /**
  * Navigation states for the deposit widget flow
@@ -71,8 +105,14 @@ export interface Token {
   decimals: number;
   /** URL to token icon/logo */
   iconUrl?: string;
-  /** Token balance if wallet connected (as string to preserve precision) */
+  logoURI?: string;
+
+  /** Raw smallest-unit balance string (e.g. wei/lamports) when wallet connected */
   balance?: string;
+
+  chainId: string | number;
+
+  usdPrice: number | undefined;
 }
 
 /**
@@ -121,13 +161,13 @@ export interface DepositContextValue {
 
   // Token and chain state
   /** Currently selected token for deposit */
-  selectedToken: Token | null;
+  selectedToken: Token | null | YourTokenData;
   /** Set the selected token */
-  setSelectedToken: (token: Token | null) => void;
+  setSelectedToken: (token: Token | null | YourTokenData) => void;
   /** Currently selected blockchain network */
-  selectedChain: Chain | null;
+  selectedChain: ChainDef | null;
   /** Set the selected chain */
-  setSelectedChain: (chain: Chain | null) => void;
+  setSelectedChain: (chain: ChainDef | null) => void;
   /** Deposit amount as string (to preserve decimal precision) */
   amount: string;
   /** Set the deposit amount */
@@ -162,6 +202,13 @@ export interface DepositContextValue {
   resolvedTheme: ResolvedTheme;
   /** Toggle between light and dark themes */
   toggleTheme: () => void;
+
+  setYourWalletTokens: React.Dispatch<React.SetStateAction<YourTokenData[]>>;
+
+  yourWalletTokens: YourTokenData[];
+
+  amountInputMode: "usd" | "token";
+  setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
 }
 
 const DepositContext = createContext<DepositContextValue | undefined>(
@@ -181,6 +228,12 @@ export function DepositProvider({
   children,
   initialStep = "home",
 }: DepositProviderProps): React.ReactElement {
+  const { emitError, emitEvent } = useTrustware();
+
+  const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
+    "usd"
+  );
+
   const [currentStep, setCurrentStepInternal] =
     useState<NavigationStep>(initialStep);
   const [stepHistory, setStepHistory] = useState<NavigationStep[]>([
@@ -204,9 +257,13 @@ export function DepositProvider({
   }, [detected]);
 
   // Token and chain state
-  const [selectedToken, setSelectedToken] = useState<Token | null>(null);
-  const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
+  const [selectedToken, setSelectedToken] = useState<
+    Token | null | YourTokenData
+  >(null);
+  const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
+  const [yourWalletTokens, setYourWalletTokens] = useState<YourTokenData[]>([]);
+  const lastLoadedWalletRef = useRef<string | null>(null);
 
   // Transaction lifecycle state
   const [transactionStatus, setTransactionStatus] =
@@ -279,13 +336,172 @@ export function DepositProvider({
     };
   }, []);
 
+  const { tokens } = useTokens(null);
+
+  const { chains } = useChains();
+
+  useEffect(() => {
+    if (!walletAddress || chains.length === 0 || tokens.length === 0) {
+      setYourWalletTokens([]);
+      if (!walletAddress) {
+        lastLoadedWalletRef.current = null;
+      }
+      return;
+    }
+
+    if (lastLoadedWalletRef.current === walletAddress) {
+      return;
+    }
+
+    let cancelled = false;
+
+    /**
+     * Loads wallet tokens and balances for the currently connected wallet.
+     * @return {Promise<void>} Resolves when the operation is complete.
+     * @throws {Error} If an error occurs while loading the balances.
+     */
+
+    async function loadWalletTokens() {
+      try {
+        const arr = await getBalancesByAddress(walletAddress as string);
+
+        const flatenedTokenWithBalancesArr = arr.flatMap((obj) =>
+          (obj.balances ?? []).flatMap((balance) => {
+            if (!balance || !obj?.chain_id) {
+              return [];
+            }
+
+            return [
+              {
+                ...balance,
+                chain_id: obj.chain_id,
+              },
+            ];
+          })
+        );
+
+        // ...............................................................//
+
+        const tokensByCanonicalKey = new Map<string, (typeof tokens)[number]>();
+        for (const token of tokens) {
+          const tokenChain = chains.find(
+            (chain) =>
+              normalizeChainKey(chain.chainId) ===
+              normalizeChainKey(token.chainId)
+          );
+          if (!tokenChain) continue;
+
+          const canonicalAddress = canonicalTokenAddressForChain(
+            tokenChain,
+            token.address,
+            tokens
+          );
+          const key = `${normalizeChainKey(token.chainId)}:${canonicalAddress}`;
+          tokensByCanonicalKey.set(key, token);
+        }
+
+        const updatedArr: YourTokenData[] =
+          flatenedTokenWithBalancesArr.flatMap((balanceRow) => {
+            const chain = chains.find(
+              (c) =>
+                normalizeChainKey(c.chainId) ===
+                normalizeChainKey(balanceRow.chain_id)
+            );
+            if (!chain) return [];
+
+            const balanceAddress =
+              balanceRow.contract ??
+              (balanceRow as BalanceRow & { address?: string }).address;
+
+            const canonicalBalanceAddress = canonicalTokenAddressForChain(
+              chain,
+              balanceAddress,
+              tokens
+            );
+            const canonicalKey = `${normalizeChainKey(balanceRow.chain_id)}:${canonicalBalanceAddress}`;
+            let foundToken = tokensByCanonicalKey.get(canonicalKey);
+
+            if (!foundToken) {
+              const isNativeCategory = balanceRow.category === "native";
+              if (isNativeCategory) {
+                const nativeAddress = canonicalTokenAddressForChain(
+                  chain,
+                  getNativeTokenAddress(chain.type),
+                  tokens
+                );
+                const nativeKey = `${normalizeChainKey(balanceRow.chain_id)}:${nativeAddress}`;
+                foundToken = tokensByCanonicalKey.get(nativeKey);
+              }
+            }
+
+            if (
+              !foundToken?.name ||
+              !foundToken?.symbol ||
+              !foundToken?.address
+            ) {
+              return [];
+            }
+
+            return [
+              {
+                ...balanceRow,
+                symbol: foundToken.symbol,
+                decimals: foundToken.decimals,
+                name: foundToken.name,
+                iconUrl: foundToken.iconUrl ?? foundToken.logoURI ?? "",
+                chainId: balanceRow.chain_id,
+                usdPrice: foundToken.usdPrice,
+                address: canonicalTokenAddressForChain(
+                  chain,
+                  foundToken.address,
+                  tokens
+                ),
+                chainIconURI: chain?.chainIconURI || "",
+                chainData: chain,
+              },
+            ];
+          });
+
+        if (!cancelled) {
+          setYourWalletTokens(
+            updatedArr.sort((a, b) => Number(b.balance) - Number(a.balance))
+          );
+
+          const findtokenwithBalance = updatedArr.find(
+            (t) => Number(t.balance) > 0
+          );
+
+          setSelectedToken(
+            findtokenwithBalance as Token & {
+              balance: string;
+              chainIconURI: string;
+              chainData: ChainDef;
+            }
+          );
+
+          setSelectedChain(findtokenwithBalance?.chainData as Chain);
+          lastLoadedWalletRef.current = walletAddress;
+        }
+      } catch (err) {
+        console.error("Failed to load balances:", err);
+        if (!cancelled) setYourWalletTokens([]);
+      }
+    }
+
+    void loadWalletTokens();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chains, tokens, walletAddress]);
+
   /**
    * Connect to a detected wallet
    */
   const connectWallet = useCallback(async (wallet: DetectedWallet) => {
     console.log("[DepositContext] connectWallet called", {
-      walletId: wallet.meta.id,
-      hasProvider: !!wallet.provider,
+      // walletId: wallet.meta.id,
+      // hasProvider: !!wallet.provider,
     });
     try {
       await walletManager.connectDetected(wallet);
@@ -405,6 +621,12 @@ export function DepositProvider({
       // Theme state
       resolvedTheme,
       toggleTheme,
+
+      yourWalletTokens,
+      setYourWalletTokens,
+
+      amountInputMode,
+      setAmountInputMode,
     }),
     [
       currentStep,
@@ -427,6 +649,8 @@ export function DepositProvider({
       paymentMethod,
       resolvedTheme,
       toggleTheme,
+      yourWalletTokens,
+      amountInputMode,
     ]
   );
 
