@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus } from "../../core/routes";
 import { useDeposit } from "../context/DepositContext";
+import { useTrustware } from "src/provider";
 import type { Transaction } from "../../types";
 
 /**
@@ -41,6 +42,7 @@ export type TransactionPollingState = {
 export function useTransactionPolling() {
   const { setTransactionStatus, setCurrentStep, setErrorMessage } =
     useDeposit();
+  const { emitSuccess } = useTrustware();
 
   const [state, setState] = useState<TransactionPollingState>({
     isPolling: false,
@@ -142,6 +144,7 @@ export function useTransactionPolling() {
               }));
               setTransactionStatus("success");
               setCurrentStep("success");
+              emitSuccess?.(tx);
               return;
             }
 
@@ -223,7 +226,13 @@ export function useTransactionPolling() {
         setCurrentStep("error");
       }
     },
-    [clearPolling, setTransactionStatus, setCurrentStep, setErrorMessage]
+    [
+      clearPolling,
+      emitSuccess,
+      setTransactionStatus,
+      setCurrentStep,
+      setErrorMessage,
+    ]
   );
 
   /**
