@@ -36,9 +36,10 @@ const trustwareConfig = {
     // fromAddress: "0x...", // User's wallet address
     // toAddress: "0x...", // Destination; can be set later via Trustware.setDestinationAddress
     options: {
-      // fixedFromAmount: "0.05",
-      // minAmountOut: "0",
-      // maxAmountOut: "0.5",
+      // fixedFromAmount: "5.00", // USD amount (locks input)
+      // minAmountOut: "1.00", // USD minimum
+      // maxAmountOut: "100.00", // USD maximum
+      // routeRefreshMs: 15000, // auto-refresh route quotes
     },
   },
   autoDetectProvider: true, // Enable EIP-6963/EIP-1193 wallet discovery
@@ -53,6 +54,16 @@ const trustwareConfig = {
   messages: {
     title: "Top up BasePass",
     description: "Bridge and add funds directly to your BasePass wallet.",
+  },
+  onError: (error) => {
+    console.error("Trustware error:", error);
+  },
+  onSuccess: (tx) => {
+    console.log("Trustware success:", tx);
+  },
+  onEvent: (event) => {
+    // Optional: listen to all SDK events
+    console.log("Trustware event:", event);
   },
 } satisfies TrustwareConfigOptions;
 ```
