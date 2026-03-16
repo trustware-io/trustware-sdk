@@ -50,25 +50,19 @@ jobs:
         run: |
           node -e "
             const pkg = require('./package.json');
-            pkg.name = '@trustware-io/sdk-staging';
+            pkg.name = '@trustware/sdk-staging';
             pkg.version = pkg.version + '-staging.${{ github.run_number }}';
-            pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
+            pkg.publishConfig = { registry: 'https://registry.npmjs.org/' };
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
 
-      - name: Setup .npmrc for GitHub Packages
-        if: github.ref == 'refs/heads/staging'
-        run: |
-          echo "@trustware-io:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-
-      - name: Publish to GitHub Packages (staging)
-        if: github.ref == 'refs/heads/staging'
-        run: npm publish
-
       - name: Setup npm registry
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main'
         run: npm config set registry https://registry.npmjs.org/
+
+      - name: Publish to npm (staging)
+        if: github.ref == 'refs/heads/staging'
+        run: npm publish --access public --provenance
 
       - name: Publish to npm (main)
         if: github.ref == 'refs/heads/main'
