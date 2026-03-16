@@ -242,8 +242,8 @@ export function Error({ style }: ErrorProps): React.ReactElement {
 
   // Get block explorer URL if we have a transaction hash
   const explorerUrl = useMemo(() => {
-    if (transactionHash && selectedChain?.explorerUrl) {
-      return `${selectedChain.explorerUrl}/tx/${transactionHash}`;
+    if (transactionHash && selectedChain?.blockExplorerUrls?.length) {
+      return `${selectedChain.blockExplorerUrls[0].replace(/\/+$/, "")}/tx/${transactionHash}`;
     }
     return null;
   }, [transactionHash, selectedChain]);

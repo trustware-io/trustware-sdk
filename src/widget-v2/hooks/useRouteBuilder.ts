@@ -44,7 +44,6 @@ export interface UseRouteBuilderOptions {
   fromAddress: string | undefined;
   refundAddress: string | undefined;
   slippage: number;
-  direction: string;
 }
 
 /**
@@ -70,7 +69,6 @@ export function useRouteBuilder({
   fromAddress,
   refundAddress,
   slippage,
-  direction,
 }: UseRouteBuilderOptions): RouteBuilderState {
   // const { debounceMs = 300, enabled = true } = options;
 
