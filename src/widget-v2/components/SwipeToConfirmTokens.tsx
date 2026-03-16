@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight } from "../styles";
 import type { Token, YourTokenData } from "../context/DepositContext";
 
@@ -184,7 +183,7 @@ export function SwipeToConfirmTokens({
 
   const handleMouseUp = useCallback(() => handleDragEnd(), [handleDragEnd]);
 
-  const handleTouchStart = (_e: React.TouchEvent) => handleDragStart();
+  const handleTouchStart = () => handleDragStart();
   const handleTouchMove = (e: React.TouchEvent) =>
     handleDragMove(e.touches[0].clientX);
   const handleTouchEnd = () => handleDragEnd();
@@ -200,6 +199,7 @@ export function SwipeToConfirmTokens({
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
+  // eslint-disable-next-line react-hooks/refs -- trackRef accessed for layout-driven progress calculation during render
   const progress = getProgress();
   const effectiveProgress = isLongPressing ? longPressProgress : progress;
 

@@ -5,7 +5,6 @@ import { useWalletDetection } from "../../wallets/detect";
 import { useDeposit } from "../context/DepositContext";
 import { toast } from "./Toast";
 import type { DetectedWallet } from "../../types";
-import { walletManager } from "../../wallets/manager";
 
 export interface WalletSelectorProps {
   /** Optional callback when a wallet is selected */
@@ -281,10 +280,7 @@ export function WalletSelector({
 
     // WalletConnect handling disabled — walletconnect module is not active
     if (wallet.meta.id === "walletconnect" || wallet.via === "walletconnect") {
-      toast.error(
-        "Not Available",
-        "WalletConnect is not currently available."
-      );
+      toast.error("Not Available", "WalletConnect is not currently available.");
       return;
     }
 
@@ -318,7 +314,6 @@ export function WalletSelector({
       }
     }
   };
-
 
   const handleDisconnect = async () => {
     try {
@@ -450,7 +445,10 @@ export function WalletSelector({
                 {isConnecting ? (
                   <div style={spinnerStyle} />
                 ) : isThisWalletConnected ? (
-                  <button onClick={handleDisconnect} style={disconnectButtonStyle}>
+                  <button
+                    onClick={handleDisconnect}
+                    style={disconnectButtonStyle}
+                  >
                     Disconnect
                   </button>
                 ) : (
@@ -473,7 +471,6 @@ export function WalletSelector({
           })}
         </div>
       </div>
-
     </>
   );
 }

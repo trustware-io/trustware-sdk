@@ -9,11 +9,7 @@ import { walletManager } from "../wallets/manager";
 import { buildRoute, submitReceipt, getStatus, pollStatus } from "./routes";
 import { getBalances, getBalancesByAddress } from "./balances";
 import { sendRouteTransaction, runTopUp } from "./tx";
-import {
-  validateSdkAccess,
-  RateLimitError,
-  parseRateLimitHeaders,
-} from "./http";
+import { validateSdkAccess } from "./http";
 import { useChains } from "./useChains";
 import { useTokens } from "./useTokens";
 
@@ -30,11 +26,10 @@ export const Trustware = {
       try {
         await validateSdkAccess();
         _lastValidatedKey = key;
-      } catch (err: any) {
-        // surface a helpful message while preserving original error
-        const reason = err?.message ? `: ${err.message}` : "";
+      } catch (err: unknown) {
+        const reason =
+          err instanceof Error && err.message ? `: ${err.message}` : "";
         throw new Error(`Trustware.init: API key validation failed${reason}`);
-        return {};
       }
     }
     return Trustware;
@@ -47,7 +42,7 @@ export const Trustware = {
   },
 
   /** Best-effort background attach to detected wallet(s) (detection hook should be running in the app) */
-  async autoDetect(_timeoutMs = 400) {
+  async autoDetect(_timeoutMs?: number) {
     await walletManager.autoAttach();
     return walletManager.wallet != null;
   },

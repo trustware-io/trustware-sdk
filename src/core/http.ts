@@ -25,7 +25,9 @@ export async function assertOK(r: Response) {
   try {
     const j = await r.json();
     if (j?.error) msg = j.error;
-  } catch {}
+  } catch {
+    // response body not JSON, use statusText
+  }
   throw new Error(`HTTP ${r.status}: ${msg}`);
 }
 

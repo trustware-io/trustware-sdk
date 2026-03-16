@@ -32,6 +32,7 @@ export function WidgetContainer({
 }: WidgetContainerProps): React.ReactElement {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing theme prop with system preference requires setState in effect */
   useEffect(() => {
     if (theme === "system") {
       // Check system preference
@@ -48,6 +49,7 @@ export function WidgetContainer({
       setResolvedTheme(theme);
     }
   }, [theme]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <>

@@ -57,7 +57,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   }, [config.routes.defaultSlippage]);
 
   const theme = config.theme;
-  const messages = config.messages;
   const [showPopular, setShowPopular] = useState(false);
   const [status, setStatus] = useState(walletManager.status);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -81,7 +80,7 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
       }
     });
     return () => {
-      unsubscribe;
+      unsubscribe();
     };
   }, []);
 
@@ -102,17 +101,11 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
     );
   }, []);
 
-  const otherWallets = useMemo(() => {
-    const popularIds = new Set(POPULAR_ORDER);
-    return WALLETS.filter(
-      (wallet) => !popularIds.has(wallet.id) && !detectedIds.has(wallet.id)
-    );
-  }, [detectedIds]);
-
   const openInstallOrDeepLink = (wallet: WalletMeta) => {
     if (typeof window === "undefined") return;
     const deepLink = formatDeepLink(wallet.id, currentUrl);
     if (isMobile && deepLink) {
+      // eslint-disable-next-line react-hooks/immutability -- navigating to deep link requires setting window.location
       window.location.href = deepLink;
       return;
     }
@@ -127,17 +120,10 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
 
   const [universalConnector, setUniversalConnector] =
     useState<UniversalConnector>();
-  const [session, setSession] = useState<any>();
-
   // Initialize the Universal Connector on component mount
   useEffect(() => {
     getUniversalConnector().then(setUniversalConnector);
   }, []);
-
-  // Set the session state in case it changes
-  useEffect(() => {
-    setSession(universalConnector?.provider.session);
-  }, [universalConnector?.provider.session]);
 
   const attemptConnection = async (wallet: WalletMeta) => {
     setSelectedWallet(wallet);
@@ -172,7 +158,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
       const { session: providerSession } = await universalConnector.connect();
 
       if (providerSession) {
-        setSession(providerSession);
         setStatus("connected");
         onNext();
       }

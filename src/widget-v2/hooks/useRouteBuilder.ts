@@ -249,7 +249,8 @@ export function useRouteBuilder({
         // Try to get gas cost from fees object
         if (!networkFeesUSD && fees) {
           const gasCost =
-            (fees as any).gasCostUSD || (fees as any).totalGasCostUSD;
+            (fees as unknown as Record<string, string>).gasCostUSD ||
+            (fees as unknown as Record<string, string>).totalGasCostUSD;
           if (gasCost) {
             networkFeesUSD = parseFloat(gasCost).toFixed(2);
           }

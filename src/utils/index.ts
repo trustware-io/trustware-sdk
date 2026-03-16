@@ -1,4 +1,4 @@
-import { ChainDef, TokenWithBalance } from "src/types/";
+import { ChainDef } from "src/types/";
 import { rawToDecimal } from "src/widget-v2/helpers/tokenAmount";
 
 export function hexToRgba(hex: string, alpha = 1) {

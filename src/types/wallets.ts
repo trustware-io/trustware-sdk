@@ -38,7 +38,10 @@ export type WalletMeta = {
 };
 
 export type EIP1193 = {
-  request(args: { method: string; params?: any[] | object }): Promise<any>;
+  request(args: {
+    method: string;
+    params?: unknown[] | object;
+  }): Promise<unknown>;
 };
 
 // Details of a provider detected via EIP-6963 standard including metadata and supported methods/events
@@ -76,7 +79,10 @@ export type WalletInterFaceAPI = {
 } & (
   | {
       type: "eip1193";
-      request(args: { method: string; params?: any[] | object }): Promise<any>;
+      request(args: {
+        method: string;
+        params?: unknown[] | object;
+      }): Promise<unknown>;
     }
   | {
       type: "wagmi";

@@ -32,7 +32,6 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   const { popularChains, otherChains, isLoading, error } = useChains();
   const {
     filteredTokens,
-    tokens,
     isLoading: isLoadingTokens,
     error: tokensError,
     searchQuery,
@@ -112,24 +111,25 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
 
   const normalizedSearchQuery = searchQuery.toLowerCase().trim();
 
-  const matchesSearch = useCallback(
-    (token: { symbol?: string; name?: string; address?: string }) => {
-      if (!normalizedSearchQuery) {
-        return true;
-      }
+  const matchesSearch = (token: {
+    symbol?: string;
+    name?: string;
+    address?: string;
+  }) => {
+    if (!normalizedSearchQuery) {
+      return true;
+    }
 
-      const symbol = token.symbol?.toLowerCase() ?? "";
-      const name = token.name?.toLowerCase() ?? "";
-      const address = token.address?.toLowerCase() ?? "";
+    const symbol = token.symbol?.toLowerCase() ?? "";
+    const name = token.name?.toLowerCase() ?? "";
+    const address = token.address?.toLowerCase() ?? "";
 
-      return (
-        symbol.includes(normalizedSearchQuery) ||
-        name.includes(normalizedSearchQuery) ||
-        address.includes(normalizedSearchQuery)
-      );
-    },
-    [normalizedSearchQuery]
-  );
+    return (
+      symbol.includes(normalizedSearchQuery) ||
+      name.includes(normalizedSearchQuery) ||
+      address.includes(normalizedSearchQuery)
+    );
+  };
 
   const filteredWalletTokens = useMemo(() => {
     if (!selectedChain?.chainId) {
@@ -142,7 +142,8 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
         matchesSearch(token)
       );
     });
-  }, [matchesSearch, selectedChain?.chainId, yourWalletTokens]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedSearchQuery, selectedChain?.chainId, yourWalletTokens]);
 
   /**
    * Render a single chain item

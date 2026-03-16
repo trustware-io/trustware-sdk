@@ -54,7 +54,9 @@ export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
   return {
     type: "eip1193",
     async getAddress() {
-      const [a] = await eth.request({ method: "eth_requestAccounts" });
+      const [a] = (await eth.request({
+        method: "eth_requestAccounts",
+      })) as string[];
       if (!a) throw new Error("No connected address");
       return a;
     },

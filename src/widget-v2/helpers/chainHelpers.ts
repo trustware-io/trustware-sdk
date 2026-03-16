@@ -1,4 +1,3 @@
-import { Chain } from "@reown/appkit/networks";
 import { ChainDef } from "src/types";
 
 export function normalizeChainKey(id: string | number | null): string {

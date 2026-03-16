@@ -44,8 +44,6 @@ export function mergeStyles(...styles: StyleInput[]): StyleObject {
  * <div className={cn("tw-animate-fade-in", isActive && "tw-animate-pulse")} />
  * ```
  */
-export function cn(
-  ...inputs: (string | false | null | undefined)[]
-): string {
+export function cn(...inputs: (string | false | null | undefined)[]): string {
   return inputs.filter(Boolean).join(" ");
 }

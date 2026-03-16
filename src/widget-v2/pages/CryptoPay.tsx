@@ -324,7 +324,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
   // const routeError = routePrerequisiteError || _routeBuilderError;
   const routeError = routeBuilderError && "No successful provider response";
 
-  const { emitError, emitEvent } = useTrustware();
+  const { emitError } = useTrustware();
 
   useEffect(() => {
     if (currentStep != "crypto-pay") return;
@@ -379,10 +379,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
   const isEvm = chainTypeNormalized === "evm";
-  const evmChainId = useMemo(() => {
-    const numeric = Number(selectedChain?.chainId ?? selectedChain?.id);
-    return Number.isFinite(numeric) ? numeric : undefined;
-  }, [selectedChain]);
   const rpcUrl = useMemo(() => {
     const list = selectedChain?.rpcList;
     if (Array.isArray(list) && list.length > 0) return list[0];
@@ -427,7 +423,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     const txReq = routeResult?.txReq;
     const addr = (txReq?.to ?? txReq?.target) as `0x${string}` | undefined;
     return addr ?? null;
-  }, [routeResult?.txReq?.to, routeResult?.txReq?.target]);
+  }, [routeResult?.txReq]);
 
   const [allowanceWei, setAllowanceWei] = useState<bigint>(0n);
   const [isReadingAllowance, setIsReadingAllowance] = useState(false);
@@ -525,7 +521,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
       let hash: `0x${string}`;
       if (wallet.type === "eip1193") {
         const from = await wallet.getAddress();
-        const params: any = {
+        const params: Record<string, unknown> = {
           from,
           to: selectedToken.address as `0x${string}`,
           data,
@@ -555,9 +551,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
         setAllowanceWei(amountWei);
       }
       //toast.success("Approval confirmed", "You can now confirm the transfer.");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Approval failed.";
-      //toast.error("Approval failed", message);
+    } catch {
+      // Approval failed — user can retry
     } finally {
       setIsApproving(false);
     }

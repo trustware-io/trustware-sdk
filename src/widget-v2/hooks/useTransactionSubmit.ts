@@ -94,7 +94,7 @@ export function useTransactionSubmit() {
         // Notify backend of the transaction receipt
         try {
           await submitReceipt(routeResult.intentId, hash);
-        } catch (receiptErr) {
+        } catch {
           // Don't fail the transaction if receipt submission fails
           // The backend poller will eventually pick it up
         }
@@ -159,7 +159,9 @@ function mapTransactionError(err: unknown): string {
   }
 
   // Check for user rejection (code 4001)
-  const errorCode = (err as any)?.code ?? (err as any)?.data?.code;
+  const errRecord = err as Record<string, unknown>;
+  const errorCode =
+    errRecord?.code ?? (errRecord?.data as Record<string, unknown>)?.code;
   if (errorCode === 4001) {
     return "Transaction cancelled. You rejected the request in your wallet.";
   }

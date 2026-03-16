@@ -66,7 +66,7 @@ class WalletManager {
     this._status = "connecting";
     this.emit();
     try {
-      const { via, api } = await connectDetectedWallet(target, {
+      const { api } = await connectDetectedWallet(target, {
         wagmi: opts?.wagmi,
       });
       // Set wallet for both eip1193 and walletconnect (api is returned for both)

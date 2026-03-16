@@ -1,15 +1,9 @@
-export {
-  AmountSlider,
-  type AmountSliderProps,
-} from "./AmountSlider";
+export { AmountSlider, type AmountSliderProps } from "./AmountSlider";
 export {
   CircularProgress,
   type CircularProgressProps,
 } from "./CircularProgress";
-export {
-  ConfettiEffect,
-  type ConfettiEffectProps,
-} from "./ConfettiEffect";
+export { ConfettiEffect, type ConfettiEffectProps } from "./ConfettiEffect";
 export { Dialog, type DialogProps } from "./Dialog";
 export {
   SwipeToConfirmTokens,
@@ -20,24 +14,14 @@ export {
   type ResolvedTheme,
   type ThemeToggleProps,
 } from "./ThemeToggle";
-export {
-  toast,
-  ToastContainer,
-  type ToastData,
-} from "./Toast";
-export {
-  TokenSwipePill,
-  type TokenSwipePillProps,
-} from "./TokenSwipePill";
+export { toast, ToastContainer, type ToastData } from "./Toast";
+export { TokenSwipePill, type TokenSwipePillProps } from "./TokenSwipePill";
 export {
   TransactionSteps,
   type Step,
   type TransactionStepsProps,
 } from "./TransactionSteps";
-export {
-  WalletSelector,
-  type WalletSelectorProps,
-} from "./WalletSelector";
+export { WalletSelector, type WalletSelectorProps } from "./WalletSelector";
 export {
   WidgetContainer,
   type Theme,

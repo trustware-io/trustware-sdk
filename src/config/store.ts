@@ -31,8 +31,14 @@ class ConfigStore {
       ...this._cfg,
       ...patch,
       routes: { ...this._cfg.routes, ...(patch.routes ?? {}) },
-      theme: { ...this._cfg.theme, ...(patch.theme ?? {}) } as any,
-      messages: { ...this._cfg.messages, ...(patch.messages ?? {}) } as any,
+      theme: {
+        ...this._cfg.theme,
+        ...(patch.theme ?? {}),
+      } as ResolvedTrustwareConfig["theme"],
+      messages: {
+        ...this._cfg.messages,
+        ...(patch.messages ?? {}),
+      } as ResolvedTrustwareConfig["messages"],
       retry: { ...this._cfg.retry, ...(patch.retry ?? {}) },
       walletConnect: patch.walletConnect
         ? { ...this._cfg.walletConnect, ...patch.walletConnect }

@@ -80,7 +80,7 @@ export function useTransactionPolling() {
    * @param _txHash - The transaction hash (unused, kept for API compatibility)
    */
   const startPolling = useCallback(
-    async (intentId: string, _txHash: string) => {
+    async (intentId: string, _txHash?: string) => {
       // Clear any existing polling
       clearPolling();
       abortRef.current = false;
@@ -167,11 +167,12 @@ export function useTransactionPolling() {
             // Schedule next poll if not terminal
             // Use faster polling for first 10 polls, then slow down
             pollCountRef.current += 1;
-            const pollInterval = pollCountRef.current <= 10
-              ? FAST_POLL_INTERVAL_MS
-              : NORMAL_POLL_INTERVAL_MS;
+            const pollInterval =
+              pollCountRef.current <= 10
+                ? FAST_POLL_INTERVAL_MS
+                : NORMAL_POLL_INTERVAL_MS;
             pollingRef.current = setTimeout(poll, pollInterval);
-          } catch (pollErr) {
+          } catch {
             if (abortRef.current) return;
 
             // Check if we've been polling for too long (soft timeout check)
@@ -193,9 +194,10 @@ export function useTransactionPolling() {
 
             // Retry after interval (use same adaptive timing)
             pollCountRef.current += 1;
-            const retryInterval = pollCountRef.current <= 10
-              ? FAST_POLL_INTERVAL_MS
-              : NORMAL_POLL_INTERVAL_MS;
+            const retryInterval =
+              pollCountRef.current <= 10
+                ? FAST_POLL_INTERVAL_MS
+                : NORMAL_POLL_INTERVAL_MS;
             pollingRef.current = setTimeout(poll, retryInterval);
           }
         };
@@ -328,10 +330,8 @@ function mapFailedTransactionError(tx: Transaction): string {
   // Check for specific failure reasons in the status
   const statusRaw = tx.statusRaw;
   if (typeof statusRaw === "object" && statusRaw !== null) {
-    const reason =
-      (statusRaw as any).reason ||
-      (statusRaw as any).error ||
-      (statusRaw as any).message;
+    const statusObj = statusRaw as Record<string, unknown>;
+    const reason = statusObj.reason || statusObj.error || statusObj.message;
 
     if (reason) {
       const reasonLower = String(reason).toLowerCase();

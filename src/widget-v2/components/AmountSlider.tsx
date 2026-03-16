@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from "react";
-import { mergeStyles } from "../lib/utils";
+import React, { useCallback, useMemo } from "react";
 import { colors, spacing, fontSize, fontWeight } from "../styles";
 
 export interface AmountSliderProps {

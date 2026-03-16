@@ -97,55 +97,49 @@ export async function buildRoute(
   };
   route: RoutePlan | undefined;
 }> {
+  const cfg = TrustwareConfigStore.get();
+  const url = `${apiBase()}/routes/route`;
+  const payload = {
+    ...body,
+    slippageBps:
+      body.slippage === undefined ? undefined : Math.round(body.slippage * 100),
+    fromAmountUSD: body.fromAmountUsd,
+  };
+  const r = await rateLimitedFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  let json: BuildRouteResponse = {};
   try {
-    // const url = `${backendBase.replace(/\/?$/, "/")}api/routes/route`;
-    const cfg = TrustwareConfigStore.get();
-    const url = `${apiBase()}/routes/route`;
-    const payload = {
-      ...body,
-      slippageBps:
-        body.slippage === undefined
-          ? undefined
-          : Math.round(body.slippage * 100),
-      fromAmountUSD: body.fromAmountUsd,
-    };
-    const r = await rateLimitedFetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
-      body: JSON.stringify(payload),
-      signal,
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let json: BuildRouteResponse = {};
-    try {
-      json = await r.json();
-    } catch {}
-
-    if (!r.ok) {
-      const msg = json?.error || json?.message || "Failed to build route";
-      throw new Error(msg);
-    }
-
-    const intentId = json?.data?.intentId ?? json?.intentId ?? "";
-    const route = json?.data?.route ?? json?.route;
-    const txReq: TxRequest | undefined = route?.execution?.transaction;
-    const actions = Array.isArray(route?.steps) ? route.steps : [];
-    const estimate = route?.estimate ?? {};
-
-    const finalExchangeRate = {
-      fromAmountUSD: (estimate as { fromAmountUsd?: string }).fromAmountUsd,
-      toAmountMinUSD: estimate?.toAmountUsd,
-    };
-
-    if (!txReq?.data || !(txReq?.to || txReq?.target)) {
-      throw new Error("Invalid route: missing transactionRequest target/data");
-    }
-
-    return { intentId, txReq, actions, finalExchangeRate, route };
-  } catch (e) {
-    throw e;
+    json = await r.json();
+  } catch {
+    // response body not JSON
   }
+
+  if (!r.ok) {
+    const msg = json?.error || json?.message || "Failed to build route";
+    throw new Error(msg);
+  }
+
+  const intentId = json?.data?.intentId ?? json?.intentId ?? "";
+  const route = json?.data?.route ?? json?.route;
+  const txReq: TxRequest | undefined = route?.execution?.transaction;
+  const actions = Array.isArray(route?.steps) ? route.steps : [];
+  const estimate = route?.estimate ?? {};
+
+  const finalExchangeRate = {
+    fromAmountUSD: (estimate as { fromAmountUsd?: string }).fromAmountUsd,
+    toAmountMinUSD: estimate?.toAmountUsd,
+  };
+
+  if (!txReq?.data || !(txReq?.to || txReq?.target)) {
+    throw new Error("Invalid route: missing transactionRequest target/data");
+  }
+
+  return { intentId, txReq, actions, finalExchangeRate, route };
 }
 
 // @title Submit Receipt

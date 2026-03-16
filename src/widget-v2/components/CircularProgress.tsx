@@ -1,5 +1,5 @@
 import React from "react";
-import { mergeStyles, cn } from "../lib/utils";
+import { cn } from "../lib/utils";
 import { colors, fontSize, fontWeight } from "../styles";
 
 export interface CircularProgressProps {

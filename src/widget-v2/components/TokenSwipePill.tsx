@@ -5,13 +5,7 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import {
-  colors,
-  spacing,
-  fontSize,
-  fontWeight,
-  borderRadius,
-} from "../styles";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 
 export interface TokenSwipePillProps {
@@ -175,11 +169,6 @@ export function TokenSwipePill({
     return symbol?.slice(0, 2).toUpperCase();
   };
 
-  // Don't render if no tokens
-  if (tokens.length === 0) {
-    return null;
-  }
-
   const chainBadge = useMemo(() => {
     const url =
       (selectedToken as YourTokenData).chainData?.chainIconURI ||
@@ -191,6 +180,11 @@ export function TokenSwipePill({
       )?.iconUrl;
     return url?.toString();
   }, [selectedToken]);
+
+  // Don't render if no tokens
+  if (tokens.length === 0) {
+    return null;
+  }
 
   function validateIconUrl(url: string | undefined, isCenter: boolean) {
     if (url === undefined) return "";

@@ -42,21 +42,6 @@ interface PersistedState {
 }
 
 /**
- * Load persisted state from sessionStorage
- */
-function loadPersistedState(): PersistedState | null {
-  try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored) as PersistedState;
-    }
-  } catch {
-    // Ignore storage errors
-  }
-  return null;
-}
-
-/**
  * Save state to sessionStorage
  */
 function savePersistedState(state: PersistedState): void {
@@ -369,15 +354,13 @@ interface WidgetInnerProps {
 }
 
 function WidgetInner({
-  theme,
   style,
   onClose,
   onStateChange,
   closeRequestRef,
   showThemeToggle,
 }: WidgetInnerProps): React.ReactElement {
-  const { transactionStatus, resetState, resolvedTheme, errorMessage } =
-    useDeposit();
+  const { transactionStatus, resetState, resolvedTheme } = useDeposit();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   /**

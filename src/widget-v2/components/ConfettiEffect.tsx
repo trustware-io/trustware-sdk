@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { zIndex } from "../styles";
 
 interface ConfettiPiece {
   id: number;
@@ -33,6 +32,7 @@ export function ConfettiEffect({
   const [pieces, setPieces] = useState<ConfettiPiece[]>([]);
 
   // Generate confetti pieces when activated
+  /* eslint-disable react-hooks/set-state-in-effect -- setState syncs animation state with isActive prop */
   useEffect(() => {
     if (isActive) {
       const colors = [
@@ -71,6 +71,7 @@ export function ConfettiEffect({
       setPieces([]);
     }
   }, [isActive, pieceCount, clearDelay]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isActive || pieces.length === 0) {
     return null;

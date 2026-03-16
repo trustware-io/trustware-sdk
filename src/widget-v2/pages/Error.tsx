@@ -215,7 +215,6 @@ export function Error({ style }: ErrorProps): React.ReactElement {
       } catch {
         // Config may not be initialized, ignore
       }
-
     }
   }, [errorMessage]);
 

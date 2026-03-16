@@ -110,7 +110,7 @@ const dropdownWrapperOpenStyle: React.CSSProperties = {
  * Home page for the deposit widget.
  * Displays a large amount input and dropdown buttons for payment method selection.
  */
-export function Home({ style }: HomeProps): React.ReactElement {
+export function Home({ style: _style }: HomeProps): React.ReactElement {
   const {
     amount,
     setAmount,
@@ -157,7 +157,7 @@ export function Home({ style }: HomeProps): React.ReactElement {
    * Handle amount input changes with decimal sanitization
    */
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    amountInputMode != "usd" && setAmountInputMode("usd");
+    if (amountInputMode !== "usd") setAmountInputMode("usd");
     const raw = e.target.value.replace(/[^0-9.]/g, "");
     // Handle multiple decimal points - keep only the first one
     const parts = raw.split(".");
@@ -208,7 +208,7 @@ export function Home({ style }: HomeProps): React.ReactElement {
   /**
    * Handle fiat payment selection (coming soon)
    */
-  const handleFiatSelect = (_method: FiatOption) => {
+  const handleFiatSelect = () => {
     // Fiat is coming soon - just close dropdown
     setIsFiatDropdownOpen(false);
   };
@@ -220,17 +220,10 @@ export function Home({ style }: HomeProps): React.ReactElement {
 
   const [universalConnector, setUniversalConnector] =
     useState<UniversalConnector>();
-  const [session, setSession] = useState<any>();
-
   // Initialize the Universal Connector on component mount
   useEffect(() => {
     getUniversalConnector().then(setUniversalConnector);
   }, []);
-
-  // Set the session state in case it changes
-  useEffect(() => {
-    setSession(universalConnector?.provider.session);
-  }, [universalConnector?.provider.session]);
 
   const handleWalletConnect = async () => {
     if (!universalConnector) {
@@ -240,7 +233,6 @@ export function Home({ style }: HomeProps): React.ReactElement {
     const { session: providerSession } = await universalConnector.connect();
 
     if (providerSession) {
-      setSession(providerSession);
       setCurrentStep("select-token");
       // setStatus("connected");
       // onNext();
@@ -498,7 +490,6 @@ export function Home({ style }: HomeProps): React.ReactElement {
                   animation: "tw-fade-in 0.2s ease-out",
                   scrollbarWidth: "thin",
                   scrollbarColor: `${colors.muted} transparent`,
-
                 }}
               >
                 {/* Detected Wallets Section */}
@@ -908,7 +899,7 @@ export function Home({ style }: HomeProps): React.ReactElement {
                       <button
                         key={method.id}
                         type="button"
-                        onClick={() => handleFiatSelect(method)}
+                        onClick={() => handleFiatSelect()}
                         disabled
                         style={{
                           width: "100%",

@@ -10,6 +10,7 @@ export default tseslint.config(
       "dist/**",
       "node_modules/**",
       "ui-ideas/**",
+      ".venv/**",
       "*.cjs",
       "*.mjs",
       "*.config.ts",
@@ -20,6 +21,19 @@ export default tseslint.config(
   js.configs.recommended,
 
   ...tseslint.configs.recommended,
+
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 
   {
     files: ["**/*.tsx", "**/*.jsx"],

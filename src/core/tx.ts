@@ -3,10 +3,12 @@ import type { BuildRouteResult } from "../types";
 import { walletManager } from "../wallets/";
 import { buildRoute, submitReceipt, pollStatus } from "./routes";
 
-function isUserRejected(e: any): boolean {
-  const code = e?.code ?? e?.data?.code;
+function isUserRejected(e: unknown): boolean {
+  const code =
+    (e as Record<string, unknown>)?.code ??
+    ((e as Record<string, Record<string, unknown>>)?.data?.code as number);
   if (code === 4001) return true;
-  const msg = String(e?.message || e)?.toLowerCase?.() || "";
+  const msg = String((e as Error)?.message || e)?.toLowerCase?.() || "";
   return msg.includes("user rejected") || msg.includes("user denied");
 }
 
@@ -28,7 +30,7 @@ export async function sendRouteTransaction(
     if (current !== target) {
       try {
         await w.switchChain(target);
-      } catch (e) {
+      } catch {
         // switchChain failed/skipped — non-fatal, continue with transaction
       }
     }
@@ -37,7 +39,7 @@ export async function sendRouteTransaction(
   if (w.type === "eip1193") {
     const from = await w.getAddress();
     const hexValue = value ? `0x${value.toString(16)}` : "0x0";
-    const params: any = { from, to, data, value: hexValue };
+    const params: Record<string, unknown> = { from, to, data, value: hexValue };
     if (Number.isFinite(target)) params.chainId = `0x${target!.toString(16)}`;
 
     const hash = await w.request({
@@ -117,7 +119,7 @@ export async function runTopUp(params: {
     await submitReceipt(build.intentId, hash);
     const tx = await pollStatus(build.intentId);
     return tx;
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isUserRejected(e)) throw new Error("Transaction cancelled by user");
     throw e;
   } finally {
@@ -125,7 +127,7 @@ export async function runTopUp(params: {
       if (originalChain && originalChain !== Number(fromChain)) {
         await w.switchChain(originalChain);
       }
-    } catch (swErr) {
+    } catch {
       // switch back skipped — non-fatal
     }
   }

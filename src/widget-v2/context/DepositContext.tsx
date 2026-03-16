@@ -228,7 +228,7 @@ export function DepositProvider({
   children,
   initialStep = "home",
 }: DepositProviderProps): React.ReactElement {
-  const { emitError, emitEvent } = useTrustware();
+  useTrustware(); // ensures provider is present
 
   const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
     "usd"
@@ -340,6 +340,7 @@ export function DepositProvider({
 
   const { chains } = useChains();
 
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing wallet tokens with external wallet/chain state */
   useEffect(() => {
     if (!walletAddress || chains.length === 0 || tokens.length === 0) {
       setYourWalletTokens([]);
@@ -494,16 +495,13 @@ export function DepositProvider({
       cancelled = true;
     };
   }, [chains, tokens, walletAddress]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   /**
    * Connect to a detected wallet
    */
   const connectWallet = useCallback(async (wallet: DetectedWallet) => {
-    try {
-      await walletManager.connectDetected(wallet);
-    } catch (error) {
-      throw error;
-    }
+    await walletManager.connectDetected(wallet);
   }, []);
 
   /**

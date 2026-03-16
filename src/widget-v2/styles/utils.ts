@@ -241,13 +241,8 @@ export function roundedStyle(radius: string): StyleObject {
 /**
  * Creates padding style
  */
-export function paddingStyle(
-  all: string
-): StyleObject;
-export function paddingStyle(
-  vertical: string,
-  horizontal: string
-): StyleObject;
+export function paddingStyle(all: string): StyleObject;
+export function paddingStyle(vertical: string, horizontal: string): StyleObject;
 export function paddingStyle(
   top: string,
   horizontal: string,
@@ -275,13 +270,8 @@ export function paddingStyle(...args: string[]): StyleObject {
 /**
  * Creates margin style
  */
-export function marginStyle(
-  all: string
-): StyleObject;
-export function marginStyle(
-  vertical: string,
-  horizontal: string
-): StyleObject;
+export function marginStyle(all: string): StyleObject;
+export function marginStyle(vertical: string, horizontal: string): StyleObject;
 export function marginStyle(
   top: string,
   horizontal: string,
