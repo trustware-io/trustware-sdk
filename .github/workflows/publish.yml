@@ -6,15 +6,15 @@ on:
     paths:
       - 'package.json'
 
-permissions:
-  contents: read
-  packages: write
-  id-token: write  # Required for npm trusted publishing
+permissions: {}
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: npm  # Optional: adds deployment protection rules
+    environment: npm
+    permissions:
+      id-token: write   # Required for npm trusted publishing (OIDC)
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +23,9 @@ jobs:
           node-version: 22
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -59,12 +62,8 @@ jobs:
 
       - name: Publish to npm (staging)
         if: github.ref == 'refs/heads/staging'
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
       - name: Publish to npm (main)
         if: github.ref == 'refs/heads/main'
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
