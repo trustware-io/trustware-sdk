@@ -502,13 +502,17 @@ export function Home({ style }: HomeProps): React.ReactElement {
                   transform: "translateX(-50%)",
                   marginTop: spacing[2],
                   width: "16rem",
+                  maxHeight: "16rem",
                   backgroundColor: colors.card,
                   borderRadius: borderRadius.xl,
                   boxShadow: shadows.large,
                   border: `1px solid rgba(63, 63, 70, 0.5)`,
                   zIndex: 100,
-                  overflow: "hidden",
+                  overflow: "auto",
                   animation: "tw-fade-in 0.2s ease-out",
+                  scrollbarWidth: "thin",
+                  scrollbarColor: `${colors.muted} transparent`,
+
                 }}
               >
                 {/* Detected Wallets Section */}

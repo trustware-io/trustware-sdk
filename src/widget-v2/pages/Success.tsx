@@ -50,8 +50,8 @@ export function Success({ style }: SuccessProps): React.ReactElement {
       return transaction.fromChainTxUrl;
     }
     // Last fallback: construct URL based on chain if we have a hash
-    if (transactionHash && selectedChain?.explorerUrl) {
-      return `${selectedChain.explorerUrl}/tx/${transactionHash}`;
+    if (transactionHash && selectedChain?.blockExplorerUrls?.length) {
+      return `${selectedChain.blockExplorerUrls[0].replace(/\/+$/, "")}/tx/${transactionHash}`;
     }
     return null;
   }, [transaction, transactionHash, selectedChain]);
@@ -224,7 +224,7 @@ export function Success({ style }: SuccessProps): React.ReactElement {
                 }}
               >
                 {selectedToken.symbol}
-                {selectedChain && ` on ${selectedChain.name}`}
+                {selectedChain && ` on ${selectedChain.networkName}`}
               </span>
             </div>
           </div>
