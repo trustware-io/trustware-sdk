@@ -12,6 +12,8 @@ import { sendRouteTransaction, runTopUp } from "./tx";
 import { validateSdkAccess } from "./http";
 import { useChains } from "./useChains";
 import { useTokens } from "./useTokens";
+import { TrustwareError } from "../errors/TrustwareError";
+import { TrustwareErrorCode } from "../errors/errorCodes";
 
 // simple memo to avoid re-validating same key repeatedly
 let _lastValidatedKey: string | null = null;
@@ -29,7 +31,17 @@ export const Trustware = {
       } catch (err: unknown) {
         const reason =
           err instanceof Error && err.message ? `: ${err.message}` : "";
-        throw new Error(`Trustware.init: API key validation failed${reason}`);
+        const error = new TrustwareError({
+          code: TrustwareErrorCode.INVALID_API_KEY,
+          message: `Trustware.init: API key validation failed${reason}`,
+          userMessage:
+            "API key validation failed. Please verify your Trustware API key.",
+          cause: err,
+        });
+        const config = TrustwareConfigStore.get();
+        config.onError?.(error);
+        config.onEvent?.({ type: "error", error });
+        throw error;
       }
     }
     return Trustware;

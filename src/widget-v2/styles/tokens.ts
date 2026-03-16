@@ -248,5 +248,6 @@ export const zIndex = {
   30: "30",
   40: "40",
   50: "50",
+  60: "60",
   auto: "auto",
 } as const;
