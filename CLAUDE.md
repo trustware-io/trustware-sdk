@@ -100,11 +100,13 @@ If you run `npm run build` without the env var, the SDK will call production API
 
 ### Key Directories
 - `src/widget-v2/` - TrustwareWidget component and state machine
-- `src/widget-v2/styles/` - Design tokens, theme, animations, utilities
-- `src/wallets/` - Wallet detection, connection adapters, WalletConnect
-- `src/config/` - Configuration store and defaults
-- `src/hooks/` - React hooks for quotes, transactions, etc.
-- `src/types/` - TypeScript type definitions
+- `src/widget-v2/components/` - UI components (barrel: `index.ts`)
+- `src/widget-v2/hooks/` - Widget-specific hooks (barrel: `index.ts`)
+- `src/widget-v2/styles/` - Design tokens, theme, animations, utilities (barrel: `index.ts`)
+- `src/wallets/` - Wallet detection, connection adapters, WalletConnect (barrel: `index.ts`)
+- `src/config/` - Configuration store and defaults (barrel: `index.ts`)
+- `src/hooks/` - React hooks for quotes, transactions, etc. (barrel: `index.ts`)
+- `src/types/` - TypeScript type definitions (barrel: `index.ts`)
 
 ### Widget State Machine
 The TrustwareWidget uses an 8-state flow:
@@ -114,10 +116,7 @@ WalletConnection → PaymentProcessing → Success/Failure
 ```
 
 ### WalletConnect Integration
-WalletConnect is enabled by default with a built-in project ID. Users can:
-- Use it without any configuration (default)
-- Override with their own `walletConnect.projectId`
-- Disable with `walletConnect.disabled: true`
+WalletConnect uses `@reown/appkit-universal-connector`. The legacy `src/wallets/walletconnect.ts` and `src/widget-v2/components/WalletConnectModal.tsx` are fully commented out — WalletConnect is now handled via the Universal Connector in `src/config/walletconnect.ts`, used by `Home.tsx` and `widget/walletSelection.tsx`.
 
 ## Build Configuration
 
@@ -130,6 +129,24 @@ WalletConnect is enabled by default with a built-in project ID. Users can:
 - ESLint 9.x flat config
 - Prettier (2-space indent, 80 char width, semicolons)
 - Path alias: `@/` → `src/`
+
+### Import Conventions
+
+Each directory has a barrel `index.ts` that re-exports all public symbols. **Always import from the barrel**, not individual files:
+
+```typescript
+// Good - import from barrel
+import { AmountSlider, TokenSwipePill, LoadingSkeleton } from "../components";
+import { useRouteBuilder, useTransactionSubmit } from "../hooks";
+import { colors, spacing, fontSize } from "../styles";
+
+// Bad - import from individual files
+import { AmountSlider } from "../components/AmountSlider";
+import { useRouteBuilder } from "../hooks/useRouteBuilder";
+import { colors } from "../styles/tokens";
+```
+
+When adding a new component/hook/module, export it from the directory's `index.ts` barrel file.
 
 ## Styling Architecture (CRITICAL)
 
@@ -337,3 +354,16 @@ const fromAmountWei = (whole + paddedFraction).replace(/^0+/, "") || "0";
 - Smart dot display: shows first, current, surrounding, and last dots
 - Gap indicators for skipped tokens
 - Cleaner visual hierarchy
+
+### 5. Code Cleanup (2026-03-16)
+**Scope**: All `src/` files
+
+**Changes**:
+- Removed 45 debug console.log/warn/error statements across 14 files
+- Created barrel `index.ts` files for `widget-v2/components/` and `widget-v2/components/Skeletons/`
+- Consolidated imports across all pages/components to use barrel re-exports
+- Removed unused `direction` field from `UseRouteBuilderOptions`
+- Fixed `explorerUrl` → `blockExplorerUrls[0]` on Error page
+- Fixed `BuildRouteResult` type access (`txReq` instead of `route.transactionRequest`)
+- Fixed `fromAmountUSD`/`toAmountUSD` casing to match `RouteEstimate` type
+- Removed dead WalletConnect imports from WalletSelector (underlying modules commented out)
