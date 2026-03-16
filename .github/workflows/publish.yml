@@ -62,7 +62,7 @@ jobs:
 
       - name: Publish to npm (staging)
         if: github.ref == 'refs/heads/staging'
-        run: npm publish --access public
+        run: npm publish --access public --tag staging
 
       - name: Publish to npm (main)
         if: github.ref == 'refs/heads/main'
