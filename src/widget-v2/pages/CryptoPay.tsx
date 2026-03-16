@@ -5,26 +5,21 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import {
-  colors,
-  spacing,
-  fontSize,
-  fontWeight,
-  borderRadius,
-} from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { Chain, useDeposit, YourTokenData } from "../context/DepositContext";
 import {
   useRouteBuilder,
   UseRouteBuilderOptions,
-} from "../hooks/useRouteBuilder";
-import { useTransactionSubmit } from "../hooks/useTransactionSubmit";
-import { TokenSwipePill } from "../components/TokenSwipePill";
-import { SwipeToConfirmTokens } from "../components/SwipeToConfirmTokens";
-import { AmountSlider } from "../components/AmountSlider";
+  useTransactionSubmit,
+  useChains,
+} from "../hooks";
+import {
+  TokenSwipePill,
+  SwipeToConfirmTokens,
+  AmountSlider,
+  LoadingSkeleton,
+} from "../components";
 import { TrustwareConfigStore } from "../../config/store";
-import { LoadingSkeleton } from "../components/Skeletons/LoadingSkeleton";
-
-import { useChains } from "../hooks";
 import {
   divRoundDown,
   formatTokenBalance,
@@ -254,7 +249,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
       return object;
     } catch (error) {
-      console.error("Error building route config:", error);
+      void error;
       return {
         fromChain: "",
         fromChainId: undefined,
@@ -344,7 +339,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     );
 
     if (routePrerequisiteError || routeBuilderError) {
-      console.error(routePrerequisiteError || (routeBuilderError as string));
+      void (routePrerequisiteError || routeBuilderError);
     }
   }, [
     currentStep,
@@ -356,12 +351,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   useEffect(() => {
     if (!routePrerequisiteError && amountComputation.fromAmountWei) {
-      console.log("[CryptoPay] Route prerequisites satisfied", {
-        chainId: selectedChain?.chainId ?? selectedChain?.id,
-        token: selectedToken?.address,
-        fromAddress: walletAddress,
-        toAddress: routeConfig.toAddress,
-      });
+      // Route prerequisites satisfied — route building will proceed
     }
   }, [
     amountComputation.fromAmountWei,
@@ -401,13 +391,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   useEffect(() => {
     if (!rpcUrl) {
-      console.warn(
-        "[CryptoPay] Missing RPC URL for selected chain. On-chain reads may fail.",
-        {
-          chainId: selectedChain?.chainId ?? selectedChain?.id,
-          chainName: selectedChain?.networkName,
-        }
-      );
+      // Missing RPC URL for selected chain — on-chain reads may fail
     }
   }, [
     rpcUrl,
@@ -418,10 +402,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const client = useMemo(() => {
     if (!rpcUrl) {
-      console.warn(
-        "[CryptoPay] No RPC URL available for selected chain, skipping client creation",
-        selectedChain
-      );
       return null;
     }
     return createPublicClient({

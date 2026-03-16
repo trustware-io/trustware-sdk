@@ -6,7 +6,7 @@ import {
   fontWeight,
   shadows,
   borderRadius,
-} from "../styles/tokens";
+} from "../styles";
 
 export interface ToastData {
   id: string;

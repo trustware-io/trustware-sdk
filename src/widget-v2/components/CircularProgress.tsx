@@ -1,6 +1,6 @@
 import React from "react";
 import { mergeStyles, cn } from "../lib/utils";
-import { colors, fontSize, fontWeight } from "../styles/tokens";
+import { colors, fontSize, fontWeight } from "../styles";
 
 export interface CircularProgressProps {
   /** Progress value from 0-100 */

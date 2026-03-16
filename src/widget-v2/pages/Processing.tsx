@@ -1,15 +1,8 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import {
-  colors,
-  spacing,
-  fontSize,
-  fontWeight,
-  borderRadius,
-} from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { useDeposit, type TransactionStatus } from "../context/DepositContext";
-import { useTransactionPolling } from "../hooks/useTransactionPolling";
-import { CircularProgress } from "../components/CircularProgress";
-import { TransactionSteps } from "../components/TransactionSteps";
+import { useTransactionPolling } from "../hooks";
+import { CircularProgress, TransactionSteps } from "../components";
 
 export interface ProcessingProps {
   /** Additional inline styles */
@@ -96,16 +89,6 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
 
   // Start polling when we have intentId and transactionHash
   useEffect(() => {
-    console.log("[TW Processing] useEffect check:", {
-      intentId,
-      transactionHash: transactionHash
-        ? transactionHash.slice(0, 10) + "..."
-        : null,
-      isPolling,
-      hasStartedPolling: hasStartedPolling.current,
-      transactionStatus,
-    });
-
     if (
       intentId &&
       transactionHash &&
@@ -114,7 +97,6 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
       transactionStatus !== "success" &&
       transactionStatus !== "error"
     ) {
-      console.log("[TW Processing] Starting polling for intent:", intentId);
       hasStartedPolling.current = true;
       startPolling(intentId, transactionHash);
     }

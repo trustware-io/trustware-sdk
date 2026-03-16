@@ -190,7 +190,6 @@ export function useRouteBuilder({
 
     // Debounce the route building
     const timeout = setTimeout(async () => {
-      console.log("[useRouteBuilder] Debounce complete, calling API...");
       try {
         setState((prev) => ({
           ...prev,
@@ -210,14 +209,6 @@ export function useRouteBuilder({
         }
 
         // Build the route
-        console.log("buildRoute Called", {
-          params,
-          toChain,
-          toToken,
-          toAddress,
-          defaultSlippage,
-        });
-
         const shouldBuildRoute = errorMessage === null || errorMessage === "";
 
         if (!shouldBuildRoute) return;

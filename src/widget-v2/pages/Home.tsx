@@ -6,7 +6,7 @@ import {
   fontWeight,
   borderRadius,
   shadows,
-} from "../styles/tokens";
+} from "../styles";
 import { useDeposit } from "../context/DepositContext";
 import { useWalletDetection } from "../../wallets/detect";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
@@ -186,17 +186,10 @@ export function Home({ style }: HomeProps): React.ReactElement {
    * Handle wallet selection from dropdown
    */
   const handleWalletSelect = async (wallet: (typeof detectedWallets)[0]) => {
-    console.log(
-      "[TW Home] handleWalletSelect called with:",
-      wallet.meta.id,
-      wallet.meta.name
-    );
-    console.log("[TW Home] wallet.provider:", wallet.provider);
     setIsCryptoDropdownOpen(false);
 
     // If already connected, go to select token
     if (walletAddress) {
-      console.log("[TW Home] Already connected, navigating to crypto-pay");
       // setCurrentStep("select-token");
       setCurrentStep("crypto-pay");
       return;
@@ -204,15 +197,11 @@ export function Home({ style }: HomeProps): React.ReactElement {
 
     // Connect to the wallet
     try {
-      console.log("[TW Home] Calling connectWallet...");
       await connectWallet(wallet);
-      console.log(
-        "[TW Home] connectWallet succeeded, navigating to select-token"
-      );
       // setCurrentStep("select-token");
       setCurrentStep("crypto-pay");
-    } catch (err) {
-      console.error("[TW Home] Failed to connect wallet:", err);
+    } catch {
+      // wallet connection failed — handled by walletManager status
     }
   };
 
@@ -252,9 +241,6 @@ export function Home({ style }: HomeProps): React.ReactElement {
 
     if (providerSession) {
       setSession(providerSession);
-      console.log("✅ WalletConnect session approved", {
-        providerSession,
-      });
       setCurrentStep("select-token");
       // setStatus("connected");
       // onNext();

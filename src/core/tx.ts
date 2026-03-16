@@ -29,7 +29,7 @@ export async function sendRouteTransaction(
       try {
         await w.switchChain(target);
       } catch (e) {
-        console.warn("switchChain failed / skipped:", e);
+        // switchChain failed/skipped — non-fatal, continue with transaction
       }
     }
   }
@@ -126,7 +126,7 @@ export async function runTopUp(params: {
         await w.switchChain(originalChain);
       }
     } catch (swErr) {
-      console.warn("switch back skipped:", swErr);
+      // switch back skipped — non-fatal
     }
   }
 }

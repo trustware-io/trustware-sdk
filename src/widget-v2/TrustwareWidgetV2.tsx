@@ -8,7 +8,7 @@ import React, {
 } from "react";
 
 import { mergeStyles } from "./lib/utils";
-import { spacing } from "./styles/tokens";
+import { spacing } from "./styles";
 import {
   DepositProvider,
   useDeposit,
@@ -16,15 +16,13 @@ import {
   type TransactionStatus,
   type ResolvedTheme,
 } from "./context/DepositContext";
-import { ThemeToggle } from "./components/ThemeToggle";
-import { WidgetContainer, type Theme } from "./components/WidgetContainer";
+import { ThemeToggle, WidgetContainer, type Theme, Dialog } from "./components";
 import { Home } from "./pages/Home";
 import { SelectToken } from "./pages/SelectToken";
 import { CryptoPay } from "./pages/CryptoPay";
 import { Processing } from "./pages/Processing";
 import { Success } from "./pages/Success";
 import { Error } from "./pages/Error";
-import { Dialog } from "./components/Dialog";
 
 /**
  * SessionStorage key for persisting widget state

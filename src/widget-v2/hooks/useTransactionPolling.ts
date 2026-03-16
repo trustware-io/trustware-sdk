@@ -61,10 +61,6 @@ export function useTransactionPolling() {
    * Clear all timers and stop polling
    */
   const clearPolling = useCallback(() => {
-    console.log(
-      "[TW Polling] clearPolling() called - stack:",
-      new Error().stack?.split("\n").slice(1, 4).join(" <- ")
-    );
     abortRef.current = true;
     if (pollingRef.current) {
       clearTimeout(pollingRef.current);
@@ -120,26 +116,12 @@ export function useTransactionPolling() {
 
         // Step 3: Start polling loop
         const poll = async () => {
-          console.log(
-            "[TW Polling] poll() called, abortRef:",
-            abortRef.current
-          );
           if (abortRef.current) {
-            console.log("[TW Polling] ABORTED - exiting poll loop");
             return;
           }
 
           try {
-            console.log("[TW Polling] Fetching status for intent:", intentId);
             const tx = await getStatus(intentId);
-            console.log(
-              "[TW Polling] API response - status:",
-              tx.status,
-              "| id:",
-              tx.id,
-              "| full:",
-              JSON.stringify(tx)
-            );
 
             // Check if aborted after async call
             if (abortRef.current) return;
@@ -153,9 +135,6 @@ export function useTransactionPolling() {
 
             // Handle terminal states
             if (tx.status === "success") {
-              console.log(
-                "[TW Polling] SUCCESS detected! Navigating to success page..."
-              );
               clearPolling();
               setState((prev) => ({
                 ...prev,
@@ -168,11 +147,6 @@ export function useTransactionPolling() {
 
             if (tx.status === "failed") {
               const failError = mapFailedTransactionError(tx);
-              console.log(
-                "[TW Polling] FAILED detected! Error:",
-                failError,
-                "| Navigating to error page..."
-              );
               clearPolling();
               setState((prev) => ({
                 ...prev,
@@ -187,7 +161,6 @@ export function useTransactionPolling() {
 
             // Handle bridging phase
             if (tx.status === "bridging") {
-              console.log("[TW Polling] BRIDGING phase detected");
               setTransactionStatus("bridging");
             }
 
@@ -197,23 +170,9 @@ export function useTransactionPolling() {
             const pollInterval = pollCountRef.current <= 10
               ? FAST_POLL_INTERVAL_MS
               : NORMAL_POLL_INTERVAL_MS;
-            console.log(
-              "[TW Polling] Status is",
-              tx.status,
-              "- scheduling next poll in",
-              pollInterval,
-              "ms (poll #" + pollCountRef.current + ")"
-            );
             pollingRef.current = setTimeout(poll, pollInterval);
-            console.log(
-              "[TW Polling] Next poll scheduled, pollingRef:",
-              pollingRef.current !== null
-            );
           } catch (pollErr) {
             if (abortRef.current) return;
-
-            // Log but continue polling on transient errors
-            console.warn("Transaction status poll error:", pollErr);
 
             // Check if we've been polling for too long (soft timeout check)
             const elapsed = Date.now() - startTimeRef.current;

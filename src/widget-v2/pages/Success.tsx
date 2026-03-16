@@ -1,13 +1,7 @@
 import React, { lazy, Suspense, useMemo } from "react";
-import {
-  colors,
-  spacing,
-  fontSize,
-  fontWeight,
-  borderRadius,
-} from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { useDeposit } from "../context/DepositContext";
-import { useTransactionPolling } from "../hooks/useTransactionPolling";
+import { useTransactionPolling } from "../hooks";
 
 // Lazy load the ConfettiEffect to reduce initial bundle size
 const ConfettiEffect = lazy(() => import("../components/ConfettiEffect"));

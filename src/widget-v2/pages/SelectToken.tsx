@@ -1,11 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import {
-  colors,
-  spacing,
-  fontSize,
-  fontWeight,
-  borderRadius,
-} from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 
 import { useDeposit } from "../context/DepositContext";
 import type { Chain, Token, YourTokenData } from "../context/DepositContext";

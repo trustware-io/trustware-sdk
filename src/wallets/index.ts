@@ -6,7 +6,9 @@ export {
   useWalletDetection,
   useIsMobile,
   createWalletConnectEntry,
+  buildDetectedWalletFromProvider,
 } from "./detect";
+export { autoDetectWallet } from "./eipWallets";
 export { WALLETS, POPULAR_ORDER } from "./metadata";
 export {
   formatDeepLink,

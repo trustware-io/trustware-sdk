@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { mergeStyles } from "../lib/utils";
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { useWalletDetection } from "../../wallets/detect";
 import { useDeposit } from "../context/DepositContext";
 import { toast } from "./Toast";
@@ -276,14 +276,7 @@ export function WalletSelector({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleWalletClick = async (wallet: DetectedWallet) => {
-    console.log("[WalletSelector] handleWalletClick called", {
-      walletId: wallet.meta.id,
-      walletName: wallet.meta.name,
-      walletStatus,
-      hasProvider: !!wallet.provider,
-    });
     if (walletStatus === "connecting") {
-      console.log("[WalletSelector] Already connecting, ignoring click");
       return;
     }
 
@@ -309,13 +302,10 @@ export function WalletSelector({
     }
 
     setConnectingWalletId(wallet.meta.id);
-    console.log("[WalletSelector] Starting EIP-1193 connection...");
     try {
       await connectWallet(wallet);
-      console.log("[WalletSelector] connectWallet returned successfully");
       onWalletSelect?.(wallet);
     } catch (error) {
-      console.error("[WalletSelector] connectWallet threw:", error);
       setConnectingWalletId(null);
       // Show error toast with user-friendly message
       const message =

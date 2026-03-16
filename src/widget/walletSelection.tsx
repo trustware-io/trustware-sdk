@@ -140,7 +140,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
   }, [universalConnector?.provider.session]);
 
   const attemptConnection = async (wallet: WalletMeta) => {
-    console.log({ wallet });
     setSelectedWallet(wallet);
     setErrorMessage(null);
     if (walletManager.status === "connecting") return;
@@ -174,7 +173,6 @@ export function WalletSelection({ onBack, onNext }: WalletSelectionProps) {
 
       if (providerSession) {
         setSession(providerSession);
-        console.log("✅ WalletConnect session approved", { providerSession });
         setStatus("connected");
         onNext();
       }
