@@ -8,6 +8,11 @@ import {
   shadows,
 } from "../styles";
 import { useDeposit } from "../context/DepositContext";
+import {
+  clampUsdAmount,
+  sanitizeAmountInput,
+  useAmountConstraints,
+} from "../hooks";
 import { useWalletDetection } from "../../wallets/detect";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
 import { getUniversalConnector } from "src/config/walletconnect";
@@ -120,6 +125,8 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     amountInputMode,
     setAmountInputMode,
   } = useDeposit();
+  const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
+    useAmountConstraints();
   const { detected: detectedWallets } = useWalletDetection();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -150,26 +157,42 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!fixedFromAmountString) return;
+    if (amount !== fixedFromAmountString) {
+      setAmount(fixedFromAmountString);
+    }
+    if (amountInputMode !== "usd") {
+      setAmountInputMode("usd");
+    }
+  }, [
+    amount,
+    amountInputMode,
+    fixedFromAmountString,
+    setAmount,
+    setAmountInputMode,
+  ]);
+
   // Parse amount for display
-  const parsedAmount = parseFloat(amount) || 0;
+  const parsedAmount =
+    parseFloat(fixedFromAmountString ?? amount) || 0;
 
   /**
    * Handle amount input changes with decimal sanitization
    */
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isFixedAmount) return;
     if (amountInputMode !== "usd") setAmountInputMode("usd");
-    const raw = e.target.value.replace(/[^0-9.]/g, "");
-    // Handle multiple decimal points - keep only the first one
-    const parts = raw.split(".");
-    const sanitized =
-      parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
-    setAmount(sanitized);
+    const sanitized = sanitizeAmountInput(e.target.value);
+    const clamped = clampUsdAmount(sanitized, minAmountUsd, maxAmountUsd);
+    setAmount(clamped);
   };
 
   /**
    * Handle click on the amount display to start editing
    */
   const handleAmountClick = () => {
+    if (isFixedAmount) return;
     const isZeroish = !amount || parseFloat(amount) === 0;
     setIsEditing(true);
     if (isZeroish) setAmount("");
@@ -305,7 +328,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
               fontSize: "3.75rem",
               fontWeight: fontWeight.bold,
               letterSpacing: "-0.025em",
-              cursor: "pointer",
+              cursor: isFixedAmount ? "default" : "pointer",
             }}
             onClick={handleAmountClick}
           >
@@ -350,6 +373,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
                 value={amount}
                 onChange={handleAmountChange}
                 onBlur={() => setIsEditing(false)}
+                readOnly={isFixedAmount}
                 style={{
                   position: "absolute",
                   inset: 0,
