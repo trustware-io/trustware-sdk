@@ -174,8 +174,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
   ]);
 
   // Parse amount for display
-  const parsedAmount =
-    parseFloat(fixedFromAmountString ?? amount) || 0;
+  const parsedAmount = parseFloat(fixedFromAmountString ?? amount) || 0;
 
   /**
    * Handle amount input changes with decimal sanitization

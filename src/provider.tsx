@@ -122,7 +122,14 @@ export function TrustwareProvider({
   }, [config, wallet, autoDetect]);
 
   const value = useMemo<Ctx>(
-    () => ({ status, errors, core: Trustware, emitError, emitSuccess, emitEvent }),
+    () => ({
+      status,
+      errors,
+      core: Trustware,
+      emitError,
+      emitSuccess,
+      emitEvent,
+    }),
     [status, errors, emitError, emitSuccess, emitEvent]
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

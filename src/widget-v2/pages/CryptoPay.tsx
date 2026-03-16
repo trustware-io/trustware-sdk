@@ -325,9 +325,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
       toAddress: config.routes.toAddress || walletAddress || undefined,
       fromToken:
         selectedToken?.address ??
-        getNativeTokenAddress(
-          selectedChain?.type ?? selectedChain?.chainType
-        ),
+        getNativeTokenAddress(selectedChain?.type ?? selectedChain?.chainType),
       fromAmountWei: amountWei ?? 0n,
       fromAmountUsd: amountComputation.usdAmount || undefined,
       fromAddress: walletAddress || undefined,
