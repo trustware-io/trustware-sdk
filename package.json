@@ -1,12 +1,12 @@
 {
   "name": "@trustware/sdk",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
   "license": "Apache-2.0",
   "author": "Trustware",
   "repository": {
     "type": "git",
-    "url": "https://github.com/trustware/sdk.git"
+    "url": "https://github.com/trustware-io/trustware-sdk.git"
   },
   "homepage": "https://trustware.io",
   "type": "module",
