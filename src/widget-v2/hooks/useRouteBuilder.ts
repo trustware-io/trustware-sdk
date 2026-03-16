@@ -31,6 +31,8 @@ export interface UseRouteBuilderOptions {
   debounceMs?: number;
   /** Whether to automatically build routes (default: true) */
   enabled?: boolean;
+  /** Route refresh interval in milliseconds (optional) */
+  refreshMs?: number;
 
   fromChain: ChainDef | undefined | string | number;
   fromChainId: string | number | undefined;
@@ -57,6 +59,7 @@ export interface UseRouteBuilderOptions {
 export function useRouteBuilder({
   enabled = true,
   debounceMs = 300,
+  refreshMs,
   fromChain,
   fromChainId,
   toChain,
@@ -85,6 +88,7 @@ export function useRouteBuilder({
   });
 
   const abortRef = useRef<AbortController | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Build a cache key from the route parameters
 
@@ -322,6 +326,7 @@ export function useRouteBuilder({
     };
   }, [
     routeKey,
+    refreshTick,
     fromChainId,
     toChainId,
     fromToken,
@@ -342,6 +347,16 @@ export function useRouteBuilder({
     walletAddress,
     errorMessage,
   ]);
+
+  useEffect(() => {
+    if (!enabled || !routeKey || !refreshMs || refreshMs <= 0) return;
+    const id = setInterval(() => {
+      setRefreshTick((tick) => tick + 1);
+    }, refreshMs);
+    return () => {
+      clearInterval(id);
+    };
+  }, [enabled, refreshMs, routeKey]);
 
   return state;
 }

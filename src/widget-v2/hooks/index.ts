@@ -4,6 +4,13 @@ export type {
   UseRouteBuilderOptions,
 } from "./useRouteBuilder";
 
+export {
+  useAmountConstraints,
+  sanitizeAmountInput,
+  clampUsdAmount,
+} from "./useAmountConstraints";
+export type { AmountConstraints } from "./useAmountConstraints";
+
 export { useChains } from "../../core/useChains";
 export type { UseChainsResult } from "../../core/useChains";
 

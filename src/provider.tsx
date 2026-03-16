@@ -14,6 +14,7 @@ import type { WalletInterFaceAPI } from "./types";
 import { useWireDetectionIntoManager } from "./wallets/manager";
 import { TrustwareError } from "./errors/TrustwareError";
 import { TrustwareEvent } from "./events/events";
+import type { Transaction } from "./types/routes";
 
 export type Status = "idle" | "initializing" | "ready" | "error";
 
@@ -22,6 +23,7 @@ export type Ctx = {
   errors?: string;
   core: typeof Trustware;
   emitError?: (error: TrustwareError) => void;
+  emitSuccess?: (transaction: Transaction) => void;
   emitEvent?: (event: TrustwareEvent) => void;
 };
 
@@ -58,6 +60,23 @@ export function TrustwareProvider({
   const emitEvent = useCallback(
     (event: TrustwareEvent) => {
       config.onEvent?.(event);
+    },
+    [config]
+  );
+
+  const emitSuccess = useCallback(
+    (transaction: Transaction) => {
+      config.onSuccess?.(transaction);
+      const txHash =
+        transaction?.destTxHash ||
+        transaction?.sourceTxHash ||
+        transaction?.id ||
+        "";
+      config.onEvent?.({
+        type: "transaction_success",
+        txHash,
+        transaction,
+      });
     },
     [config]
   );
@@ -103,8 +122,15 @@ export function TrustwareProvider({
   }, [config, wallet, autoDetect]);
 
   const value = useMemo<Ctx>(
-    () => ({ status, errors, core: Trustware, emitError, emitEvent }),
-    [status, errors, emitError, emitEvent]
+    () => ({
+      status,
+      errors,
+      core: Trustware,
+      emitError,
+      emitSuccess,
+      emitEvent,
+    }),
+    [status, errors, emitError, emitSuccess, emitEvent]
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

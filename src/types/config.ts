@@ -1,6 +1,7 @@
 import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareWidgetTheme, TrustwareWidgetMessages } from "./theme";
 import { TrustwareEvent } from "src/events/events";
+import { Transaction } from "./routes";
 
 /** WalletConnect configuration options (all optional - SDK has built-in defaults) */
 export type WalletConnectConfig = {
@@ -64,6 +65,7 @@ export type TrustwareConfigOptions = {
   walletConnect?: WalletConnectConfig; // Optional WalletConnect configuration
 
   onError?: (error: TrustwareError) => void;
+  onSuccess?: (transaction: Transaction) => void;
   onEvent?: (event: TrustwareEvent) => void;
 };
 
