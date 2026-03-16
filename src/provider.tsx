@@ -51,7 +51,7 @@ export function TrustwareProvider({
         error,
       });
 
-      console.warn("[Trustware SDK]", error);
+      // Error already forwarded via config.onError and config.onEvent
     },
     [config]
   );

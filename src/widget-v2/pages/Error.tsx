@@ -1,11 +1,5 @@
 import React, { useMemo, useEffect } from "react";
-import {
-  colors,
-  spacing,
-  fontSize,
-  fontWeight,
-  borderRadius,
-} from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { useDeposit } from "../context/DepositContext";
 import { TrustwareConfigStore } from "../../config/store";
 
@@ -222,8 +216,6 @@ export function Error({ style }: ErrorProps): React.ReactElement {
         // Config may not be initialized, ignore
       }
 
-      // Also log to console for debugging
-      console.error("[TrustwareWidget] Error:", errorMessage);
     }
   }, [errorMessage]);
 
@@ -250,8 +242,8 @@ export function Error({ style }: ErrorProps): React.ReactElement {
 
   // Get block explorer URL if we have a transaction hash
   const explorerUrl = useMemo(() => {
-    if (transactionHash && selectedChain?.explorerUrl) {
-      return `${selectedChain.explorerUrl}/tx/${transactionHash}`;
+    if (transactionHash && selectedChain?.blockExplorerUrls?.length) {
+      return `${selectedChain.blockExplorerUrls[0].replace(/\/+$/, "")}/tx/${transactionHash}`;
     }
     return null;
   }, [transactionHash, selectedChain]);

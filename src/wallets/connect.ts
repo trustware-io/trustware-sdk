@@ -11,15 +11,6 @@ function pickWagmiConnector(
 ) {
   const lower = metaName.toLowerCase();
   const cons = wagmi.connectors();
-  console.log("Picking wagmi connector for", {
-    metaName,
-    metaId,
-    metaCategory,
-  });
-  console.debug(
-    "Available wagmi connectors:",
-    cons.map((c) => c.name)
-  );
   return (
     cons.find((c) => c.name.toLowerCase().includes(lower)) ||
     (metaId === "coinbase" &&
@@ -83,13 +74,7 @@ export async function connectDetectedWallet(
   }
 
   // fallback: raw EIP-1193
-  console.log("[TW Connect] Using EIP-1193 fallback for:", dw.meta.id);
-  console.log("[TW Connect] dw.provider:", dw.provider);
   const api = toWalletInterfaceFromDetected(dw);
-  console.log(
-    "[TW Connect] Created API, calling getAddress to trigger prompt..."
-  );
   if (touchAddress) await api.getAddress(); // triggers permission prompt
-  console.log("[TW Connect] getAddress succeeded");
   return { via: "eip1193", api };
 }

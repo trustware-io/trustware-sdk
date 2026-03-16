@@ -11,7 +11,7 @@ import {
   fontSize,
   fontWeight,
   borderRadius,
-} from "../styles/tokens";
+} from "../styles";
 import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 
 export interface TokenSwipePillProps {

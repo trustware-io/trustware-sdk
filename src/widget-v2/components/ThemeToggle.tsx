@@ -1,5 +1,5 @@
 import React from "react";
-import { colors } from "../styles/tokens";
+import { colors } from "../styles";
 
 /**
  * Resolved theme type (not 'system')

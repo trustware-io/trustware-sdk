@@ -6,7 +6,7 @@ import {
   fontWeight,
   borderRadius,
   zIndex,
-} from "../styles/tokens";
+} from "../styles";
 
 export interface DialogProps {
   /** Controls whether the dialog is visible */

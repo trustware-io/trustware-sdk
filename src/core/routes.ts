@@ -109,7 +109,6 @@ export async function buildRoute(
           : Math.round(body.slippage * 100),
       fromAmountUSD: body.fromAmountUsd,
     };
-    console.log("buildRoute payload", { payload });
     const r = await rateLimitedFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
@@ -145,7 +144,6 @@ export async function buildRoute(
 
     return { intentId, txReq, actions, finalExchangeRate, route };
   } catch (e) {
-    if (e instanceof Error) console.error(e.message, e.name || "buildRoute");
     throw e;
   }
 }

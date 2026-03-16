@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight } from "../styles";
 import type { TransactionStatus } from "../context/DepositContext";
 
 /**

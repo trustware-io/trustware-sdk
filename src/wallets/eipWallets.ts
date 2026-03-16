@@ -77,7 +77,6 @@ export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
           await addThenSwitch(eth, chainId);
         } else if (e?.code === 4001) {
           // user rejected or wallet busy; don’t crash the flow
-          console.warn("switchChain rejected/in-progress:", e);
         } else {
           throw e;
         }
@@ -133,7 +132,7 @@ export function useWagmi(client: any): WalletInterFaceAPI {
       } catch (e: any) {
         if (e?.code === 4902) await addThenSwitch(eth, target);
         else if (e?.code === 4001)
-          console.warn("switchChain rejected/in-progress:", e);
+          void 0; // switchChain rejected/in-progress — non-fatal
         else throw e;
       }
     } finally {

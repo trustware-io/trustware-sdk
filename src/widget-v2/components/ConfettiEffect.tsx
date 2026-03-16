@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { zIndex } from "../styles/tokens";
+import { zIndex } from "../styles";
 
 interface ConfettiPiece {
   id: number;

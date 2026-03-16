@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { mergeStyles } from "../lib/utils";
-import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight } from "../styles";
 import type { Token, YourTokenData } from "../context/DepositContext";
 
 export interface SwipeToConfirmTokensProps {

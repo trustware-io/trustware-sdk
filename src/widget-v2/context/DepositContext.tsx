@@ -483,7 +483,7 @@ export function DepositProvider({
           lastLoadedWalletRef.current = walletAddress;
         }
       } catch (err) {
-        console.error("Failed to load balances:", err);
+        void err; // balance loading failed — non-fatal
         if (!cancelled) setYourWalletTokens([]);
       }
     }
@@ -499,15 +499,9 @@ export function DepositProvider({
    * Connect to a detected wallet
    */
   const connectWallet = useCallback(async (wallet: DetectedWallet) => {
-    console.log("[DepositContext] connectWallet called", {
-      // walletId: wallet.meta.id,
-      // hasProvider: !!wallet.provider,
-    });
     try {
       await walletManager.connectDetected(wallet);
-      console.log("[DepositContext] connectWallet succeeded");
     } catch (error) {
-      console.error("[DepositContext] connectWallet error:", error);
       throw error;
     }
   }, []);

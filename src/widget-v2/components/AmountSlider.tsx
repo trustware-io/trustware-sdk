@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo } from "react";
 import { mergeStyles } from "../lib/utils";
-import { colors, spacing, fontSize, fontWeight } from "../styles/tokens";
+import { colors, spacing, fontSize, fontWeight } from "../styles";
 
 export interface AmountSliderProps {
   /** Current amount value */

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ToastContainer } from "./Toast";
 import { ALL_THEME_STYLES, ALL_ANIMATION_STYLES } from "../styles";
-import { colors, shadows } from "../styles/tokens";
+import { colors, shadows } from "../styles";
 
 export type Theme = "light" | "dark" | "system";
 
