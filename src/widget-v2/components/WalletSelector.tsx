@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { useWalletDetection } from "../../wallets/detect";
 import { useDeposit } from "../context/DepositContext";
 import { toast } from "./Toast";
 import type { DetectedWallet } from "../../types";
-import { WalletConnectModal } from "./WalletConnectModal";
-import { connectWalletConnect } from "../../wallets/walletconnect";
 import { walletManager } from "../../wallets/manager";
 
 export interface WalletSelectorProps {
@@ -228,7 +226,8 @@ export function WalletSelector({
     null
   );
   const [detectionTimerExpired, setDetectionTimerExpired] = useState(false);
-  const [showWalletConnectModal, setShowWalletConnectModal] = useState(false);
+  // WalletConnect modal state (disabled — walletconnect module is not active)
+  // const [showWalletConnectModal, setShowWalletConnectModal] = useState(false);
 
   // Track previous wallet status to detect transitions
   const prevWalletStatusRef = useRef(walletStatus);
@@ -280,24 +279,12 @@ export function WalletSelector({
       return;
     }
 
-    // Special handling for WalletConnect - show QR modal
+    // WalletConnect handling disabled — walletconnect module is not active
     if (wallet.meta.id === "walletconnect" || wallet.via === "walletconnect") {
-      setConnectingWalletId(wallet.meta.id);
-      setShowWalletConnectModal(true);
-      // Start the WalletConnect connection (this will emit display_uri event)
-      try {
-        const api = await connectWalletConnect();
-        if (api) {
-          walletManager.attachWallet(api);
-          setConnectedWalletId(wallet.meta.id);
-          onWalletSelect?.(wallet);
-        }
-      } catch (error) {
-        setConnectingWalletId(null);
-        const message =
-          error instanceof Error ? error.message : "WalletConnect failed";
-        toast.error("Connection Failed", message);
-      }
+      toast.error(
+        "Not Available",
+        "WalletConnect is not currently available."
+      );
       return;
     }
 
@@ -332,34 +319,6 @@ export function WalletSelector({
     }
   };
 
-  // Handle WalletConnect modal close
-  const handleWalletConnectModalClose = useCallback(() => {
-    setShowWalletConnectModal(false);
-    // Only clear connecting state if not connected
-    if (walletStatus !== "connected") {
-      setConnectingWalletId(null);
-    }
-  }, [walletStatus]);
-
-  // Handle WalletConnect connection success
-  const handleWalletConnectSuccess = useCallback(() => {
-    setShowWalletConnectModal(false);
-    setConnectingWalletId(null);
-    toast.success(
-      "Wallet Connected",
-      "Successfully connected via WalletConnect."
-    );
-  }, []);
-
-  // Handle WalletConnect connection error
-  const handleWalletConnectError = useCallback((error: unknown) => {
-    setConnectingWalletId(null);
-    const message =
-      error instanceof Error
-        ? error.message
-        : "WalletConnect connection failed";
-    toast.error("Connection Failed", message);
-  }, []);
 
   const handleDisconnect = async () => {
     try {
@@ -515,13 +474,6 @@ export function WalletSelector({
         </div>
       </div>
 
-      {/* WalletConnect QR Modal */}
-      <WalletConnectModal
-        open={showWalletConnectModal}
-        onClose={handleWalletConnectModalClose}
-        onConnect={handleWalletConnectSuccess}
-        onError={handleWalletConnectError}
-      />
     </>
   );
 }

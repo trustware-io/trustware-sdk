@@ -34,7 +34,7 @@ export type TrustwareRouteState =
   | {
       status: "ready";
       intentId: string;
-      txReq: BuildRouteResult["route"]["transactionRequest"];
+      txReq: BuildRouteResult["txReq"];
       actions: unknown[];
       finalExchangeRate: ExchangeRate;
       raw: BuildRouteResult;
@@ -160,7 +160,7 @@ export function useTrustwareRoute({
 
         if (ac.signal.aborted) return;
 
-        const txReq = build?.route?.transactionRequest;
+        const txReq = build?.txReq;
         const hasTarget = Boolean((txReq as any)?.to ?? (txReq as any)?.target);
         if (!txReq?.data || !hasTarget) {
           throw new Error("Invalid route response");
@@ -183,8 +183,8 @@ export function useTrustwareRoute({
             fees?.minimumReceivedAmount ??
             fees?.minReceived ??
             estimate?.toAmount,
-          fromAmountUSD: fees?.fromAmountUSD ?? estimate?.fromAmountUSD,
-          toAmountMinUSD: fees?.toAmountMinUSD ?? estimate?.toAmountUSD,
+          fromAmountUSD: fees?.fromAmountUSD ?? estimate?.fromAmountUsd,
+          toAmountMinUSD: fees?.toAmountMinUSD ?? estimate?.toAmountUsd,
         };
         setState({
           status: "ready",
