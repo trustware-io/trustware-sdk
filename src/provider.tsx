@@ -25,6 +25,7 @@ export type Ctx = {
   emitError?: (error: TrustwareError) => void;
   emitSuccess?: (transaction: Transaction) => void;
   emitEvent?: (event: TrustwareEvent) => void;
+  revalidate?: () => Promise<void>;
 };
 
 export const Ctx = createContext<Ctx>({ status: "idle", core: Trustware });
@@ -84,30 +85,55 @@ export function TrustwareProvider({
   // Push detection results → manager (no UI, runs behind the scenes)
   useWireDetectionIntoManager();
 
+  const initialize = useCallback(
+    async (
+      setStatusFn: (s: Status) => void = setStatus,
+      setErrorsFn: (e?: string) => void = setErrors
+    ) => {
+      setStatusFn("initializing");
+      setErrorsFn(undefined);
+
+      // Initialize config once
+      await Trustware.init(config);
+
+      if (wallet) {
+        // If caller gives us a wallet, attach it directly
+        // eslint-disable-next-line react-hooks/rules-of-hooks -- Trustware.useWallet is not a React hook
+        Trustware.useWallet(wallet);
+        setStatusFn("ready");
+        return;
+      }
+
+      if (autoDetect) {
+        await Trustware.autoDetect(400);
+      }
+
+      setStatusFn("ready");
+    },
+    [config, wallet, autoDetect]
+  );
+
+  const revalidate = useCallback(async () => {
+    try {
+      await initialize();
+    } catch (e: unknown) {
+      setStatus("error");
+      setErrors(e instanceof Error ? e.message : String(e));
+    }
+  }, [initialize]);
+
   useEffect(() => {
     let cancelled = false;
+    const setStatusSafe = (s: Status) => {
+      if (!cancelled) setStatus(s);
+    };
+    const setErrorsSafe = (e?: string) => {
+      if (!cancelled) setErrors(e);
+    };
 
     (async () => {
       try {
-        setStatus("initializing");
-        setErrors(undefined);
-
-        // Initialize config once
-        await Trustware.init(config);
-
-        if (wallet) {
-          // If caller gives us a wallet, attach it directly
-          // eslint-disable-next-line react-hooks/rules-of-hooks -- Trustware.useWallet is not a React hook
-          Trustware.useWallet(wallet);
-          if (!cancelled) setStatus("ready");
-          return;
-        }
-
-        if (autoDetect) {
-          await Trustware.autoDetect(400);
-        }
-
-        if (!cancelled) setStatus("ready");
+        await initialize(setStatusSafe, setErrorsSafe);
       } catch (e: unknown) {
         if (!cancelled) {
           setStatus("error");
@@ -129,8 +155,9 @@ export function TrustwareProvider({
       emitError,
       emitSuccess,
       emitEvent,
+      revalidate,
     }),
-    [status, errors, emitError, emitSuccess, emitEvent]
+    [status, errors, emitError, emitSuccess, emitEvent, revalidate]
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

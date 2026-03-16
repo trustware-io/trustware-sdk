@@ -130,5 +130,8 @@ export function resolveConfig(
     messages,
     retry,
     walletConnect,
+    onError: input.onError,
+    onSuccess: input.onSuccess,
+    onEvent: input.onEvent,
   };
 }

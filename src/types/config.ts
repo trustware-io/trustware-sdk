@@ -91,6 +91,9 @@ export type ResolvedTrustwareConfig = {
   messages: TrustwareWidgetMessages;
   retry: ResolvedRetryConfig;
   walletConnect?: ResolvedWalletConnectConfig; // Optional WalletConnect config
+  onError?: (error: TrustwareError) => void;
+  onSuccess?: (transaction: Transaction) => void;
+  onEvent?: (event: TrustwareEvent) => void;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage

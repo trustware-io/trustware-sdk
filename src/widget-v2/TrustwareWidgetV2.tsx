@@ -8,7 +8,14 @@ import React, {
 } from "react";
 
 import { mergeStyles } from "./lib/utils";
-import { spacing } from "./styles";
+import {
+  spacing,
+  colors,
+  fontSize,
+  fontWeight,
+  borderRadius,
+  zIndex,
+} from "./styles";
 import {
   DepositProvider,
   useDeposit,
@@ -17,6 +24,7 @@ import {
   type ResolvedTheme,
 } from "./context/DepositContext";
 import { ThemeToggle, WidgetContainer, type Theme, Dialog } from "./components";
+import { useTrustware } from "src/provider";
 import { Home } from "./pages/Home";
 import { SelectToken } from "./pages/SelectToken";
 import { CryptoPay } from "./pages/CryptoPay";
@@ -340,6 +348,98 @@ function ConfirmCloseDialog({
   );
 }
 
+interface InitErrorOverlayProps {
+  open: boolean;
+  isDark: boolean;
+  isRefreshing: boolean;
+  onRefresh: () => void;
+}
+
+function InitErrorOverlay({
+  open,
+  isDark,
+  isRefreshing,
+  onRefresh,
+}: InitErrorOverlayProps): React.ReactElement | null {
+  if (!open) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="init-error-title"
+      aria-describedby="init-error-description"
+      style={{
+        position: "absolute",
+        inset: 0,
+        backgroundColor: isDark ? "rgba(0, 0, 0, 0.55)" : "rgba(0, 0, 0, 0.2)",
+        zIndex: zIndex[40],
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: spacing[6],
+        borderRadius: "20px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "420px",
+          borderRadius: borderRadius.xl,
+          padding: spacing[6],
+          backgroundColor: colors.card,
+          color: colors.cardForeground,
+          boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.35)",
+          textAlign: "left",
+          border: `1px solid ${colors.border}`,
+        }}
+      >
+        <h2
+          id="init-error-title"
+          style={{
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.semibold,
+            color: colors.cardForeground,
+          }}
+        >
+          API key validation failed
+        </h2>
+        <p
+          id="init-error-description"
+          style={{
+            marginTop: spacing[2],
+            fontSize: fontSize.sm,
+            color: colors.mutedForeground,
+          }}
+        >
+          We could not validate your Trustware API key. Please refresh to retry.
+        </p>
+        <button
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          aria-label="Refresh validation"
+          style={{
+            marginTop: spacing[4],
+            width: "100%",
+            borderRadius: "0.5rem",
+            backgroundColor: colors.primary,
+            padding: `${spacing[2.5]} ${spacing[4]}`,
+            fontSize: fontSize.sm,
+            fontWeight: fontWeight.medium,
+            color: colors.primaryForeground,
+            border: 0,
+            cursor: isRefreshing ? "not-allowed" : "pointer",
+            opacity: isRefreshing ? 0.7 : 1,
+            transition: "background-color 0.2s",
+          }}
+        >
+          {isRefreshing ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Inner widget component with access to context
  */
@@ -361,7 +461,9 @@ function WidgetInner({
   showThemeToggle,
 }: WidgetInnerProps): React.ReactElement {
   const { transactionStatus, resetState, resolvedTheme } = useDeposit();
+  const { status, revalidate } = useTrustware();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [initBlocked, setInitBlocked] = useState(false);
 
   /**
    * Handle close request - shows confirmation if transaction is active
@@ -401,6 +503,16 @@ function WidgetInner({
 
   // Use resolved theme from context for the container (allows toggle to work)
   const effectiveTheme = resolvedTheme as Theme;
+  const isRefreshing = status === "initializing";
+
+  useEffect(() => {
+    if (status === "error") setInitBlocked(true);
+    if (status === "ready") setInitBlocked(false);
+  }, [status]);
+
+  const handleRefresh = useCallback(() => {
+    revalidate?.();
+  }, [revalidate]);
 
   return (
     <>
@@ -408,6 +520,12 @@ function WidgetInner({
         <WidgetContent
           onStateChange={onStateChange}
           showThemeToggle={showThemeToggle}
+        />
+        <InitErrorOverlay
+          open={initBlocked}
+          isDark={resolvedTheme === "dark"}
+          isRefreshing={isRefreshing}
+          onRefresh={handleRefresh}
         />
       </WidgetContainer>
       <ConfirmCloseDialog
