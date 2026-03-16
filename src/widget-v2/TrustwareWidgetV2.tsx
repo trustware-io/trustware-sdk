@@ -463,7 +463,6 @@ function WidgetInner({
   const { transactionStatus, resetState, resolvedTheme } = useDeposit();
   const { status, revalidate } = useTrustware();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [initBlocked, setInitBlocked] = useState(false);
 
   /**
    * Handle close request - shows confirmation if transaction is active
@@ -504,11 +503,7 @@ function WidgetInner({
   // Use resolved theme from context for the container (allows toggle to work)
   const effectiveTheme = resolvedTheme as Theme;
   const isRefreshing = status === "initializing";
-
-  useEffect(() => {
-    if (status === "error") setInitBlocked(true);
-    if (status === "ready") setInitBlocked(false);
-  }, [status]);
+  const initBlocked = status === "error";
 
   const handleRefresh = useCallback(() => {
     revalidate?.();

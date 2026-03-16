@@ -145,7 +145,7 @@ export function TrustwareProvider({
     return () => {
       cancelled = true;
     };
-  }, [config, wallet, autoDetect]);
+  }, [initialize]);
 
   const value = useMemo<Ctx>(
     () => ({
