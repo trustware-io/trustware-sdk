@@ -13,11 +13,11 @@ export {
   formatWalletConnectDeepLink,
   formatWalletConnectDeepLinkForWallet,
 } from "./deepLink";
-export {
-  connectWalletConnect,
-  disconnectWalletConnect,
-  getWalletConnectProvider,
-  isWalletConnectConfigured,
-  isWalletConnectConnected,
-  walletConnectEvents,
-} from "./walletconnect";
+// export {
+//   connectWalletConnect,
+//   disconnectWalletConnect,
+//   getWalletConnectProvider,
+//   isWalletConnectConfigured,
+//   isWalletConnectConnected,
+//   walletConnectEvents,
+// } from "./walletconnect";

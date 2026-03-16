@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Trustware } from "../../core";
 import { TrustwareConfigStore } from "../../config/store";
 import { useDeposit } from "../context/DepositContext";
-import type { BuildRouteResult } from "../../types";
+import type { BuildRouteResult, ChainDef } from "../../types";
 
 /**
  * Route building state
@@ -31,6 +31,20 @@ export interface UseRouteBuilderOptions {
   debounceMs?: number;
   /** Whether to automatically build routes (default: true) */
   enabled?: boolean;
+
+  fromChain: ChainDef | undefined | string | number;
+  fromChainId: string | number | undefined;
+  toChain: ChainDef | null;
+  toChainId: string;
+  toToken: string;
+  toAddress: string | undefined;
+  fromToken: string;
+  fromAmountWei: bigint | string;
+  fromAmountUsd?: string;
+  fromAddress: string | undefined;
+  refundAddress: string | undefined;
+  slippage: number;
+  direction: string;
 }
 
 /**
@@ -41,12 +55,27 @@ export interface UseRouteBuilderOptions {
  * @param options - Configuration options
  * @returns Route building state including fees and estimated receive amount
  */
-export function useRouteBuilder(
-  options: UseRouteBuilderOptions = {}
-): RouteBuilderState {
-  const { debounceMs = 300, enabled = true } = options;
+export function useRouteBuilder({
+  enabled = true,
+  debounceMs = 300,
+  fromChain,
+  fromChainId,
+  toChain,
+  toChainId,
+  toToken,
+  toAddress,
+  fromToken,
+  fromAmountWei,
+  fromAmountUsd,
+  fromAddress,
+  refundAddress,
+  slippage,
+  direction,
+}: UseRouteBuilderOptions): RouteBuilderState {
+  // const { debounceMs = 300, enabled = true } = options;
 
-  const { selectedToken, selectedChain, amount, walletAddress } = useDeposit();
+  const { selectedToken, selectedChain, amount, walletAddress, errorMessage } =
+    useDeposit();
 
   const [state, setState] = useState<RouteBuilderState>({
     isLoadingRoute: false,
@@ -60,7 +89,9 @@ export function useRouteBuilder(
   const abortRef = useRef<AbortController | null>(null);
 
   // Build a cache key from the route parameters
+
   const routeKey = useMemo(() => {
+    // unique key for memoization/invalidation
     if (
       !enabled ||
       !selectedToken ||
@@ -71,47 +102,73 @@ export function useRouteBuilder(
       return null;
     }
 
-    // Parse amount - need to convert to smallest unit based on token decimals
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      return null;
-    }
-
-    // Convert amount to smallest unit (e.g., wei for ETH)
-    // Use BigInt math to avoid floating point precision issues
-    const decimals = selectedToken.decimals || 18;
-    const [whole, fraction = ""] = amount.split(".");
-    const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
-    const amountInSmallestUnit = whole + paddedFraction;
-    // Remove leading zeros but keep at least one digit
-    const fromAmountWei = amountInSmallestUnit.replace(/^0+/, "") || "0";
-
     return JSON.stringify({
-      fromChain: selectedChain.chainId,
-      fromToken: selectedToken.address,
-      fromAmount: fromAmountWei,
-      fromAddress: walletAddress,
-    });
-  }, [enabled, selectedToken, selectedChain, amount, walletAddress]);
+      fromChainId,
+      toChainId,
+      fromToken,
+      toToken,
+      fromAmountWei: fromAmountWei.toString(), //toString() fixed the Error: <- Do not know how to serialize a BigInt->
+      fromAmountUsd,
+      fromAddress,
+      toAddress,
+      fromChain,
+      toChain,
+      refundAddress,
+      slippage,
+    } as UseRouteBuilderOptions);
+  }, [
+    amount,
+    enabled,
+    fromAddress,
+    fromAmountUsd,
+    fromAmountWei,
+    fromChain,
+    fromChainId,
+    fromToken,
+    refundAddress,
+    selectedChain,
+    selectedToken,
+    slippage,
+    toAddress,
+    toChain,
+    toChainId,
+    toToken,
+    walletAddress,
+  ]);
+
+  const hasFromChainId =
+    fromChainId !== undefined &&
+    fromChainId !== null &&
+    String(fromChainId).trim() !== "";
+  const hasToChainId =
+    toChainId !== undefined &&
+    toChainId !== null &&
+    String(toChainId).trim() !== "";
 
   useEffect(() => {
-    console.log(
-      "[useRouteBuilder] Effect triggered, routeKey:",
-      routeKey ? "exists" : "null"
-    );
+    if (
+      !fromChain ||
+      !toChain ||
+      !hasFromChainId ||
+      !hasToChainId ||
+      !fromToken ||
+      !toToken ||
+      !fromAmountWei ||
+      !fromAddress ||
+      !toAddress
+    )
+      return;
+
+    // console.log(
+    //   "[useRouteBuilder] Effect triggered, routeKey:",
+    //   routeKey ? "exists" : "null"
+    // );
 
     // Abort any pending request
     abortRef.current?.abort();
 
     // Clear state if we don't have all required params
     if (!routeKey) {
-      console.log("[useRouteBuilder] No routeKey - missing params:", {
-        enabled,
-        hasToken: !!selectedToken,
-        hasChain: !!selectedChain,
-        amount,
-        hasWallet: !!walletAddress,
-      });
       setState({
         isLoadingRoute: false,
         networkFees: null,
@@ -125,7 +182,7 @@ export function useRouteBuilder(
 
     // Parse the route key to get params
     const params = JSON.parse(routeKey);
-    console.log("[useRouteBuilder] Building route with params:", params);
+    // console.log("[useRouteBuilder] Building route with params:", params);
 
     // Create new abort controller
     const ac = new AbortController();
@@ -143,7 +200,7 @@ export function useRouteBuilder(
 
         // Get destination config from SDK config
         const config = TrustwareConfigStore.get();
-        console.log("[useRouteBuilder] Config routes:", config.routes);
+        // console.log("[useRouteBuilder] Config routes:", config.routes);
         const { toChain, toToken, toAddress, defaultSlippage } = config.routes;
 
         // Ensure we have a destination address
@@ -153,12 +210,25 @@ export function useRouteBuilder(
         }
 
         // Build the route
+        console.log("buildRoute Called", {
+          params,
+          toChain,
+          toToken,
+          toAddress,
+          defaultSlippage,
+        });
+
+        const shouldBuildRoute = errorMessage === null || errorMessage === "";
+
+        if (!shouldBuildRoute) return;
+
         const result = await Trustware.buildRoute({
           fromChain: String(params.fromChain),
           toChain,
           fromToken: params.fromToken,
           toToken,
-          fromAmount: params.fromAmount,
+          fromAmount: params.fromAmountWei,
+          fromAmountUsd: params.fromAmountUsd,
           fromAddress: params.fromAddress,
           toAddress: destinationAddress,
           slippage: defaultSlippage,
@@ -172,15 +242,15 @@ export function useRouteBuilder(
         const fees = estimate?.fees;
 
         // Debug: log the full estimate object
-        console.log("[useRouteBuilder] Route result:", result);
-        console.log("[useRouteBuilder] Estimate:", estimate);
-        console.log("[useRouteBuilder] Fees:", fees);
+        // console.log("[useRouteBuilder] Route result:", result);
+        // console.log("[useRouteBuilder] Estimate:", estimate);
+        // console.log("[useRouteBuilder] Fees:", fees);
 
         // Calculate network fees (gas + bridge fees in USD)
         let networkFeesUSD: string | null = null;
-        if (estimate?.fromAmountUSD && estimate?.toAmountMinUSD) {
-          const fromUSD = parseFloat(estimate.fromAmountUSD);
-          const toMinUSD = parseFloat(estimate.toAmountMinUSD);
+        if (estimate?.fromAmountUsd && estimate?.toAmountMinUsd) {
+          const fromUSD = parseFloat(estimate.fromAmountUsd);
+          const toMinUSD = parseFloat(estimate.toAmountMinUsd);
           if (!isNaN(fromUSD) && !isNaN(toMinUSD)) {
             const feesDiff = fromUSD - toMinUSD;
             networkFeesUSD = feesDiff > 0 ? feesDiff.toFixed(2) : "0.00";
@@ -200,10 +270,10 @@ export function useRouteBuilder(
         // Priority: USD value > formatted token amount > raw amount converted
         let estimatedReceive: string | null = null;
 
-        if (estimate?.toAmountUSD) {
-          estimatedReceive = estimate.toAmountUSD;
-        } else if (estimate?.toAmountMinUSD) {
-          estimatedReceive = estimate.toAmountMinUSD;
+        if (estimate?.toAmountUsd) {
+          estimatedReceive = estimate.toAmountUsd;
+        } else if (estimate?.toAmountMinUsd) {
+          estimatedReceive = estimate.toAmountMinUsd;
         } else if (estimate?.toAmount) {
           // Convert from smallest unit - assume 6 decimals for stablecoins, 18 for others
           const toToken = config.routes.toToken?.toLowerCase() || "";
@@ -246,6 +316,13 @@ export function useRouteBuilder(
           intentId: null,
           routeResult: null,
         });
+      } finally {
+        if (!ac.signal.aborted) {
+          setState((prev) => ({
+            ...prev,
+            isLoadingRoute: false,
+          }));
+        }
       }
     }, debounceMs);
 
@@ -253,7 +330,28 @@ export function useRouteBuilder(
       clearTimeout(timeout);
       ac.abort();
     };
-  }, [routeKey, debounceMs, walletAddress]);
+  }, [
+    routeKey,
+    fromChainId,
+    toChainId,
+    fromToken,
+    toToken,
+    fromAmountWei,
+    fromAmountUsd,
+    fromAddress,
+    toAddress,
+    fromChain,
+    toChain,
+    refundAddress,
+    slippage,
+    hasFromChainId,
+    hasToChainId,
+    selectedChain,
+    selectedToken,
+    amount,
+    walletAddress,
+    errorMessage,
+  ]);
 
   return state;
 }

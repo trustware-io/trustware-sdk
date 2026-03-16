@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { mergeStyles } from "../lib/utils";
 import {
   colors,
   spacing,
@@ -64,157 +63,6 @@ function truncateHash(hash: string): string {
   if (hash.length <= 16) return hash;
   return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
 }
-
-// Styles
-const containerStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  minHeight: "500px",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: `${spacing[4]} ${spacing[4]}`,
-  borderBottom: `1px solid ${colors.border}`,
-};
-
-const headerSpacerStyle: React.CSSProperties = {
-  width: "2.5rem",
-};
-
-const headerTitleStyle: React.CSSProperties = {
-  fontSize: fontSize.lg,
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
-
-const closeButtonStyle: React.CSSProperties = {
-  width: "2.5rem",
-  height: "2.5rem",
-  borderRadius: "9999px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  transition: "background-color 0.2s",
-  border: 0,
-  backgroundColor: "transparent",
-  cursor: "pointer",
-};
-
-const closeIconStyle: React.CSSProperties = {
-  width: "1.25rem",
-  height: "1.25rem",
-  color: colors.foreground,
-};
-
-const contentStyle: React.CSSProperties = {
-  flex: 1,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: `${spacing[8]} ${spacing[6]}`,
-};
-
-const progressContainerStyle: React.CSSProperties = {
-  marginBottom: spacing[6],
-};
-
-const stepTextStyle: React.CSSProperties = {
-  fontSize: fontSize.lg,
-  fontWeight: fontWeight.medium,
-  color: colors.foreground,
-  textAlign: "center",
-  marginBottom: spacing[2],
-};
-
-const amountTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-  textAlign: "center",
-  marginBottom: spacing[6],
-};
-
-const stepsContainerStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: "20rem",
-  marginBottom: spacing[6],
-};
-
-const hashContainerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[2],
-  fontSize: fontSize.sm,
-};
-
-const hashLabelStyle: React.CSSProperties = {
-  color: colors.mutedForeground,
-};
-
-const hashLinkStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: spacing[1],
-  color: colors.primary,
-  textDecoration: "none",
-};
-
-const hashTextStyle: React.CSSProperties = {
-  fontFamily: "monospace",
-};
-
-const hashPlainStyle: React.CSSProperties = {
-  fontFamily: "monospace",
-  color: colors.foreground,
-};
-
-const externalIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-};
-
-const errorButtonStyle: React.CSSProperties = {
-  marginTop: spacing[4],
-  padding: `${spacing[2]} ${spacing[6]}`,
-  borderRadius: borderRadius.xl,
-  backgroundColor: colors.destructive,
-  color: colors.destructiveForeground,
-  fontWeight: fontWeight.medium,
-  transition: "background-color 0.2s",
-  border: 0,
-  cursor: "pointer",
-};
-
-const footerStyle: React.CSSProperties = {
-  padding: `${spacing[4]} ${spacing[6]}`,
-  borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-};
-
-const footerContentStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: spacing[2],
-};
-
-const lockIconStyle: React.CSSProperties = {
-  width: "0.875rem",
-  height: "0.875rem",
-  color: colors.mutedForeground,
-};
-
-const footerTextStyle: React.CSSProperties = {
-  fontSize: fontSize.sm,
-  color: colors.mutedForeground,
-};
-
-const footerBrandStyle: React.CSSProperties = {
-  fontWeight: fontWeight.semibold,
-  color: colors.foreground,
-};
 
 /**
  * Processing page component.
@@ -291,8 +139,8 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
       return transaction.fromChainTxUrl;
     }
     // Fallback: construct URL based on chain if we have a hash
-    if (transactionHash && selectedChain?.explorerUrl) {
-      return `${selectedChain.explorerUrl}/tx/${transactionHash}`;
+    if (transactionHash && selectedChain?.blockExplorerUrls?.length) {
+      return `${selectedChain.blockExplorerUrls[0].replace(/\/+$/, "")}/tx/${transactionHash}`;
     }
     return null;
   }, [transaction, transactionHash, selectedChain]);
@@ -327,19 +175,61 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
         : "Processing";
 
   return (
-    <div style={mergeStyles(containerStyle, style)}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "500px",
+        ...style,
+      }}
+    >
       {/* Header */}
-      <div style={headerStyle}>
-        <div style={headerSpacerStyle} />
-        <h1 style={headerTitleStyle}>{headerTitle}</h1>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: `${spacing[4]} ${spacing[4]}`,
+          borderBottom: `1px solid ${colors.border}`,
+        }}
+      >
+        <div
+          style={{
+            width: "2.5rem",
+          }}
+        />
+        <h1
+          style={{
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.semibold,
+            color: colors.foreground,
+          }}
+        >
+          {headerTitle}
+        </h1>
         <button
           type="button"
           onClick={handleClose}
-          style={closeButtonStyle}
+          style={{
+            width: "2.5rem",
+            height: "2.5rem",
+            borderRadius: "9999px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "background-color 0.2s",
+            border: 0,
+            backgroundColor: "transparent",
+            cursor: "pointer",
+          }}
           aria-label="Close"
         >
           <svg
-            style={closeIconStyle}
+            style={{
+              width: "1.25rem",
+              height: "1.25rem",
+              color: colors.foreground,
+            }}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -355,9 +245,22 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
       </div>
 
       {/* Content */}
-      <div style={contentStyle}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: `${spacing[8]} ${spacing[6]}`,
+        }}
+      >
         {/* Progress Circle */}
-        <div style={progressContainerStyle}>
+        <div
+          style={{
+            marginBottom: spacing[6],
+          }}
+        >
           <CircularProgress
             progress={progress}
             size={120}
@@ -368,11 +271,28 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
         </div>
 
         {/* Current Step Text */}
-        <p style={stepTextStyle}>{stepText}</p>
+        <p
+          style={{
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.medium,
+            color: colors.foreground,
+            textAlign: "center",
+            marginBottom: spacing[2],
+          }}
+        >
+          {stepText}
+        </p>
 
         {/* Amount Display */}
         {selectedToken && parsedAmount > 0 && (
-          <p style={amountTextStyle}>
+          <p
+            style={{
+              fontSize: fontSize.sm,
+              color: colors.mutedForeground,
+              textAlign: "center",
+              marginBottom: spacing[6],
+            }}
+          >
             ${parsedAmount.toFixed(2)} {selectedToken.symbol}
           </p>
         )}
@@ -380,25 +300,55 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
         {/* Transaction Steps */}
         <TransactionSteps
           transactionStatus={transactionStatus}
-          style={stepsContainerStyle}
+          style={{
+            width: "100%",
+            maxWidth: "20rem",
+            marginBottom: spacing[6],
+          }}
         />
 
         {/* Transaction Hash Link */}
         {transactionHash && (
-          <div style={hashContainerStyle}>
-            <span style={hashLabelStyle}>Transaction:</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: spacing[2],
+              fontSize: fontSize.sm,
+            }}
+          >
+            <span
+              style={{
+                color: colors.mutedForeground,
+              }}
+            >
+              Transaction:
+            </span>
             {explorerUrl ? (
               <a
                 href={explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={hashLinkStyle}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: spacing[1],
+                  color: colors.primary,
+                  textDecoration: "none",
+                }}
               >
-                <span style={hashTextStyle}>
+                <span
+                  style={{
+                    fontFamily: "monospace",
+                  }}
+                >
                   {truncateHash(transactionHash)}
                 </span>
                 <svg
-                  style={externalIconStyle}
+                  style={{
+                    width: "0.875rem",
+                    height: "0.875rem",
+                  }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -412,24 +362,61 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
                 </svg>
               </a>
             ) : (
-              <span style={hashPlainStyle}>{truncateHash(transactionHash)}</span>
+              <span
+                style={{
+                  fontFamily: "monospace",
+                  color: colors.foreground,
+                }}
+              >
+                {truncateHash(transactionHash)}
+              </span>
             )}
           </div>
         )}
 
         {/* Error State Action */}
         {transactionStatus === "error" && (
-          <button type="button" onClick={handleViewError} style={errorButtonStyle}>
+          <button
+            type="button"
+            onClick={handleViewError}
+            style={{
+              marginTop: spacing[4],
+              padding: `${spacing[2]} ${spacing[6]}`,
+              borderRadius: borderRadius.xl,
+              backgroundColor: colors.destructive,
+              color: colors.destructiveForeground,
+              fontWeight: fontWeight.medium,
+              transition: "background-color 0.2s",
+              border: 0,
+              cursor: "pointer",
+            }}
+          >
             View Details
           </button>
         )}
       </div>
 
       {/* Footer */}
-      <div style={footerStyle}>
-        <div style={footerContentStyle}>
+      <div
+        style={{
+          padding: `${spacing[4]} ${spacing[6]}`,
+          borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: spacing[2],
+          }}
+        >
           <svg
-            style={lockIconStyle}
+            style={{
+              width: "0.875rem",
+              height: "0.875rem",
+              color: colors.mutedForeground,
+            }}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -441,8 +428,21 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
             />
           </svg>
-          <span style={footerTextStyle}>
-            Secured by <span style={footerBrandStyle}>Trustware</span>
+          <span
+            style={{
+              fontSize: fontSize.sm,
+              color: colors.mutedForeground,
+            }}
+          >
+            Secured by{" "}
+            <span
+              style={{
+                fontWeight: fontWeight.semibold,
+                color: colors.foreground,
+              }}
+            >
+              Trustware
+            </span>
           </span>
         </div>
       </div>

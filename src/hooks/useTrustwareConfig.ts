@@ -17,6 +17,7 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           toToken: "",
           toAddress: undefined,
           defaultSlippage: 1,
+          routeType: "swap",
           options: {},
         },
         autoDetectProvider: false,

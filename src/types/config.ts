@@ -1,4 +1,6 @@
+import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareWidgetTheme, TrustwareWidgetMessages } from "./theme";
+import { TrustwareEvent } from "src/events/events";
 
 /** WalletConnect configuration options (all optional - SDK has built-in defaults) */
 export type WalletConnectConfig = {
@@ -47,6 +49,7 @@ export type TrustwareConfigOptions = {
     fromAddress?: string; // Default source address (optional)
     toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
     defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
+    routeType?: string; // Route type: "swap" | "deposit" | "withdraw" | "cross" (default: "swap")
     options?: {
       routeRefreshMs?: number; // Route refresh interval in milliseconds (optional)
       fixedFromAmount?: string | number;
@@ -59,6 +62,9 @@ export type TrustwareConfigOptions = {
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
   retry?: RetryConfig; // Optional retry configuration for rate-limited requests
   walletConnect?: WalletConnectConfig; // Optional WalletConnect configuration
+
+  onError?: (error: TrustwareError) => void;
+  onEvent?: (event: TrustwareEvent) => void;
 };
 
 export type ResolvedTrustwareConfig = {
@@ -70,6 +76,7 @@ export type ResolvedTrustwareConfig = {
     fromAddress?: string;
     toAddress?: string;
     defaultSlippage: number; // resolved
+    routeType: string; // resolved
     options: {
       routeRefreshMs?: number;
       fixedFromAmount?: string | number;
