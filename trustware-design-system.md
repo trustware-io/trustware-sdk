@@ -1,7 +1,7 @@
 # Trustware Design System Specification
 
-> **Version**: 2.0.0
-> **Last Updated**: 2026-02-03
+> **Version**: 2.1.0
+> **Last Updated**: 2026-03-16
 > **Scope**: Trustware SDK widget (embeddable in any host app)
 > **Platforms**: Web (responsive), Mobile (iOS/Android web views)
 
@@ -138,8 +138,9 @@ export function cn(...inputs: ClassValue[]) {
 - **NEVER** use Tailwind CSS classes, external CSS files, or CSS-in-JS libraries
 - **ALL** visual properties use inline `style` props with token references
 - **ONLY** use `className` for injected animation classes (`.tw-animate-*`) and pseudo-state utilities (`.tw-touch-none`, `.tw-scrollbar-none`)
-- **ALL** components import tokens from `@/widget-v2/styles`
+- **ALL** components import tokens from barrel files (`../styles`, `../components`, `../hooks`), never from individual files like `../styles/tokens`
 - **ALWAYS** use `mergeStyles()` for conditional style composition
+- **ALWAYS** export new components/hooks from the directory's `index.ts` barrel file
 
 ---
 
@@ -153,7 +154,7 @@ export function cn(...inputs: ClassValue[]) {
   "build": "tsup (esbuild-based)",
   "styling": "Inline styles (React.CSSProperties)",
   "state": "React Context + custom hooks",
-  "wallets": "@walletconnect/ethereum-provider",
+  "wallets": "@reown/appkit-universal-connector",
   "icons": "lucide-react",
   "output": "ESM + CJS + TypeScript declarations"
 }
@@ -689,7 +690,7 @@ const containerStyle: React.CSSProperties = {
 Pre-defined style objects available from `commonStyles`:
 
 ```typescript
-import { commonStyles, mergeStyles } from "@/widget-v2/styles";
+import { commonStyles, mergeStyles } from "../styles";
 
 // Flexbox
 commonStyles.flexCenter    // display:flex, align:center, justify:center
@@ -1011,7 +1012,7 @@ Applied via `className`:
 For use with `style={{ animation: ... }}`:
 
 ```typescript
-import { animationTimings } from "@/widget-v2/styles";
+import { animationTimings } from "../styles";
 
 // animationTimings.fadeIn = "tw-fade-in 0.3s ease-out"
 // animationTimings.spin  = "tw-spin 1s linear infinite"
@@ -1248,17 +1249,22 @@ src/widget-v2/
 │   ├── useTransactionSubmit.ts    # Transaction submission + receipt
 │   └── useTransactionPolling.ts   # Transaction status polling
 ├── components/
+│   ├── index.ts                   # Barrel export for all components
 │   ├── WidgetContainer.tsx        # Top-level wrapper, style injection, theme
 │   ├── AmountSlider.tsx           # Range slider with snap-to-tick
 │   ├── TokenSwipePill.tsx         # Token carousel with swipe gestures
 │   ├── SwipeToConfirmTokens.tsx   # Drag + long-press confirmation
 │   ├── CircularProgress.tsx       # SVG progress indicator
 │   ├── ConfettiEffect.tsx         # Success celebration (50 particles)
+│   ├── Dialog.tsx                 # Reusable dialog/modal component
 │   ├── Toast.tsx                  # Notification component
 │   ├── ThemeToggle.tsx            # Light/dark theme switcher
 │   ├── TransactionSteps.tsx       # Step progress indicator
 │   ├── WalletSelector.tsx         # Wallet picker
-│   └── WalletConnectModal.tsx     # WalletConnect QR code modal
+│   ├── WalletConnectModal.tsx     # WalletConnect QR code modal (disabled)
+│   └── Skeletons/
+│       ├── index.ts               # Barrel export
+│       └── LoadingSkeleton.tsx    # Loading placeholder component
 ├── lib/
 │   └── utils.ts                   # cn() for animation classNames
 └── pages/
@@ -1317,8 +1323,7 @@ large:  0 8px 32px -8px  (light: 16% opacity / dark: 40% opacity)
 ### Style Composition
 
 ```typescript
-import { colors, spacing, fontSize, fontWeight, borderRadius, shadows, transitions } from "@/widget-v2/styles";
-import { mergeStyles, commonStyles } from "@/widget-v2/styles";
+import { colors, spacing, fontSize, fontWeight, borderRadius, shadows, transitions, mergeStyles, commonStyles } from "../styles";
 
 // Static styles as constants
 const myStyle: React.CSSProperties = {
