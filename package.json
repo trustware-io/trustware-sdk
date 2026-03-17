@@ -1,6 +1,6 @@
 {
   "name": "@trustware/sdk",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
   "license": "Apache-2.0",
   "author": "Trustware",
