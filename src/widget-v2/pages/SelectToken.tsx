@@ -24,7 +24,6 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     selectedChain,
     setSelectedChain,
     setSelectedToken,
-    setCurrentStep,
     goBack,
     walletAddress,
     yourWalletTokens,
@@ -66,7 +65,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   const handleTokenSelect = async (token: Token) => {
     // console.log({ selectToken: token });
     if (token.balance !== undefined)
-      return (setSelectedToken(token), setCurrentStep("crypto-pay"));
+      return (setSelectedToken(token), goBack());
 
     const balance = await getBalances(
       selectedChain?.chainId as string | number,
@@ -88,16 +87,16 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
 
     setSelectedToken(concToken);
 
-    setCurrentStep("crypto-pay");
+    goBack();
   };
 
   const handleYourTokenSelect = useCallback(
     (token: YourTokenData) => {
       setSelectedToken(token);
       setSelectedChain(token.chainData as Chain);
-      setCurrentStep("crypto-pay");
+      goBack();
     },
-    [setCurrentStep, setSelectedChain, setSelectedToken]
+    [goBack, setSelectedChain, setSelectedToken]
   );
 
   /**
