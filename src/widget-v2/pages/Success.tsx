@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useMemo } from "react";
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
+import { colors, spacing, fontSize, fontWeight } from "../styles";
 import { useDeposit } from "../context/DepositContext";
 import { useTransactionPolling } from "../hooks";
 
@@ -30,10 +30,10 @@ export function Success({ style }: SuccessProps): React.ReactElement {
   // Get transaction details for explorer URL
   const { transaction } = useTransactionPolling();
 
-  // Parse amount for display
+  // // Parse amount for display
   const parsedAmount = useMemo(() => parseFloat(amount) || 0, [amount]);
 
-  // Get block explorer URL from transaction data or construct fallback
+  // // Get block explorer URL from transaction data or construct fallback
   const explorerUrl = useMemo(() => {
     // Prefer the destination chain URL if bridging completed
     if (transaction?.toChainTxUrl) {
@@ -60,6 +60,7 @@ export function Success({ style }: SuccessProps): React.ReactElement {
   return (
     <div
       style={{
+        minWidth: "100%",
         display: "flex",
         flexDirection: "column",
         minHeight: "500px",
@@ -72,116 +73,127 @@ export function Success({ style }: SuccessProps): React.ReactElement {
       </Suspense>
 
       {/* Header */}
+
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          padding: `${spacing[4]} ${spacing[4]}`,
+          justifyContent: "space-between",
+          padding: "1rem",
+          paddingBottom: "0.75rem",
           borderBottom: `1px solid ${colors.border}`,
         }}
       >
+        <div
+          style={{
+            width: "2.5rem",
+          }}
+        />
         <h1
           style={{
-            fontSize: fontSize.lg,
-            fontWeight: fontWeight.semibold,
+            fontSize: "1.25rem",
+            fontWeight: "600",
             color: colors.foreground,
           }}
         >
           Deposit Complete
         </h1>
+        <div
+          style={{
+            width: "2.5rem",
+          }}
+        />
       </div>
 
       {/* Content */}
       <div
         style={{
           flex: 1,
+          padding: "1.5rem",
+          overflowY: "auto",
+          scrollbarWidth: "none",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
-          padding: `${spacing[8]} ${spacing[6]}`,
         }}
       >
-        {/* Success Icon */}
         <div
           style={{
-            width: "5rem",
-            height: "5rem",
-            borderRadius: "9999px",
-            backgroundColor: "rgba(34, 197, 94, 0.1)",
+            flex: 1,
+            width: "100%",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            marginBottom: spacing[6],
+            padding: "2rem",
+            animation: "fade-in 0.3s ease-out",
           }}
         >
-          <svg
-            style={{
-              width: "2.5rem",
-              height: "2.5rem",
-              color: colors.green[500],
-            }}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2.5}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-        </div>
-
-        {/* Success Message */}
-        <h2
-          style={{
-            fontSize: fontSize["2xl"],
-            fontWeight: fontWeight.bold,
-            color: colors.foreground,
-            textAlign: "center",
-            marginBottom: spacing[2],
-          }}
-        >
-          Success!
-        </h2>
-        <p
-          style={{
-            color: colors.mutedForeground,
-            textAlign: "center",
-            marginBottom: spacing[6],
-          }}
-        >
-          Your deposit has been completed successfully.
-        </p>
-
-        {/* Deposited Amount */}
-        {selectedToken && parsedAmount > 0 && (
+          {/* Status */}
           <div
             style={{
-              backgroundColor: "rgba(63, 63, 70, 0.5)",
-              borderRadius: borderRadius.xl,
-              padding: `${spacing[4]} ${spacing[6]}`,
-              marginBottom: spacing[6],
-              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              marginBottom: "2rem",
             }}
           >
-            <p
+            <div
               style={{
-                fontSize: fontSize.sm,
-                color: colors.mutedForeground,
-                marginBottom: spacing[1],
+                width: "5rem",
+                height: "5rem",
+                borderRadius: "2.5rem",
+                backgroundColor: colors.green[500],
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                animation: "scale-in 0.3s ease-out",
+                marginBottom: "0.75rem",
               }}
             >
-              Amount Deposited
-            </p>
-            <p
+              <svg
+                style={{
+                  width: "2.5rem",
+                  height: "2.5rem",
+                  color: colors.white,
+                }}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            <div
               style={{
-                fontSize: fontSize["3xl"],
-                fontWeight: fontWeight.bold,
+                fontSize: "1.25rem",
+                fontWeight: "bold",
+                color: colors.foreground,
+              }}
+            >
+              Success!
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              marginBottom: "2rem",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "1.875rem",
+                fontWeight: "bold",
                 color: colors.foreground,
               }}
             >
@@ -190,54 +202,52 @@ export function Success({ style }: SuccessProps): React.ReactElement {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
-            </p>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: spacing[2],
-                marginTop: spacing[2],
-              }}
-            >
-              {selectedToken.iconUrl && (
-                <img
-                  src={selectedToken.iconUrl}
-                  alt=""
-                  style={{
-                    width: "1.25rem",
-                    height: "1.25rem",
-                    borderRadius: "9999px",
-                  }}
-                />
-              )}
-              <span
+            </div>
+            {selectedToken?.iconUrl && (
+              <div
                 style={{
-                  fontSize: fontSize.sm,
-                  color: colors.mutedForeground,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  marginTop: "0.375rem",
                 }}
               >
-                {selectedToken.symbol}
-                {selectedChain && ` on ${selectedChain.networkName}`}
-              </span>
-            </div>
+                <img
+                  src={selectedToken?.iconUrl}
+                  alt={selectedToken.symbol}
+                  style={{
+                    width: "1rem",
+                    height: "1rem",
+                    borderRadius: "0.5rem",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: colors.mutedForeground,
+                  }}
+                >
+                  {selectedToken?.symbol} on {selectedChain?.networkName}
+                </span>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Transaction Hash Link */}
-        {transactionHash && (
+          {/* Transaction ID */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: spacing[1],
-              marginBottom: spacing[8],
+              gap: "0.25rem",
+              marginBottom: "2rem",
             }}
           >
             <span
               style={{
-                fontSize: fontSize.sm,
+                fontSize: "0.625rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
                 color: colors.mutedForeground,
               }}
             >
@@ -251,9 +261,13 @@ export function Success({ style }: SuccessProps): React.ReactElement {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: spacing[1.5],
+                  gap: "0.25rem",
+                  fontSize: "0.8rem",
                   color: colors.primary,
                   textDecoration: "none",
+                  textDecorationColor: colors.primary,
+                  cursor: "pointer",
+                  transition: "text-decoration 0.3s ease-out",
                 }}
               >
                 <span
@@ -262,12 +276,12 @@ export function Success({ style }: SuccessProps): React.ReactElement {
                     fontSize: fontSize.sm,
                   }}
                 >
-                  {truncateHash(transactionHash)}
+                  {truncateHash(transactionHash || "")}
                 </span>
                 <svg
                   style={{
-                    width: "0.875rem",
-                    height: "0.875rem",
+                    width: "0.75rem",
+                    height: "0.75rem",
                   }}
                   viewBox="0 0 24 24"
                   fill="none"
@@ -290,33 +304,38 @@ export function Success({ style }: SuccessProps): React.ReactElement {
                   color: colors.foreground,
                 }}
               >
-                {truncateHash(transactionHash)}
+                {truncateHash(transactionHash || "")}
               </span>
             )}
           </div>
-        )}
 
-        {/* Done Button */}
-        <button
-          type="button"
-          onClick={handleDone}
-          style={{
-            width: "100%",
-            maxWidth: "20rem",
-            padding: `${spacing[3]} ${spacing[6]}`,
-            borderRadius: borderRadius.xl,
-            backgroundColor: colors.primary,
-            color: colors.primaryForeground,
-            fontWeight: fontWeight.semibold,
-            fontSize: fontSize.base,
-            transition: "background-color 0.2s",
-            border: 0,
-            cursor: "pointer",
-          }}
-        >
-          Done
-        </button>
+          {/* Done Button */}
+          <div
+            style={{
+              width: "100%",
+              padding: "1rem",
+            }}
+          >
+            <button
+              onClick={handleDone}
+              style={{
+                width: "100%",
+                height: "3rem",
+                borderRadius: "1.5rem",
+                backgroundColor: colors.primary,
+                transition: "background-color 0.3s ease-out",
+                color: colors.primaryForeground,
+                fontWeight: "500",
+                cursor: "pointer",
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Content */}
 
       {/* Footer */}
       <div
