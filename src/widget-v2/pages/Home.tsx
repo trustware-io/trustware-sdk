@@ -9,7 +9,8 @@ import {
 } from "../styles";
 import { useDeposit } from "../context/DepositContext";
 import {
-  clampUsdAmount,
+  formatUsdAmount,
+  getUsdAmountRangeError,
   sanitizeAmountInput,
   useAmountConstraints,
 } from "../hooks";
@@ -182,9 +183,21 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     if (isFixedAmount) return;
     if (amountInputMode !== "usd") setAmountInputMode("usd");
     const sanitized = sanitizeAmountInput(raw);
-    const clamped = clampUsdAmount(sanitized, minAmountUsd, maxAmountUsd);
-    setAmount(clamped);
+    setAmount(sanitized);
   };
+
+  const amountValidationMessage = (() => {
+    const rawAmount = (fixedFromAmountString ?? amount)?.trim();
+    if (!rawAmount) return null;
+    if (!/^\d*\.?\d*$/.test(rawAmount)) {
+      return "Use numbers only for amount.";
+    }
+    const parsed = Number(rawAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return "Enter an amount greater than 0.";
+    }
+    return getUsdAmountRangeError(parsed, minAmountUsd, maxAmountUsd);
+  })();
 
   /**
    * Handle wallet selection from dropdown
@@ -304,6 +317,42 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
           prefix="$"
           style={{ marginBottom: spacing[8] }}
         />
+
+        {amountValidationMessage ? (
+          <p
+            style={{
+              marginTop: -spacing[5],
+              marginBottom: spacing[5],
+              fontSize: fontSize.sm,
+              fontWeight: fontWeight.medium,
+              color: colors.destructive,
+              textAlign: "center",
+            }}
+          >
+            {amountValidationMessage}
+          </p>
+        ) : minAmountUsd != null || maxAmountUsd != null ? (
+          <p
+            style={{
+              marginTop: -spacing[5],
+              marginBottom: spacing[5],
+              fontSize: fontSize.sm,
+              color: colors.mutedForeground,
+              textAlign: "center",
+            }}
+          >
+            {[
+              minAmountUsd != null
+                ? `Min ${formatUsdAmount(minAmountUsd)} USD`
+                : null,
+              maxAmountUsd != null
+                ? `Max ${formatUsdAmount(maxAmountUsd)} USD`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" • ")}
+          </p>
+        ) : null}
 
         {/* Payment Options - Dropdown Pills */}
         <div

@@ -213,6 +213,9 @@ export function SwipeToConfirmTokens({
       return `Confirming... ${Math.round(longPressProgress * 100)}% complete.`;
     return `Confirm transaction. Swipe right to confirm.`;
   };
+
+  const isLongText = text.length > 24;
+  const isVeryLongText = text.length > 34;
   const trackBg =
     effectiveProgress > 0
       ? `linear-gradient(to right, rgb(34, 197, 94) ${effectiveProgress * 100}%, ${colors.background} ${effectiveProgress * 100}%)`
@@ -260,15 +263,26 @@ export function SwipeToConfirmTokens({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            padding: `0 ${spacing[7]}`,
             transition: "opacity 0.2s",
             ...(effectiveProgress > 0.15 && { opacity: 0 }),
           }}
         >
           <span
             style={{
-              fontSize: fontSize.sm,
+              fontSize: isVeryLongText
+                ? fontSize.xs
+                : isLongText
+                  ? "0.8125rem"
+                  : fontSize.sm,
               color: colors.mutedForeground,
               fontWeight: fontWeight.bold,
+              lineHeight: 1.15,
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "100%",
             }}
           >
             {/* {isWalletConnected

@@ -8,7 +8,7 @@ import React, {
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { Chain, useDeposit, YourTokenData } from "../context/DepositContext";
 import {
-  clampUsdAmount,
+  getUsdAmountRangeError,
   sanitizeAmountInput,
   useAmountConstraints,
   useRouteBuilder,
@@ -58,6 +58,7 @@ function normalizeTokenAddressForCompare(
 }
 
 const SHOW_FEE_SUMMARY = false;
+const BALANCE_TOLERANCE = 1e-9;
 
 /**
  * CryptoPay confirmation page.
@@ -138,6 +139,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
     isFinite(tokenPriceUSD) &&
     tokenPriceUSD > 0;
 
+  const normalizedTokenBalance = useMemo(() => {
+    if (!selectedToken?.balance) return 0;
+    const normalized = Number(
+      rawToDecimal(selectedToken.balance, selectedToken.decimals ?? 18)
+    );
+    return Number.isFinite(normalized) ? normalized : 0;
+  }, [selectedToken?.balance, selectedToken?.decimals]);
+
   useEffect(() => {
     if (fixedFromAmountString) return;
     if (isReady && !hasUsdPrice && amountInputMode === "usd") {
@@ -169,21 +178,21 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const amountComputation = useMemo(() => {
     const rawAmount = (fixedFromAmountString ?? amount)?.trim();
-    // if (!rawAmount) {
-    //   return {
-    //     fromAmountWei: null,
-    //     tokenAmount: null,
-    //     usdAmount: null,
-    //     validationError: "Enter an amount to continue.",
-    //   };
-    // }
+    if (!rawAmount) {
+      return {
+        fromAmountWei: null,
+        tokenAmount: null,
+        usdAmount: null,
+        parseError: "Enter an amount greater than 0.",
+      };
+    }
 
     if (!/^\d*\.?\d*$/.test(rawAmount)) {
       return {
         fromAmountWei: null,
         tokenAmount: null,
         usdAmount: null,
-        validationError: "Use numbers only for amount.",
+        parseError: "Use numbers only for amount.",
       };
     }
 
@@ -194,7 +203,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
         fromAmountWei: null,
         tokenAmount: null,
         usdAmount: null,
-        validationError: "Enter an amount greater than 0.",
+        parseError: "Enter an amount greater than 0.",
       };
     }
 
@@ -204,31 +213,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
           fromAmountWei: null,
           tokenAmount: null,
           usdAmount: rawAmount,
-          validationError:
+          parseError:
             "USD pricing is unavailable for this token. Switch to token amount mode.",
-        };
-      }
-
-      if (minAmountUsd != null && parsedAmount < minAmountUsd) {
-        return {
-          fromAmountWei: null,
-          tokenAmount: null,
-          usdAmount: rawAmount,
-          validationError: `Minimum amount is ${minAmountUsd.toLocaleString(
-            undefined,
-            { maximumFractionDigits: 2 }
-          )} USD`,
-        };
-      }
-      if (maxAmountUsd != null && parsedAmount > maxAmountUsd) {
-        return {
-          fromAmountWei: null,
-          tokenAmount: null,
-          usdAmount: rawAmount,
-          validationError: `Maximum amount is ${maxAmountUsd.toLocaleString(
-            undefined,
-            { maximumFractionDigits: 2 }
-          )} USD`,
         };
       }
 
@@ -238,7 +224,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
           fromAmountWei: null,
           tokenAmount: null,
           usdAmount: rawAmount,
-          validationError: "Unable to convert USD to token amount.",
+          parseError: "Unable to convert USD to token amount.",
         };
       }
 
@@ -246,64 +232,69 @@ export function CryptoPay({ style }: CryptoPayProps) {
         fromAmountWei: BigInt(decimalToRaw(String(tokenUnits), tokenDecimals)),
         tokenAmount: String(tokenUnits),
         usdAmount: rawAmount,
-        validationError: null,
+        parseError: null,
       };
-    }
-
-    if ((minAmountUsd != null || maxAmountUsd != null) && !hasUsdPrice) {
-      return {
-        fromAmountWei: null,
-        tokenAmount: null,
-        usdAmount: undefined,
-        validationError:
-          "USD pricing is unavailable for this token. Switch to USD amount mode.",
-      };
-    }
-
-    if (hasUsdPrice) {
-      const usdValue = parsedAmount * tokenPriceUSD;
-      if (minAmountUsd != null && usdValue < minAmountUsd) {
-        return {
-          fromAmountWei: null,
-          tokenAmount: null,
-          usdAmount: String(usdValue),
-          validationError: `Minimum amount is ${minAmountUsd.toLocaleString(
-            undefined,
-            { maximumFractionDigits: 2 }
-          )} USD`,
-        };
-      }
-      if (maxAmountUsd != null && usdValue > maxAmountUsd) {
-        return {
-          fromAmountWei: null,
-          tokenAmount: null,
-          usdAmount: String(usdValue),
-          validationError: `Maximum amount is ${maxAmountUsd.toLocaleString(
-            undefined,
-            { maximumFractionDigits: 2 }
-          )} USD`,
-        };
-      }
     }
 
     return {
       fromAmountWei: BigInt(decimalToRaw(rawAmount, tokenDecimals)),
       tokenAmount: rawAmount,
       usdAmount: hasUsdPrice ? String(parsedAmount * tokenPriceUSD) : undefined,
-      validationError: null,
+      parseError: null,
     };
   }, [
     amount,
     amountInputMode,
     fixedFromAmountString,
     hasUsdPrice,
-    maxAmountUsd,
-    minAmountUsd,
     selectedToken?.decimals,
     tokenPriceUSD,
   ]);
 
-  const amountWei = amountComputation.fromAmountWei ?? 0n;
+  const requestedTokenAmount = useMemo(() => {
+    const tokenAmount = Number(amountComputation.tokenAmount);
+    return Number.isFinite(tokenAmount) ? tokenAmount : 0;
+  }, [amountComputation.tokenAmount]);
+
+  const amountValidationError = useMemo(() => {
+    if (amountComputation.parseError) {
+      return amountComputation.parseError;
+    }
+
+    if (
+      requestedTokenAmount > 0 &&
+      requestedTokenAmount - normalizedTokenBalance > BALANCE_TOLERANCE
+    ) {
+      return `Balance: ${normalizedTokenBalance.toLocaleString(
+        undefined,
+        { maximumFractionDigits: 6 }
+      )} ${selectedToken?.symbol ?? ""}`.trim();
+    }
+
+    const usdAmount = Number(amountComputation.usdAmount);
+    if ((minAmountUsd != null || maxAmountUsd != null) && !hasUsdPrice) {
+      return "USD pricing is unavailable, so min/max limits cannot be validated for this token.";
+    }
+
+    if (Number.isFinite(usdAmount) && usdAmount > 0) {
+      return getUsdAmountRangeError(usdAmount, minAmountUsd, maxAmountUsd);
+    }
+
+    return null;
+  }, [
+    amountComputation.parseError,
+    amountComputation.usdAmount,
+    hasUsdPrice,
+    maxAmountUsd,
+    minAmountUsd,
+    normalizedTokenBalance,
+    requestedTokenAmount,
+    selectedToken?.symbol,
+  ]);
+
+  const amountWei = amountValidationError
+    ? 0n
+    : (amountComputation.fromAmountWei ?? 0n);
 
   const routeConfig = useMemo(() => {
     const toChainId = config.routes.toChain;
@@ -384,14 +375,13 @@ export function CryptoPay({ style }: CryptoPayProps) {
       // );
       return "Destination address missing. Please check widget configuration.";
     }
-    if (!amountComputation.fromAmountWei) {
-      // error.set("amount_wei", amountComputation.validationError || "");
-      return amountComputation.validationError;
+    if (amountValidationError || !amountComputation.fromAmountWei) {
+      return amountValidationError;
     }
     return null;
   }, [
+    amountValidationError,
     amountComputation.fromAmountWei,
-    amountComputation.validationError,
     isReady,
     routeConfig.toAddress,
     selectedChain,
@@ -401,18 +391,19 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   // const routeError = routePrerequisiteError || _routeBuilderError;
   const routeError = routeBuilderError && "No successful provider response";
+  const actionErrorMessage = routePrerequisiteError || routeError || null;
 
   const { emitError } = useTrustware();
 
   useEffect(() => {
-    if (currentStep != "crypto-pay") return;
+    if (currentStep !== "crypto-pay" || !actionErrorMessage) return;
 
     emitError?.(
       new TrustwareError({
         code: TrustwareErrorCode.INPUT_ERROR,
-        message: routeError as string,
-        userMessage: routeError as string,
-        cause: routeError,
+        message: actionErrorMessage,
+        userMessage: actionErrorMessage,
+        cause: actionErrorMessage,
       })
     );
 
@@ -420,10 +411,10 @@ export function CryptoPay({ style }: CryptoPayProps) {
       void (routePrerequisiteError || routeBuilderError);
     }
   }, [
+    actionErrorMessage,
     currentStep,
     emitError,
     routeBuilderError,
-    routeError,
     routePrerequisiteError,
   ]);
 
@@ -762,29 +753,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const parsedAmount = parseFloat(fixedFromAmountString ?? amount) || 0;
 
-  const normalizedTokenBalance = useMemo(() => {
-    if (!selectedToken?.balance) return 0;
-    const normalized = Number(
-      rawToDecimal(selectedToken.balance, selectedToken.decimals ?? 18)
-    );
-    return Number.isFinite(normalized) ? normalized : 0;
-  }, [selectedToken?.balance, selectedToken?.decimals]);
-
   const maxTokenAmount = useMemo(() => {
-    const walletMax = Math.min(normalizedTokenBalance, 10000);
-    if (maxAmountUsd == null || !hasUsdPrice || tokenPriceUSD <= 0) {
-      return walletMax;
-    }
-    const maxFromUsd = maxAmountUsd / tokenPriceUSD;
-    return Math.min(walletMax, maxFromUsd);
-  }, [hasUsdPrice, maxAmountUsd, normalizedTokenBalance, tokenPriceUSD]);
+    return Math.min(normalizedTokenBalance, 10000);
+  }, [normalizedTokenBalance]);
 
   const maxUsdAmount = useMemo(() => {
     if (!hasUsdPrice) return undefined;
-    const walletMaxUsd = Math.min(maxTokenAmount * tokenPriceUSD, 10000);
-    if (maxAmountUsd == null) return walletMaxUsd;
-    return Math.min(walletMaxUsd, maxAmountUsd);
-  }, [hasUsdPrice, maxAmountUsd, maxTokenAmount, tokenPriceUSD]);
+    return Math.min(maxTokenAmount * tokenPriceUSD, 10000);
+  }, [hasUsdPrice, maxTokenAmount, tokenPriceUSD]);
 
   const minAmountForMode = useMemo(() => {
     if (minAmountUsd == null) return 0;
@@ -823,11 +799,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
   const handleAmountChange = (raw: string) => {
     if (isFixedAmount) return;
     const sanitized = sanitizeAmountInput(raw);
-    if (amountInputMode === "usd") {
-      const clamped = clampUsdAmount(sanitized, minAmountUsd, maxAmountUsd);
-      setAmount(clamped);
-      return;
-    }
     setAmount(sanitized);
   };
 
@@ -981,6 +952,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     !isLoadingRoute &&
     !isSubmitting &&
     !!routeResult &&
+    !actionErrorMessage &&
     !isApproving &&
     !isReadingAllowance;
 
@@ -1437,8 +1409,8 @@ export function CryptoPay({ style }: CryptoPayProps) {
                 <SwipeToConfirmTokens
                   key={swipeResetKey}
                   text={
-                    routeError
-                      ? routeError
+                    actionErrorMessage
+                      ? actionErrorMessage
                       : !isWalletConnected
                         ? "Connect your wallet to deposit"
                         : isLoadingRoute

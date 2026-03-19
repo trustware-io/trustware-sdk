@@ -12,6 +12,36 @@ export interface AmountInputDisplayProps {
   inputAriaLabel?: string;
 }
 
+function formatDisplayAmount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value < 0.01) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    });
+  }
+  if (value < 1) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    });
+  }
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function getAmountFontSize(displayValue: string): string {
+  const length = displayValue.length;
+
+  if (length <= 8) return "3.75rem";
+  if (length <= 11) return "3.1rem";
+  if (length <= 14) return "2.5rem";
+  if (length <= 18) return "2rem";
+  return "1.6rem";
+}
+
 export function AmountInputDisplay({
   amount,
   parsedAmount,
@@ -42,11 +72,9 @@ export function AmountInputDisplay({
   const displayValue = isEditing
     ? amount || "0"
     : parsedAmount > 0
-      ? parsedAmount.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
+      ? formatDisplayAmount(parsedAmount)
       : "0";
+  const amountFontSize = getAmountFontSize(displayValue);
 
   return (
     <div
@@ -58,10 +86,14 @@ export function AmountInputDisplay({
     >
       <span
         style={{
-          fontSize: "3.75rem",
+          fontSize: amountFontSize,
           fontWeight: fontWeight.bold,
           letterSpacing: "-0.025em",
           cursor: isFixedAmount ? "default" : "pointer",
+          display: "inline-flex",
+          alignItems: "baseline",
+          justifyContent: "center",
+          maxWidth: "100%",
         }}
         onClick={handleAmountClick}
       >
@@ -111,7 +143,7 @@ export function AmountInputDisplay({
               margin: 0,
               textAlign: "center",
               color: "transparent",
-              fontSize: "3.75rem",
+              fontSize: amountFontSize,
               fontWeight: fontWeight.bold,
               letterSpacing: "-0.025em",
               caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
