@@ -798,6 +798,26 @@ export function CryptoPay({ style }: CryptoPayProps) {
   }, [amountInputMode, hasUsdPrice, minAmountUsd, tokenPriceUSD]);
 
   const sliderMax = amountInputMode === "usd" ? maxUsdAmount : maxTokenAmount;
+  const effectiveSliderMax = useMemo(() => {
+    if (sliderMax == null || !Number.isFinite(sliderMax)) return undefined;
+    return Math.max(sliderMax, 0);
+  }, [sliderMax]);
+
+  const effectiveSliderMin = useMemo(() => {
+    if (
+      effectiveSliderMax == null ||
+      !Number.isFinite(effectiveSliderMax) ||
+      effectiveSliderMax <= 0
+    ) {
+      return 0;
+    }
+
+    if (minAmountForMode > 0 && minAmountForMode < effectiveSliderMax) {
+      return minAmountForMode;
+    }
+
+    return 0;
+  }, [effectiveSliderMax, minAmountForMode]);
 
   /**
    * Handle amount input changes with decimal sanitization
@@ -1284,7 +1304,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => handleSliderChange(sliderMax ?? 0)}
+                  onClick={() =>
+                    handleSliderChange(effectiveSliderMax ?? 0)
+                  }
                   disabled={isFixedAmount}
                   style={{
                     padding: `${spacing[1]} ${spacing[3]}`,
@@ -1325,7 +1347,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
             )}
 
             {/* Amount Slider */}
-            {!isFixedAmount && selectedToken && sliderMax !== undefined && (
+            {!isFixedAmount &&
+            selectedToken &&
+            effectiveSliderMax !== undefined ? (
               <div
                 style={{
                   width: "100%",
@@ -1345,14 +1369,16 @@ export function CryptoPay({ style }: CryptoPayProps) {
                   {amountInputMode === "usd" ? "$ USD" : selectedToken.symbol}
                 </p>
                 <AmountSlider
-                  value={parsedAmount}
+                  value={Math.min(parsedAmount, effectiveSliderMax)}
                   onChange={handleSliderChange}
-                  max={sliderMax}
-                  min={minAmountForMode}
-                  disabled={!selectedToken || isFixedAmount}
+                  max={effectiveSliderMax}
+                  min={effectiveSliderMin}
+                  disabled={
+                    !selectedToken || isFixedAmount || effectiveSliderMax <= 0
+                  }
                 />
               </div>
-            )}
+            ) : null}
 
             {/* Fee Summary */}
             {SHOW_FEE_SUMMARY && (
