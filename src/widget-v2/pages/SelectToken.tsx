@@ -64,8 +64,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
    */
   const handleTokenSelect = async (token: Token) => {
     // console.log({ selectToken: token });
-    if (token.balance !== undefined)
-      return (setSelectedToken(token), goBack());
+    if (token.balance !== undefined) return (setSelectedToken(token), goBack());
 
     const balance = await getBalances(
       selectedChain?.chainId as string | number,
