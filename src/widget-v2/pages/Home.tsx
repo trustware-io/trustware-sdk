@@ -124,6 +124,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     connectWallet,
     amountInputMode,
     setAmountInputMode,
+    resolvedTheme,
   } = useDeposit();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
     useAmountConstraints();
@@ -754,6 +755,41 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Divider */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+              maxWidth: "100%",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                flex: "1",
+                height: resolvedTheme === "dark" ? "0.5px" : "1px",
+                backgroundColor: colors.zinc[100],
+              }}
+            />
+            <span
+              style={{
+                fontSize: fontSize.xs,
+                color: colors.zinc[500],
+                userSelect: "none",
+              }}
+            >
+              Or
+            </span>
+            <div
+              style={{
+                flex: "1",
+                height: resolvedTheme === "dark" ? "0.5px" : "1px",
+                backgroundColor: colors.zinc[100],
+              }}
+            />
           </div>
 
           {/* Pay with Fiat Dropdown */}
