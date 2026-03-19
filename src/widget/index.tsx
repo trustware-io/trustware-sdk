@@ -40,11 +40,11 @@ export {
   TrustwareWidgetV2 as default,
   type TrustwareWidgetV2Props as TrustwareWidgetProps,
   type TrustwareWidgetV2Ref as TrustwareWidgetRef,
-} from "../widget-v2/TrustwareWidgetV2";
+} from "./TrustwareWidgetV2";
 
 // Also export the v2 widget under its original name for explicit usage
 export {
   TrustwareWidgetV2,
   type TrustwareWidgetV2Props,
   type TrustwareWidgetV2Ref,
-} from "../widget-v2/TrustwareWidgetV2";
+} from "./TrustwareWidgetV2";
