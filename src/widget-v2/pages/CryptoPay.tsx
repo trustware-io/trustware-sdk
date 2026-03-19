@@ -1310,7 +1310,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
             )}
 
             {/* Amount Slider */}
-            {selectedToken && sliderMax !== undefined && (
+            {!isFixedAmount && selectedToken && sliderMax !== undefined && (
               <div
                 style={{
                   width: "100%",
