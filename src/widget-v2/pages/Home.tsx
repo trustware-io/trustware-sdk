@@ -124,6 +124,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     connectWallet,
     amountInputMode,
     setAmountInputMode,
+    resolvedTheme,
   } = useDeposit();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
     useAmountConstraints();
@@ -764,13 +765,12 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
               gap: "1rem",
               maxWidth: "100%",
               width: "100%",
-              // padding: "1rem",
             }}
           >
             <div
               style={{
                 flex: "1",
-                height: "1px",
+                height: resolvedTheme === "dark" ? "0.5px" : "1px",
                 backgroundColor: colors.zinc[100],
               }}
             />
@@ -786,7 +786,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
             <div
               style={{
                 flex: "1",
-                height: "1px",
+                height: resolvedTheme === "dark" ? "0.5px" : "1px",
                 backgroundColor: colors.zinc[100],
               }}
             />
