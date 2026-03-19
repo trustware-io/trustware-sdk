@@ -20,6 +20,7 @@ import {
   TokenSwipePill,
   SwipeToConfirmTokens,
   AmountSlider,
+  AmountInputDisplay,
   LoadingSkeleton,
 } from "../components";
 import {
@@ -101,9 +102,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
 
   const { chains } = useChains();
 
-  const [isEditing, setIsEditing] = useState(false);
-
-  const amountInputRef = useRef<HTMLInputElement>(null);
   const gasPriceCacheRef = useRef<{
     value?: bigint;
     ts?: number;
@@ -822,32 +820,15 @@ export function CryptoPay({ style }: CryptoPayProps) {
   /**
    * Handle amount input changes with decimal sanitization
    */
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAmountChange = (raw: string) => {
     if (isFixedAmount) return;
-    const sanitized = sanitizeAmountInput(e.target.value);
+    const sanitized = sanitizeAmountInput(raw);
     if (amountInputMode === "usd") {
       const clamped = clampUsdAmount(sanitized, minAmountUsd, maxAmountUsd);
       setAmount(clamped);
       return;
     }
     setAmount(sanitized);
-  };
-
-  /**
-   * Handle click on the amount display to start editing
-   */
-  const handleAmountClick = () => {
-    if (isFixedAmount) return;
-    const isZeroish = !amount || parseFloat(amount) === 0;
-    setIsEditing(true);
-    if (isZeroish) setAmount("");
-
-    setTimeout(() => {
-      const input = amountInputRef.current;
-      if (!input) return;
-      input.focus();
-      input.setSelectionRange(0, 0);
-    }, 0);
   };
 
   /**
@@ -1108,100 +1089,17 @@ export function CryptoPay({ style }: CryptoPayProps) {
               Enter an amount
             </p>
 
-            {/* Large Amount Display */}
-            <div
-              style={{
-                textAlign: "center",
-                position: "relative",
-                marginBottom: spacing[4],
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "3.75rem",
-                  fontWeight: fontWeight.bold,
-                  letterSpacing: "-0.025em",
-                  cursor: isFixedAmount ? "default" : "pointer",
-                }}
-                onClick={handleAmountClick}
-              >
-                <span
-                  style={{
-                    color: colors.foreground,
-                  }}
-                >
-                  {amountInputMode === "usd" ? "$" : ""}
-                </span>
-                <span
-                  style={{
-                    position: "relative",
-                    display: "inline-block",
-                    minWidth: "1ch",
-                  }}
-                >
-                  <span
-                    style={{
-                      color:
-                        parsedAmount > 0
-                          ? colors.foreground
-                          : "rgba(161, 161, 170, 0.4)",
-                    }}
-                  >
-                    {isEditing
-                      ? amount || "0"
-                      : parsedAmount > 0
-                        ? parsedAmount.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                        : "0"}
-                  </span>
-                  {!isEditing && parsedAmount === 0 && (
-                    <span style={{ color: "rgba(161, 161, 170, 0.4)" }}>
-                      .00
-                    </span>
-                  )}
-                  <input
-                    // ref={amountInputRef}
-                    type="text"
-                    inputMode="decimal"
-                    value={amount}
-                    onChange={handleAmountChange}
-                    onBlur={() => setIsEditing(false)}
-                    readOnly={isFixedAmount}
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      width: "100%",
-                      backgroundColor: "transparent",
-                      border: "none",
-                      outline: "none",
-                      padding: 0,
-                      margin: 0,
-                      textAlign: "center",
-                      color: "transparent",
-                      fontSize: "3.75rem",
-                      fontWeight: fontWeight.bold,
-                      letterSpacing: "-0.025em",
-                      caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
-                    }}
-                    aria-label="Deposit amount"
-                  />
-                </span>
-                {amountInputMode === "token" && selectedToken?.symbol && (
-                  <span
-                    style={{
-                      marginLeft: spacing[2],
-                      fontSize: fontSize.lg,
-                      fontWeight: fontWeight.semibold,
-                      color: colors.mutedForeground,
-                    }}
-                  >
-                    {selectedToken.symbol}
-                  </span>
-                )}
-              </span>
-            </div>
+            <AmountInputDisplay
+              amount={amount}
+              parsedAmount={parsedAmount}
+              isFixedAmount={isFixedAmount}
+              onAmountChange={handleAmountChange}
+              prefix={amountInputMode === "usd" ? "$" : ""}
+              suffix={
+                amountInputMode === "token" ? selectedToken?.symbol : undefined
+              }
+              style={{ marginBottom: spacing[4] }}
+            />
 
             {/* Token / USD Conversion */}
             {selectedToken && (
