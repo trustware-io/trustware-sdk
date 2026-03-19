@@ -9,10 +9,12 @@ import {
 } from "../styles";
 import { useDeposit } from "../context/DepositContext";
 import {
-  clampUsdAmount,
+  formatUsdAmount,
+  getUsdAmountRangeError,
   sanitizeAmountInput,
   useAmountConstraints,
 } from "../hooks";
+import { AmountInputDisplay } from "../components";
 import { useWalletDetection } from "../../wallets/detect";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
 import { getUniversalConnector } from "src/config/walletconnect";
@@ -130,11 +132,8 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     useAmountConstraints();
   const { detected: detectedWallets } = useWalletDetection();
 
-  const [isEditing, setIsEditing] = useState(false);
   const [isCryptoDropdownOpen, setIsCryptoDropdownOpen] = useState(false);
   const [isFiatDropdownOpen, setIsFiatDropdownOpen] = useState(false);
-
-  const amountInputRef = useRef<HTMLInputElement>(null);
   const cryptoDropdownRef = useRef<HTMLDivElement>(null);
   const fiatDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -180,30 +179,25 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
   /**
    * Handle amount input changes with decimal sanitization
    */
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAmountChange = (raw: string) => {
     if (isFixedAmount) return;
     if (amountInputMode !== "usd") setAmountInputMode("usd");
-    const sanitized = sanitizeAmountInput(e.target.value);
-    const clamped = clampUsdAmount(sanitized, minAmountUsd, maxAmountUsd);
-    setAmount(clamped);
+    const sanitized = sanitizeAmountInput(raw);
+    setAmount(sanitized);
   };
 
-  /**
-   * Handle click on the amount display to start editing
-   */
-  const handleAmountClick = () => {
-    if (isFixedAmount) return;
-    const isZeroish = !amount || parseFloat(amount) === 0;
-    setIsEditing(true);
-    if (isZeroish) setAmount("");
-
-    setTimeout(() => {
-      const input = amountInputRef.current;
-      if (!input) return;
-      input.focus();
-      input.setSelectionRange(0, 0);
-    }, 0);
-  };
+  const amountValidationMessage = (() => {
+    const rawAmount = (fixedFromAmountString ?? amount)?.trim();
+    if (!rawAmount) return null;
+    if (!/^\d*\.?\d*$/.test(rawAmount)) {
+      return "Use numbers only for amount.";
+    }
+    const parsed = Number(rawAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return "Enter an amount greater than 0.";
+    }
+    return getUsdAmountRangeError(parsed, minAmountUsd, maxAmountUsd);
+  })();
 
   /**
    * Handle wallet selection from dropdown
@@ -315,86 +309,50 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
           Enter an amount
         </p>
 
-        {/* Large Amount Display */}
-        <div
-          style={{
-            textAlign: "center",
-            position: "relative",
-            marginBottom: spacing[8],
-          }}
-        >
-          <span
+        <AmountInputDisplay
+          amount={amount}
+          parsedAmount={parsedAmount}
+          isFixedAmount={isFixedAmount}
+          onAmountChange={handleAmountChange}
+          prefix="$"
+          style={{ marginBottom: spacing[8] }}
+        />
+
+        {amountValidationMessage ? (
+          <p
             style={{
-              fontSize: "3.75rem",
-              fontWeight: fontWeight.bold,
-              letterSpacing: "-0.025em",
-              cursor: isFixedAmount ? "default" : "pointer",
+              marginTop: -spacing[5],
+              marginBottom: spacing[5],
+              fontSize: fontSize.sm,
+              fontWeight: fontWeight.medium,
+              color: colors.destructive,
+              textAlign: "center",
             }}
-            onClick={handleAmountClick}
           >
-            <span
-              style={{
-                color: colors.foreground,
-              }}
-            >
-              $
-            </span>
-            <span
-              style={{
-                position: "relative",
-                display: "inline-block",
-                minWidth: "1ch",
-              }}
-            >
-              <span
-                style={{
-                  color:
-                    isEditing || parsedAmount > 0
-                      ? colors.foreground
-                      : "rgba(161, 161, 170, 0.4)",
-                }}
-              >
-                {isEditing
-                  ? amount || "0"
-                  : parsedAmount > 0
-                    ? parsedAmount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : "0"}
-              </span>
-              {!isEditing && parsedAmount === 0 && (
-                <span style={{ color: "rgba(161, 161, 170, 0.4)" }}>.00</span>
-              )}
-              <input
-                ref={amountInputRef}
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={handleAmountChange}
-                onBlur={() => setIsEditing(false)}
-                readOnly={isFixedAmount}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  backgroundColor: "transparent",
-                  border: "none",
-                  outline: "none",
-                  padding: 0,
-                  margin: 0,
-                  textAlign: "center",
-                  color: "transparent",
-                  fontSize: "3.75rem",
-                  fontWeight: fontWeight.bold,
-                  letterSpacing: "-0.025em",
-                  caretColor: "hsl(var(--tw-muted-foreground) / 0.5)",
-                }}
-                aria-label="Deposit amount"
-              />
-            </span>
-          </span>
-        </div>
+            {amountValidationMessage}
+          </p>
+        ) : minAmountUsd != null || maxAmountUsd != null ? (
+          <p
+            style={{
+              marginTop: -spacing[5],
+              marginBottom: spacing[5],
+              fontSize: fontSize.sm,
+              color: colors.mutedForeground,
+              textAlign: "center",
+            }}
+          >
+            {[
+              minAmountUsd != null
+                ? `Min ${formatUsdAmount(minAmountUsd)} USD`
+                : null,
+              maxAmountUsd != null
+                ? `Max ${formatUsdAmount(maxAmountUsd)} USD`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" • ")}
+          </p>
+        ) : null}
 
         {/* Payment Options - Dropdown Pills */}
         <div

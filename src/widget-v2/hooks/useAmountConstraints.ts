@@ -60,16 +60,24 @@ export function sanitizeAmountInput(raw: string): string {
   return parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : cleaned;
 }
 
-export function clampUsdAmount(
-  raw: string,
+export function formatUsdAmount(
+  value: number,
+  maximumFractionDigits = 2
+): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits });
+}
+
+export function getUsdAmountRangeError(
+  amount: number,
   min?: number,
   max?: number
-): string {
-  if (!raw) return raw;
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return raw;
-  let clamped = n;
-  if (min != null && clamped < min) clamped = min;
-  if (max != null && clamped > max) clamped = max;
-  return clamped.toString();
+): string | null {
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (min != null && amount < min) {
+    return `Minimum amount is ${formatUsdAmount(min)} USD`;
+  }
+  if (max != null && amount > max) {
+    return `Maximum amount is ${formatUsdAmount(max)} USD`;
+  }
+  return null;
 }
