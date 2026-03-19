@@ -756,6 +756,42 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
             )}
           </div>
 
+          {/* Divider */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+              maxWidth: "100%",
+              width: "100%",
+              // padding: "1rem",
+            }}
+          >
+            <div
+              style={{
+                flex: "1",
+                height: "1px",
+                backgroundColor: colors.zinc[100],
+              }}
+            />
+            <span
+              style={{
+                fontSize: fontSize.xs,
+                color: colors.zinc[500],
+                userSelect: "none",
+              }}
+            >
+              Or
+            </span>
+            <div
+              style={{
+                flex: "1",
+                height: "1px",
+                backgroundColor: colors.zinc[100],
+              }}
+            />
+          </div>
+
           {/* Pay with Fiat Dropdown */}
           <div
             style={
