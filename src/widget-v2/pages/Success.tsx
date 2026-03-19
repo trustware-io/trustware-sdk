@@ -64,6 +64,8 @@ export function Success({ style }: SuccessProps): React.ReactElement {
         display: "flex",
         flexDirection: "column",
         minHeight: "500px",
+        position: "relative",
+        overflow: "hidden",
         ...style,
       }}
     >

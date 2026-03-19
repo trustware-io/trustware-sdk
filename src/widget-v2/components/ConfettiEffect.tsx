@@ -21,7 +21,7 @@ export interface ConfettiEffectProps {
 
 /**
  * Confetti celebration effect component.
- * Renders animated confetti pieces that fall from the top of the screen.
+ * Renders animated confetti pieces that fall within the parent container.
  * This component should be lazy loaded to reduce initial bundle size.
  */
 export function ConfettiEffect({
@@ -80,7 +80,7 @@ export function ConfettiEffect({
   return (
     <div
       style={{
-        position: "fixed",
+        position: "absolute",
         inset: 0,
         pointerEvents: "none",
         zIndex: 50,
