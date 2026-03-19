@@ -929,9 +929,18 @@ export function CryptoPay({ style }: CryptoPayProps) {
           (selectedToken as YourTokenData)?.chainData?.chainId.toString()
     );
 
-    if (!isFound && result.length) {
-      setSelectedToken(result[0]);
-      setSelectedChain(result[0].chainData as Chain);
+    if (!isFound && selectedToken) {
+      return [
+        selectedToken as YourTokenData,
+        ...result.filter(
+          (t) =>
+            !(
+              t.symbol?.toLowerCase() === selectedToken.symbol?.toLowerCase() &&
+              t?.chainData?.chainId.toString() ===
+                (selectedToken as YourTokenData)?.chainData?.chainId.toString()
+            )
+        ),
+      ];
     }
 
     return result;
@@ -940,8 +949,6 @@ export function CryptoPay({ style }: CryptoPayProps) {
     amountInputMode,
     amount,
     selectedToken,
-    setSelectedToken,
-    setSelectedChain,
   ]);
 
   const isWalletConnected = walletStatus === "connected";
