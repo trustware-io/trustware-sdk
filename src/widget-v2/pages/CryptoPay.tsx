@@ -983,6 +983,21 @@ export function CryptoPay({ style }: CryptoPayProps) {
     !isApproving &&
     !isReadingAllowance;
 
+  const swipeResetKey = useMemo(() => {
+    const tokenAddress = selectedToken?.address?.toLowerCase() ?? "no-token";
+    const chainId =
+      (selectedToken as YourTokenData | null)?.chainData?.chainId ??
+      selectedChain?.chainId ??
+      "no-chain";
+
+    return [
+      tokenAddress,
+      chainId,
+      needsApproval ? "approval-required" : "ready-to-confirm",
+      isApproving ? "approving" : "idle",
+    ].join(":");
+  }, [isApproving, needsApproval, selectedChain?.chainId, selectedToken]);
+
   return (
     <div
       style={{
@@ -1496,11 +1511,14 @@ export function CryptoPay({ style }: CryptoPayProps) {
             {selectedToken !== null &&
               (selectedToken as YourTokenData).chainData !== undefined && (
                 <SwipeToConfirmTokens
+                  key={swipeResetKey}
                   text={
                     routeError
                       ? routeError
                       : !isWalletConnected
                         ? "Connect your wallet to deposit"
+                        : isLoadingRoute
+                          ? "Loading route..."
                         : isApproving
                           ? "Approving..."
                           : isReadingAllowance
