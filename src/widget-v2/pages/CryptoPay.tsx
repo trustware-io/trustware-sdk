@@ -265,10 +265,9 @@ export function CryptoPay({ style }: CryptoPayProps) {
       requestedTokenAmount > 0 &&
       requestedTokenAmount - normalizedTokenBalance > BALANCE_TOLERANCE
     ) {
-      return `Balance: ${normalizedTokenBalance.toLocaleString(
-        undefined,
-        { maximumFractionDigits: 6 }
-      )} ${selectedToken?.symbol ?? ""}`.trim();
+      return `Balance: ${normalizedTokenBalance.toLocaleString(undefined, {
+        maximumFractionDigits: 6,
+      })} ${selectedToken?.symbol ?? ""}`.trim();
     }
 
     const usdAmount = Number(amountComputation.usdAmount);
@@ -944,12 +943,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
 
     return result;
-  }, [
-    yourWalletTokens,
-    amountInputMode,
-    amount,
-    selectedToken,
-  ]);
+  }, [yourWalletTokens, amountInputMode, amount, selectedToken]);
 
   const isWalletConnected = walletStatus === "connected";
   const canSwipe =
@@ -1181,9 +1175,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    handleSliderChange(effectiveSliderMax ?? 0)
-                  }
+                  onClick={() => handleSliderChange(effectiveSliderMax ?? 0)}
                   disabled={isFixedAmount}
                   style={{
                     padding: `${spacing[1]} ${spacing[3]}`,
@@ -1422,13 +1414,13 @@ export function CryptoPay({ style }: CryptoPayProps) {
                         ? "Connect your wallet to deposit"
                         : isLoadingRoute
                           ? "Loading route..."
-                        : isApproving
-                          ? "Approving..."
-                          : isReadingAllowance
-                            ? "Checking allowance..."
-                            : needsApproval
-                              ? "Swipe to approve"
-                              : "Swipe to confirm"
+                          : isApproving
+                            ? "Approving..."
+                            : isReadingAllowance
+                              ? "Checking allowance..."
+                              : needsApproval
+                                ? "Swipe to approve"
+                                : "Swipe to confirm"
                   }
                   fromToken={selectedToken}
                   toTokenSymbol={destinationConfig?.toToken || "USDC"}
