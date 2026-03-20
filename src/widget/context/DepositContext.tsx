@@ -49,7 +49,7 @@ export interface YourTokenData {
   address: string;
   chain_key: string;
   category: "native" | "erc20" | "spl" | "btc";
-  contract?: `0x${string}`;
+  contract?: string;
   /** Raw smallest-unit balance string (e.g. wei/lamports) */
   balance: string;
 }
@@ -455,11 +455,9 @@ export function DepositProvider({
                 iconUrl: foundToken.iconUrl ?? foundToken.logoURI ?? "",
                 chainId: balanceRow.chain_id,
                 usdPrice: foundToken.usdPrice,
-                address: canonicalTokenAddressForChain(
-                  chain,
-                  foundToken.address,
-                  tokens
-                ),
+                // Preserve the registry/backend token identifier for downstream
+                // route payloads; canonicalization is only for comparisons.
+                address: foundToken.address,
                 chainIconURI: chain?.chainIconURI || "",
                 chainData: chain,
               },

@@ -8,6 +8,7 @@ import { formatTokenBalance, resolveChainLabel } from "../../utils";
 import type { ChainDef } from "../../types/";
 import { getBalances } from "src/core/balances";
 import { useChains, useTokens } from "../hooks";
+import { normalizeAddress, normalizeChainType } from "../helpers/chainHelpers";
 
 export interface SelectTokenProps {
   /** Additional inline styles */
@@ -41,10 +42,9 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
    * Handle chain selection
    */
   const handleChainSelect = (chain: ChainDef) => {
-    // Convert ChainDef to our Chain interface for context
-    // console.log({ chainselect: chain });
     const chainId = Number(chain.chainId ?? chain.id);
     setSelectedChain({
+      ...chain,
       chainId,
       name: resolveChainLabel(chain),
       shortName:
@@ -70,9 +70,12 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
       selectedChain?.chainId as string | number,
       walletAddress as string
     );
+    const chainType = normalizeChainType(selectedChain);
 
     const match = balance.find(
-      (b) => b.contract?.toLowerCase() === token.address.toLowerCase()
+      (b) =>
+        normalizeAddress(b.contract ?? b.address ?? "", chainType) ===
+        normalizeAddress(token.address, chainType)
     );
     const tokenWithBalance = {
       ...token,

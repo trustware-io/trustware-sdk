@@ -52,6 +52,7 @@ export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
   let switching = false;
 
   return {
+    ecosystem: "evm",
     type: "eip1193",
     async getAddress() {
       const [a] = (await eth.request({
@@ -174,6 +175,7 @@ export function useWagmi(client: any): WalletInterFaceAPI {
   }
 
   return {
+    ecosystem: "evm",
     type: "wagmi",
     getAddress,
     getChainId,

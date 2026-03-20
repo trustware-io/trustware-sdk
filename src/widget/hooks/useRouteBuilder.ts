@@ -4,6 +4,7 @@ import { Trustware } from "../../core";
 import { TrustwareConfigStore } from "../../config/store";
 import { useDeposit } from "../context/DepositContext";
 import type { BuildRouteResult, ChainDef } from "../../types";
+import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../../core/routes";
 
 /**
  * Route building state
@@ -36,7 +37,7 @@ export interface UseRouteBuilderOptions {
 
   fromChain: ChainDef | undefined | string | number;
   fromChainId: string | number | undefined;
-  toChain: ChainDef | null;
+  toChain: ChainDef | string | number | null;
   toChainId: string;
   toToken: string;
   toAddress: string | undefined;
@@ -150,7 +151,6 @@ export function useRouteBuilder({
   useEffect(() => {
     if (
       !fromChain ||
-      !toChain ||
       !hasFromChainId ||
       !hasToChainId ||
       !fromToken ||
@@ -232,6 +232,13 @@ export function useRouteBuilder({
 
         // Extract fee and estimate info from the route result
         const estimate = result?.route?.estimate;
+        if (
+          !result?.txReq?.data ||
+          (!isEvmTxRequest(result.txReq) &&
+            !isSerializedSolanaTxRequest(result.txReq))
+        ) {
+          throw new Error("Invalid route response");
+        }
         const fees = estimate?.fees;
 
         // Debug: log the full estimate object

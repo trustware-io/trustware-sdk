@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import type { Token, Chain, YourTokenData } from "../context/DepositContext";
+import { normalizeAddress } from "../helpers/chainHelpers";
 
 export interface TokenSwipePillProps {
   /** List of tokens to display in the carousel */
@@ -53,7 +54,16 @@ export function TokenSwipePill({
   // Find current index in tokens array
   const currentIndex = tokens.findIndex(
     (t) =>
-      t.address === selectedToken.address && t.symbol === selectedToken.symbol
+      normalizeAddress(
+        t.address,
+        (t as YourTokenData).chainData?.type ??
+          (t as YourTokenData).chainData?.chainType
+      ) ===
+        normalizeAddress(
+          selectedToken.address,
+          (selectedToken as YourTokenData).chainData?.type ??
+            (selectedToken as YourTokenData).chainData?.chainType
+        ) && t.symbol === selectedToken.symbol
   );
 
   const swipeThreshold = 30;

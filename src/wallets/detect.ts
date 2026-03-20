@@ -7,6 +7,7 @@ import type {
   WalletId,
 } from "../types/";
 import { WALLETS } from "./metadata";
+import { detectSolanaWallets } from "./solana";
 
 type AnnounceEvent = CustomEvent<{
   info: EIP6963ProviderDetail["info"];
@@ -129,6 +130,7 @@ function createGenericWalletMeta(name: string): WalletMeta {
     id: rawId as WalletId,
     name,
     category: "injected",
+    ecosystem: "evm",
     logo: "",
     emoji: "👛",
   };
@@ -359,6 +361,12 @@ export function useWalletDetection(timeoutMs = 400) {
       // if (!hasWalletConnect && isWalletConnectConfigured()) {
       //   out.push(createWalletConnectEntry());
       // }
+
+      for (const wallet of detectSolanaWallets(WALLETS)) {
+        if (seenIds.has(wallet.meta.id)) continue;
+        seenIds.add(wallet.meta.id);
+        out.push(wallet);
+      }
 
       setDetected(rankDetected(out));
       w.removeEventListener?.("eip6963:announceProvider", onAnnounce);

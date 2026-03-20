@@ -16,11 +16,14 @@ export type TokenMeta = {
 export type BalanceRow = {
   chain_key: string;
   category: "native" | "erc20" | "spl" | "btc";
-  contract?: `0x${string}`;
+  contract?: string;
+  address?: string;
   symbol?: string;
   decimals: number;
   balance: string;
   name?: string;
+  logoURI?: string;
+  usdPrice?: number;
 };
 
 export type WalletAddressBalanceWrapper = {

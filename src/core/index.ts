@@ -6,7 +6,13 @@ import type {
 } from "../types";
 import { TrustwareConfigStore } from "../config/store";
 import { walletManager } from "../wallets/manager";
-import { buildRoute, submitReceipt, getStatus, pollStatus } from "./routes";
+import {
+  buildRoute,
+  buildDepositAddress,
+  submitReceipt,
+  getStatus,
+  pollStatus,
+} from "./routes";
 import { getBalances, getBalancesByAddress } from "./balances";
 import { sendRouteTransaction, runTopUp } from "./tx";
 import { validateSdkAccess } from "./http";
@@ -14,6 +20,10 @@ import { useChains } from "./useChains";
 import { useTokens } from "./useTokens";
 import { TrustwareError } from "../errors/TrustwareError";
 import { TrustwareErrorCode } from "../errors/errorCodes";
+import {
+  validateAddressForChain,
+  validateRouteAddresses,
+} from "../validation/address";
 
 // simple memo to avoid re-validating same key repeatedly
 let _lastValidatedKey: string | null = null;
@@ -80,6 +90,23 @@ export const Trustware = {
     return walletManager.wallet;
   },
 
+  getIdentity() {
+    return walletManager.identity;
+  },
+
+  resolveAddressForChain(
+    chain: Parameters<typeof walletManager.resolveAddressForChain>[0]
+  ) {
+    return walletManager.resolveAddressForChain(chain);
+  },
+
+  addIdentityAddress(
+    address: Parameters<typeof walletManager.addIdentityAddress>[0]
+  ) {
+    walletManager.addIdentityAddress(address);
+    return Trustware;
+  },
+
   /** Simple helpers */
   async getAddress(): Promise<string> {
     const w = walletManager.wallet;
@@ -89,6 +116,7 @@ export const Trustware = {
 
   // ---- REST methods (re-export) ----
   buildRoute,
+  buildDepositAddress,
   submitReceipt,
   getStatus,
   pollStatus,
@@ -96,6 +124,8 @@ export const Trustware = {
   getBalancesByAddress,
   useChains,
   useTokens,
+  validateAddressForChain,
+  validateRouteAddresses,
 
   // ---- Tx helpers ----
   sendRouteTransaction,

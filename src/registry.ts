@@ -1,11 +1,28 @@
-// src/registry.ts
 import { TrustwareConfigStore } from "./config/store";
 import type { ChainDef, TokenDef } from "./types/";
+import {
+  getNativeTokenAddress,
+  normalizeAddress,
+  normalizeChainKey,
+  normalizeChainType,
+} from "./utils/chains";
 
 export const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
+function getChainAliases(chain: ChainDef): string[] {
+  const values = [
+    chain.chainId,
+    chain.id,
+    chain.networkIdentifier,
+    chain.axelarChainName,
+    chain.networkName,
+  ];
+  return values.map((value) => normalizeChainKey(value)).filter(Boolean);
+}
+
 export class Registry {
   private _chainsById = new Map<string, ChainDef>();
+  private _chainAliases = new Map<string, string>();
   private _tokensByChain = new Map<string, TokenDef[]>();
   private _loaded = false;
   private _loadingPromise: Promise<void> | null = null;
@@ -27,14 +44,20 @@ export class Registry {
     }
   }
 
+  private storeToken(chainKey: string, token: TokenDef) {
+    const list = this._tokensByChain.get(chainKey) ?? [];
+    list.push(token);
+    this._tokensByChain.set(chainKey, list);
+  }
+
   private async load() {
     const cfg = TrustwareConfigStore.get();
 
     const [chainsRes, tokensRes] = await Promise.all([
-      fetch(`${this.baseURL}/squid/chains`, {
+      fetch(`${this.baseURL}/v1/routes/chains`, {
         headers: { Accept: "application/json", "X-API-Key": cfg.apiKey },
       }),
-      fetch(`${this.baseURL}/squid/tokens`, {
+      fetch(`${this.baseURL}/v1/routes/tokens`, {
         headers: { Accept: "application/json", "X-API-Key": cfg.apiKey },
       }),
     ]);
@@ -47,31 +70,38 @@ export class Registry {
     const chainsArr: ChainDef[] = Array.isArray(chains)
       ? chains
       : (chains.data ?? []);
-    for (const c of chainsArr) {
-      const canonical = c?.chainId ?? c?.id;
+    for (const chain of chainsArr) {
+      const canonical = chain?.chainId ?? chain?.id;
       if (canonical == null) continue;
-      const chainId = c.chainId ?? canonical;
       const normalized: ChainDef = {
-        ...c,
-        id: c.id ?? canonical,
-        chainId,
+        ...chain,
+        id: chain.id ?? canonical,
+        chainId: chain.chainId ?? canonical,
       };
-      this._chainsById.set(String(canonical), normalized);
+      const canonicalKey = normalizeChainKey(canonical);
+      this._chainsById.set(canonicalKey, normalized);
+      for (const alias of getChainAliases(normalized)) {
+        this._chainAliases.set(alias, canonicalKey);
+      }
     }
 
     const tokensArr: TokenDef[] = Array.isArray(tokens)
       ? tokens
       : (tokens.data ?? []);
-    for (const t of tokensArr) {
-      const canonical = t?.chainId;
-      if (canonical == null) continue;
-      const id = String(canonical);
+    for (const token of tokensArr) {
+      const chainRef = token?.chainId;
+      if (chainRef == null) continue;
       const normalized: TokenDef = {
-        ...t,
-        chainId: t.chainId ?? canonical,
+        ...token,
+        chainId: token.chainId ?? chainRef,
       };
-      if (!this._tokensByChain.has(id)) this._tokensByChain.set(id, []);
-      this._tokensByChain.get(id)!.push(normalized);
+      const resolvedChain = this.chain(chainRef);
+      const aliases = resolvedChain
+        ? getChainAliases(resolvedChain)
+        : [normalizeChainKey(chainRef)];
+      for (const alias of aliases) {
+        this.storeToken(alias, normalized);
+      }
     }
 
     this._loaded = true;
@@ -81,43 +111,60 @@ export class Registry {
     return Array.from(this._chainsById.values());
   }
 
-  chain(chainId: string | number): ChainDef | undefined {
-    return this._chainsById.get(String(chainId));
+  chain(chainRef: string | number): ChainDef | undefined {
+    const normalized = normalizeChainKey(chainRef);
+    const canonicalKey = this._chainAliases.get(normalized) ?? normalized;
+    return this._chainsById.get(canonicalKey);
   }
 
   allTokens(): TokenDef[] {
-    const all: TokenDef[] = [];
+    const unique = new Map<string, TokenDef>();
     for (const list of this._tokensByChain.values()) {
-      all.push(...list);
+      for (const token of list) {
+        unique.set(`${token.chainId}:${token.address}`, token);
+      }
     }
-    return all;
+    return Array.from(unique.values());
   }
 
-  tokens(chainId: string | number): TokenDef[] {
-    return this._tokensByChain.get(String(chainId)) ?? [];
+  tokens(chainRef: string | number): TokenDef[] {
+    return this._tokensByChain.get(normalizeChainKey(chainRef)) ?? [];
+  }
+
+  findToken(chainRef: string | number, address: string): TokenDef | undefined {
+    const chain = this.chain(chainRef);
+    const chainType = normalizeChainType(chain);
+    const normalizedAddress = normalizeAddress(address, chainType);
+    return this.tokens(chainRef).find((token) => {
+      return normalizeAddress(token.address, chainType) === normalizedAddress;
+    });
   }
 
   resolveToken(
-    chainId: string | number,
+    chainRef: string | number,
     input?: string | null
   ): string | undefined {
     if (!input) return undefined;
     const s = String(input).trim();
+    const chain = this.chain(chainRef);
+    const chainType = normalizeChainType(chain);
 
-    // address passthrough
-    if (/^0x[0-9a-fA-F]{40}$/.test(s)) return s as `0x${string}`;
+    if (/^0x[0-9a-fA-F]{40}$/.test(s)) return s;
+    if (chainType === "solana" && s.length > 20) return s;
 
-    // native by symbol
-    const chain = this.chain(chainId);
-    const nativeSym = chain?.nativeCurrency?.symbol?.toUpperCase?.();
-    if (nativeSym && s.toUpperCase() === nativeSym) return NATIVE;
+    const nativeAddress = getNativeTokenAddress(chainType);
+    const nativeSymbol = chain?.nativeCurrency?.symbol?.toUpperCase?.();
+    if (
+      (nativeSymbol && s.toUpperCase() === nativeSymbol) ||
+      ["ETH", "MATIC", "AVAX", "BNB", "SOL", "NATIVE"].includes(s.toUpperCase())
+    ) {
+      return chainType === "solana" ? nativeAddress : NATIVE;
+    }
 
-    if (["ETH", "MATIC", "AVAX", "BNB", "NATIVE"].includes(s.toUpperCase()))
-      return NATIVE;
-
-    // symbol → address
-    const list = this.tokens(chainId);
-    const hit = list.find((t) => t.symbol?.toUpperCase?.() === s.toUpperCase());
+    const hit = this.tokens(chainRef).find((token) => {
+      if (!token.symbol) return false;
+      return token.symbol.toUpperCase() === s.toUpperCase();
+    });
     if (hit) return hit.address;
 
     return s;
