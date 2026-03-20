@@ -49,7 +49,7 @@ export interface YourTokenData {
   address: string;
   chain_key: string;
   category: "native" | "erc20" | "spl" | "btc";
-  contract?: `0x${string}`;
+  contract?: string;
   /** Raw smallest-unit balance string (e.g. wei/lamports) */
   balance: string;
 }

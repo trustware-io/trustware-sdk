@@ -546,7 +546,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     }
 
     const wallet = Trustware.getWallet();
-    if (!wallet) {
+    if (!wallet || wallet.ecosystem !== "evm") {
       //toast.error("Wallet not connected", "Connect your wallet to approve.");
       return;
     }

@@ -59,6 +59,12 @@ export async function connectDetectedWallet(
     throw new Error("WalletConnect connection failed. Please try again.");
   }
 
+  if (dw.via === "solana-window" || dw.meta.ecosystem === "solana") {
+    const api = toWalletInterfaceFromDetected(dw);
+    if (touchAddress) await api.getAddress();
+    return { via: "eip1193", api };
+  }
+
   if (wagmi) {
     const conn = pickWagmiConnector(
       wagmi,

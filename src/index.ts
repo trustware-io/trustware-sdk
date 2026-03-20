@@ -14,5 +14,7 @@ export {
 export { TrustwareWidget } from "./widget/";
 export { TrustwareProvider, useTrustware } from "./provider";
 export { TrustwareError } from "./errors/TrustwareError";
+export * from "./identity";
+export * from "./validation/address";
 export * from "./types";
 export * from "./constants";

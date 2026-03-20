@@ -5,6 +5,9 @@ export type WalletId =
   | "walletconnect"
   | "rainbow"
   | "phantom-evm"
+  | "phantom-solana"
+  | "solflare"
+  | "backpack"
   | "rabby"
   | "brave"
   | "okx"
@@ -18,12 +21,14 @@ export type WalletId =
 
 // Wallet categories for grouping
 export type WalletCategory = "injected" | "walletconnect" | "app";
+export type WalletEcosystem = "evm" | "solana" | "multi";
 
 // Metadata about a wallet provider for display and detection purposes
 export type WalletMeta = {
   id: WalletId;
   name: string;
   category: WalletCategory;
+  ecosystem: WalletEcosystem;
   // Local path preferred; fallback to CDN or emoji via `emoji` field
   logo: string; // e.g. "/assets/wallets/metamask.svg"
   emoji?: string;
@@ -64,16 +69,43 @@ export type EIP6963ProviderDetail = {
 // Detected wallet with metadata and detection method
 export type DetectedWallet = {
   meta: WalletMeta;
-  via: "eip6963" | "injected-flag" | "walletconnect";
+  via: "eip6963" | "injected-flag" | "walletconnect" | "solana-window";
   detail?: EIP6963ProviderDetail;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   provider?: any;
 };
 
-// Comprehensive wallet interface with transaction sending capabilities
-// and support for either EIP-1193 or Wagmi standards
-export type WalletInterFaceAPI = {
+export type SolanaProviderLike = {
+  isPhantom?: boolean;
+  isSolflare?: boolean;
+  isBackpack?: boolean;
+  isConnected?: boolean;
+  publicKey?: { toString(): string };
+  connect?: (options?: Record<string, unknown>) => Promise<unknown>;
+  disconnect?: () => Promise<void>;
+  signAndSendTransaction?: (
+    transaction: unknown,
+    options?: Record<string, unknown>
+  ) => Promise<{ signature?: string } | string>;
+  signTransaction?: (transaction: unknown) => Promise<{
+    serialize: () => Uint8Array;
+  }>;
+  on?: (event: string, listener: (...args: unknown[]) => void) => void;
+  off?: (event: string, listener: (...args: unknown[]) => void) => void;
+  removeListener?: (
+    event: string,
+    listener: (...args: unknown[]) => void
+  ) => void;
+};
+
+type BaseWalletInterface = {
+  ecosystem: "evm" | "solana";
   getAddress(): Promise<string>;
+  disconnect?(): Promise<void>;
+};
+
+export type EvmWalletInterface = BaseWalletInterface & {
+  ecosystem: "evm";
   getChainId(): Promise<number>;
   switchChain(chainId: number): Promise<void>;
 } & (
@@ -95,9 +127,22 @@ export type WalletInterFaceAPI = {
     }
 );
 
+export type SolanaWalletInterface = BaseWalletInterface & {
+  ecosystem: "solana";
+  type: "solana";
+  getChainKey(): Promise<string>;
+  sendSerializedTransaction(
+    serializedTransactionBase64: string,
+    rpcUrl?: string
+  ): Promise<string>;
+};
+
+// Comprehensive wallet interface with transaction sending capabilities
+// and support for either EIP-1193, Wagmi, or Solana browser wallets
+export type WalletInterFaceAPI = EvmWalletInterface | SolanaWalletInterface;
+
 // A simplified wallet interface without transaction sending capabilities
 export type SimpleWalletInterface = {
   getAddress(): Promise<string>;
-  getChainId(): Promise<number>;
-  switchChain(chainId: number): Promise<void>;
+  disconnect?(): Promise<void>;
 };

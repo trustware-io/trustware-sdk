@@ -1,7 +1,12 @@
-/* core/tx.ts */
 import type { BuildRouteResult } from "../types";
 import { walletManager } from "../wallets/";
-import { buildRoute, submitReceipt, pollStatus } from "./routes";
+import {
+  buildRoute,
+  submitReceipt,
+  pollStatus,
+  isEvmTxRequest,
+  isSerializedSolanaTxRequest,
+} from "./routes";
 
 function isUserRejected(e: unknown): boolean {
   const code =
@@ -14,51 +19,75 @@ function isUserRejected(e: unknown): boolean {
 
 export async function sendRouteTransaction(
   b: BuildRouteResult,
-  fallbackChainId?: number
-): Promise<`0x${string}`> {
+  fallbackChainId?: number | string
+): Promise<string> {
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
-  // const tr = b.route?.transactionRequest;
-  const tr = b?.txReq;
-  const to = tr.to as `0x${string}`;
-  const data = tr.data as `0x${string}`;
-  const value = tr.value ? BigInt(tr.value) : 0n;
 
-  const target = Number(tr.chainId ?? fallbackChainId);
-  if (Number.isFinite(target)) {
-    const current = await w.getChainId();
-    if (current !== target) {
-      try {
-        await w.switchChain(target);
-      } catch {
-        // switchChain failed/skipped — non-fatal, continue with transaction
+  const txReq = b.txReq;
+  if (isEvmTxRequest(txReq)) {
+    if (w.ecosystem !== "evm") {
+      throw new Error("An EVM wallet is required for this route");
+    }
+
+    const to = (txReq.to ?? txReq.target) as `0x${string}`;
+    const data = txReq.data as `0x${string}`;
+    const value = txReq.value ? BigInt(txReq.value) : 0n;
+    const target = Number(txReq.chainId ?? fallbackChainId);
+
+    if (Number.isFinite(target)) {
+      const current = await w.getChainId();
+      if (current !== target) {
+        try {
+          await w.switchChain(target);
+        } catch {
+          // switchChain failed/skipped — non-fatal
+        }
       }
     }
-  }
 
-  if (w.type === "eip1193") {
-    const from = await w.getAddress();
-    const hexValue = value ? `0x${value.toString(16)}` : "0x0";
-    const params: Record<string, unknown> = { from, to, data, value: hexValue };
-    if (Number.isFinite(target)) params.chainId = `0x${target!.toString(16)}`;
+    if (w.type === "eip1193") {
+      const from = await w.getAddress();
+      const hexValue = value ? `0x${value.toString(16)}` : "0x0";
+      const params: Record<string, unknown> = { from, to, data, value: hexValue };
+      if (Number.isFinite(target)) {
+        params.chainId = `0x${target.toString(16)}`;
+      }
 
-    const hash = await w.request({
-      method: "eth_sendTransaction",
-      params: [params],
-    });
-    return hash as `0x${string}`;
-  } else {
-    const resp = await w.sendTransaction({
+      const hash = await w.request({
+        method: "eth_sendTransaction",
+        params: [params],
+      });
+      return hash as string;
+    }
+
+    const response = await w.sendTransaction({
       to,
       data,
       value,
       chainId: Number.isFinite(target) ? target : undefined,
     });
-    return resp.hash as `0x${string}`;
+    return response.hash as string;
   }
+
+  if (isSerializedSolanaTxRequest(txReq)) {
+    if (w.ecosystem !== "solana") {
+      throw new Error("A Solana wallet is required for this route");
+    }
+
+    const { Registry } = await import("../registry");
+    const { apiBase } = await import("./http");
+    const registry = new Registry(apiBase());
+    await registry.ensureLoaded();
+
+    const chain = registry.chain(String(fallbackChainId ?? txReq.chainId ?? ""));
+    const rpcUrl = chain?.rpc ?? chain?.rpcList?.[0];
+    return w.sendSerializedTransaction(txReq.data, rpcUrl);
+  }
+
+  throw new Error("Invalid route transaction payload");
 }
 
-/** One-shot flow that mirrors your old runTopUp */
 export async function runTopUp(params: {
   fromChain?: string;
   toChain?: string;
@@ -70,20 +99,22 @@ export async function runTopUp(params: {
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
 
-  // lazy import to avoid circular import with Registry users
-  const { Registry, NATIVE } = await import("../registry");
+  const { Registry } = await import("../registry");
   const { apiBase } = await import("./http");
 
   const reg = new Registry(apiBase());
   await reg.ensureLoaded();
 
   const fromAddress = await w.getAddress();
-  const currentChainId = await w.getChainId();
-  const originalChain = currentChainId;
+  const currentChainRef =
+    w.ecosystem === "evm"
+      ? String(await w.getChainId())
+      : (await w.getChainKey?.()) ?? "solana-mainnet-beta";
+  const originalChain =
+    w.ecosystem === "evm" ? await w.getChainId() : undefined;
 
-  const fromChain = params.fromChain ?? String(currentChainId);
+  const fromChain = params.fromChain ?? currentChainRef;
 
-  // get default toChain/toToken from config
   const { TrustwareConfigStore } = await import("../config/store");
   const cfg = TrustwareConfigStore.get();
   const toChain = params.toChain ?? String(cfg.routes.toChain);
@@ -92,12 +123,16 @@ export async function runTopUp(params: {
     reg.resolveToken(
       fromChain,
       params.fromToken ?? (cfg.routes.fromToken as string) ?? undefined
-    ) ?? NATIVE;
+    ) ?? params.fromToken;
   const toToken =
     reg.resolveToken(
       toChain,
       params.toToken ?? (cfg.routes.toToken as string) ?? undefined
-    ) ?? NATIVE;
+    ) ?? params.toToken;
+
+  if (!fromToken || !toToken) {
+    throw new Error("Unable to resolve route tokens");
+  }
 
   try {
     const build = await buildRoute({
@@ -115,16 +150,19 @@ export async function runTopUp(params: {
       slippage: cfg.routes.defaultSlippage,
     });
 
-    const hash = await sendRouteTransaction(build, Number(fromChain));
+    const hash = await sendRouteTransaction(build, fromChain);
     await submitReceipt(build.intentId, hash);
-    const tx = await pollStatus(build.intentId);
-    return tx;
+    return await pollStatus(build.intentId);
   } catch (e: unknown) {
     if (isUserRejected(e)) throw new Error("Transaction cancelled by user");
     throw e;
   } finally {
     try {
-      if (originalChain && originalChain !== Number(fromChain)) {
+      if (
+        w.ecosystem === "evm" &&
+        originalChain &&
+        originalChain !== Number(fromChain)
+      ) {
         await w.switchChain(originalChain);
       }
     } catch {

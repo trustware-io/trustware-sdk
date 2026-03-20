@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { TrustwareCore } from "../core";
 import { Trustware } from "../core";
 import type { BuildRouteResult } from "../types";
+import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../core/routes";
 
 type ExchangeRate = {
   fromAmount?: string;
@@ -161,11 +162,10 @@ export function useTrustwareRoute({
         if (ac.signal.aborted) return;
 
         const txReq = build?.txReq;
-        const hasTarget = Boolean(
-          (txReq as Record<string, unknown>)?.to ??
-          (txReq as Record<string, unknown>)?.target
-        );
-        if (!txReq?.data || !hasTarget) {
+        if (
+          !txReq?.data ||
+          (!isEvmTxRequest(txReq) && !isSerializedSolanaTxRequest(txReq))
+        ) {
           throw new Error("Invalid route response");
         }
 

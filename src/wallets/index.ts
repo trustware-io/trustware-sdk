@@ -2,6 +2,7 @@ export * from "./bridges";
 export * from "./connect";
 export * from "./manager";
 export * from "./adapters";
+export * from "./solana";
 export {
   useWalletDetection,
   useIsMobile,

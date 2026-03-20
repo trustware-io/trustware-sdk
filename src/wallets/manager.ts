@@ -2,10 +2,13 @@ import type {
   DetectedWallet,
   WalletInterFaceAPI,
   SimpleWalletInterface,
+  WalletIdentityAddress,
 } from "../types";
 import type { WagmiBridge } from "./bridges";
 import { connectDetectedWallet } from "./connect";
 import { useWalletDetection } from "./detect"; // you can also inline detect() if you want non-react
+import { IdentityStore, buildWalletIdentityAddress } from "../identity";
+import { bindSolanaProviderEvents } from "./solana";
 
 type Status = "idle" | "detecting" | "connecting" | "connected" | "error";
 type Listener = (s: Status) => void;
@@ -16,6 +19,8 @@ class WalletManager {
   private _detected: DetectedWallet[] = [];
   private _listeners = new Set<Listener>();
   private _error: unknown;
+  private _identity = new IdentityStore();
+  private _providerCleanup: (() => void) | null = null;
 
   get status() {
     return this._status;
@@ -31,8 +36,11 @@ class WalletManager {
   }
   get simple(): SimpleWalletInterface | null {
     if (!this._wallet) return null;
-    const { getAddress, getChainId, switchChain } = this._wallet;
-    return { getAddress, getChainId, switchChain };
+    const { getAddress, disconnect } = this._wallet;
+    return { getAddress, disconnect };
+  }
+  get identity() {
+    return this._identity.snapshot;
   }
 
   onChange(fn: Listener) {
@@ -69,8 +77,12 @@ class WalletManager {
       const { api } = await connectDetectedWallet(target, {
         wagmi: opts?.wagmi,
       });
-      // Set wallet for both eip1193 and walletconnect (api is returned for both)
-      if (api) this._wallet = api;
+      if (api) {
+        this.clearProviderCleanup();
+        this._wallet = api;
+        this.bindProviderEvents(target);
+        await this.syncIdentityFromWallet(target.meta.id);
+      }
       this._status = "connected";
     } catch (e) {
       this._error = e;
@@ -82,6 +94,10 @@ class WalletManager {
 
   async disconnect(wagmi?: WagmiBridge) {
     if (wagmi) await wagmi.disconnect().catch(() => {});
+    if (this._wallet?.disconnect) {
+      await this._wallet.disconnect().catch(() => {});
+    }
+    this.clearProviderCleanup();
     this._wallet = null;
     this._status = "idle";
     this.emit();
@@ -89,8 +105,10 @@ class WalletManager {
 
   /** Directly attach a pre-provided wallet interface (from old provider prop). */
   attachWallet(api: WalletInterFaceAPI) {
+    this.clearProviderCleanup();
     this._wallet = api;
     this._status = "connected";
+    void this.syncIdentityFromWallet();
     this.emit();
   }
 
@@ -98,6 +116,65 @@ class WalletManager {
   setStatus(s: Status) {
     this._status = s;
     this.emit();
+  }
+
+  addIdentityAddress(address: WalletIdentityAddress) {
+    this._identity.upsert(address);
+  }
+
+  resolveAddressForChain(chain: Parameters<IdentityStore["resolve"]>[0]) {
+    return this._identity.resolve(chain);
+  }
+
+  private clearProviderCleanup() {
+    this._providerCleanup?.();
+    this._providerCleanup = null;
+  }
+
+  private bindProviderEvents(target: DetectedWallet) {
+    if (target.via !== "solana-window" || !target.provider) return;
+    this._providerCleanup = bindSolanaProviderEvents(target.provider, {
+      onConnect: () => {
+        this._status = "connected";
+        void this.syncIdentityFromWallet(target.meta.id);
+        this.emit();
+      },
+      onAccountChanged: () => {
+        void this.syncIdentityFromWallet(target.meta.id);
+        this.emit();
+      },
+      onDisconnect: () => {
+        this._wallet = null;
+        this._status = "idle";
+        this.emit();
+      },
+    });
+  }
+
+  private async syncIdentityFromWallet(providerId?: string) {
+    if (!this._wallet) return;
+    try {
+      const address = await this._wallet.getAddress();
+      const chain =
+        this._wallet.ecosystem === "evm"
+          ? { chainId: String(await this._wallet.getChainId()), type: "evm" }
+          : {
+              chainId: "solana-mainnet-beta",
+              networkIdentifier: "solana-mainnet-beta",
+              type: "solana",
+            };
+      const identityAddress = buildWalletIdentityAddress({
+        address,
+        chain,
+        source: "provider",
+        providerId,
+      });
+      if (identityAddress) {
+        this._identity.upsert(identityAddress);
+      }
+    } catch {
+      // identity sync is best-effort
+    }
   }
 }
 
