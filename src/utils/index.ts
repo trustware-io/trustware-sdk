@@ -1,5 +1,5 @@
 import { ChainDef } from "src/types/";
-import { rawToDecimal } from "src/widget-v2/helpers/tokenAmount";
+import { rawToDecimal } from "src/widget/helpers/tokenAmount";
 
 export function hexToRgba(hex: string, alpha = 1) {
   if (!hex?.startsWith("#")) return `rgba(0,0,0,${alpha})`;

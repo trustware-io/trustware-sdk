@@ -5,7 +5,7 @@ import {
   canonicalChainKeyForLink,
   canonicalSeiChainKey,
   normalizeChainType,
-} from "src/widget-v2/helpers/chainHelpers";
+} from "src/widget/helpers/chainHelpers";
 
 export interface UseChainsResult {
   /** All available chains */
