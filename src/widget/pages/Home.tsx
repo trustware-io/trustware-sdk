@@ -122,7 +122,6 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     amount,
     setAmount,
     setCurrentStep,
-    walletAddress,
     connectWallet,
     amountInputMode,
     setAmountInputMode,
