@@ -27,7 +27,10 @@ function validateBech32LikeAddress(
   const lower = trimmed.toLowerCase();
   const expectedPrefix = `${prefix.toLowerCase()}1`;
   if (!lower.startsWith(expectedPrefix)) {
-    return { isValid: false, error: `Address must start with ${expectedPrefix}.` };
+    return {
+      isValid: false,
+      error: `Address must start with ${expectedPrefix}.`,
+    };
   }
 
   const dataPart = lower.slice(expectedPrefix.length);

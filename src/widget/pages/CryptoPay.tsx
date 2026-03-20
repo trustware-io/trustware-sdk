@@ -858,7 +858,10 @@ export function CryptoPay({ style }: CryptoPayProps) {
       (selectedToken as YourTokenData | null)?.chainData?.chainType;
     const index = yourWalletTokens.findIndex(
       (t) =>
-        normalizeAddress(t.address, t.chainData?.type ?? t.chainData?.chainType) ===
+        normalizeAddress(
+          t.address,
+          t.chainData?.type ?? t.chainData?.chainType
+        ) ===
         normalizeAddress(selectedToken?.address ?? "", selectedTokenChainType)
     );
 

@@ -1,8 +1,7 @@
 import type { ChainDef, ChainType } from "../types";
 
 export const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-export const NATIVE_SOLANA =
-  "So11111111111111111111111111111111111111111";
+export const NATIVE_SOLANA = "So11111111111111111111111111111111111111111";
 
 const CHAIN_TYPE_ALIASES: Record<string, ChainType> = {
   btc: "bitcoin",
@@ -72,20 +71,22 @@ export function normalizeChainType(
 }
 
 export function getNativeTokenAddress(chainType?: ChainType | null) {
-  return normalizeChainType(chainType) === "solana" ? NATIVE_SOLANA : NATIVE_EVM;
+  return normalizeChainType(chainType) === "solana"
+    ? NATIVE_SOLANA
+    : NATIVE_EVM;
 }
 
 export function isSolanaNativeTokenAlias(address?: string | null) {
   if (!address) return false;
   const trimmed = address.trim();
   if (!trimmed) return false;
-  return (
-    trimmed === NATIVE_SOLANA ||
-    trimmed.toLowerCase() === NATIVE_EVM
-  );
+  return trimmed === NATIVE_SOLANA || trimmed.toLowerCase() === NATIVE_EVM;
 }
 
-export function normalizeAddress(address: string, chainType?: ChainType | null) {
+export function normalizeAddress(
+  address: string,
+  chainType?: ChainType | null
+) {
   const trimmed = address.trim();
   if (normalizeChainType(chainType) === "solana") {
     if (isSolanaNativeTokenAlias(trimmed)) {
@@ -103,7 +104,8 @@ export function isZeroAddressLike(
   if (!address) return true;
   const normalized = normalizeAddress(address, chainType);
   return (
-    normalized === normalizeAddress(getNativeTokenAddress(chainType), chainType) ||
+    normalized ===
+      normalizeAddress(getNativeTokenAddress(chainType), chainType) ||
     normalized === "0x0000000000000000000000000000000000000000"
   );
 }

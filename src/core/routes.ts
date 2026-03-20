@@ -119,7 +119,9 @@ export async function buildRoute(
     ...body,
     slippageBps:
       body.slippageBps ??
-      (body.slippage === undefined ? undefined : Math.round(body.slippage * 100)),
+      (body.slippage === undefined
+        ? undefined
+        : Math.round(body.slippage * 100)),
     fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
   };
   const r = await rateLimitedFetch(url, {
@@ -178,7 +180,9 @@ export async function buildDepositAddress(
     ...body,
     slippageBps:
       body.slippageBps ??
-      (body.slippage === undefined ? undefined : Math.round(body.slippage * 100)),
+      (body.slippage === undefined
+        ? undefined
+        : Math.round(body.slippage * 100)),
     fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
   };
   const r = await rateLimitedFetch(url, {
@@ -196,7 +200,8 @@ export async function buildDepositAddress(
   }
 
   if (!r.ok) {
-    const msg = json?.error || json?.message || "Failed to build deposit address";
+    const msg =
+      json?.error || json?.message || "Failed to build deposit address";
     throw new Error(msg);
   }
 

@@ -1,4 +1,8 @@
-import type { BalanceRow, WalletAddressBalanceWrapper, ChainDef } from "../types/";
+import type {
+  BalanceRow,
+  WalletAddressBalanceWrapper,
+  ChainDef,
+} from "../types/";
 import { apiBase, jsonHeaders } from "./http";
 import { Registry } from "../registry";
 import {
@@ -84,7 +88,10 @@ function normalizeRows(
     if (!tokenAddress || decimals === undefined) continue;
 
     const metadata = registry.findToken(chain.chainId, tokenAddress);
-    const displaySymbol = symbol ?? metadata?.symbol ?? fallbackTokenSymbol(tokenAddress, chainType);
+    const displaySymbol =
+      symbol ??
+      metadata?.symbol ??
+      fallbackTokenSymbol(tokenAddress, chainType);
     const displayName = name ?? metadata?.name ?? displaySymbol;
     const normalizedAddress = metadata?.address ?? tokenAddress;
 

@@ -20,7 +20,10 @@ import { useChains } from "./useChains";
 import { useTokens } from "./useTokens";
 import { TrustwareError } from "../errors/TrustwareError";
 import { TrustwareErrorCode } from "../errors/errorCodes";
-import { validateAddressForChain, validateRouteAddresses } from "../validation/address";
+import {
+  validateAddressForChain,
+  validateRouteAddresses,
+} from "../validation/address";
 
 // simple memo to avoid re-validating same key repeatedly
 let _lastValidatedKey: string | null = null;
@@ -91,11 +94,15 @@ export const Trustware = {
     return walletManager.identity;
   },
 
-  resolveAddressForChain(chain: Parameters<typeof walletManager.resolveAddressForChain>[0]) {
+  resolveAddressForChain(
+    chain: Parameters<typeof walletManager.resolveAddressForChain>[0]
+  ) {
     return walletManager.resolveAddressForChain(chain);
   },
 
-  addIdentityAddress(address: Parameters<typeof walletManager.addIdentityAddress>[0]) {
+  addIdentityAddress(
+    address: Parameters<typeof walletManager.addIdentityAddress>[0]
+  ) {
     walletManager.addIdentityAddress(address);
     return Trustware;
   },

@@ -48,7 +48,8 @@ export function upsertWalletIdentityAddress(
 
   const addresses = identity.addresses.filter((entry) => {
     if (entry.chainType !== next.chainType) return true;
-    if (normalizedChainKey && entry.chainKey === normalizedChainKey) return false;
+    if (normalizedChainKey && entry.chainKey === normalizedChainKey)
+      return false;
     if (normalizedChainId && entry.chainId === normalizedChainId) return false;
     if (!normalizedChainKey && !normalizedChainId) return false;
     return true;
@@ -83,7 +84,12 @@ export function resolveWalletAddressForChain(
   const chainId = normalizeIdentityChainId(chain);
 
   if (!chainType) {
-    return { status: "missing", reason: "unknown_chain_type", chainKey, chainId };
+    return {
+      status: "missing",
+      reason: "unknown_chain_type",
+      chainKey,
+      chainId,
+    };
   }
 
   const match = identity.addresses.find((entry) =>
@@ -100,7 +106,10 @@ export function resolveWalletAddressForChain(
     };
   }
 
-  const validation = validateAddressForChain(match.address, chainDef ?? chainType);
+  const validation = validateAddressForChain(
+    match.address,
+    chainDef ?? chainType
+  );
   if (!validation.isValid) {
     return {
       status: "invalid",
@@ -134,7 +143,8 @@ export function buildWalletIdentityAddress(params: {
 
   const address = params.address.trim();
   const chainId = normalizeIdentityChainId(params.chain);
-  const chainDef = typeof params.chain === "object" && params.chain ? params.chain : undefined;
+  const chainDef =
+    typeof params.chain === "object" && params.chain ? params.chain : undefined;
   const chainKey = chainDef
     ? normalizeChainKey(
         chainDef.networkIdentifier ?? chainDef.chainId ?? chainDef.id

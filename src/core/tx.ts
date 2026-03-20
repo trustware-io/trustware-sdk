@@ -49,7 +49,12 @@ export async function sendRouteTransaction(
     if (w.type === "eip1193") {
       const from = await w.getAddress();
       const hexValue = value ? `0x${value.toString(16)}` : "0x0";
-      const params: Record<string, unknown> = { from, to, data, value: hexValue };
+      const params: Record<string, unknown> = {
+        from,
+        to,
+        data,
+        value: hexValue,
+      };
       if (Number.isFinite(target)) {
         params.chainId = `0x${target.toString(16)}`;
       }
@@ -80,7 +85,9 @@ export async function sendRouteTransaction(
     const registry = new Registry(apiBase());
     await registry.ensureLoaded();
 
-    const chain = registry.chain(String(fallbackChainId ?? txReq.chainId ?? ""));
+    const chain = registry.chain(
+      String(fallbackChainId ?? txReq.chainId ?? "")
+    );
     const rpcUrl = chain?.rpc ?? chain?.rpcList?.[0];
     return w.sendSerializedTransaction(txReq.data, rpcUrl);
   }
@@ -109,7 +116,7 @@ export async function runTopUp(params: {
   const currentChainRef =
     w.ecosystem === "evm"
       ? String(await w.getChainId())
-      : (await w.getChainKey?.()) ?? "solana-mainnet-beta";
+      : ((await w.getChainKey?.()) ?? "solana-mainnet-beta");
   const originalChain =
     w.ecosystem === "evm" ? await w.getChainId() : undefined;
 

@@ -24,10 +24,7 @@ export function isSolanaNativeTokenAlias(address?: string | null) {
   if (!address) return false;
   const trimmed = address.trim();
   if (!trimmed) return false;
-  return (
-    trimmed === NATIVE_SOLANA ||
-    trimmed.toLowerCase() === NATIVE_EVM
-  );
+  return trimmed === NATIVE_SOLANA || trimmed.toLowerCase() === NATIVE_EVM;
 }
 
 export function parseDecimalToWei(

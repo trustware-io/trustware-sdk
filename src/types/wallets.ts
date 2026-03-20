@@ -109,23 +109,23 @@ export type EvmWalletInterface = BaseWalletInterface & {
   getChainId(): Promise<number>;
   switchChain(chainId: number): Promise<void>;
 } & (
-  | {
-      type: "eip1193";
-      request(args: {
-        method: string;
-        params?: unknown[] | object;
-      }): Promise<unknown>;
-    }
-  | {
-      type: "wagmi";
-      sendTransaction(tx: {
-        to: `0x${string}`;
-        data: `0x${string}`;
-        value?: bigint;
-        chainId?: number;
-      }): Promise<{ hash: `0x${string}` }>;
-    }
-);
+    | {
+        type: "eip1193";
+        request(args: {
+          method: string;
+          params?: unknown[] | object;
+        }): Promise<unknown>;
+      }
+    | {
+        type: "wagmi";
+        sendTransaction(tx: {
+          to: `0x${string}`;
+          data: `0x${string}`;
+          value?: bigint;
+          chainId?: number;
+        }): Promise<{ hash: `0x${string}` }>;
+      }
+  );
 
 export type SolanaWalletInterface = BaseWalletInterface & {
   ecosystem: "solana";

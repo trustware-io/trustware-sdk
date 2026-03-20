@@ -45,7 +45,9 @@ function decodeBase64Transaction(serializedTransaction: string) {
   }
 }
 
-export function getSolanaProviders(): Partial<Record<WalletId, SolanaProviderLike>> {
+export function getSolanaProviders(): Partial<
+  Record<WalletId, SolanaProviderLike>
+> {
   if (typeof window === "undefined") return {};
 
   const win = window as typeof window & {

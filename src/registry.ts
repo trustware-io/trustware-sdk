@@ -156,9 +156,7 @@ export class Registry {
     const nativeSymbol = chain?.nativeCurrency?.symbol?.toUpperCase?.();
     if (
       (nativeSymbol && s.toUpperCase() === nativeSymbol) ||
-      ["ETH", "MATIC", "AVAX", "BNB", "SOL", "NATIVE"].includes(
-        s.toUpperCase()
-      )
+      ["ETH", "MATIC", "AVAX", "BNB", "SOL", "NATIVE"].includes(s.toUpperCase())
     ) {
       return chainType === "solana" ? nativeAddress : NATIVE;
     }
