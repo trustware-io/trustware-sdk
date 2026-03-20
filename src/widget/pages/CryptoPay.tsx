@@ -33,6 +33,7 @@ import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 import {
   getNativeTokenAddress,
   isNativeTokenAddress,
+  normalizeAddress,
   isZeroAddrLike,
   normalizeChainKey,
 } from "../helpers/chainHelpers";
@@ -307,7 +308,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
     const object: UseRouteBuilderOptions = {
       fromChain: selectedChain?.chainId ?? selectedChain?.id ?? "",
       fromChainId: selectedChain?.chainId ?? selectedChain?.id,
-      toChain,
+      toChain: toChain ?? toChainId,
       toChainId,
       toToken: config.routes.toToken,
       toAddress: config.routes.toAddress || walletAddress || undefined,
@@ -389,7 +390,7 @@ export function CryptoPay({ style }: CryptoPayProps) {
   ]);
 
   // const routeError = routePrerequisiteError || _routeBuilderError;
-  const routeError = routeBuilderError && "No successful provider response";
+  const routeError = routeBuilderError ?? null;
   const actionErrorMessage = routePrerequisiteError || routeError || null;
 
   const { emitError } = useTrustware();
@@ -852,8 +853,13 @@ export function CryptoPay({ style }: CryptoPayProps) {
   }, [handleApproveExact, handleConfirm, needsApproval]);
 
   const orderedTokens = useMemo(() => {
+    const selectedTokenChainType =
+      (selectedToken as YourTokenData | null)?.chainData?.type ??
+      (selectedToken as YourTokenData | null)?.chainData?.chainType;
     const index = yourWalletTokens.findIndex(
-      (t) => t.address?.toLowerCase() === selectedToken?.address?.toLowerCase()
+      (t) =>
+        normalizeAddress(t.address, t.chainData?.type ?? t.chainData?.chainType) ===
+        normalizeAddress(selectedToken?.address ?? "", selectedTokenChainType)
     );
 
     let _tok: YourTokenData[] = [];
@@ -958,7 +964,13 @@ export function CryptoPay({ style }: CryptoPayProps) {
     !isReadingAllowance;
 
   const swipeResetKey = useMemo(() => {
-    const tokenAddress = selectedToken?.address?.toLowerCase() ?? "no-token";
+    const tokenAddress = selectedToken
+      ? normalizeAddress(
+          selectedToken.address,
+          (selectedToken as YourTokenData | null)?.chainData?.type ??
+            (selectedToken as YourTokenData | null)?.chainData?.chainType
+        )
+      : "no-token";
     const chainId =
       (selectedToken as YourTokenData | null)?.chainData?.chainId ??
       selectedChain?.chainId ??

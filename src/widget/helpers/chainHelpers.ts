@@ -20,6 +20,16 @@ export function getNativeTokenAddress(chainType?: ChainDef["type"] | null) {
   return normalized === "solana" ? NATIVE_SOLANA : NATIVE_EVM;
 }
 
+export function isSolanaNativeTokenAlias(address?: string | null) {
+  if (!address) return false;
+  const trimmed = address.trim();
+  if (!trimmed) return false;
+  return (
+    trimmed === NATIVE_SOLANA ||
+    trimmed.toLowerCase() === NATIVE_EVM
+  );
+}
+
 export function parseDecimalToWei(
   input: string,
   decimals: number
@@ -43,6 +53,42 @@ const CHAIN_TYPE_ALIASES: Record<string, SquidChainType> = {
   "pacific-1": "cosmos",
 };
 
+function inferChainTypeFromValue(
+  normalized: string
+): SquidChainType | undefined {
+  if (!normalized) return undefined;
+
+  const aliased = CHAIN_TYPE_ALIASES[normalized];
+  if (aliased) return aliased;
+
+  if (
+    normalized === "evm" ||
+    normalized === "solana" ||
+    normalized === "cosmos" ||
+    normalized === "bitcoin"
+  ) {
+    return normalized;
+  }
+
+  if (/^eip155:\d+$/.test(normalized) || /^\d+$/.test(normalized)) {
+    return "evm";
+  }
+
+  if (normalized.startsWith("solana:") || normalized.includes("solana")) {
+    return "solana";
+  }
+
+  if (
+    normalized.startsWith("cosmos:") ||
+    normalized.startsWith("sei:") ||
+    normalized === "sei-evm"
+  ) {
+    return "cosmos";
+  }
+
+  return undefined;
+}
+
 export type SquidChainType = "evm" | "cosmos" | "solana" | "btc" | string;
 
 export function normalizeChainType(
@@ -61,7 +107,7 @@ export function normalizeChainType(
         chain.axelarChainName);
   if (!raw) return undefined;
   const normalized = String(raw).trim().toLowerCase();
-  return CHAIN_TYPE_ALIASES[normalized] ?? normalized;
+  return inferChainTypeFromValue(normalized) ?? normalized;
 }
 
 export function canonicalChainKeyForLink(chain: ChainDef): string {
@@ -108,7 +154,10 @@ export function normalizeAddress(
 ) {
   if (chainType?.toLowerCase?.() === "solana") {
     const trimmed = address.trim();
-    return trimmed.startsWith("0x") ? trimmed.toLowerCase() : trimmed;
+    if (isSolanaNativeTokenAlias(trimmed)) {
+      return NATIVE_SOLANA;
+    }
+    return trimmed;
   }
   return address.toLowerCase();
 }
@@ -137,8 +186,8 @@ export function canonicalTokenAddressForChain(
   const chainType = normalizeChainType(chain);
   const rawAddress = (address ?? "").trim();
 
-  // Solana is base58 and case-sensitive.
-  if (chainType === "solana") return rawAddress;
+  // Preserve SPL mint addresses; only collapse native SOL aliases for identity.
+  if (chainType === "solana") return normalizeAddress(rawAddress, "solana");
 
   if (chainType === "cosmos") {
     const chainIdKey = normalizeChainKey(chain.chainId ?? chain.id ?? "");

@@ -136,9 +136,6 @@ export class Registry {
     const chainType = normalizeChainType(chain);
     const normalizedAddress = normalizeAddress(address, chainType);
     return this.tokens(chainRef).find((token) => {
-      if (normalizeChainType(chain) === "solana") {
-        return token.address.trim() === address.trim();
-      }
       return normalizeAddress(token.address, chainType) === normalizedAddress;
     });
   }

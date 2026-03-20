@@ -37,7 +37,7 @@ export interface UseRouteBuilderOptions {
 
   fromChain: ChainDef | undefined | string | number;
   fromChainId: string | number | undefined;
-  toChain: ChainDef | null;
+  toChain: ChainDef | string | number | null;
   toChainId: string;
   toToken: string;
   toAddress: string | undefined;
@@ -151,7 +151,6 @@ export function useRouteBuilder({
   useEffect(() => {
     if (
       !fromChain ||
-      !toChain ||
       !hasFromChainId ||
       !hasToChainId ||
       !fromToken ||

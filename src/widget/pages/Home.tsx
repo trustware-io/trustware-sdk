@@ -205,13 +205,6 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
   const handleWalletSelect = async (wallet: (typeof detectedWallets)[0]) => {
     setIsCryptoDropdownOpen(false);
 
-    // If already connected, go to select token
-    if (walletAddress) {
-      // setCurrentStep("select-token");
-      setCurrentStep("crypto-pay");
-      return;
-    }
-
     // Connect to the wallet
     try {
       await connectWallet(wallet);

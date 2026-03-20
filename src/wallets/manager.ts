@@ -21,6 +21,7 @@ class WalletManager {
   private _error: unknown;
   private _identity = new IdentityStore();
   private _providerCleanup: (() => void) | null = null;
+  private _connectedWalletId: string | null = null;
 
   get status() {
     return this._status;
@@ -41,6 +42,9 @@ class WalletManager {
   }
   get identity() {
     return this._identity.snapshot;
+  }
+  get connectedWalletId() {
+    return this._connectedWalletId;
   }
 
   onChange(fn: Listener) {
@@ -71,15 +75,25 @@ class WalletManager {
     target: DetectedWallet,
     opts?: { wagmi?: WagmiBridge }
   ) {
+    if (
+      this._status === "connected" &&
+      this._connectedWalletId === target.meta.id &&
+      this._wallet
+    ) {
+      this.emit();
+      return;
+    }
+
     this._status = "connecting";
+    this.clearConnectedWalletState();
     this.emit();
     try {
       const { api } = await connectDetectedWallet(target, {
         wagmi: opts?.wagmi,
       });
       if (api) {
-        this.clearProviderCleanup();
         this._wallet = api;
+        this._connectedWalletId = target.meta.id;
         this.bindProviderEvents(target);
         await this.syncIdentityFromWallet(target.meta.id);
       }
@@ -87,6 +101,7 @@ class WalletManager {
     } catch (e) {
       this._error = e;
       this._status = "error";
+      this.clearConnectedWalletState();
     } finally {
       this.emit();
     }
@@ -97,16 +112,16 @@ class WalletManager {
     if (this._wallet?.disconnect) {
       await this._wallet.disconnect().catch(() => {});
     }
-    this.clearProviderCleanup();
-    this._wallet = null;
+    this.clearConnectedWalletState();
     this._status = "idle";
     this.emit();
   }
 
   /** Directly attach a pre-provided wallet interface (from old provider prop). */
   attachWallet(api: WalletInterFaceAPI) {
-    this.clearProviderCleanup();
+    this.clearConnectedWalletState();
     this._wallet = api;
+    this._connectedWalletId = null;
     this._status = "connected";
     void this.syncIdentityFromWallet();
     this.emit();
@@ -131,24 +146,69 @@ class WalletManager {
     this._providerCleanup = null;
   }
 
+  private clearConnectedWalletState() {
+    this.clearProviderCleanup();
+    this._wallet = null;
+    this._connectedWalletId = null;
+  }
+
   private bindProviderEvents(target: DetectedWallet) {
-    if (target.via !== "solana-window" || !target.provider) return;
-    this._providerCleanup = bindSolanaProviderEvents(target.provider, {
-      onConnect: () => {
-        this._status = "connected";
-        void this.syncIdentityFromWallet(target.meta.id);
-        this.emit();
-      },
-      onAccountChanged: () => {
-        void this.syncIdentityFromWallet(target.meta.id);
-        this.emit();
-      },
-      onDisconnect: () => {
-        this._wallet = null;
+    if (!target.provider) return;
+
+    if (target.via === "solana-window") {
+      this._providerCleanup = bindSolanaProviderEvents(target.provider, {
+        onConnect: () => {
+          this._status = "connected";
+          void this.syncIdentityFromWallet(target.meta.id);
+          this.emit();
+        },
+        onAccountChanged: () => {
+          void this.syncIdentityFromWallet(target.meta.id);
+          this.emit();
+        },
+        onDisconnect: () => {
+          this.clearConnectedWalletState();
+          this._status = "idle";
+          this.emit();
+        },
+      });
+      return;
+    }
+
+    const provider = target.provider as {
+      on?: (event: string, listener: (...args: unknown[]) => void) => void;
+      off?: (event: string, listener: (...args: unknown[]) => void) => void;
+      removeListener?: (
+        event: string,
+        listener: (...args: unknown[]) => void
+      ) => void;
+    };
+    const onAccountsChanged = (accounts?: unknown) => {
+      const nextAccounts = Array.isArray(accounts) ? accounts : [];
+      if (nextAccounts.length === 0) {
+        this.clearConnectedWalletState();
         this._status = "idle";
         this.emit();
-      },
-    });
+        return;
+      }
+      this._status = "connected";
+      void this.syncIdentityFromWallet(target.meta.id);
+      this.emit();
+    };
+    const onDisconnect = () => {
+      this.clearConnectedWalletState();
+      this._status = "idle";
+      this.emit();
+    };
+
+    provider.on?.("accountsChanged", onAccountsChanged);
+    provider.on?.("disconnect", onDisconnect);
+    this._providerCleanup = () => {
+      provider.off?.("accountsChanged", onAccountsChanged);
+      provider.off?.("disconnect", onDisconnect);
+      provider.removeListener?.("accountsChanged", onAccountsChanged);
+      provider.removeListener?.("disconnect", onDisconnect);
+    };
   }
 
   private async syncIdentityFromWallet(providerId?: string) {
