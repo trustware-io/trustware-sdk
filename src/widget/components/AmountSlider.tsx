@@ -83,7 +83,6 @@ const formatValue = (value: number): string => {
  * Range slider component for quickly adjusting deposit amounts.
  * Features:
  * - Smart tick marks that adapt to the max value
- * - Snap-to-tick behavior for precise amounts
  * - Smooth drag interaction
  * - Bidirectional sync with amount input
  */
@@ -138,21 +137,21 @@ export function AmountSlider({
       ticks.push({
         position: spacingPercent * 1, // 25%
         label: `$${formatValue(niceValue1)}`,
-        value: niceValue1,
+        value: value1,
       });
 
       // Add second intermediate tick (50%)
       ticks.push({
         position: spacingPercent * 2, // 50%
         label: `$${formatValue(niceValue2)}`,
-        value: niceValue2,
+        value: value2,
       });
 
       // Add third intermediate tick (75%)
       ticks.push({
         position: spacingPercent * 3, // 75%
         label: `$${formatValue(niceValue3)}`,
-        value: niceValue3,
+        value: value3,
       });
 
       // Always add Max at the end (100%)
@@ -175,71 +174,25 @@ export function AmountSlider({
 
   /**
    * Calculate slider position percentage based on value
-   * Uses tick positions for exact alignment when snapped to tick
    */
   const getPercentage = useCallback((): number => {
-    if (max <= 0) return 0;
-
-    // Check if at zero or min
-    if (value <= min) return 0;
-
-    // Create array of all points including min
-    const allPoints = [
-      { position: 0, value: min },
-      ...tickMarks.filter((tick) => tick.position !== 0), // Ensure min isn't duplicated
-    ];
-
-    // Sort by position just in case
-    allPoints.sort((a, b) => a.position - b.position);
-
-    // Check if current value matches any point exactly
-    for (const point of allPoints) {
-      if (Math.abs(value - point.value) < 0.01) {
-        return point.position;
-      }
-    }
-
-    // Interpolate between points
-    for (let i = 0; i < allPoints.length - 1; i++) {
-      const lower = allPoints[i];
-      const upper = allPoints[i + 1];
-      if (value >= lower.value && value <= upper.value) {
-        const valueRatio = (value - lower.value) / (upper.value - lower.value);
-        return lower.position + valueRatio * (upper.position - lower.position);
-      }
-    }
-
-    return Math.min(((value - min) / (max - min)) * 100, 100);
-  }, [max, min, tickMarks, value]);
-
-  // Snap threshold - 5% of max value for noticeable snap effect
-  const snapThreshold = max * 0.05;
+    const range = max - min;
+    if (range <= 0) return 0;
+    const clampedValue = Math.min(Math.max(value, min), max);
+    return ((clampedValue - min) / range) * 100;
+  }, [max, min, value]);
 
   const percentage = useMemo(() => getPercentage(), [getPercentage]);
 
   /**
-   * Handle slider input change with snap-to-tick behavior
+   * Handle slider input change
    */
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      let newValue = Math.min(Math.max(Number(e.target.value), min), max);
-
-      // Check if close to any tick mark and snap to it
-      for (const tick of tickMarks) {
-        if (Math.abs(newValue - tick.value) <= snapThreshold) {
-          newValue = tick.value;
-          break;
-        }
-      }
-
-      // Also snap to min if close
-      if (newValue <= min + snapThreshold) {
-        newValue = min;
-      }
-
+      const newValue = Math.min(Math.max(Number(e.target.value), min), max);
       onChange(newValue);
     },
-    [onChange, min, max, tickMarks, snapThreshold]
+    [onChange, min, max]
   );
 
   /**
@@ -274,7 +227,7 @@ export function AmountSlider({
               fontWeight: fontWeight.medium,
             }}
           >
-            ${min}
+            ${formatValue(min)}
             {min > 0 ? " Min" : ""}
           </span>
           <span
@@ -378,6 +331,7 @@ export function AmountSlider({
             min={min}
             max={max}
             value={value}
+            step="any"
             onChange={handleChange}
             disabled={disabled}
             style={{

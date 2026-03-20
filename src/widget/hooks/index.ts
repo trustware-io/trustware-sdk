@@ -7,7 +7,8 @@ export type {
 export {
   useAmountConstraints,
   sanitizeAmountInput,
-  clampUsdAmount,
+  formatUsdAmount,
+  getUsdAmountRangeError,
 } from "./useAmountConstraints";
 export type { AmountConstraints } from "./useAmountConstraints";
 

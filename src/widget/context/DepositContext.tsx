@@ -263,6 +263,7 @@ export function DepositProvider({
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
   const [yourWalletTokens, setYourWalletTokens] = useState<YourTokenData[]>([]);
+  const [walletTokensReloadNonce, setWalletTokensReloadNonce] = useState(0);
   const lastLoadedWalletRef = useRef<string | null>(null);
 
   // Transaction lifecycle state
@@ -350,7 +351,9 @@ export function DepositProvider({
       return;
     }
 
-    if (lastLoadedWalletRef.current === walletAddress) {
+    const loadKey = `${walletAddress}:${walletTokensReloadNonce}`;
+
+    if (lastLoadedWalletRef.current === loadKey) {
       return;
     }
 
@@ -481,7 +484,7 @@ export function DepositProvider({
           );
 
           setSelectedChain(findtokenwithBalance?.chainData as Chain);
-          lastLoadedWalletRef.current = walletAddress;
+          lastLoadedWalletRef.current = loadKey;
         }
       } catch (err) {
         void err; // balance loading failed — non-fatal
@@ -494,7 +497,7 @@ export function DepositProvider({
     return () => {
       cancelled = true;
     };
-  }, [chains, tokens, walletAddress]);
+  }, [chains, tokens, walletAddress, walletTokensReloadNonce]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /**
@@ -553,6 +556,7 @@ export function DepositProvider({
     setSelectedToken(null);
     setSelectedChain(null);
     setAmount("");
+    setAmountInputMode("usd");
     // Reset transaction state
     setTransactionStatus("idle");
     setTransactionHash(null);
@@ -560,6 +564,8 @@ export function DepositProvider({
     setIntentId(null);
     // Reset payment method to crypto
     setPaymentMethod("crypto");
+    // Force wallet token balances to refresh for the next deposit attempt.
+    setWalletTokensReloadNonce((prev) => prev + 1);
   }, []);
 
   /**

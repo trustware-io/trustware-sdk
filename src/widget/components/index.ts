@@ -1,5 +1,9 @@
 export { AmountSlider, type AmountSliderProps } from "./AmountSlider";
 export {
+  AmountInputDisplay,
+  type AmountInputDisplayProps,
+} from "./AmountInputDisplay";
+export {
   CircularProgress,
   type CircularProgressProps,
 } from "./CircularProgress";

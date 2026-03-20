@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { getSharedRegistry } from "./registryClient";
 import type { TokenDef } from "../types";
-import type { Token } from "../widget-v2/context/DepositContext";
+import type { Token } from "../widget/context/DepositContext";
 import { useChains } from "./useChains";
-import { sortTokensByPopularity } from "../widget-v2/helpers/tokenPopularity";
+import { sortTokensByPopularity } from "../widget/helpers/tokenPopularity";
 
 export interface UseTokensResult {
   /** All available tokens for the selected chain */
