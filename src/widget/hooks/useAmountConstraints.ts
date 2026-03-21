@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
+import { useTrustwareConfig } from "../../hooks/useTrustwareConfig";
 
 export type AmountConstraints = {
   fixedFromAmountString?: string;

@@ -1,4 +1,4 @@
-import { ChainDef } from "src/types";
+import type { ChainDef } from "../../types";
 
 export function normalizeChainKey(id: string | number | null): string {
   if (id === undefined || id === null) return "";

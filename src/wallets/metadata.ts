@@ -3,20 +3,20 @@ import { formatDeepLink } from "./deepLink";
 import { ASSETS_BASE_URL } from "../constants";
 
 export const POPULAR_ORDER: WalletId[] = [
+  "rabby",
   "metamask",
-  "coinbase",
   "walletconnect",
   "rainbow",
-  "rabby",
+  "phantom-evm",
   "phantom-solana",
   "solflare",
   "okx",
   "brave",
+  "coinbase",
   "zerion",
   "taho",
   "trust",
   "bitget",
-  "phantom-evm",
   "backpack",
   "imtoken",
   "safe",

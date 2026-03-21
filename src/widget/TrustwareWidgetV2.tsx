@@ -8,106 +8,28 @@ import React, {
 } from "react";
 
 import { mergeStyles } from "./lib/utils";
-import {
-  spacing,
-  colors,
-  fontSize,
-  fontWeight,
-  borderRadius,
-  zIndex,
-} from "./styles";
+import { spacing } from "./styles";
 import {
   DepositProvider,
-  useDeposit,
+  useDepositForm,
+  useDepositNavigation,
+  useDepositTransaction,
+  useDepositUi,
   type NavigationStep,
-  type TransactionStatus,
-  type ResolvedTheme,
 } from "./context/DepositContext";
-import { ThemeToggle, WidgetContainer, type Theme, Dialog } from "./components";
-import { useTrustware } from "src/provider";
-import { Home } from "./pages/Home";
-import { SelectToken } from "./pages/SelectToken";
-import { CryptoPay } from "./pages/CryptoPay";
-import { Processing } from "./pages/Processing";
-import { Success } from "./pages/Success";
-import { Error } from "./pages/Error";
-
-/**
- * SessionStorage key for persisting widget state
- */
-const STORAGE_KEY = "trustware-widget-state";
-
-/**
- * Persisted widget state structure
- */
-interface PersistedState {
-  currentStep: NavigationStep;
-  amount: string;
-  selectedChainId?: number;
-  selectedTokenAddress?: string;
-  transactionHash?: string;
-  transactionStatus?: TransactionStatus;
-}
-
-/**
- * Save state to sessionStorage
- */
-function savePersistedState(state: PersistedState): void {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-/**
- * Clear persisted state from sessionStorage
- */
-function clearPersistedState(): void {
-  try {
-    sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-/**
- * Animation direction for page transitions
- */
-type AnimationDirection = "forward" | "backward";
-
-/**
- * Page component mapping based on navigation step
- */
-const PAGE_COMPONENTS: Record<NavigationStep, React.ComponentType> = {
-  home: Home,
-  "select-token": SelectToken,
-  "crypto-pay": CryptoPay,
-  processing: Processing,
-  success: Success,
-  error: Error,
-};
-
-/**
- * Step order for determining animation direction
- */
-const STEP_ORDER: NavigationStep[] = [
-  "home",
-  "select-token",
-  "crypto-pay",
-  "processing",
-  "success",
-  "error",
-];
-
-/**
- * Transaction statuses that indicate an active transaction
- */
-const ACTIVE_TRANSACTION_STATUSES: TransactionStatus[] = [
-  "confirming",
-  "processing",
-  "bridging",
-];
+import { ThemeToggle, WidgetContainer, type Theme } from "./components";
+import {
+  clearPersistedState,
+  savePersistedState,
+  type PersistedState,
+} from "./app/WidgetPersistence";
+import {
+  ConfirmCloseDialog,
+  InitErrorOverlay,
+} from "./app/WidgetShellOverlays";
+import { WidgetRouter } from "./app/WidgetRouter";
+import { ACTIVE_TRANSACTION_STATUSES } from "./app/widgetSteps";
+import { useTrustware } from "../provider";
 
 // Styles for WidgetContent
 const widgetContentContainerStyle: React.CSSProperties = {
@@ -122,12 +44,6 @@ const themeToggleContainerStyle: React.CSSProperties = {
   top: spacing[3],
   right: spacing[3],
   zIndex: 10,
-};
-
-const pageContainerBaseStyle: React.CSSProperties = {
-  width: "100%",
-  height: "100%",
-  transition: "all 0.15s ease-out",
 };
 
 /**
@@ -148,23 +64,11 @@ function WidgetContent({
   onStateChange,
   showThemeToggle,
 }: WidgetContentProps): React.ReactElement {
-  const {
-    currentStep,
-    stepHistory,
-    amount,
-    selectedChain,
-    selectedToken,
-    transactionHash,
-    transactionStatus,
-    resolvedTheme,
-    toggleTheme,
-  } = useDeposit();
-  const [displayedStep, setDisplayedStep] =
-    useState<NavigationStep>(currentStep);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [animationDirection, setAnimationDirection] =
-    useState<AnimationDirection>("forward");
-  const previousStepRef = useRef<NavigationStep>(currentStep);
+  const { currentStep, navigationDirection, stepHistory } =
+    useDepositNavigation();
+  const { amount, selectedChain, selectedToken } = useDepositForm();
+  const { transactionHash, transactionStatus } = useDepositTransaction();
+  const { resolvedTheme, toggleTheme } = useDepositUi();
 
   /**
    * Persist state changes to sessionStorage
@@ -191,80 +95,6 @@ function WidgetContent({
     onStateChange,
   ]);
 
-  /**
-   * Handle page transitions with animation.
-   * Uses setState in effect to sync animation state with external navigation changes.
-   * This pattern is valid for animation state synchronization.
-   */
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (currentStep === displayedStep) return;
-
-    // Determine animation direction based on step order
-    const currentIndex = STEP_ORDER.indexOf(currentStep);
-    const previousIndex = STEP_ORDER.indexOf(previousStepRef.current);
-
-    // Check if this is a back navigation
-    const isBackNav =
-      stepHistory.length <
-      (previousStepRef.current === currentStep
-        ? stepHistory.length
-        : stepHistory.length);
-    const direction: AnimationDirection =
-      currentIndex < previousIndex || isBackNav ? "backward" : "forward";
-
-    setAnimationDirection(direction);
-    setIsAnimating(true);
-
-    // After exit animation completes, switch pages
-    const exitTimeout = setTimeout(() => {
-      setDisplayedStep(currentStep);
-      previousStepRef.current = currentStep;
-    }, 150);
-
-    // After enter animation completes, stop animating
-    const enterTimeout = setTimeout(() => {
-      setIsAnimating(false);
-    }, 300);
-
-    return () => {
-      clearTimeout(exitTimeout);
-      clearTimeout(enterTimeout);
-    };
-  }, [currentStep, displayedStep, stepHistory.length]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const PageComponent = PAGE_COMPONENTS[displayedStep];
-
-  // Calculate page container animation styles
-  const getPageAnimationStyle = (): React.CSSProperties => {
-    if (!isAnimating) return {};
-
-    if (displayedStep !== currentStep) {
-      // Exit animation
-      if (animationDirection === "forward") {
-        return { opacity: 0, transform: "translateX(-1rem)" };
-      } else {
-        return { opacity: 0, transform: "translateX(1rem)" };
-      }
-    } else {
-      // Enter animation - use CSS animation class
-      return {};
-    }
-  };
-
-  // Determine animation class for enter animation
-  const getAnimationClass = (): string => {
-    if (isAnimating && displayedStep === currentStep) {
-      if (animationDirection === "forward") {
-        return "tw-animate-slide-in-right";
-      } else {
-        return "tw-animate-slide-in-left";
-      }
-    }
-    return "";
-  };
-
   return (
     <div style={mergeStyles(widgetContentContainerStyle, style)}>
       {/* Theme toggle button - positioned in top-right corner */}
@@ -273,12 +103,11 @@ function WidgetContent({
           <ThemeToggle theme={resolvedTheme} onToggle={toggleTheme} />
         </div>
       )}
-      <div
-        className={getAnimationClass()}
-        style={mergeStyles(pageContainerBaseStyle, getPageAnimationStyle())}
-      >
-        <PageComponent />
-      </div>
+      <WidgetRouter
+        currentStep={currentStep}
+        navigationDirection={navigationDirection}
+        stepHistory={stepHistory}
+      />
     </div>
   );
 }
@@ -313,134 +142,6 @@ export interface TrustwareWidgetV2Props {
 }
 
 /**
- * Confirmation dialog for closing during active transaction
- */
-interface ConfirmCloseDialogProps {
-  open: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-  /** Current theme for styling */
-  theme: ResolvedTheme;
-}
-
-function ConfirmCloseDialog({
-  open,
-  onConfirm,
-  onCancel,
-  theme,
-}: ConfirmCloseDialogProps): React.ReactElement {
-  const isDark = theme === "dark";
-
-  return (
-    <>
-      <Dialog
-        open={open}
-        onCancel={onCancel}
-        onConfirm={onConfirm}
-        title={"Transaction in Progress"}
-        description={
-          "You have an active transaction. Closing the widget will not cancel your transaction, but you will lose visibility of its progress."
-        }
-        isDark={isDark}
-        // style={customDarkStyles}
-      />
-    </>
-  );
-}
-
-interface InitErrorOverlayProps {
-  open: boolean;
-  isDark: boolean;
-  isRefreshing: boolean;
-  onRefresh: () => void;
-}
-
-function InitErrorOverlay({
-  open,
-  isDark,
-  isRefreshing,
-  onRefresh,
-}: InitErrorOverlayProps): React.ReactElement | null {
-  if (!open) return null;
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="init-error-title"
-      aria-describedby="init-error-description"
-      style={{
-        position: "absolute",
-        inset: 0,
-        backgroundColor: isDark ? "rgba(0, 0, 0, 0.55)" : "rgba(0, 0, 0, 0.2)",
-        zIndex: zIndex[40],
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: spacing[6],
-        borderRadius: "20px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          borderRadius: borderRadius.xl,
-          padding: spacing[6],
-          backgroundColor: colors.card,
-          color: colors.cardForeground,
-          boxShadow: "0 25px 50px -12px rgb(0 0 0 / 0.35)",
-          textAlign: "left",
-          border: `1px solid ${colors.border}`,
-        }}
-      >
-        <h2
-          id="init-error-title"
-          style={{
-            fontSize: fontSize.lg,
-            fontWeight: fontWeight.semibold,
-            color: colors.cardForeground,
-          }}
-        >
-          API key validation failed
-        </h2>
-        <p
-          id="init-error-description"
-          style={{
-            marginTop: spacing[2],
-            fontSize: fontSize.sm,
-            color: colors.mutedForeground,
-          }}
-        >
-          We could not validate your Trustware API key. Please refresh to retry.
-        </p>
-        <button
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          aria-label="Refresh validation"
-          style={{
-            marginTop: spacing[4],
-            width: "100%",
-            borderRadius: "0.5rem",
-            backgroundColor: colors.primary,
-            padding: `${spacing[2.5]} ${spacing[4]}`,
-            fontSize: fontSize.sm,
-            fontWeight: fontWeight.medium,
-            color: colors.primaryForeground,
-            border: 0,
-            cursor: isRefreshing ? "not-allowed" : "pointer",
-            opacity: isRefreshing ? 0.7 : 1,
-            transition: "background-color 0.2s",
-          }}
-        >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/**
  * Inner widget component with access to context
  */
 interface WidgetInnerProps {
@@ -460,7 +161,9 @@ function WidgetInner({
   closeRequestRef,
   showThemeToggle,
 }: WidgetInnerProps): React.ReactElement {
-  const { transactionStatus, resetState, resolvedTheme } = useDeposit();
+  const { resetState } = useDepositNavigation();
+  const { transactionStatus } = useDepositTransaction();
+  const { resolvedTheme } = useDepositUi();
   const { status, revalidate } = useTrustware();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 

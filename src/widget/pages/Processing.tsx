@@ -1,8 +1,19 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
-import { useDeposit, type TransactionStatus } from "../context/DepositContext";
-import { useTransactionPolling } from "../hooks";
-import { CircularProgress, TransactionSteps } from "../components";
+import {
+  useDepositForm,
+  useDepositNavigation,
+  useDepositTransaction,
+  type TransactionStatus,
+} from "../context/DepositContext";
+import {
+  CircularProgress,
+  TransactionHashLink,
+  TransactionSteps,
+  WidgetPageHeader,
+  WidgetSecurityFooter,
+} from "../components";
+import { useTransactionPolling } from "../features/transaction";
 
 export interface ProcessingProps {
   /** Additional inline styles */
@@ -50,29 +61,15 @@ function getStepText(status: TransactionStatus): string {
 }
 
 /**
- * Truncates a transaction hash for display
- */
-function truncateHash(hash: string): string {
-  if (hash.length <= 16) return hash;
-  return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
-}
-
-/**
  * Processing page component.
  * Displays real-time progress of a transaction based on actual status from the API.
  * Shows circular progress animation and step indicators.
  */
 export function Processing({ style }: ProcessingProps): React.ReactElement {
-  const {
-    transactionStatus,
-    transactionHash,
-    selectedToken,
-    selectedChain,
-    amount,
-    resetState,
-    setCurrentStep,
-    intentId,
-  } = useDeposit();
+  const { selectedToken, selectedChain, amount } = useDepositForm();
+  const { resetState, setCurrentStep } = useDepositNavigation();
+  const { transactionStatus, transactionHash, intentId } =
+    useDepositTransaction();
 
   // Get transaction details from polling hook
   const { transaction, startPolling, isPolling } = useTransactionPolling();
@@ -165,66 +162,7 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
         ...style,
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: `${spacing[4]} ${spacing[4]}`,
-          borderBottom: `1px solid ${colors.border}`,
-        }}
-      >
-        <div
-          style={{
-            width: "2.5rem",
-          }}
-        />
-        <h1
-          style={{
-            fontSize: fontSize.lg,
-            fontWeight: fontWeight.semibold,
-            color: colors.foreground,
-          }}
-        >
-          {headerTitle}
-        </h1>
-        <button
-          type="button"
-          onClick={handleClose}
-          style={{
-            width: "2.5rem",
-            height: "2.5rem",
-            borderRadius: "9999px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "background-color 0.2s",
-            border: 0,
-            backgroundColor: "transparent",
-            cursor: "pointer",
-          }}
-          aria-label="Close"
-        >
-          <svg
-            style={{
-              width: "1.25rem",
-              height: "1.25rem",
-              color: colors.foreground,
-            }}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
+      <WidgetPageHeader onClose={handleClose} title={headerTitle} />
 
       {/* Content */}
       <div
@@ -290,71 +228,13 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
         />
 
         {/* Transaction Hash Link */}
-        {transactionHash && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: spacing[2],
-              fontSize: fontSize.sm,
-            }}
-          >
-            <span
-              style={{
-                color: colors.mutedForeground,
-              }}
-            >
-              Transaction:
-            </span>
-            {explorerUrl ? (
-              <a
-                href={explorerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: spacing[1],
-                  color: colors.primary,
-                  textDecoration: "none",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {truncateHash(transactionHash)}
-                </span>
-                <svg
-                  style={{
-                    width: "0.875rem",
-                    height: "0.875rem",
-                  }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
-                </svg>
-              </a>
-            ) : (
-              <span
-                style={{
-                  fontFamily: "monospace",
-                  color: colors.foreground,
-                }}
-              >
-                {truncateHash(transactionHash)}
-              </span>
-            )}
-          </div>
-        )}
+        {transactionHash ? (
+          <TransactionHashLink
+            explorerUrl={explorerUrl}
+            hash={transactionHash}
+            label="Transaction"
+          />
+        ) : null}
 
         {/* Error State Action */}
         {transactionStatus === "error" && (
@@ -378,56 +258,7 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
         )}
       </div>
 
-      {/* Footer */}
-      <div
-        style={{
-          padding: `${spacing[4]} ${spacing[6]}`,
-          borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: spacing[2],
-          }}
-        >
-          <svg
-            style={{
-              width: "0.875rem",
-              height: "0.875rem",
-              color: colors.mutedForeground,
-            }}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-            />
-          </svg>
-          <span
-            style={{
-              fontSize: fontSize.sm,
-              color: colors.mutedForeground,
-            }}
-          >
-            Secured by{" "}
-            <span
-              style={{
-                fontWeight: fontWeight.semibold,
-                color: colors.foreground,
-              }}
-            >
-              Trustware
-            </span>
-          </span>
-        </div>
-      </div>
+      <WidgetSecurityFooter />
     </div>
   );
 }

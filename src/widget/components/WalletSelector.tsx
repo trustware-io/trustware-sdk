@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import { useWalletDetection } from "../../wallets/detect";
-import { useDeposit } from "../context/DepositContext";
+import { useDepositWallet } from "../context/DepositContext";
 import { toast } from "./Toast";
 import type { DetectedWallet } from "../../types";
 
@@ -216,7 +216,7 @@ export function WalletSelector({
 }: WalletSelectorProps): React.ReactElement {
   const { detected } = useWalletDetection();
   const { walletStatus, walletAddress, connectWallet, disconnectWallet } =
-    useDeposit();
+    useDepositWallet();
 
   const [connectingWalletId, setConnectingWalletId] = useState<string | null>(
     null

@@ -2,7 +2,11 @@
 import { useCallback, useState } from "react";
 import { Trustware } from "../../core";
 import { submitReceipt } from "../../core/routes";
-import { useDeposit } from "../context/DepositContext";
+import {
+  useDepositForm,
+  useDepositNavigation,
+  useDepositTransaction,
+} from "../context/DepositContext";
 import type { BuildRouteResult } from "../../types";
 
 /**
@@ -24,14 +28,14 @@ export type TransactionSubmitState = {
  * @returns Transaction submission state and submit function
  */
 export function useTransactionSubmit() {
+  const { selectedChain } = useDepositForm();
+  const { setCurrentStep } = useDepositNavigation();
   const {
-    selectedChain,
     setTransactionStatus,
     setTransactionHash,
     setErrorMessage,
-    setCurrentStep,
     setIntentId,
-  } = useDeposit();
+  } = useDepositTransaction();
 
   const [state, setState] = useState<TransactionSubmitState>({
     isSubmitting: false,

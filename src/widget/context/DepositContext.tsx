@@ -1,219 +1,95 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  useRef,
-  Dispatch,
-  SetStateAction,
-} from "react";
-import { walletManager } from "../../wallets/manager";
-import { useWalletDetection } from "../../wallets/detect";
-import type {
-  BalanceRow,
-  ChainDef,
-  DetectedWallet,
-  WalletInterFaceAPI,
-} from "../../types";
-import { useChains, useTokens } from "../hooks";
-import { getBalancesByAddress } from "src/core/balances";
+import React, { createContext, useContext, useState, useMemo } from "react";
+import { useTrustware } from "../../provider";
+import type { ChainDef } from "../../types";
 import {
-  canonicalTokenAddressForChain,
-  getNativeTokenAddress,
-  normalizeChainKey,
-} from "../helpers/chainHelpers";
-import { useTrustware } from "src/provider";
+  type Chain,
+  type DepositContextValue,
+  type NavigationDirection,
+  type NavigationStep,
+  type PaymentMethodType,
+  type ResolvedTheme,
+  type Token,
+  type TransactionStatus,
+  type YourTokenData,
+} from "../state/deposit/types";
+import { useDepositNavigationState } from "../state/deposit/useDepositNavigationState";
+import { useThemePreference } from "../state/deposit/useThemePreference";
+import { useWalletSessionState } from "../state/deposit/useWalletSessionState";
+import { useWalletTokenState } from "../state/deposit/useWalletTokenState";
 
-/**
- * localStorage key for persisting theme preference
- */
-const THEME_STORAGE_KEY = "trustware-widget-theme";
-
-/**
- * Resolved theme type (light or dark, not system)
- */
-export type ResolvedTheme = "light" | "dark";
-
-export interface YourTokenData {
-  chainIconURI: string;
-  chainData: ChainDef | undefined;
-  symbol: string;
-  decimals: number;
-  name: string;
-  iconUrl: string;
-  logoURI?: string;
-  chainId: number | string;
-  usdPrice: number | undefined;
-  address: string;
-  chain_key: string;
-  category: "native" | "erc20" | "spl" | "btc";
-  contract?: string;
-  /** Raw smallest-unit balance string (e.g. wei/lamports) */
-  balance: string;
-}
-
-/**
- * Navigation states for the deposit widget flow
- */
-export type NavigationStep =
-  | "home"
-  | "select-token"
-  | "crypto-pay"
-  | "processing"
-  | "success"
-  | "error";
-
-/**
- * Wallet connection status
- */
-export type WalletStatus =
-  | "idle"
-  | "detecting"
-  | "connecting"
-  | "connected"
-  | "error";
-
-/**
- * Transaction lifecycle status for deposit flow
- */
-export type TransactionStatus =
-  | "idle"
-  | "confirming"
-  | "processing"
-  | "bridging"
-  | "success"
-  | "error";
-
-/**
- * Payment method type for deposit selection
- */
-export type PaymentMethodType = "crypto" | "fiat";
-
-/**
- * Token information for deposit selection
- */
-export interface Token {
-  /** Token contract address (or 'native' for native tokens) */
-  address: string;
-  /** Token symbol (e.g., 'USDC', 'ETH') */
-  symbol: string;
-  /** Token display name (e.g., 'USD Coin', 'Ethereum') */
-  name: string;
-  /** Number of decimals for the token */
-  decimals: number;
-  /** URL to token icon/logo */
-  iconUrl?: string;
-  logoURI?: string;
-
-  /** Raw smallest-unit balance string (e.g. wei/lamports) when wallet connected */
-  balance?: string;
-
-  chainId: string | number;
-
-  usdPrice: number | undefined;
-}
-
-/**
- * Blockchain network information for deposit selection
- */
-export interface Chain {
-  /** Chain ID (e.g., 1 for Ethereum mainnet) */
-  chainId: number;
-  /** Chain display name (e.g., 'Ethereum', 'Polygon') */
-  name: string;
-  /** Short name or symbol (e.g., 'ETH', 'MATIC') */
-  shortName: string;
-  /** URL to chain icon/logo */
-  iconUrl?: string;
-  /** Whether this is a popular/featured chain */
-  isPopular?: boolean;
-  /** Native token symbol */
-  nativeToken: string;
-  /** Block explorer URL */
-  explorerUrl?: string;
-}
-
-export interface DepositContextValue {
-  /** Current navigation step */
-  currentStep: NavigationStep;
-  /** Set the current navigation step */
-  setCurrentStep: (step: NavigationStep) => void;
-  /** Navigate to the previous step */
-  goBack: () => void;
-  /** Reset state and return to home */
-  resetState: () => void;
-  /** History of visited steps for back navigation */
-  stepHistory: NavigationStep[];
-
-  // Wallet state
-  /** Currently connected wallet interface */
-  selectedWallet: WalletInterFaceAPI | null;
-  /** Current wallet address (null if not connected) */
-  walletAddress: string | null;
-  /** Current wallet connection status */
-  walletStatus: WalletStatus;
-  /** Connect to a detected wallet */
-  connectWallet: (wallet: DetectedWallet) => Promise<void>;
-  /** Disconnect the current wallet */
-  disconnectWallet: () => Promise<void>;
-
-  // Token and chain state
-  /** Currently selected token for deposit */
-  selectedToken: Token | null | YourTokenData;
-  /** Set the selected token */
-  setSelectedToken: (token: Token | null | YourTokenData) => void;
-  /** Currently selected blockchain network */
-  selectedChain: ChainDef | null;
-  /** Set the selected chain */
-  setSelectedChain: (chain: ChainDef | null) => void;
-  /** Deposit amount as string (to preserve decimal precision) */
-  amount: string;
-  /** Set the deposit amount */
-  setAmount: (amount: string) => void;
-
-  // Transaction lifecycle state
-  /** Current transaction status */
-  transactionStatus: TransactionStatus;
-  /** Set the transaction status */
-  setTransactionStatus: (status: TransactionStatus) => void;
-  /** Transaction hash after submission (null if not yet submitted) */
-  transactionHash: string | null;
-  /** Set the transaction hash */
-  setTransactionHash: (hash: string | null) => void;
-  /** Error message for failed transactions */
-  errorMessage: string | null;
-  /** Set the error message */
-  setErrorMessage: (message: string | null) => void;
-  /** Route intent ID for transaction tracking */
-  intentId: string | null;
-  /** Set the intent ID */
-  setIntentId: (id: string | null) => void;
-
-  // Payment method state
-  /** Selected payment method type */
-  paymentMethod: PaymentMethodType;
-  /** Set the payment method type */
-  setPaymentMethod: (method: PaymentMethodType) => void;
-
-  // Theme state
-  /** Current resolved theme (light or dark) */
-  resolvedTheme: ResolvedTheme;
-  /** Toggle between light and dark themes */
-  toggleTheme: () => void;
-
-  setYourWalletTokens: React.Dispatch<React.SetStateAction<YourTokenData[]>>;
-
-  yourWalletTokens: YourTokenData[];
-
-  amountInputMode: "usd" | "token";
-  setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
-}
+export type {
+  Chain,
+  DepositContextValue,
+  NavigationDirection,
+  NavigationStep,
+  PaymentMethodType,
+  ResolvedTheme,
+  Token,
+  TransactionStatus,
+  YourTokenData,
+};
 
 const DepositContext = createContext<DepositContextValue | undefined>(
   undefined
 );
+const DepositNavigationContext = createContext<
+  | Pick<
+      DepositContextValue,
+      | "currentStep"
+      | "setCurrentStep"
+      | "goBack"
+      | "resetState"
+      | "stepHistory"
+      | "navigationDirection"
+    >
+  | undefined
+>(undefined);
+const DepositWalletContext = createContext<
+  | Pick<
+      DepositContextValue,
+      | "selectedWallet"
+      | "walletAddress"
+      | "walletStatus"
+      | "connectWallet"
+      | "disconnectWallet"
+      | "yourWalletTokens"
+      | "setYourWalletTokens"
+    >
+  | undefined
+>(undefined);
+const DepositFormContext = createContext<
+  | Pick<
+      DepositContextValue,
+      | "selectedToken"
+      | "setSelectedToken"
+      | "selectedChain"
+      | "setSelectedChain"
+      | "amount"
+      | "setAmount"
+      | "paymentMethod"
+      | "setPaymentMethod"
+      | "amountInputMode"
+      | "setAmountInputMode"
+    >
+  | undefined
+>(undefined);
+const DepositTransactionContext = createContext<
+  | Pick<
+      DepositContextValue,
+      | "transactionStatus"
+      | "setTransactionStatus"
+      | "transactionHash"
+      | "setTransactionHash"
+      | "errorMessage"
+      | "setErrorMessage"
+      | "intentId"
+      | "setIntentId"
+    >
+  | undefined
+>(undefined);
+const DepositUiContext = createContext<
+  Pick<DepositContextValue, "resolvedTheme" | "toggleTheme"> | undefined
+>(undefined);
 
 export interface DepositProviderProps {
   children: React.ReactNode;
@@ -230,31 +106,26 @@ export function DepositProvider({
 }: DepositProviderProps): React.ReactElement {
   useTrustware(); // ensures provider is present
 
+  const {
+    currentStep,
+    stepHistory,
+    navigationDirection,
+    setCurrentStep,
+    goBack,
+    resetNavigation,
+  } = useDepositNavigationState(initialStep);
+  const { resolvedTheme, toggleTheme } = useThemePreference();
+  const {
+    selectedWallet,
+    walletAddress,
+    walletStatus,
+    connectWallet,
+    disconnectWallet,
+  } = useWalletSessionState();
+
   const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
     "usd"
   );
-
-  const [currentStep, setCurrentStepInternal] =
-    useState<NavigationStep>(initialStep);
-  const [stepHistory, setStepHistory] = useState<NavigationStep[]>([
-    initialStep,
-  ]);
-
-  // Wallet state
-  const [selectedWallet, setSelectedWallet] =
-    useState<WalletInterFaceAPI | null>(walletManager.wallet);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [walletStatus, setWalletStatus] = useState<WalletStatus>(
-    walletManager.status as WalletStatus
-  );
-
-  // Wire wallet detection into manager (detection only, no auto-connect)
-  const { detected } = useWalletDetection();
-
-  // Feed detected wallets into manager for display in UI
-  useEffect(() => {
-    walletManager.setDetected(detected);
-  }, [detected]);
 
   // Token and chain state
   const [selectedToken, setSelectedToken] = useState<
@@ -262,9 +133,14 @@ export function DepositProvider({
   >(null);
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
-  const [yourWalletTokens, setYourWalletTokens] = useState<YourTokenData[]>([]);
-  const [walletTokensReloadNonce, setWalletTokensReloadNonce] = useState(0);
-  const lastLoadedWalletRef = useRef<string | null>(null);
+  const { yourWalletTokens, setYourWalletTokens, reloadWalletTokens } =
+    useWalletTokenState({
+      walletAddress,
+      selectedChain,
+      setSelectedChain,
+      selectedToken,
+      setSelectedToken,
+    });
 
   // Transaction lifecycle state
   const [transactionStatus, setTransactionStatus] =
@@ -277,332 +153,88 @@ export function DepositProvider({
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethodType>("crypto");
 
-  // Theme state - load from localStorage or use system preference
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => {
-    // Try to load from localStorage
-    try {
-      const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      if (stored === "light" || stored === "dark") {
-        return stored;
-      }
-    } catch {
-      // localStorage not available
-    }
-    // Fall back to system preference
-    if (typeof window !== "undefined" && window.matchMedia) {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-    }
-    return "light";
-  });
-
-  /**
-   * Subscribe to walletManager state changes
-   */
-  useEffect(() => {
-    const unsubscribe = walletManager.onChange((status) => {
-      setWalletStatus(status as WalletStatus);
-      setSelectedWallet(walletManager.wallet);
-
-      // Update wallet address when connected
-      if (status === "connected" && walletManager.wallet) {
-        walletManager.wallet
-          .getAddress()
-          .then((address) => {
-            setWalletAddress(address);
-          })
-          .catch(() => {
-            setWalletAddress(null);
-          });
-      } else if (status !== "connected") {
-        setWalletAddress(null);
-      }
-    });
-
-    // Initialize wallet address if already connected
-    if (walletManager.status === "connected" && walletManager.wallet) {
-      walletManager.wallet
-        .getAddress()
-        .then((address) => {
-          setWalletAddress(address);
-        })
-        .catch(() => {
-          setWalletAddress(null);
-        });
-    }
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  const { tokens } = useTokens(null);
-
-  const { chains } = useChains();
-
-  /* eslint-disable react-hooks/set-state-in-effect -- syncing wallet tokens with external wallet/chain state */
-  useEffect(() => {
-    if (!walletAddress || chains.length === 0 || tokens.length === 0) {
-      setYourWalletTokens([]);
-      if (!walletAddress) {
-        lastLoadedWalletRef.current = null;
-      }
-      return;
-    }
-
-    const loadKey = `${walletAddress}:${walletTokensReloadNonce}`;
-
-    if (lastLoadedWalletRef.current === loadKey) {
-      return;
-    }
-
-    let cancelled = false;
-
-    /**
-     * Loads wallet tokens and balances for the currently connected wallet.
-     * @return {Promise<void>} Resolves when the operation is complete.
-     * @throws {Error} If an error occurs while loading the balances.
-     */
-
-    async function loadWalletTokens() {
-      try {
-        const arr = await getBalancesByAddress(walletAddress as string);
-
-        const flatenedTokenWithBalancesArr = arr.flatMap((obj) =>
-          (obj.balances ?? []).flatMap((balance) => {
-            if (!balance || !obj?.chain_id) {
-              return [];
-            }
-
-            return [
-              {
-                ...balance,
-                chain_id: obj.chain_id,
-              },
-            ];
-          })
-        );
-
-        // ...............................................................//
-
-        const tokensByCanonicalKey = new Map<string, (typeof tokens)[number]>();
-        for (const token of tokens) {
-          const tokenChain = chains.find(
-            (chain) =>
-              normalizeChainKey(chain.chainId) ===
-              normalizeChainKey(token.chainId)
-          );
-          if (!tokenChain) continue;
-
-          const canonicalAddress = canonicalTokenAddressForChain(
-            tokenChain,
-            token.address,
-            tokens
-          );
-          const key = `${normalizeChainKey(token.chainId)}:${canonicalAddress}`;
-          tokensByCanonicalKey.set(key, token);
-        }
-
-        const updatedArr: YourTokenData[] =
-          flatenedTokenWithBalancesArr.flatMap((balanceRow) => {
-            const chain = chains.find(
-              (c) =>
-                normalizeChainKey(c.chainId) ===
-                normalizeChainKey(balanceRow.chain_id)
-            );
-            if (!chain) return [];
-
-            const balanceAddress =
-              balanceRow.contract ??
-              (balanceRow as BalanceRow & { address?: string }).address;
-
-            const canonicalBalanceAddress = canonicalTokenAddressForChain(
-              chain,
-              balanceAddress,
-              tokens
-            );
-            const canonicalKey = `${normalizeChainKey(balanceRow.chain_id)}:${canonicalBalanceAddress}`;
-            let foundToken = tokensByCanonicalKey.get(canonicalKey);
-
-            if (!foundToken) {
-              const isNativeCategory = balanceRow.category === "native";
-              if (isNativeCategory) {
-                const nativeAddress = canonicalTokenAddressForChain(
-                  chain,
-                  getNativeTokenAddress(chain.type),
-                  tokens
-                );
-                const nativeKey = `${normalizeChainKey(balanceRow.chain_id)}:${nativeAddress}`;
-                foundToken = tokensByCanonicalKey.get(nativeKey);
-              }
-            }
-
-            if (
-              !foundToken?.name ||
-              !foundToken?.symbol ||
-              !foundToken?.address
-            ) {
-              return [];
-            }
-
-            return [
-              {
-                ...balanceRow,
-                symbol: foundToken.symbol,
-                decimals: foundToken.decimals,
-                name: foundToken.name,
-                iconUrl: foundToken.iconUrl ?? foundToken.logoURI ?? "",
-                chainId: balanceRow.chain_id,
-                usdPrice: foundToken.usdPrice,
-                // Preserve the registry/backend token identifier for downstream
-                // route payloads; canonicalization is only for comparisons.
-                address: foundToken.address,
-                chainIconURI: chain?.chainIconURI || "",
-                chainData: chain,
-              },
-            ];
-          });
-
-        if (!cancelled) {
-          setYourWalletTokens(
-            updatedArr.sort((a, b) => Number(b.balance) - Number(a.balance))
-          );
-
-          const findtokenwithBalance = updatedArr.find(
-            (t) => Number(t.balance) > 0
-          );
-
-          setSelectedToken(
-            findtokenwithBalance as Token & {
-              balance: string;
-              chainIconURI: string;
-              chainData: ChainDef;
-            }
-          );
-
-          setSelectedChain(findtokenwithBalance?.chainData as Chain);
-          lastLoadedWalletRef.current = loadKey;
-        }
-      } catch (err) {
-        void err; // balance loading failed — non-fatal
-        if (!cancelled) setYourWalletTokens([]);
-      }
-    }
-
-    void loadWalletTokens();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chains, tokens, walletAddress, walletTokensReloadNonce]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  /**
-   * Connect to a detected wallet
-   */
-  const connectWallet = useCallback(async (wallet: DetectedWallet) => {
-    await walletManager.connectDetected(wallet);
-  }, []);
-
-  /**
-   * Disconnect the current wallet
-   */
-  const disconnectWallet = useCallback(async () => {
-    await walletManager.disconnect();
-  }, []);
-
-  /**
-   * Set the current step and track history
-   */
-  const setCurrentStep = useCallback((step: NavigationStep) => {
-    setCurrentStepInternal(step);
-    setStepHistory((prev) => {
-      // Don't add duplicate consecutive steps
-      if (prev[prev.length - 1] === step) {
-        return prev;
-      }
-      return [...prev, step];
-    });
-  }, []);
-
-  /**
-   * Navigate to the previous step based on history
-   */
-  const goBack = useCallback(() => {
-    setStepHistory((prev) => {
-      if (prev.length <= 1) {
-        // Already at the beginning, stay at home
-        setCurrentStepInternal("home");
-        return ["home"];
-      }
-
-      // Remove current step from history
-      const newHistory = prev.slice(0, -1);
-      const previousStep = newHistory[newHistory.length - 1] || "home";
-      setCurrentStepInternal(previousStep);
-      return newHistory;
-    });
-  }, []);
-
   /**
    * Reset all state and return to home
    */
-  const resetState = useCallback(() => {
-    setCurrentStepInternal("home");
-    setStepHistory(["home"]);
+  const resetState = React.useCallback(() => {
+    resetNavigation();
     setSelectedToken(null);
     setSelectedChain(null);
     setAmount("");
     setAmountInputMode("usd");
-    // Reset transaction state
     setTransactionStatus("idle");
     setTransactionHash(null);
     setErrorMessage(null);
     setIntentId(null);
-    // Reset payment method to crypto
     setPaymentMethod("crypto");
-    // Force wallet token balances to refresh for the next deposit attempt.
-    setWalletTokensReloadNonce((prev) => prev + 1);
-  }, []);
+    reloadWalletTokens();
+  }, [reloadWalletTokens, resetNavigation]);
 
-  /**
-   * Toggle between light and dark themes
-   */
-  const toggleTheme = useCallback(() => {
-    setResolvedTheme((current) => {
-      const newTheme = current === "light" ? "dark" : "light";
-      // Persist to localStorage
-      try {
-        localStorage.setItem(THEME_STORAGE_KEY, newTheme);
-      } catch {
-        // localStorage not available
-      }
-      return newTheme;
-    });
-  }, []);
-
-  const value = useMemo<DepositContextValue>(
+  const navigationValue = useMemo(
     () => ({
       currentStep,
       setCurrentStep,
       goBack,
       resetState,
       stepHistory,
-      // Wallet state
+      navigationDirection,
+    }),
+    [
+      currentStep,
+      goBack,
+      navigationDirection,
+      resetState,
+      setCurrentStep,
+      stepHistory,
+    ]
+  );
+
+  const walletValue = useMemo(
+    () => ({
       selectedWallet,
       walletAddress,
       walletStatus,
       connectWallet,
       disconnectWallet,
-      // Token and chain state
+      yourWalletTokens,
+      setYourWalletTokens,
+    }),
+    [
+      connectWallet,
+      disconnectWallet,
+      selectedWallet,
+      setYourWalletTokens,
+      walletAddress,
+      walletStatus,
+      yourWalletTokens,
+    ]
+  );
+
+  const formValue = useMemo(
+    () => ({
       selectedToken,
       setSelectedToken,
       selectedChain,
       setSelectedChain,
       amount,
       setAmount,
-      // Transaction lifecycle state
+      paymentMethod,
+      setPaymentMethod,
+      amountInputMode,
+      setAmountInputMode,
+    }),
+    [
+      amount,
+      amountInputMode,
+      paymentMethod,
+      selectedChain,
+      selectedToken,
+      setPaymentMethod,
+    ]
+  );
+
+  const transactionValue = useMemo(
+    () => ({
       transactionStatus,
       setTransactionStatus,
       transactionHash,
@@ -611,48 +243,75 @@ export function DepositProvider({
       setErrorMessage,
       intentId,
       setIntentId,
-      // Payment method state
-      paymentMethod,
-      setPaymentMethod,
-      // Theme state
-      resolvedTheme,
-      toggleTheme,
-
-      yourWalletTokens,
-      setYourWalletTokens,
-
-      amountInputMode,
-      setAmountInputMode,
     }),
-    [
-      currentStep,
-      setCurrentStep,
-      goBack,
-      resetState,
-      stepHistory,
-      selectedWallet,
-      walletAddress,
-      walletStatus,
-      connectWallet,
-      disconnectWallet,
-      selectedToken,
-      selectedChain,
-      amount,
-      transactionStatus,
-      transactionHash,
-      errorMessage,
-      intentId,
-      paymentMethod,
+    [errorMessage, intentId, transactionHash, transactionStatus]
+  );
+
+  const uiValue = useMemo(
+    () => ({
       resolvedTheme,
       toggleTheme,
-      yourWalletTokens,
-      amountInputMode,
-    ]
+    }),
+    [resolvedTheme, toggleTheme]
+  );
+
+  const value = useMemo<DepositContextValue>(
+    () => ({
+      ...navigationValue,
+      ...walletValue,
+      ...formValue,
+      ...transactionValue,
+      ...uiValue,
+    }),
+    [formValue, navigationValue, transactionValue, uiValue, walletValue]
   );
 
   return (
-    <DepositContext.Provider value={value}>{children}</DepositContext.Provider>
+    <DepositNavigationContext.Provider value={navigationValue}>
+      <DepositWalletContext.Provider value={walletValue}>
+        <DepositFormContext.Provider value={formValue}>
+          <DepositTransactionContext.Provider value={transactionValue}>
+            <DepositUiContext.Provider value={uiValue}>
+              <DepositContext.Provider value={value}>
+                {children}
+              </DepositContext.Provider>
+            </DepositUiContext.Provider>
+          </DepositTransactionContext.Provider>
+        </DepositFormContext.Provider>
+      </DepositWalletContext.Provider>
+    </DepositNavigationContext.Provider>
   );
+}
+
+function useRequiredContext<T>(
+  context: React.Context<T | undefined>,
+  name: string
+) {
+  const value = useContext(context);
+  if (value === undefined) {
+    throw new Error(`${name} must be used within a DepositProvider`);
+  }
+  return value;
+}
+
+export function useDepositNavigation() {
+  return useRequiredContext(DepositNavigationContext, "useDepositNavigation");
+}
+
+export function useDepositWallet() {
+  return useRequiredContext(DepositWalletContext, "useDepositWallet");
+}
+
+export function useDepositForm() {
+  return useRequiredContext(DepositFormContext, "useDepositForm");
+}
+
+export function useDepositTransaction() {
+  return useRequiredContext(DepositTransactionContext, "useDepositTransaction");
+}
+
+export function useDepositUi() {
+  return useRequiredContext(DepositUiContext, "useDepositUi");
 }
 
 /**

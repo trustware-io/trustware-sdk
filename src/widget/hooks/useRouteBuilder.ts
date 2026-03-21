@@ -2,7 +2,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Trustware } from "../../core";
 import { TrustwareConfigStore } from "../../config/store";
-import { useDeposit } from "../context/DepositContext";
+import {
+  useDepositForm,
+  useDepositTransaction,
+  useDepositWallet,
+} from "../context/DepositContext";
 import type { BuildRouteResult, ChainDef } from "../../types";
 import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../../core/routes";
 
@@ -74,10 +78,9 @@ export function useRouteBuilder({
   refundAddress,
   slippage,
 }: UseRouteBuilderOptions): RouteBuilderState {
-  // const { debounceMs = 300, enabled = true } = options;
-
-  const { selectedToken, selectedChain, amount, walletAddress, errorMessage } =
-    useDeposit();
+  const { selectedToken, selectedChain, amount } = useDepositForm();
+  const { walletAddress } = useDepositWallet();
+  const { errorMessage } = useDepositTransaction();
 
   const [state, setState] = useState<RouteBuilderState>({
     isLoadingRoute: false,

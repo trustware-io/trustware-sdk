@@ -10,6 +10,10 @@ export {
 export { ConfettiEffect, type ConfettiEffectProps } from "./ConfettiEffect";
 export { Dialog, type DialogProps } from "./Dialog";
 export {
+  TransactionHashLink,
+  type TransactionHashLinkProps,
+} from "./TransactionHashLink";
+export {
   SwipeToConfirmTokens,
   type SwipeToConfirmTokensProps,
 } from "./SwipeToConfirmTokens";
@@ -31,4 +35,12 @@ export {
   type Theme,
   type WidgetContainerProps,
 } from "./WidgetContainer";
+export {
+  WidgetPageHeader,
+  type WidgetPageHeaderProps,
+} from "./WidgetPageHeader";
+export {
+  WidgetSecurityFooter,
+  type WidgetSecurityFooterProps,
+} from "./WidgetSecurityFooter";
 export * from "./Skeletons";
