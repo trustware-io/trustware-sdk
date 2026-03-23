@@ -1,7 +1,13 @@
 import React, { useMemo, useEffect } from "react";
-import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
-import { useDeposit } from "../context/DepositContext";
+import { colors } from "../styles";
+import {
+  useDepositForm,
+  useDepositNavigation,
+  useDepositTransaction,
+} from "../context/DepositContext";
 import { TrustwareConfigStore } from "../../config/store";
+import { WidgetPageHeader, WidgetSecurityFooter } from "../components";
+import { ErrorRecoveryCard } from "../features/transaction";
 
 export interface ErrorProps {
   /** Additional inline styles */
@@ -168,15 +174,14 @@ function getRetryStep(
  * Displays user-friendly error messages with appropriate recovery options.
  */
 export function Error({ style }: ErrorProps): React.ReactElement {
+  const { selectedChain } = useDepositForm();
+  const { setCurrentStep, resetState } = useDepositNavigation();
   const {
     errorMessage,
-    setCurrentStep,
     setTransactionStatus,
     setErrorMessage,
     transactionHash,
-    selectedChain,
-    resetState,
-  } = useDeposit();
+  } = useDepositTransaction();
 
   // Categorize the error for appropriate handling
   const errorCategory = useMemo(
@@ -327,257 +332,20 @@ export function Error({ style }: ErrorProps): React.ReactElement {
         ...style,
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: `${spacing[4]} ${spacing[4]}`,
-          borderBottom: `1px solid ${colors.border}`,
-        }}
-      >
-        <h1
-          style={{
-            fontSize: fontSize.lg,
-            fontWeight: fontWeight.semibold,
-            color: colors.foreground,
-          }}
-        >
-          {errorTitle}
-        </h1>
-      </div>
+      <WidgetPageHeader title={errorTitle} />
 
-      {/* Content */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: `${spacing[8]} ${spacing[6]}`,
-        }}
-      >
-        {/* Error Icon */}
-        <div
-          style={{
-            width: "5rem",
-            height: "5rem",
-            borderRadius: "9999px",
-            backgroundColor: "rgba(239, 68, 68, 0.1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: spacing[6],
-          }}
-        >
-          {renderErrorIcon()}
-        </div>
+      <ErrorRecoveryCard
+        errorMessage={errorMessage}
+        errorSuggestion={errorSuggestion}
+        errorTitle={errorTitle}
+        explorerUrl={explorerUrl}
+        onStartOver={handleStartOver}
+        onTryAgain={handleTryAgain}
+        renderErrorIcon={renderErrorIcon}
+        transactionHash={transactionHash}
+      />
 
-        {/* Error Message */}
-        <h2
-          style={{
-            fontSize: fontSize["2xl"],
-            fontWeight: fontWeight.bold,
-            color: colors.foreground,
-            textAlign: "center",
-            marginBottom: spacing[2],
-          }}
-        >
-          {errorTitle}
-        </h2>
-
-        {/* Error Details */}
-        {errorMessage && (
-          <p
-            style={{
-              color: colors.mutedForeground,
-              textAlign: "center",
-              marginBottom: spacing[4],
-              maxWidth: "20rem",
-            }}
-          >
-            {errorMessage}
-          </p>
-        )}
-
-        {/* Suggestion */}
-        <p
-          style={{
-            fontSize: fontSize.sm,
-            color: colors.mutedForeground,
-            textAlign: "center",
-            marginBottom: spacing[6],
-            maxWidth: "20rem",
-          }}
-        >
-          {errorSuggestion}
-        </p>
-
-        {/* Transaction Hash Link (if available) */}
-        {explorerUrl && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: spacing[1],
-              marginBottom: spacing[6],
-            }}
-          >
-            <span
-              style={{
-                fontSize: fontSize.sm,
-                color: colors.mutedForeground,
-              }}
-            >
-              Transaction ID
-            </span>
-            <a
-              href={explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: spacing[1.5],
-                color: colors.primary,
-                textDecoration: "none",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: fontSize.sm,
-                }}
-              >
-                {transactionHash!.slice(0, 8)}...{transactionHash!.slice(-6)}
-              </span>
-              <svg
-                style={{
-                  width: "0.875rem",
-                  height: "0.875rem",
-                }}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-            </a>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: spacing[3],
-            width: "100%",
-            maxWidth: "20rem",
-          }}
-        >
-          {/* Try Again Button */}
-          <button
-            type="button"
-            onClick={handleTryAgain}
-            style={{
-              width: "100%",
-              padding: `${spacing[3]} ${spacing[6]}`,
-              borderRadius: borderRadius.xl,
-              backgroundColor: colors.primary,
-              color: colors.primaryForeground,
-              fontWeight: fontWeight.semibold,
-              fontSize: fontSize.base,
-              transition: "background-color 0.2s",
-              border: 0,
-              cursor: "pointer",
-            }}
-          >
-            Try Again
-          </button>
-
-          {/* Start Over Button (secondary) */}
-          <button
-            type="button"
-            onClick={handleStartOver}
-            style={{
-              width: "100%",
-              padding: `${spacing[3]} ${spacing[6]}`,
-              borderRadius: borderRadius.xl,
-              backgroundColor: "transparent",
-              color: colors.mutedForeground,
-              fontWeight: fontWeight.medium,
-              fontSize: fontSize.base,
-              transition: "background-color 0.2s",
-              border: `1px solid ${colors.border}`,
-              cursor: "pointer",
-            }}
-          >
-            Start Over
-          </button>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div
-        style={{
-          padding: `${spacing[4]} ${spacing[6]}`,
-          borderTop: `1px solid rgba(63, 63, 70, 0.3)`,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: spacing[2],
-          }}
-        >
-          <svg
-            style={{
-              width: "0.875rem",
-              height: "0.875rem",
-              color: colors.mutedForeground,
-            }}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-            />
-          </svg>
-          <span
-            style={{
-              fontSize: fontSize.sm,
-              color: colors.mutedForeground,
-            }}
-          >
-            Secured by{" "}
-            <span
-              style={{
-                fontWeight: fontWeight.semibold,
-                color: colors.foreground,
-              }}
-            >
-              Trustware
-            </span>
-          </span>
-        </div>
-      </div>
+      <WidgetSecurityFooter />
     </div>
   );
 }

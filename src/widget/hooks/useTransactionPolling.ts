@@ -1,8 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus } from "../../core/routes";
-import { useDeposit } from "../context/DepositContext";
-import { useTrustware } from "src/provider";
+import {
+  useDepositNavigation,
+  useDepositTransaction,
+} from "../context/DepositContext";
+import { useTrustware } from "../../provider";
 import type { Transaction } from "../../types";
 
 /**
@@ -40,8 +43,8 @@ export type TransactionPollingState = {
  * @returns Transaction polling state and control functions
  */
 export function useTransactionPolling() {
-  const { setTransactionStatus, setCurrentStep, setErrorMessage } =
-    useDeposit();
+  const { setCurrentStep } = useDepositNavigation();
+  const { setTransactionStatus, setErrorMessage } = useDepositTransaction();
   const { emitSuccess } = useTrustware();
 
   const [state, setState] = useState<TransactionPollingState>({
