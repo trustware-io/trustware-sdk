@@ -1,54 +1,46 @@
-# Trustware SDK without the Widget
+# Trustware Core Guide
 
-The Trustware core exports the same routing engine and wallet plumbing that
-powers the widget. You can call it directly to embed quoting, route selection,
-and transaction execution into your own UI while still reusing the resolved
-configuration from `TrustwareProvider`.
+Use the core API when you want Trustware routing and wallet plumbing without the prebuilt widget UI.
 
-## Prerequisites
+The core shares the same provider config and wallet state as the widget.
 
-- Install and configure `@trustware/sdk` as described in the [Integration Guide](../README.md).
-- Wrap your app with `TrustwareProvider` so the core has access to your API key,
-  default routes, theme, and wallet options.
-- (Optional) Pass an existing wallet connection to the provider via the
-  `wallet` prop or attach it later with `Trustware.useWallet(wallet)`.
+## Setup
 
-Once the provider is mounted you can import the singleton core helpers from
-`@trustware/sdk`.
+```tsx
+import { TrustwareProvider, type TrustwareConfigOptions } from "@trustware/sdk";
+```
+
+```ts
+const trustwareConfig = {
+  apiKey: process.env.NEXT_PUBLIC_TRUSTWARE_API_KEY!,
+  routes: {
+    toChain: "8453",
+    toToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    defaultSlippage: 1,
+    options: {
+      routeRefreshMs: 15000,
+    },
+  },
+} satisfies TrustwareConfigOptions;
+```
+
+Mount the provider once:
+
+```tsx
+<TrustwareProvider config={trustwareConfig}>{children}</TrustwareProvider>
+```
+
+Then use the core:
 
 ```ts
 import { Trustware } from "@trustware/sdk";
 ```
 
-## Reading the Resolved Configuration
+## Core Usage Modes
 
-The core shares the same configuration instance that the widget uses. Retrieve
-it via `Trustware.getConfig()` once the provider has mounted.
-
-```ts
-const cfg = Trustware.getConfig();
-console.log(cfg.routes.toChain); // "8453"
-```
-
-The configuration automatically merges defaults from `resolveConfig`, including
-fallbacks for `routes.toAddress` when you call `Trustware.setDestinationAddress`
-or when only a `fromAddress` is present.
-
-## Detecting / Managing Wallets
-
-The SDK exposes light-weight helpers for wallet management:
-
-- `Trustware.autoDetect()` – kicks off provider discovery if
-  `autoDetectProvider` is enabled. Returns an `Unsub` function.
-- `Trustware.useWallet(wallet)` – inject an already-connected wallet.
-- `Trustware.getWallet()` / `Trustware.getAddress()` – read the active wallet or
-  connected address.
-
-You can combine these to build your own connection prompts or reuse a dapp’s
-existing Wagmi/RainbowKit wiring.
+### 1. Reuse Host Wallet State
 
 ```ts
-// Example: attach a Wagmi wallet client imperatively
 import { useEffect } from "react";
 import { useWalletClient } from "wagmi";
 import { useWagmi } from "@trustware/sdk/wallet";
@@ -59,91 +51,121 @@ export function useTrustwareWalletBridge() {
 
   useEffect(() => {
     if (!data) return;
-    const wallet = useWagmi(data);
-    Trustware.useWallet(wallet);
+    Trustware.useWallet(useWagmi(data));
   }, [data]);
 }
 ```
 
-## Building and Quoting Routes
+### 2. Let Trustware Detect Wallets
 
-Use `Trustware.buildRoute` to create a route payload and
-`Trustware.getQuote` to request pricing before showing anything to the user.
+```ts
+await Trustware.autoDetect();
+```
+
+### 3. Set Runtime Destination Address
+
+```ts
+Trustware.setDestinationAddress("0xDestination...");
+```
+
+## Read The Resolved Config
 
 ```ts
 const cfg = Trustware.getConfig();
-const fromAddress = await Trustware.getAddress();
+console.log(cfg.routes.toChain);
+```
 
+Current config fields that matter most for headless integrations:
+
+- `routes.toChain`
+- `routes.toToken`
+- `routes.fromToken`
+- `routes.fromAddress`
+- `routes.toAddress`
+- `routes.defaultSlippage`
+- `routes.routeType`
+- `routes.options.routeRefreshMs`
+- `routes.options.fixedFromAmount`
+- `routes.options.minAmountOut`
+- `routes.options.maxAmountOut`
+
+## Build A Route
+
+```ts
 const route = await Trustware.buildRoute({
   amount: "0.1",
-  fromAddress,
-  toAddress: cfg.routes.toAddress ?? fromAddress,
+  fromAddress: await Trustware.getAddress(),
 });
+```
 
+Use `buildRoute` when:
+
+- you want to inspect route details before submission
+- you are building your own amount/token UI
+- you need a quote-first flow
+
+## Get A Quote
+
+```ts
 const quote = await Trustware.getQuote(route);
 console.log(quote.expectedAmountOut);
 ```
 
-- `amount` is denominated in the `fromToken` currency (typically native ETH).
-- `fromAddress` defaults to the connected wallet if omitted.
-- `toAddress` falls back to `cfg.routes.toAddress` and then `fromAddress` just
-  like the widget does.
-
-## Running a Top-up Without the Widget
-
-`Trustware.runTopUp` orchestrates quoting, approvals, and transaction
-submission. You can wrap it with your own UI state and progress indicators.
+## Run The Full Headless Flow
 
 ```ts
-try {
-  const result = await Trustware.runTopUp({
-    amount: "0.25",
-    fromAddress: await Trustware.getAddress(),
-    // Optional if already set via setDestinationAddress or in config
-    toAddress: "0xDestination...",
-  });
+const result = await Trustware.runTopUp({
+  amount: "0.1",
+  fromAddress: await Trustware.getAddress(),
+});
 
-  console.log("Top-up confirmed", result.txHash);
-} catch (err) {
-  console.error("Top-up failed", err);
+console.log(result.txHash);
+```
+
+Use `runTopUp` when:
+
+- you want the SDK to handle the route + approval + submit path for you
+- you are building a custom UI but not custom transaction orchestration
+
+## Events
+
+```ts
+const unsubscribe = Trustware.on("status", (status) => {
+  console.log("status", status);
+});
+
+unsubscribe();
+```
+
+Common events:
+
+- `status`
+- `quote`
+- `error`
+
+## Error Handling
+
+```ts
+import { RateLimitError, Trustware } from "@trustware/sdk";
+
+try {
+  await Trustware.buildRoute({
+    amount: "0.1",
+    fromAddress: await Trustware.getAddress(),
+  });
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    console.error("Rate limited", error.rateLimitInfo);
+  }
 }
 ```
 
-The return value includes the transaction hash, receipt (when available), and
-any intermediate approvals performed on the user’s behalf.
+## When To Use The Widget Instead
 
-## Responding to Lifecycle Events
+Use the widget if you want:
 
-The core emits events that mirror the widget lifecycle. Register listeners with
-`Trustware.on(event, handler)` and dispose of them via the returned
-unsubscribe function.
+- built-in wallet selection
+- built-in amount/token/confirmation UI
+- built-in processing and success/error steps
 
-```ts
-const unsub = Trustware.on("status", (status) => {
-  console.log("Trustware status", status);
-});
-
-// Later, when no longer needed:
-unsub();
-```
-
-Useful events include:
-
-- `status` – high-level status updates ("idle", "quoting", "submitting", etc.).
-- `quote` – the most recent quote payload.
-- `error` – errors thrown during route construction or submission.
-
-## Error Handling Tips
-
-- Display actionable errors surfaced from `Trustware.runTopUp` or event
-  listeners, especially when approvals or bridge providers fail upstream.
-- Consider wrapping calls in retry logic for transient network issues.
-- Always guard core calls to ensure the provider has mounted and a wallet is
-  available if required.
-
-## Further Reading
-
-- [Integration Guide](../README.md) – end-to-end overview and widget examples.
-- Explore the TypeScript definitions in [`src/core`](../src/core) for the
-  complete surface area, including advanced helpers for balances, tokens, and
-  chain metadata.
+See [intergrationGuide.md](./intergrationGuide.md) for the widget-based paths.
