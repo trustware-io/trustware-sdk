@@ -62,6 +62,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "check:surface": "node scripts/check-public-surface.mjs",
+    "test:widget-smoke": "npm run build && node --test scripts/widget-flow-smoke.test.mjs",
     "validate": "npm run typecheck && npm run lint:strict && npm run format:check",
     "size": "size-limit",
     "size:check": "size-limit --limit"

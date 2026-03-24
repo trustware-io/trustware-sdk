@@ -1,47 +1,49 @@
 # Trustware SDK Integration Guide
 
-The Trustware SDK ships a React provider, UI widget, and a typed core API for
-bridging/top-up routes. This guide outlines the two supported integration
-patterns and the key primitives exposed by the SDK.
+This guide focuses on the current widget flow, the current config surface, and the supported integration patterns.
 
-## Installation
+## Current Widget Flow
+
+The prebuilt widget currently walks users through:
+
+`Home -> Select Token -> Confirm Deposit -> Processing -> Success/Error`
+
+That flow is driven by `TrustwareProvider` config plus either Trustware-managed wallet detection or a wallet injected by the host app.
+
+## Required Setup
 
 ```bash
 npm install @trustware/sdk
-# or
-pnpm add @trustware/sdk
 ```
 
-The package exposes ESM modules and ships TypeScript types.
+```tsx
+import {
+  TrustwareProvider,
+  TrustwareWidget,
+  type TrustwareConfigOptions,
+} from "@trustware/sdk";
+```
 
-## Core Concepts
+## Config Shape
 
-- **`TrustwareProvider`** – wraps your app to make the Trustware core and widget
-  configuration available through React context.
-- **`TrustwareWidget`** – renders the prebuilt widget that walks a user through
-  quoting and submitting a top-up route.
-- **`Trustware` core** – an imperative facade with helpers such as
-  `Trustware.runTopUp`, `Trustware.buildRoute`, and wallet management utilities.
-- **Config** – `TrustwareConfigOptions` defines the API key, default route
-  targets, optional theme/messages, and wallet-detection behavior.
-
-Every integration starts by creating a config object:
+Use `TrustwareConfigOptions` and avoid stale keys from older examples. The current route-related keys are:
 
 ```ts
 const trustwareConfig = {
   apiKey: process.env.NEXT_PUBLIC_TRUSTWARE_API_KEY!,
   routes: {
-    toChain: "8453", // Base chain id
-    toToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // Native ETH on Base
+    toChain: "8453",
+    toToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    fromToken: undefined,
+    fromAddress: undefined,
+    toAddress: undefined,
     defaultSlippage: 1,
-    // Optional defaults:
-    // fromAddress: "0x...",
-    // toAddress: "0x...", // can be overridden later via Trustware.setDestinationAddress
+    routeType: "swap",
     options: {
-      // fixedFromAmount: "5.00", // USD amount (locks input)
-      // minAmountOut: "1.00", // USD minimum
-      // maxAmountOut: "100.00", // USD maximum
-      // routeRefreshMs: 15000, // auto-refresh route quotes
+      routeRefreshMs: 15000,
+      fixedFromAmount: undefined,
+      minAmountOut: undefined,
+      maxAmountOut: undefined,
     },
   },
   autoDetectProvider: true,
@@ -54,34 +56,26 @@ const trustwareConfig = {
     radius: 16,
   },
   messages: {
-    title: "Top up BasePass",
-    description: "Bridge and add funds directly to your BasePass wallet.",
-  },
-  onError: (error) => {
-    console.error("Trustware error:", error);
-  },
-  onSuccess: (tx) => {
-    console.log("Trustware success:", tx);
-  },
-  onEvent: (event) => {
-    // Optional: listen to all SDK events
-    console.log("Trustware event:", event);
+    title: "Deposit",
+    description: "Move funds into the destination asset and chain.",
   },
 } satisfies TrustwareConfigOptions;
 ```
 
-## Integration Modes
+### Config Notes
 
-### 1. Headless / Trustware-managed Wallet Detection
+- `routes.toChain` and `routes.toToken` are the core required route targets.
+- `routes.options.fixedFromAmount` locks the amount entry UI to a fixed USD amount.
+- `routes.options.minAmountOut` and `routes.options.maxAmountOut` constrain the amount UI.
+- `routes.options.routeRefreshMs` controls route preview refresh cadence.
+- `walletConnect` and `retry` remain optional config groups.
 
-Use this mode when your app does **not** manage the connected wallet itself.
-Trustware will attempt to discover EIP-6963/EIP-1193 providers in the browser
-and attach to whichever wallet the user selects during the widget flow.
+## Integration Pattern 1: Drop-In Widget
+
+Use this when you want the full built-in UX and do not already manage wallet connection yourself.
 
 ```tsx
-import { TrustwareProvider, TrustwareWidget } from "@trustware/sdk";
-
-export function App() {
+export function DepositPanel() {
   return (
     <TrustwareProvider config={trustwareConfig}>
       <TrustwareWidget />
@@ -90,40 +84,28 @@ export function App() {
 }
 ```
 
-Key points:
+Best for:
 
-- `autoDetectProvider: true` allows the SDK to silently look for installed
-  wallets so the widget can offer them without wiring additional UI.
-- No Wagmi/RainbowKit integration is required. The SDK connects to the selected
-  wallet only when the user starts a top-up.
-- If your destination address is determined later (for example after the user
-  generates a smart wallet address), call
-  `Trustware.setDestinationAddress(address)` before rendering the widget.
+- embedded deposit experiences
+- apps without existing wallet connection state
+- the shortest path to production
 
-### 2. Host-managed Wallet Injection
+## Integration Pattern 2: Widget With Host Wallet
 
-Use this mode when your dapp already controls a wallet connection (e.g., via
-Wagmi, RainbowKit, or a custom wallet abstraction) and you want Trustware to
-reuse that connection. You can adapt existing clients into the required
-`WalletInterFaceAPI` and pass it to the provider.
+Use this when your app already owns wallet connection state.
 
 ```tsx
-import { useEffect, useMemo } from "react";
-import { useWalletClient } from "wagmi"; // Wagmi hook
-import { TrustwareProvider, TrustwareWidget, Trustware } from "@trustware/sdk";
-import { useWagmi } from "@trustware/sdk/wallet"; // adapter helper re-export
+import { useMemo } from "react";
+import { useWalletClient } from "wagmi";
+import { TrustwareProvider, TrustwareWidget } from "@trustware/sdk";
+import { useWagmi } from "@trustware/sdk/wallet";
 
-export function App() {
-  const { data: wagmiClient } = useWalletClient();
+export function DepositPanel() {
+  const { data: walletClient } = useWalletClient();
   const wallet = useMemo(
-    () => (wagmiClient ? useWagmi(wagmiClient) : undefined),
-    [wagmiClient],
+    () => (walletClient ? useWagmi(walletClient) : undefined),
+    [walletClient]
   );
-
-  useEffect(() => {
-    if (!wallet) return;
-    Trustware.setDestinationAddress("0xDestination...");
-  }, [wallet]);
 
   return (
     <TrustwareProvider
@@ -137,52 +119,89 @@ export function App() {
 }
 ```
 
-Key points:
+Best for:
 
-- Pass `wallet={wallet}` to `TrustwareProvider` to skip detection and reuse your
-  existing signer.
-- Set `autoDetect={false}` if you do not want Trustware to search for other
-  wallets.
-- Adapter utilities:
-  - `useWagmi(client)` converts a Wagmi/Viem wallet client.
-  - `useEIP1193(window.ethereum)` wraps a raw EIP-1193 provider.
-- You can also attach later via `Trustware.useWallet(wallet)` if you need to
-  wait until after the provider mounts.
+- Wagmi / RainbowKit apps
+- apps with custom wallet orchestration already in place
+- integrations that want the widget flow but not SDK-managed wallet discovery
 
-## Using the Widget vs. Imperative API
+## Integration Pattern 3: Controlled Widget
 
-- **Widget** (`<TrustwareWidget />`) handles quoting, wallet prompting, and
-  transaction submission automatically.
-- **Imperative** (`Trustware.runTopUp`) lets you run the same flow without the
-  widget UI. Pass an explicit `toAddress` or rely on the config fallbacks:
+Use the widget ref and shell props when the host app needs to open or close the deposit flow itself.
 
-```ts
-await Trustware.runTopUp({
-  fromAddress: "0xUser...",
-  toAddress: "0xDestination...", // optional; falls back to routes.toAddress then fromAddress
-  amount: "0.1",
-});
+```tsx
+import { useRef } from "react";
+import {
+  TrustwareProvider,
+  TrustwareWidget,
+  type TrustwareWidgetRef,
+} from "@trustware/sdk";
+
+export function ControlledDepositPanel() {
+  const widgetRef = useRef<TrustwareWidgetRef>(null);
+
+  return (
+    <TrustwareProvider config={trustwareConfig}>
+      <button onClick={() => widgetRef.current?.open()}>Open deposit</button>
+      <TrustwareWidget
+        ref={widgetRef}
+        defaultOpen={false}
+        initialStep="home"
+        showThemeToggle={false}
+      />
+    </TrustwareProvider>
+  );
+}
 ```
 
-Both approaches share the resolved configuration and wallet context provided by
-`TrustwareProvider`.
+Useful props:
 
-## Additional Utilities
+- `initialStep`
+- `defaultOpen`
+- `onOpen`
+- `onClose`
+- `showThemeToggle`
+- `theme`
 
-- `Trustware.getConfig()` returns the resolved config (including defaults).
-- `Trustware.getWallet()` / `Trustware.getAddress()` expose the active wallet
-  connection.
-- `Trustware.setDestinationAddress()` updates `routes.toAddress` at runtime.
-- Hooks such as `useTrustware()` and `useTrustwareRoute()` are available for
-  advanced flows within the SDK.
+## Common Route Config Patterns
 
-## Troubleshooting
+### Fixed-Amount Deposit
 
-- Ensure the provider is mounted once at the root of your app.
-- When using host-managed wallets, only call `Trustware.useWallet` or pass the
-  `wallet` prop after the wallet is actually connected.
-- For SSR/Next.js apps, mark components that touch the SDK as client components
-  (`"use client";`).
+```ts
+const config = {
+  ...trustwareConfig,
+  routes: {
+    ...trustwareConfig.routes,
+    options: {
+      fixedFromAmount: "25",
+    },
+  },
+} satisfies TrustwareConfigOptions;
+```
 
-For deeper API details explore the `sdk/src` directory or your editor’s type
-hints; the SDK is fully typed.
+### Amount Guardrails
+
+```ts
+const config = {
+  ...trustwareConfig,
+  routes: {
+    ...trustwareConfig.routes,
+    options: {
+      minAmountOut: "10",
+      maxAmountOut: "250",
+    },
+  },
+} satisfies TrustwareConfigOptions;
+```
+
+### Runtime Destination Address
+
+```ts
+import { Trustware } from "@trustware/sdk";
+
+Trustware.setDestinationAddress("0xDestination...");
+```
+
+## When To Use The Core Instead
+
+If you do not want the widget UI at all, use the headless core API described in [coreGuide.md](./coreGuide.md). That path still shares the same provider config, wallet bridge, and route defaults.
