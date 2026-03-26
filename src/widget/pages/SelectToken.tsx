@@ -33,10 +33,13 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   const {
     filteredTokens,
     isLoading: isLoadingTokens,
+    isLoadingMore,
     error: tokensError,
+    hasNextPage,
+    loadMore,
     searchQuery,
     setSearchQuery,
-  } = useTokens((selectedChain?.chainId as number) ?? null);
+  } = useTokens(selectedChain?.chainId ?? null);
   const {
     filteredWalletTokens,
     handleChainSelect,
@@ -138,7 +141,10 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
         <TokenSelectorPanel
           filteredTokens={filteredTokens}
           filteredWalletTokens={filteredWalletTokens}
+          hasNextPage={hasNextPage}
           isLoadingTokens={isLoadingTokens}
+          isLoadingMore={isLoadingMore}
+          loadMore={loadMore}
           onSelectToken={handleTokenSelect}
           onSelectWalletToken={handleYourTokenSelect}
           searchQuery={searchQuery}

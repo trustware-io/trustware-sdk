@@ -1,10 +1,12 @@
 import type {
   BalanceRow,
+  BalanceStreamOptions,
   WalletAddressBalanceWrapper,
   ChainDef,
 } from "../types/";
-import { apiBase, jsonHeaders } from "./http";
+import { apiBase, jsonHeaders, rateLimitedFetch } from "./http";
 import { Registry } from "../registry";
+import { TrustwareConfigStore } from "../config/store";
 import {
   getNativeTokenAddress,
   isZeroAddressLike,
@@ -15,6 +17,9 @@ import { validateAddressForChain } from "../validation/address";
 export type { BalanceRow };
 
 type RawBalanceRow = Record<string, unknown>;
+type RawBalanceChunk =
+  | WalletAddressBalanceWrapper
+  | WalletAddressBalanceWrapper[];
 
 const balanceCache = new Map<string, BalanceRow[]>();
 
@@ -40,6 +45,23 @@ function fallbackTokenSymbol(address: string, chainType?: string | null) {
     return "SPL";
   }
   return `TOKEN-${address.slice(0, 6)}`;
+}
+
+function emitBalanceStreamChunk(address: string, chunkSize: number) {
+  TrustwareConfigStore.get().onEvent?.({
+    type: "balance_stream_chunk",
+    address,
+    chunkSize,
+  });
+}
+
+function emitBalanceStreamFallback(address: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  TrustwareConfigStore.get().onEvent?.({
+    type: "balance_stream_fallback",
+    address,
+    message,
+  });
 }
 
 function normalizeRows(
@@ -133,6 +155,107 @@ function normalizeRows(
   });
 }
 
+function normalizeStreamChunk(
+  chunk: RawBalanceChunk
+): WalletAddressBalanceWrapper[] {
+  return Array.isArray(chunk) ? chunk : [chunk];
+}
+
+function mergeBalanceWrappers(
+  current: WalletAddressBalanceWrapper[],
+  incoming: WalletAddressBalanceWrapper[]
+): WalletAddressBalanceWrapper[] {
+  const merged = new Map<string, WalletAddressBalanceWrapper>();
+
+  for (const item of current) {
+    merged.set(item.chain_id, item);
+  }
+
+  for (const item of incoming) {
+    const existing = merged.get(item.chain_id);
+    if (!existing) {
+      merged.set(item.chain_id, item);
+      continue;
+    }
+
+    const balancesByKey = new Map<string, BalanceRow>();
+    for (const row of existing.balances ?? []) {
+      balancesByKey.set(`${row.contract ?? row.address ?? row.symbol}`, row);
+    }
+    for (const row of item.balances ?? []) {
+      balancesByKey.set(`${row.contract ?? row.address ?? row.symbol}`, row);
+    }
+
+    merged.set(item.chain_id, {
+      ...existing,
+      ...item,
+      balances: Array.from(balancesByKey.values()),
+      count: item.count ?? existing.count,
+    });
+  }
+
+  return Array.from(merged.values());
+}
+
+async function parseStreamingBalances(
+  response: Response,
+  address: string,
+  options: BalanceStreamOptions = {}
+): Promise<AsyncGenerator<WalletAddressBalanceWrapper[], void, void>> {
+  if (!response.body) {
+    throw new Error("balances stream: empty response body");
+  }
+
+  const decoder = new TextDecoder();
+  const reader = response.body.getReader();
+
+  async function* stream(): AsyncGenerator<
+    WalletAddressBalanceWrapper[],
+    void,
+    void
+  > {
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split(/\r?\n/);
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const trimmed = frame.trim();
+          if (!trimmed) continue;
+
+          try {
+            const chunk = normalizeStreamChunk(
+              JSON.parse(trimmed) as RawBalanceChunk
+            );
+            emitBalanceStreamChunk(address, chunk.length);
+            yield chunk;
+          } catch (error) {
+            if (options.strict) {
+              throw error;
+            }
+          }
+        }
+      }
+
+      const tail = buffer.trim();
+      if (tail) {
+        const chunk = normalizeStreamChunk(JSON.parse(tail) as RawBalanceChunk);
+        emitBalanceStreamChunk(address, chunk.length);
+        yield chunk;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  return stream();
+}
+
 /** Map chain reference -> backend chain_key and return enriched balances */
 export async function getBalances(
   chainRef: string | number,
@@ -172,10 +295,20 @@ export async function getBalances(
 }
 
 export async function getBalancesByAddress(
-  address: string
+  address: string,
+  opts?: BalanceStreamOptions
 ): Promise<WalletAddressBalanceWrapper[]> {
+  if (opts?.stream && TrustwareConfigStore.get().features.balanceStreaming) {
+    const merged: WalletAddressBalanceWrapper[] = [];
+    for await (const chunk of getBalancesByAddressStream(address, opts)) {
+      const next = mergeBalanceWrappers(merged, chunk);
+      merged.splice(0, merged.length, ...next);
+    }
+    return merged;
+  }
+
   const url = `${apiBase()}/data/balances/${address}`;
-  const r = await fetch(url, {
+  const r = await rateLimitedFetch(url, {
     method: "GET",
     credentials: "omit",
     headers: jsonHeaders(),
@@ -183,6 +316,48 @@ export async function getBalancesByAddress(
   if (!r.ok) throw new Error(`balances: HTTP ${r.status}`);
   const j = await r.json();
   return Array.isArray(j) ? j : (j.results ?? []);
+}
+
+export async function* getBalancesByAddressStream(
+  address: string,
+  opts: BalanceStreamOptions = {}
+): AsyncGenerator<WalletAddressBalanceWrapper[], void, void> {
+  if (!TrustwareConfigStore.get().features.balanceStreaming) {
+    yield await getBalancesByAddress(address);
+    return;
+  }
+
+  const url = `${apiBase()}/data/balances/${address}?stream=1`;
+
+  try {
+    const response = await rateLimitedFetch(url, {
+      method: "GET",
+      credentials: "omit",
+      headers: jsonHeaders({
+        Accept: "application/x-ndjson, application/json",
+      }),
+      signal: opts.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`balances stream: HTTP ${response.status}`);
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const payload = await response.json();
+      yield Array.isArray(payload) ? payload : (payload.results ?? []);
+      return;
+    }
+
+    const stream = await parseStreamingBalances(response, address, opts);
+    for await (const chunk of stream) {
+      yield chunk;
+    }
+  } catch (error) {
+    emitBalanceStreamFallback(address, error);
+    yield await getBalancesByAddress(address);
+  }
 }
 
 let _registry: Registry | undefined;

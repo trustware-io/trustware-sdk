@@ -8,6 +8,7 @@ import type {
   YourTokenData,
 } from "../../../context/DepositContext";
 import {
+  normalizeChainKey,
   normalizeAddress,
   normalizeChainType,
 } from "../../../helpers/chainHelpers";
@@ -33,7 +34,8 @@ export function useSelectTokenModel({
   yourWalletTokens,
 }: UseSelectTokenModelArgs) {
   const handleChainSelect = (chain: ChainDef) => {
-    const chainId = Number(chain.chainId ?? chain.id);
+    const chainId = chain.chainId ?? chain.id ?? "";
+    const numericChainId = Number(chainId);
     setSelectedChain({
       ...chain,
       chainId,
@@ -42,7 +44,9 @@ export function useSelectTokenModel({
         chain.nativeCurrency?.symbol ??
         resolveChainLabel(chain).slice(0, 3).toUpperCase(),
       iconUrl: chain.chainIconURI,
-      isPopular: [1, 137, 8453].includes(chainId),
+      isPopular: Number.isFinite(numericChainId)
+        ? [1, 137, 8453].includes(numericChainId)
+        : false,
       nativeToken: chain.nativeCurrency?.symbol,
       explorerUrl: chain.blockExplorerUrls?.[0],
     } as Chain);
@@ -90,8 +94,10 @@ export function useSelectTokenModel({
 
   const isChainSelected = (chain: ChainDef): boolean => {
     if (!selectedChain) return false;
-    const chainId = Number(chain.chainId ?? chain.id);
-    return selectedChain.chainId === chainId;
+    return (
+      normalizeChainKey(chain.chainId ?? chain.id ?? null) ===
+      normalizeChainKey(selectedChain.chainId)
+    );
   };
 
   const normalizedSearchQuery = searchQuery.toLowerCase().trim();
@@ -123,8 +129,8 @@ export function useSelectTokenModel({
 
     return yourWalletTokens.filter(
       (token) =>
-        Number(token.chainId) === Number(selectedChain.chainId) &&
-        matchesSearch(token)
+        normalizeChainKey(token.chainId) ===
+          normalizeChainKey(selectedChain.chainId) && matchesSearch(token)
     );
   }, [normalizedSearchQuery, selectedChain?.chainId, yourWalletTokens]);
 

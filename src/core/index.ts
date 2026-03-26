@@ -13,7 +13,11 @@ import {
   getStatus,
   pollStatus,
 } from "./routes";
-import { getBalances, getBalancesByAddress } from "./balances";
+import {
+  getBalances,
+  getBalancesByAddress,
+  getBalancesByAddressStream,
+} from "./balances";
 import { sendRouteTransaction, runTopUp } from "./tx";
 import { validateSdkAccess } from "./http";
 import { useChains } from "./useChains";
@@ -122,6 +126,7 @@ export const Trustware = {
   pollStatus,
   getBalances,
   getBalancesByAddress,
+  getBalancesByAddressStream,
   useChains,
   useTokens,
   validateAddressForChain,

@@ -63,6 +63,7 @@ export type TrustwareConfigOptions = {
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
   retry?: RetryConfig; // Optional retry configuration for rate-limited requests
   walletConnect?: WalletConnectConfig; // Optional WalletConnect configuration
+  features?: FeatureFlags; // Optional feature rollout controls
 
   onError?: (error: TrustwareError) => void;
   onSuccess?: (transaction: Transaction) => void;
@@ -91,9 +92,20 @@ export type ResolvedTrustwareConfig = {
   messages: TrustwareWidgetMessages;
   retry: ResolvedRetryConfig;
   walletConnect?: ResolvedWalletConnectConfig; // Optional WalletConnect config
+  features: ResolvedFeatureFlags;
   onError?: (error: TrustwareError) => void;
   onSuccess?: (transaction: Transaction) => void;
   onEvent?: (event: TrustwareEvent) => void;
+};
+
+export type FeatureFlags = {
+  tokensPagination?: boolean;
+  balanceStreaming?: boolean;
+};
+
+export type ResolvedFeatureFlags = {
+  tokensPagination: boolean;
+  balanceStreaming: boolean;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
@@ -143,4 +155,9 @@ export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
   maxRetries: 3,
   baseDelayMs: 1000,
   approachingThreshold: 5,
+};
+
+export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
+  tokensPagination: false,
+  balanceStreaming: false,
 };
