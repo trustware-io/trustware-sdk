@@ -128,7 +128,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
         {amountValidationMessage ? (
           <p
             style={{
-              marginTop: -spacing[5],
+              marginTop: `-${spacing[5]}`,
               marginBottom: spacing[5],
               fontSize: fontSize.sm,
               fontWeight: fontWeight.medium,
@@ -141,7 +141,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
         ) : minAmountUsd != null || maxAmountUsd != null ? (
           <p
             style={{
-              marginTop: -spacing[5],
+              marginTop: `-${spacing[5]}`,
               marginBottom: spacing[5],
               fontSize: fontSize.sm,
               color: colors.mutedForeground,

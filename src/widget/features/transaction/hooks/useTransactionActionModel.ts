@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { createPublicClient, encodeFunctionData, erc20Abi, http } from "viem";
+import { encodeFunctionData, erc20Abi } from "viem";
 
 import { Trustware } from "../../../../core";
+import {
+  estimateEVMGas,
+  getEVMAllowance,
+  getEVMFeeData,
+  getEVMTxStatus,
+} from "../../../../core/sdkRpc";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
 import { useTransactionSubmit } from "../../../hooks";
 import {
@@ -26,6 +32,11 @@ type UseTransactionActionModelArgs = {
   walletStatus: string;
 };
 
+type CachedFeeData = {
+  gasPrice?: bigint;
+  maxFeePerGas?: bigint;
+};
+
 function normalizeTokenAddressForCompare(
   chain: ChainDef,
   addr?: string
@@ -34,6 +45,10 @@ function normalizeTokenAddressForCompare(
   const value = (addr ?? "").trim();
   if (chainType === "solana") return value;
   return value.toLowerCase();
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function useTransactionActionModel({
@@ -47,10 +62,10 @@ export function useTransactionActionModel({
   walletAddress,
   walletStatus,
 }: UseTransactionActionModelArgs) {
-  const gasPriceCacheRef = useRef<{
-    value?: bigint;
+  const feeDataCacheRef = useRef<{
+    value?: CachedFeeData;
     ts?: number;
-    inflight?: Promise<bigint>;
+    inflight?: Promise<CachedFeeData>;
   }>({});
 
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
@@ -58,21 +73,20 @@ export function useTransactionActionModel({
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
   const isEvm = chainTypeNormalized === "evm";
-
-  const rpcUrl = useMemo(() => {
-    const list = selectedChain?.rpcList;
-    if (Array.isArray(list) && list.length > 0) return list[0];
-    return selectedChain?.rpc;
-  }, [selectedChain?.rpc, selectedChain?.rpcList]);
-
-  const client = useMemo(() => {
-    if (!rpcUrl) {
-      return null;
-    }
-    return createPublicClient({
-      transport: http(rpcUrl),
-    });
-  }, [rpcUrl]);
+  const backendChainId = useMemo(() => {
+    const chainRef =
+      routeResult?.txReq?.chainId ??
+      selectedChain?.networkIdentifier ??
+      selectedChain?.chainId ??
+      selectedChain?.id;
+    if (chainRef == null) return null;
+    return String(chainRef);
+  }, [
+    routeResult?.txReq?.chainId,
+    selectedChain?.chainId,
+    selectedChain?.id,
+    selectedChain?.networkIdentifier,
+  ]);
 
   const isNativeSelected = useMemo(() => {
     const address = selectedToken?.address;
@@ -101,9 +115,9 @@ export function useTransactionActionModel({
 
   const readAllowance = useCallback(async () => {
     if (
-      !client ||
       !isEvm ||
       isNativeSelected ||
+      !backendChainId ||
       !walletAddress ||
       !spender ||
       !selectedToken?.address
@@ -114,20 +128,20 @@ export function useTransactionActionModel({
 
     try {
       setIsReadingAllowance(true);
-      const result = await client.readContract({
-        address: selectedToken.address as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [walletAddress as `0x${string}`, spender],
+      const result = await getEVMAllowance({
+        chainId: backendChainId,
+        tokenAddress: selectedToken.address,
+        ownerAddress: walletAddress,
+        spenderAddress: spender,
       });
-      setAllowanceWei((result as unknown as bigint) ?? 0n);
+      setAllowanceWei(BigInt(result.allowance || "0"));
     } catch {
       setAllowanceWei(0n);
     } finally {
       setIsReadingAllowance(false);
     }
   }, [
-    client,
+    backendChainId,
     isEvm,
     isNativeSelected,
     selectedToken?.address,
@@ -146,6 +160,28 @@ export function useTransactionActionModel({
     !!spender &&
     amountWei > 0n &&
     allowanceWei < amountWei;
+
+  const waitForApprovalConfirmation = useCallback(
+    async (chainId: string, txHash: `0x${string}`) => {
+      const timeoutMs = 120000;
+      const intervalMs = 2000;
+      const started = Date.now();
+
+      while (Date.now() - started < timeoutMs) {
+        const status = await getEVMTxStatus({ chainId, txHash });
+        if (status.status === "success") {
+          return;
+        }
+        if (status.status === "reverted") {
+          throw new Error("Approval transaction reverted");
+        }
+        await sleep(intervalMs);
+      }
+
+      throw new Error("Timed out waiting for approval confirmation");
+    },
+    []
+  );
 
   const handleApproveExact = useCallback(async () => {
     if (
@@ -213,8 +249,8 @@ export function useTransactionActionModel({
         hash = response.hash;
       }
 
-      if (client) {
-        await client.waitForTransactionReceipt({ hash });
+      if (backendChainId) {
+        await waitForApprovalConfirmation(backendChainId, hash);
         await readAllowance();
       } else {
         setAllowanceWei(amountWei);
@@ -226,7 +262,7 @@ export function useTransactionActionModel({
     }
   }, [
     amountWei,
-    client,
+    backendChainId,
     isApproving,
     readAllowance,
     routeResult?.txReq?.chainId,
@@ -234,8 +270,40 @@ export function useTransactionActionModel({
     selectedChain?.id,
     selectedToken?.address,
     spender,
+    waitForApprovalConfirmation,
     walletAddress,
   ]);
+
+  const getCachedFeeData = useCallback(async () => {
+    if (!backendChainId) return {};
+
+    const now = Date.now();
+    const cache = feeDataCacheRef.current;
+    const cacheTtlMs = 15000;
+    if (cache.value && cache.ts && now - cache.ts < cacheTtlMs) {
+      return cache.value;
+    }
+
+    if (!cache.inflight) {
+      cache.inflight = getEVMFeeData({ chainId: backendChainId })
+        .then((feeData) => {
+          const value = {
+            gasPrice: feeData.gasPrice ? BigInt(feeData.gasPrice) : undefined,
+            maxFeePerGas: feeData.maxFeePerGas
+              ? BigInt(feeData.maxFeePerGas)
+              : undefined,
+          };
+          cache.value = value;
+          cache.ts = Date.now();
+          return value;
+        })
+        .finally(() => {
+          cache.inflight = undefined;
+        });
+    }
+
+    return cache.inflight;
+  }, [backendChainId]);
 
   const estimateGasReservationWei = useCallback(async () => {
     if (!isNativeSelected) {
@@ -248,72 +316,49 @@ export function useTransactionActionModel({
 
     const txReq = routeResult?.txReq;
     const txTo = txReq?.to ?? txReq?.target;
-    const fromAccount = walletAddress as `0x${string}` | undefined;
 
-    if (
-      !txReq?.gasLimit ||
-      txReq?.value == null ||
-      (!txReq?.maxFeePerGas && !txReq?.gasPrice)
-    ) {
+    if (!txReq || txReq.value == null) {
       setGasReservationWei(0n);
       return 0n;
     }
 
-    if (
-      chainTypeNormalized === "evm" &&
-      txReq?.data &&
-      txTo &&
-      client &&
-      fromAccount
-    ) {
+    if (txReq.gasLimit) {
       try {
-        gasLimit = await client.estimateGas({
-          account: fromAccount,
-          to: txTo as `0x${string}`,
-          data: txReq.data as `0x${string}`,
-          value: txReq.value ? BigInt(txReq.value) : undefined,
-        });
+        gasLimit = BigInt(txReq.gasLimit);
       } catch {
         gasLimit = undefined;
       }
+    }
 
+    if (txReq.maxFeePerGas || txReq.gasPrice) {
       try {
-        const now = Date.now();
-        const cache = gasPriceCacheRef.current;
-        const cacheTtlMs = 15000;
-
-        const getCachedGasPrice = async () => {
-          if (cache.value && cache.ts && now - cache.ts < cacheTtlMs) {
-            return cache.value;
-          }
-          if (!cache.inflight) {
-            cache.inflight = client
-              .getGasPrice()
-              .then((price) => {
-                cache.value = price;
-                cache.ts = Date.now();
-                return price;
-              })
-              .finally(() => {
-                cache.inflight = undefined;
-              });
-          }
-          return cache.inflight;
-        };
-
         effectiveGasPrice = txReq.maxFeePerGas
           ? BigInt(txReq.maxFeePerGas)
           : txReq.gasPrice
             ? BigInt(txReq.gasPrice)
-            : await getCachedGasPrice();
+            : undefined;
       } catch {
-        effectiveGasPrice = gasPriceCacheRef.current.value ?? undefined;
+        effectiveGasPrice = undefined;
       }
     }
 
-    if (!gasLimit) {
+    if (
+      !gasLimit &&
+      backendChainId &&
+      txReq.data &&
+      txTo &&
+      walletAddress &&
+      chainTypeNormalized === "evm"
+    ) {
       try {
-        gasLimit = txReq?.gasLimit ? BigInt(txReq.gasLimit) : undefined;
+        const estimate = await estimateEVMGas({
+          chainId: backendChainId,
+          fromAddress: walletAddress,
+          to: txTo,
+          data: txReq.data,
+          value: txReq.value ?? "0",
+        });
+        gasLimit = BigInt(estimate.gasLimit);
       } catch {
         gasLimit = undefined;
       }
@@ -321,11 +366,12 @@ export function useTransactionActionModel({
 
     if (!effectiveGasPrice) {
       try {
-        effectiveGasPrice = txReq?.maxFeePerGas
-          ? BigInt(txReq.maxFeePerGas)
-          : undefined;
+        const feeData = await getCachedFeeData();
+        effectiveGasPrice = feeData.maxFeePerGas ?? feeData.gasPrice;
       } catch {
-        effectiveGasPrice = undefined;
+        effectiveGasPrice =
+          feeDataCacheRef.current.value?.maxFeePerGas ??
+          feeDataCacheRef.current.value?.gasPrice;
       }
     }
 
@@ -338,8 +384,9 @@ export function useTransactionActionModel({
     setGasReservationWei(reservedWei);
     return reservedWei;
   }, [
+    backendChainId,
     chainTypeNormalized,
-    client,
+    getCachedFeeData,
     isNativeSelected,
     routeResult?.txReq,
     walletAddress,

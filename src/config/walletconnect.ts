@@ -1,6 +1,7 @@
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import type { CustomCaipNetwork } from "@reown/appkit-common";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
+import { TrustwareConfigStore } from "./store";
 
 // Get projectId from https://dashboard.walletconnect.com
 export const projectId = "896c4c8fa652baf14b9614e4026aff6a"; // this is a public projectId only to use on localhost
@@ -84,36 +85,55 @@ export const networks1 = [
   seiMainnet,
 ] as [AppKitNetwork, ...AppKitNetwork[]];
 
-export async function getUniversalConnector() {
-  const universalConnector = await UniversalConnector.init({
-    projectId,
-    metadata: {
-      name: "Universal Connector",
-      description: "Universal Connector",
-      url: "https://www.walletconnect.com",
-      icons: ["https://www.walletconnect.com/icon.png"],
-    },
-    networks: [
-      {
-        namespace: "solana",
-        chains: [solanaMainnet],
-        methods: ["solana_signMessage", "solana_signTransaction"],
-        events: [],
-      },
-      {
-        namespace: "eip155",
-        chains: [ethereumMainnet, seiMainnet],
-        methods: ["eth_sendTransaction", "eth_sign", "personal_sign"],
-        events: ["accountsChanged", "chainChanged"],
-      },
-      {
-        namespace: "bip122",
-        chains: [bitcoinMainnet],
-        methods: ["btc_signMessage"],
-        events: [],
-      },
-    ],
-  });
+let universalConnectorPromise: Promise<UniversalConnector> | null = null;
 
-  return universalConnector;
+function resolvedMetadata() {
+  const configured = TrustwareConfigStore.peek()?.walletConnect?.metadata;
+  const pageUrl =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : configured?.url;
+
+  return {
+    name: configured?.name ?? "Trustware",
+    description: configured?.description ?? "Cross-chain bridge & top-up",
+    url: pageUrl ?? "https://trustware.io",
+    icons: configured?.icons?.length
+      ? configured.icons
+      : ["https://app.trustware.io/icon.png"],
+  };
+}
+
+export async function getUniversalConnector() {
+  if (!universalConnectorPromise) {
+    universalConnectorPromise = UniversalConnector.init({
+      projectId,
+      metadata: resolvedMetadata(),
+      networks: [
+        {
+          namespace: "solana",
+          chains: [solanaMainnet],
+          methods: ["solana_signMessage", "solana_signTransaction"],
+          events: [],
+        },
+        {
+          namespace: "eip155",
+          chains: [ethereumMainnet, seiMainnet],
+          methods: ["eth_sendTransaction", "eth_sign", "personal_sign"],
+          events: ["accountsChanged", "chainChanged"],
+        },
+        {
+          namespace: "bip122",
+          chains: [bitcoinMainnet],
+          methods: ["btc_signMessage"],
+          events: [],
+        },
+      ],
+    }).catch((error) => {
+      universalConnectorPromise = null;
+      throw error;
+    });
+  }
+
+  return universalConnectorPromise;
 }
