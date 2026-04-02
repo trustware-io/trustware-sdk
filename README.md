@@ -14,6 +14,8 @@ The refactored widget keeps the same behavior, but the configuration surface is 
 
 ## Installation
 
+Supports React `18.2+` and `19`.
+
 ```bash
 npm install @trustware/sdk
 # or
