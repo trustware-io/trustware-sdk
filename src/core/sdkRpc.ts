@@ -19,7 +19,11 @@ export class SDKRPCError extends Error {
 
   constructor(
     message: string,
-    options?: { code?: string; context?: Record<string, unknown>; status?: number }
+    options?: {
+      code?: string;
+      context?: Record<string, unknown>;
+      status?: number;
+    }
   ) {
     super(message);
     this.name = "SDKRPCError";
