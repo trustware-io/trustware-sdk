@@ -12,6 +12,8 @@ That flow is driven by `TrustwareProvider` config plus either Trustware-managed 
 
 ## Required Setup
 
+The SDK supports React `18.2+` and `19`.
+
 ```bash
 npm install @trustware/sdk
 ```
