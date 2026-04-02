@@ -133,7 +133,7 @@ export type SolanaWalletInterface = BaseWalletInterface & {
   getChainKey(): Promise<string>;
   sendSerializedTransaction(
     serializedTransactionBase64: string,
-    rpcUrl?: string
+    chainId?: string
   ): Promise<string>;
 };
 

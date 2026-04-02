@@ -54,7 +54,10 @@ export function WidgetContainer({
   return (
     <>
       {/* Inject all required CSS once */}
-      <style>{INJECTED_STYLES}</style>
+      <style
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: INJECTED_STYLES }}
+      />
       <div
         className={`trustware-widget tw-scrollbar-none ${className || ""}`.trim()}
         data-theme={resolvedTheme}

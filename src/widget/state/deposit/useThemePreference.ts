@@ -1,10 +1,15 @@
 import { useCallback, useState } from "react";
+import { useEffect } from "react";
 
 import type { ResolvedTheme } from "./types";
 
 const THEME_STORAGE_KEY = "trustware-widget-theme";
 
 function getInitialTheme(): ResolvedTheme {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === "light" || stored === "dark") {
@@ -24,8 +29,11 @@ function getInitialTheme(): ResolvedTheme {
 }
 
 export function useThemePreference() {
-  const [resolvedTheme, setResolvedTheme] =
-    useState<ResolvedTheme>(getInitialTheme);
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
+
+  useEffect(() => {
+    setResolvedTheme(getInitialTheme());
+  }, []);
 
   const toggleTheme = useCallback(() => {
     setResolvedTheme((current) => {
