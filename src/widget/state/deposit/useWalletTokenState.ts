@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { BalanceRow, ChainDef } from "../../../types";
-import { getBalancesByAddress } from "../../../core/balances";
+import type {
+  BalanceRow,
+  ChainDef,
+  WalletAddressBalanceWrapper,
+} from "../../../types";
+import {
+  getBalancesByAddress,
+  getBalancesByAddressStream,
+} from "../../../core/balances";
 import { useChains, useTokens } from "../../hooks";
+import { TrustwareConfigStore } from "../../../config/store";
 import {
   canonicalTokenAddressForChain,
   getNativeTokenAddress,
@@ -51,49 +59,46 @@ export function useWalletTokenState({
 
     async function loadWalletTokens() {
       try {
-        const balances = await getBalancesByAddress(currentWalletAddress);
-        const updatedTokens = mapWalletTokens(balances, chains, tokens);
-
-        if (cancelled) {
-          return;
-        }
-
-        const sortedTokens = updatedTokens.sort(
-          (a, b) => Number(b.balance) - Number(a.balance)
-        );
-        setYourWalletTokens(sortedTokens);
-
-        const selectedTokenStillExists =
-          selectedToken &&
-          sortedTokens.some(
-            (token) =>
-              normalizeChainKey(token.chainId) ===
-                normalizeChainKey(selectedToken.chainId) &&
-              token.address === selectedToken.address
-          );
-
-        const nextSelectedToken =
-          selectedTokenStillExists && selectedToken
-            ? selectedToken
-            : (sortedTokens.find((token) => Number(token.balance) > 0) ?? null);
-
-        setSelectedToken(nextSelectedToken);
-
-        if (
-          nextSelectedToken &&
-          (!selectedChain ||
-            normalizeChainKey(selectedChain.chainId) !==
-              normalizeChainKey(
-                hasChainData(nextSelectedToken)
-                  ? (nextSelectedToken.chainData?.chainId ?? null)
-                  : nextSelectedToken.chainId
-              ))
-        ) {
-          setSelectedChain(
-            hasChainData(nextSelectedToken)
-              ? (nextSelectedToken.chainData ?? null)
-              : null
-          );
+        if (TrustwareConfigStore.get().features.balanceStreaming) {
+          let accumulatedBalances: Awaited<
+            ReturnType<typeof getBalancesByAddress>
+          > = [];
+          for await (const chunk of getBalancesByAddressStream(
+            currentWalletAddress
+          )) {
+            if (cancelled) {
+              return;
+            }
+            accumulatedBalances = mergeWalletBalanceChunks(
+              accumulatedBalances,
+              chunk
+            );
+            applyWalletTokenState({
+              balances: accumulatedBalances,
+              chains,
+              selectedChain,
+              selectedToken,
+              setSelectedChain,
+              setSelectedToken,
+              setYourWalletTokens,
+              tokens,
+            });
+          }
+        } else {
+          const balances = await getBalancesByAddress(currentWalletAddress);
+          if (cancelled) {
+            return;
+          }
+          applyWalletTokenState({
+            balances,
+            chains,
+            selectedChain,
+            selectedToken,
+            setSelectedChain,
+            setSelectedToken,
+            setYourWalletTokens,
+            tokens,
+          });
         }
 
         lastLoadedWalletRef.current = loadKey;
@@ -129,6 +134,101 @@ export function useWalletTokenState({
     setYourWalletTokens,
     reloadWalletTokens,
   };
+}
+
+function applyWalletTokenState({
+  balances,
+  chains,
+  selectedChain,
+  selectedToken,
+  setSelectedChain,
+  setSelectedToken,
+  setYourWalletTokens,
+  tokens,
+}: {
+  balances: Awaited<ReturnType<typeof getBalancesByAddress>>;
+  chains: ChainDef[];
+  selectedChain: ChainDef | null;
+  selectedToken: Token | null | YourTokenData;
+  setSelectedChain: (chain: ChainDef | null) => void;
+  setSelectedToken: (token: Token | null | YourTokenData) => void;
+  setYourWalletTokens: (tokens: YourTokenData[]) => void;
+  tokens: ReturnType<typeof useTokens>["tokens"];
+}) {
+  const updatedTokens = mapWalletTokens(balances, chains, tokens);
+  const sortedTokens = updatedTokens.sort(
+    (a, b) => Number(b.balance) - Number(a.balance)
+  );
+  setYourWalletTokens(sortedTokens);
+
+  const selectedTokenStillExists =
+    selectedToken &&
+    sortedTokens.some(
+      (token) =>
+        normalizeChainKey(token.chainId) ===
+          normalizeChainKey(selectedToken.chainId) &&
+        token.address === selectedToken.address
+    );
+
+  const nextSelectedToken =
+    selectedTokenStillExists && selectedToken
+      ? selectedToken
+      : (sortedTokens.find((token) => Number(token.balance) > 0) ?? null);
+
+  setSelectedToken(nextSelectedToken);
+
+  if (
+    nextSelectedToken &&
+    (!selectedChain ||
+      normalizeChainKey(selectedChain.chainId) !==
+        normalizeChainKey(
+          hasChainData(nextSelectedToken)
+            ? (nextSelectedToken.chainData?.chainId ?? null)
+            : nextSelectedToken.chainId
+        ))
+  ) {
+    setSelectedChain(
+      hasChainData(nextSelectedToken)
+        ? (nextSelectedToken.chainData ?? null)
+        : null
+    );
+  }
+}
+
+function mergeWalletBalanceChunks(
+  current: Awaited<ReturnType<typeof getBalancesByAddress>>,
+  incoming: WalletAddressBalanceWrapper[]
+): Awaited<ReturnType<typeof getBalancesByAddress>> {
+  const merged = new Map<string, (typeof current)[number]>();
+
+  for (const item of current) {
+    merged.set(item.chain_id, item);
+  }
+
+  for (const item of incoming) {
+    const existing = merged.get(item.chain_id);
+    if (!existing) {
+      merged.set(item.chain_id, item);
+      continue;
+    }
+
+    const balancesByKey = new Map<string, BalanceRow>();
+    for (const row of existing.balances ?? []) {
+      balancesByKey.set(`${row.contract ?? row.address ?? row.symbol}`, row);
+    }
+    for (const row of item.balances ?? []) {
+      balancesByKey.set(`${row.contract ?? row.address ?? row.symbol}`, row);
+    }
+
+    merged.set(item.chain_id, {
+      ...existing,
+      ...item,
+      balances: Array.from(balancesByKey.values()),
+      count: item.count ?? existing.count,
+    });
+  }
+
+  return Array.from(merged.values());
 }
 
 function hasChainData(token: Token | YourTokenData): token is YourTokenData {

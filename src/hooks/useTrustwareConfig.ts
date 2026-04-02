@@ -39,6 +39,10 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           baseDelayMs: 1000,
           approachingThreshold: 5,
         },
+        features: {
+          tokensPagination: false,
+          balanceStreaming: false,
+        },
       };
     }
   });

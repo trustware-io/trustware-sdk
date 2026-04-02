@@ -34,6 +34,28 @@ export type WalletAddressBalanceWrapper = {
   source: string;
 };
 
+export type TokenPageOptions = {
+  cursor?: string;
+  limit?: number;
+  q?: string;
+};
+
+export type TokenPageInfo = {
+  hasNextPage: boolean;
+  nextCursor?: string;
+};
+
+export type TokenPageResult = {
+  data: TokenDef[];
+  pageInfo: TokenPageInfo;
+};
+
+export type BalanceStreamOptions = {
+  stream?: boolean;
+  signal?: AbortSignal;
+  strict?: boolean;
+};
+
 export type ChainType = "evm" | "cosmos" | "solana" | "btc" | string;
 
 export interface NativeCurrency {

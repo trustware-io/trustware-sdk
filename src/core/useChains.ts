@@ -87,7 +87,7 @@ export function useChains(): UseChainsResult {
         setIsLoading(true);
         setError(null);
 
-        await registry.ensureLoaded();
+        await registry.ensureChainsLoaded();
 
         if (cancelled) return;
 

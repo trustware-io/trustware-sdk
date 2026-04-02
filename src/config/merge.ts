@@ -11,7 +11,7 @@ import {
   DEFAULT_THEME,
   DEFAULT_MESSAGES,
 } from "./defaults";
-import { DEFAULT_RETRY_CONFIG } from "../types/config";
+import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
 import { WALLETCONNECT_PROJECT_ID } from "../constants";
 
 /**
@@ -121,6 +121,14 @@ export function resolveConfig(
 
   // Resolve WalletConnect config (optional)
   const walletConnect = resolveWalletConnectConfig(input.walletConnect);
+  const features = {
+    tokensPagination:
+      input.features?.tokensPagination ??
+      DEFAULT_FEATURE_FLAGS.tokensPagination,
+    balanceStreaming:
+      input.features?.balanceStreaming ??
+      DEFAULT_FEATURE_FLAGS.balanceStreaming,
+  };
 
   return {
     apiKey: input.apiKey,
@@ -130,6 +138,7 @@ export function resolveConfig(
     messages,
     retry,
     walletConnect,
+    features,
     onError: input.onError,
     onSuccess: input.onSuccess,
     onEvent: input.onEvent,

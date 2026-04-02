@@ -17,7 +17,10 @@ import { WalletTokenListItem } from "./WalletTokenListItem";
 export interface TokenSelectorPanelProps {
   filteredTokens: Token[];
   filteredWalletTokens: YourTokenData[];
+  hasNextPage: boolean;
   isLoadingTokens: boolean;
+  isLoadingMore: boolean;
+  loadMore: () => Promise<void>;
   onSelectToken: (token: Token) => Promise<void>;
   onSelectWalletToken: (token: YourTokenData) => void;
   searchQuery: string;
@@ -30,7 +33,10 @@ export interface TokenSelectorPanelProps {
 export function TokenSelectorPanel({
   filteredTokens,
   filteredWalletTokens,
+  hasNextPage,
   isLoadingTokens,
+  isLoadingMore,
+  loadMore,
   onSelectToken,
   onSelectWalletToken,
   searchQuery,
@@ -182,6 +188,29 @@ export function TokenSelectorPanel({
                 onSelect={onSelectToken}
               />
             ))}
+
+            {hasNextPage ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void loadMore();
+                }}
+                disabled={isLoadingMore}
+                style={{
+                  marginTop: spacing[2],
+                  marginLeft: spacing[2],
+                  marginRight: spacing[2],
+                  padding: `${spacing[2]} ${spacing[3]}`,
+                  borderRadius: borderRadius.lg,
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.card,
+                  color: colors.foreground,
+                  cursor: isLoadingMore ? "wait" : "pointer",
+                }}
+              >
+                {isLoadingMore ? "Loading more..." : "Load more"}
+              </button>
+            ) : null}
           </div>
         )}
       </div>
