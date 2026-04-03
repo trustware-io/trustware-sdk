@@ -40,6 +40,7 @@ class ConfigStore {
         ...(patch.messages ?? {}),
       } as ResolvedTrustwareConfig["messages"],
       retry: { ...this._cfg.retry, ...(patch.retry ?? {}) },
+      features: { ...this._cfg.features, ...(patch.features ?? {}) },
       walletConnect: patch.walletConnect
         ? { ...this._cfg.walletConnect, ...patch.walletConnect }
         : this._cfg.walletConnect,

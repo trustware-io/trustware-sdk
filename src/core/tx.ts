@@ -1,4 +1,5 @@
 import type { BuildRouteResult } from "../types";
+import type { ChainDef } from "../types";
 import { walletManager } from "../wallets/";
 import {
   buildRoute,
@@ -7,6 +8,11 @@ import {
   isEvmTxRequest,
   isSerializedSolanaTxRequest,
 } from "./routes";
+
+function backendChainId(chain?: ChainDef, fallback?: number | string): string {
+  const preferred = chain?.networkIdentifier ?? chain?.chainId ?? chain?.id;
+  return String(preferred ?? fallback ?? "");
+}
 
 function isUserRejected(e: unknown): boolean {
   const code =
@@ -88,8 +94,10 @@ export async function sendRouteTransaction(
     const chain = registry.chain(
       String(fallbackChainId ?? txReq.chainId ?? "")
     );
-    const rpcUrl = chain?.rpc ?? chain?.rpcList?.[0];
-    return w.sendSerializedTransaction(txReq.data, rpcUrl);
+    return w.sendSerializedTransaction(
+      txReq.data,
+      backendChainId(chain, fallbackChainId ?? txReq.chainId)
+    );
   }
 
   throw new Error("Invalid route transaction payload");

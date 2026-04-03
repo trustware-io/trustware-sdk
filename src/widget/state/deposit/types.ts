@@ -65,7 +65,7 @@ export interface Token {
 }
 
 export interface Chain {
-  chainId: number;
+  chainId: string | number;
   name: string;
   shortName: string;
   iconUrl?: string;

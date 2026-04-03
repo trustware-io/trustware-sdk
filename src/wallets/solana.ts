@@ -1,4 +1,5 @@
-import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { Transaction, VersionedTransaction } from "@solana/web3.js";
+import { getSolanaTxStatus, sendSolanaSerialized } from "../core/sdkRpc";
 
 import type {
   DetectedWallet,
@@ -43,6 +44,35 @@ function decodeBase64Transaction(serializedTransaction: string) {
   } catch {
     return Transaction.from(bytes);
   }
+}
+
+function encodeBase64(bytes: Uint8Array) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return globalThis.btoa(binary);
+}
+
+async function waitForSolanaConfirmation(chainId: string, signature: string) {
+  const started = Date.now();
+  const timeoutMs = 120000;
+  const intervalMs = 2000;
+
+  while (Date.now() - started < timeoutMs) {
+    const status = await getSolanaTxStatus({ chainId, signature });
+    if (status.status === "success") return signature;
+    if (status.status === "failed") {
+      throw new Error("Solana transaction failed");
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error("Timed out waiting for Solana transaction confirmation");
 }
 
 export function getSolanaProviders(): Partial<
@@ -129,7 +159,7 @@ export function toSolanaWalletInterface(
     },
     async sendSerializedTransaction(
       serializedTransactionBase64: string,
-      rpcUrl?: string
+      chainId?: string
     ) {
       const transaction = decodeBase64Transaction(serializedTransactionBase64);
 
@@ -147,12 +177,13 @@ export function toSolanaWalletInterface(
       }
 
       const signed = await provider.signTransaction(transaction);
-      const connection = new Connection(
-        rpcUrl?.trim() || "https://api.mainnet-beta.solana.com",
-        "confirmed"
-      );
-      const signature = await connection.sendRawTransaction(signed.serialize());
-      await connection.confirmTransaction(signature, "confirmed");
+      const resolvedChainId = chainId?.trim() || "solana-mainnet";
+      const serializedSigned = encodeBase64(signed.serialize());
+      const { signature } = await sendSolanaSerialized({
+        chainId: resolvedChainId,
+        serializedTransaction: serializedSigned,
+      });
+      await waitForSolanaConfirmation(resolvedChainId, signature);
       return signature;
     },
   };

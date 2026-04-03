@@ -14,6 +14,8 @@ The refactored widget keeps the same behavior, but the configuration surface is 
 
 ## Installation
 
+Supports React `18.2+` and `19`.
+
 ```bash
 npm install @trustware/sdk
 # or
@@ -309,5 +311,6 @@ If retries are exhausted, the SDK throws `RateLimitError`.
 
 - [Integration Guide](docs/intergrationGuide.md)
 - [Core Guide](docs/coreGuide.md)
+- [Backend RPC Offload PDR](docs/backend-rpc-offload-pdr.md)
 - [Widget Architecture Boundaries](docs/widget-architecture-boundaries.md)
 - [Widget Refactor Baseline](docs/widget-refactor-baseline.md)

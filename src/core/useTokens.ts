@@ -4,6 +4,9 @@ import type { TokenDef } from "../types";
 import type { Token } from "../widget/context/DepositContext";
 import { useChains } from "./useChains";
 import { sortTokensByPopularity } from "../widget/helpers/tokenPopularity";
+import { TrustwareConfigStore } from "../config/store";
+
+const DEFAULT_PAGE_LIMIT = 100;
 
 export interface UseTokensResult {
   /** All available tokens for the selected chain */
@@ -18,11 +21,14 @@ export interface UseTokensResult {
   searchQuery: string;
   /** Set the search query to filter tokens */
   setSearchQuery: (query: string) => void;
+  /** Whether more tokens can be loaded for the active query */
+  hasNextPage: boolean;
+  /** Load the next token page when pagination is enabled */
+  loadMore: () => Promise<void>;
+  /** Whether an additional page request is in flight */
+  isLoadingMore: boolean;
 }
 
-/**
- * Convert TokenDef from registry to Token interface used by context
- */
 function mapTokenDefToToken(tokenDef: TokenDef): Token {
   return {
     address: tokenDef.address,
@@ -32,66 +38,97 @@ function mapTokenDefToToken(tokenDef: TokenDef): Token {
     decimals: tokenDef.decimals,
     iconUrl: tokenDef.logoURI,
     logoURI: tokenDef.logoURI,
-    // balance is populated separately when wallet is connected
     balance: undefined,
     usdPrice: tokenDef.usdPrice,
   };
 }
 
-/**
- * Hook to load available tokens for a selected chain from the registry.
- * Supports filtering tokens by name or symbol.
- */
-export function useTokens(chainId: number | null | undefined): UseTokensResult {
+function dedupeTokens(tokens: Token[]): Token[] {
+  const byKey = new Map<string, Token>();
+  for (const token of tokens) {
+    byKey.set(`${token.chainId}:${token.address.toLowerCase()}`, token);
+  }
+  return Array.from(byKey.values());
+}
+
+export function useTokens(
+  chainId: string | number | null | undefined
+): UseTokensResult {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [hasNextPage, setHasNextPage] = useState(false);
 
   const registry = getSharedRegistry();
-
   const { chainMap } = useChains();
+  const tokensPaginationEnabled =
+    TrustwareConfigStore.peek()?.features.tokensPagination ?? false;
+  const normalizedSearchQuery = searchQuery.trim();
+  const queryDependency = tokensPaginationEnabled ? normalizedSearchQuery : "";
 
   useEffect(() => {
-    // Reset state when chainId changes
     setSearchQuery("");
     setError(null);
     setTokens([]);
+    setNextCursor(undefined);
+    setHasNextPage(false);
+  }, [chainId]);
 
+  useEffect(() => {
     if (chainId === undefined || chainMap.size === 0) {
       setIsLoading(false);
+      setIsLoadingMore(false);
       return;
     }
 
     let cancelled = false;
 
-    const loadTokens = async () => {
+    const loadInitialTokens = async () => {
       try {
         setIsLoading(true);
         setError(null);
+        setTokens([]);
+        setNextCursor(undefined);
+        setHasNextPage(false);
 
-        await registry.ensureLoaded();
+        if (chainId === null || !tokensPaginationEnabled) {
+          await registry.ensureLoaded();
+
+          if (cancelled) return;
+
+          const tokenDefs =
+            chainId === null ? registry.allTokens() : registry.tokens(chainId);
+          const filtered = tokenDefs.filter((item) =>
+            chainMap.has(item.chainId.toString())
+          );
+          setTokens(filtered.map(mapTokenDefToToken));
+          return;
+        }
+
+        const page = await registry.tokensPage(chainId, {
+          q: queryDependency || undefined,
+          limit: DEFAULT_PAGE_LIMIT,
+        });
 
         if (cancelled) return;
 
-        // Get tokens for the selected chain. if set to <null>, get all tokens.
-        const tokenDefs =
-          chainId === null ? registry.allTokens() : registry.tokens(chainId);
-
-        const filteredTokens = tokenDefs.filter((item) =>
+        const filtered = page.data.filter((item) =>
           chainMap.has(item.chainId.toString())
         );
-
-        if (filteredTokens !== undefined) {
-          setTokens(filteredTokens.map(mapTokenDefToToken));
-        }
-        // setTokens(loadedTokens);
+        setTokens(filtered.map(mapTokenDefToToken));
+        setNextCursor(page.pageInfo.nextCursor);
+        setHasNextPage(page.pageInfo.hasNextPage);
       } catch (err) {
         if (!cancelled) {
           const message =
             err instanceof Error ? err.message : "Failed to load tokens";
           setError(message);
           setTokens([]);
+          setNextCursor(undefined);
+          setHasNextPage(false);
         }
       } finally {
         if (!cancelled) {
@@ -100,18 +137,52 @@ export function useTokens(chainId: number | null | undefined): UseTokensResult {
       }
     };
 
-    void loadTokens();
+    void loadInitialTokens();
 
     return () => {
       cancelled = true;
     };
-  }, [chainId, registry, chainMap]);
+  }, [chainId, registry, chainMap, queryDependency, tokensPaginationEnabled]);
 
-  // Filter tokens based on search query
+  const loadMore = async () => {
+    if (
+      chainId == null ||
+      !tokensPaginationEnabled ||
+      !hasNextPage ||
+      !nextCursor ||
+      isLoadingMore
+    ) {
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      const page = await registry.tokensPage(chainId, {
+        cursor: nextCursor,
+        q: queryDependency || undefined,
+        limit: DEFAULT_PAGE_LIMIT,
+      });
+      const filtered = page.data.filter((item) =>
+        chainMap.has(item.chainId.toString())
+      );
+      setTokens((current) =>
+        dedupeTokens([...current, ...filtered.map(mapTokenDefToToken)])
+      );
+      setNextCursor(page.pageInfo.nextCursor);
+      setHasNextPage(page.pageInfo.hasNextPage);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load more tokens";
+      setError(message);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const source =
-      query.length === 0
+      query.length === 0 || tokensPaginationEnabled
         ? tokens
         : tokens.filter(
             (token: Token) =>
@@ -121,7 +192,7 @@ export function useTokens(chainId: number | null | undefined): UseTokensResult {
           );
 
     return sortTokensByPopularity(source);
-  }, [tokens, searchQuery]);
+  }, [tokens, searchQuery, tokensPaginationEnabled]);
 
   return {
     tokens,
@@ -130,5 +201,8 @@ export function useTokens(chainId: number | null | undefined): UseTokensResult {
     error,
     searchQuery,
     setSearchQuery,
+    hasNextPage,
+    loadMore,
+    isLoadingMore,
   };
 }
