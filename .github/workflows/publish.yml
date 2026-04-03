@@ -1,3 +1,4 @@
+# Publishes @trustware/sdk to npm on version changes
 name: Publish
 
 on:
