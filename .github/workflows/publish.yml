@@ -1,16 +1,17 @@
-# Publishes @trustware/sdk to npm on version changes
+# Publishes @trustware/sdk to npm on version changes (after CI passes)
 name: Publish
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main, staging]
-    paths:
-      - 'package.json'
 
 permissions: {}
 
 jobs:
   publish:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -18,37 +19,48 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Check if version changed
+        id: version-check
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view @trustware/sdk version 2>/dev/null | grep -qx "$VERSION"; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if already published
+        if: steps.version-check.outputs.published == 'true'
+        run: |
+          echo "Version ${{ steps.version-check.outputs.version }} already published, skipping."
 
       - uses: actions/setup-node@v4
+        if: steps.version-check.outputs.published == 'false'
         with:
           node-version: 22
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
+        if: steps.version-check.outputs.published == 'false'
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Format check
-        run: npm run format:check
-
       - name: Build (main → production API)
-        if: github.ref == 'refs/heads/main'
+        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'main'
         run: npm run build
 
       - name: Build (staging → staging API)
-        if: github.ref == 'refs/heads/staging'
+        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
         run: npm run build
         env:
           TRUSTWARE_API_ROOT: https://bv-staging-api.trustware.io
 
       - name: Prepare staging package
-        if: github.ref == 'refs/heads/staging'
+        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
         run: |
           node -e "
             const pkg = require('./package.json');
@@ -59,11 +71,11 @@ jobs:
           "
 
       - name: Publish to npm (staging)
-        if: github.ref == 'refs/heads/staging'
+        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
         run: npx npm@latest publish --access public --tag staging --provenance
         env:
           TRUSTWARE_API_ROOT: https://bv-staging-api.trustware.io
 
       - name: Publish to npm (main)
-        if: github.ref == 'refs/heads/main'
+        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'main'
         run: npx npm@latest publish --access public --provenance
