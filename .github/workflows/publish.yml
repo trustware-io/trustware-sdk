@@ -59,10 +59,10 @@ jobs:
 
       - name: Publish to npm (staging)
         if: github.ref == 'refs/heads/staging'
-        run: npm publish --access public --tag staging
+        run: npm publish --access public --tag staging --provenance
         env:
           TRUSTWARE_API_ROOT: https://bv-staging-api.trustware.io
 
       - name: Publish to npm (main)
         if: github.ref == 'refs/heads/main'
-        run: npm publish --access public
+        run: npm publish --access public --provenance
