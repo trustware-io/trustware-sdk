@@ -2,11 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus } from "../../core/routes";
 import {
+  useDepositForm,
   useDepositNavigation,
   useDepositTransaction,
 } from "../context/DepositContext";
 import { useTrustware } from "../../provider";
 import type { Transaction } from "../../types";
+import { GTM_ID, Trustware } from "src";
+import { useGTM } from "src/hooks/useGTM";
 
 /**
  * Polling interval in milliseconds - faster for better UX
@@ -46,6 +49,9 @@ export function useTransactionPolling() {
   const { setCurrentStep } = useDepositNavigation();
   const { setTransactionStatus, setErrorMessage } = useDepositTransaction();
   const { emitSuccess } = useTrustware();
+  const { selectedChain, selectedToken } = useDepositForm();
+  const destinationConfig = Trustware.getConfig();
+  const { trackEvent } = useGTM(GTM_ID);
 
   const [state, setState] = useState<TransactionPollingState>({
     isPolling: false,
@@ -147,6 +153,17 @@ export function useTransactionPolling() {
               }));
               setTransactionStatus("success");
               setCurrentStep("success");
+
+              trackEvent("payment_completed", {
+                from_chain:
+                  selectedChain?.networkName ??
+                  selectedChain?.axelarChainName ??
+                  selectedChain?.chainId,
+                from_token: selectedToken?.symbol,
+                to_chain: destinationConfig?.routes.toChain,
+                to_token: destinationConfig?.routes.toToken,
+              });
+
               emitSuccess?.(tx);
               return;
             }

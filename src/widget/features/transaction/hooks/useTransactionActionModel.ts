@@ -19,6 +19,8 @@ import {
 } from "../../../helpers/chainHelpers";
 import { divRoundDown } from "../../../../utils";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
+import { useGTM } from "src/hooks/useGTM";
+import { GTM_ID } from "src/constants";
 
 type UseTransactionActionModelArgs = {
   actionErrorMessage: string | null;
@@ -69,6 +71,9 @@ export function useTransactionActionModel({
   }>({});
 
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
+  const { trackEvent } = useGTM(GTM_ID);
+
+  const destinationConfig = Trustware.getConfig();
 
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
@@ -198,6 +203,16 @@ export function useTransactionActionModel({
     if (!wallet || wallet.ecosystem !== "evm") {
       return;
     }
+
+    trackEvent("payment_initiated", {
+      from_chain:
+        selectedChain?.networkName ??
+        selectedChain?.axelarChainName ??
+        selectedChain?.chainId,
+      from_token: selectedToken?.symbol,
+      to_chain: destinationConfig?.routes.toChain,
+      to_token: destinationConfig?.routes.toToken,
+    });
 
     setIsApproving(true);
     try {
@@ -402,8 +417,22 @@ export function useTransactionActionModel({
     if (!routeResult) {
       return;
     }
+    trackEvent("payment_initiated", {
+      fromChainId: selectedChain?.chainId,
+      fromToken: selectedToken?.symbol,
+      toChain: destinationConfig?.routes.toChain,
+      toToken: destinationConfig?.routes.toToken,
+    });
     await submitTransaction(routeResult);
-  }, [routeResult, submitTransaction]);
+  }, [
+    destinationConfig?.routes.toChain,
+    destinationConfig?.routes.toToken,
+    selectedChain?.chainId,
+    selectedToken?.symbol,
+    submitTransaction,
+    routeResult,
+    trackEvent,
+  ]);
 
   const handleSwipeConfirm = useCallback(async () => {
     if (needsApproval) {
