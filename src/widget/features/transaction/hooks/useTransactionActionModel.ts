@@ -19,8 +19,8 @@ import {
 } from "../../../helpers/chainHelpers";
 import { divRoundDown } from "../../../../utils";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
-import { useGTM } from "src/hooks/useGTM";
-import { GTM_ID } from "src/constants";
+import { useGTM } from "../../../../hooks/useGTM";
+import { GTM_ID } from "../../../../constants";
 
 type UseTransactionActionModelArgs = {
   actionErrorMessage: string | null;
@@ -204,7 +204,7 @@ export function useTransactionActionModel({
       return;
     }
 
-    trackEvent("payment_initiated", {
+    trackEvent("token_approval_initiated", {
       from_chain:
         selectedChain?.networkName ??
         selectedChain?.axelarChainName ??
@@ -278,13 +278,19 @@ export function useTransactionActionModel({
   }, [
     amountWei,
     backendChainId,
+    destinationConfig?.routes.toChain,
+    destinationConfig?.routes.toToken,
     isApproving,
     readAllowance,
     routeResult?.txReq?.chainId,
+    selectedChain?.axelarChainName,
     selectedChain?.chainId,
     selectedChain?.id,
+    selectedChain?.networkName,
     selectedToken?.address,
+    selectedToken?.symbol,
     spender,
+    trackEvent,
     waitForApprovalConfirmation,
     walletAddress,
   ]);
@@ -418,19 +424,24 @@ export function useTransactionActionModel({
       return;
     }
     trackEvent("payment_initiated", {
-      fromChainId: selectedChain?.chainId,
-      fromToken: selectedToken?.symbol,
-      toChain: destinationConfig?.routes.toChain,
-      toToken: destinationConfig?.routes.toToken,
+      from_chain:
+        selectedChain?.networkName ??
+        selectedChain?.axelarChainName ??
+        selectedChain?.chainId,
+      from_token: selectedToken?.symbol,
+      to_chain: destinationConfig?.routes.toChain,
+      to_token: destinationConfig?.routes.toToken,
     });
     await submitTransaction(routeResult);
   }, [
     destinationConfig?.routes.toChain,
     destinationConfig?.routes.toToken,
+    routeResult,
+    selectedChain?.axelarChainName,
     selectedChain?.chainId,
+    selectedChain?.networkName,
     selectedToken?.symbol,
     submitTransaction,
-    routeResult,
     trackEvent,
   ]);
 

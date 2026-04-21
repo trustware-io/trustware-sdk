@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { Trustware } from "src";
+import { Trustware } from "../core";
 
 declare global {
   interface Window {

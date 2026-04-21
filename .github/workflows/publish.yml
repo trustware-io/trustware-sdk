@@ -52,12 +52,15 @@ jobs:
       - name: Build (main → production API)
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'main'
         run: npm run build
+        env:
+          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
 
       - name: Build (staging → staging API)
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
         run: npm run build
         env:
           TRUSTWARE_API_ROOT: https://bv-staging-api.trustware.io
+          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID_STAGING }}
 
       - name: Prepare staging package
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'

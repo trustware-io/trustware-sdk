@@ -8,8 +8,9 @@ import {
 } from "../context/DepositContext";
 import { useTrustware } from "../../provider";
 import type { Transaction } from "../../types";
-import { GTM_ID, Trustware } from "src";
-import { useGTM } from "src/hooks/useGTM";
+import { Trustware } from "../../core";
+import { GTM_ID } from "../../constants";
+import { useGTM } from "../../hooks/useGTM";
 
 /**
  * Polling interval in milliseconds - faster for better UX
@@ -248,10 +249,17 @@ export function useTransactionPolling() {
     },
     [
       clearPolling,
+      destinationConfig?.routes.toChain,
+      destinationConfig?.routes.toToken,
       emitSuccess,
-      setTransactionStatus,
+      selectedChain?.axelarChainName,
+      selectedChain?.chainId,
+      selectedChain?.networkName,
+      selectedToken?.symbol,
       setCurrentStep,
       setErrorMessage,
+      setTransactionStatus,
+      trackEvent,
     ]
   );
 
