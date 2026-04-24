@@ -89,6 +89,28 @@ export const Trustware = {
     return Trustware;
   },
 
+  setDestinationChain(chain: string) {
+    const prev = TrustwareConfigStore.get();
+    TrustwareConfigStore.update({
+      routes: {
+        ...prev.routes,
+        toChain: chain,
+      },
+    });
+    return Trustware;
+  },
+
+  setDestinationToken(token: string) {
+    const prev = TrustwareConfigStore.get();
+    TrustwareConfigStore.update({
+      routes: {
+        ...prev.routes,
+        toToken: token,
+      },
+    });
+    return Trustware;
+  },
+
   /** Read active wallet */
   getWallet(): WalletInterFaceAPI | null {
     return walletManager.wallet;
