@@ -8,6 +8,7 @@ import React, {
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 import { normalizeAddress } from "../helpers/chainHelpers";
+import ImageLoader from "./ImageLoader";
 
 export interface TokenSwipePillProps {
   /** List of tokens to display in the carousel */
@@ -175,8 +176,9 @@ export function TokenSwipePill({
   /**
    * Generate fallback initials from token symbol
    */
-  const getTokenInitials = (symbol: string) => {
-    return symbol?.slice(0, 2).toUpperCase();
+
+  const getChainInitials = (chain: string) => {
+    return chain?.slice(0, 2).toUpperCase();
   };
 
   const chainBadge = useMemo(() => {
@@ -214,7 +216,7 @@ export function TokenSwipePill({
         alignItems: "flex-start",
         gap: spacing[2],
         padding: `${spacing[1.5]} ${spacing[4]}`,
-
+        minWidth: "16.875rem",
         backgroundColor: colors.background,
         borderRadius: borderRadius.full,
         border: `1px solid ${colors.border}`,
@@ -235,6 +237,7 @@ export function TokenSwipePill({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
+          width: "70%",
         }}
       >
         <div
@@ -306,6 +309,7 @@ export function TokenSwipePill({
                   }}
                 >
                   <div style={{ position: "relative" }}>
+                    {/*Token Icon/*/}
                     <div
                       style={{
                         width: "2.5rem",
@@ -316,30 +320,34 @@ export function TokenSwipePill({
                         justifyContent: "center",
                       }}
                     >
-                      {validateIconUrl(token.iconUrl, isCenter) ? (
-                        <img
-                          src={validateIconUrl(token.iconUrl, isCenter)}
-                          alt={token.symbol}
-                          style={{
-                            width: "2rem",
-                            height: "2rem",
-                            objectFit: "contain",
-                          }}
-                        />
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: fontSize.xs,
-                            fontWeight: fontWeight.bold,
-                            color: colors.zinc[800],
-                          }}
-                        >
-                          {getTokenInitials(token.symbol as string)}
-                        </span>
-                      )}
+                      <ImageLoader
+                        src={validateIconUrl(token.iconUrl, isCenter)}
+                        alt={token.symbol}
+                        imgStyle={{
+                          width: "2rem",
+                          height: "2rem",
+                          objectFit: "contain",
+                        }}
+                        Fallback={
+                          <span
+                            style={{
+                              fontSize: fontSize.xs,
+                              fontWeight: fontWeight.bold,
+                              color: colors.zinc[800],
+                              width: "2rem",
+                              height: "2rem",
+                              objectFit: "contain",
+                              textAlign: "center",
+                            }}
+                          >
+                            {token.symbol}
+                          </span>
+                        }
+                      />
                     </div>
-                    {/* Chain Icon - only on center token */}
 
+                    {/* Chain Icon - only on center token */}
+                    {/*Chain Badge/*/}
                     {isCenter && (selectedToken as YourTokenData).chainData && (
                       <div
                         style={{
@@ -349,7 +357,6 @@ export function TokenSwipePill({
                           width: "1rem",
                           height: "1rem",
                           borderRadius: "9999px",
-
                           backgroundColor: "none",
                           border: `none`,
                           display: "flex",
@@ -358,18 +365,30 @@ export function TokenSwipePill({
                           overflow: "hidden",
                         }}
                       >
-                        <img
+                        <ImageLoader
                           src={chainBadge}
                           alt={
                             (selectedToken as YourTokenData).chainData
                               ?.networkName
                           }
-                          style={{
+                          imgStyle={{
                             width: "0.75rem",
                             height: "0.75rem",
                             borderRadius: "9999px",
                             objectFit: "cover",
                           }}
+                          Fallback={
+                            <span
+                              style={{
+                                fontSize: "10px",
+                              }}
+                            >
+                              {getChainInitials(
+                                (selectedToken as YourTokenData).chainData
+                                  ?.networkName as string
+                              )}
+                            </span>
+                          }
                         />
                       </div>
                     )}
