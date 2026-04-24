@@ -212,6 +212,7 @@ export function useTransactionActionModel({
       from_token: selectedToken?.symbol,
       to_chain: destinationConfig?.routes.toChain,
       to_token: destinationConfig?.routes.toToken,
+      domain: window.origin,
     });
 
     setIsApproving(true);
@@ -424,13 +425,11 @@ export function useTransactionActionModel({
       return;
     }
     trackEvent("payment_initiated", {
-      from_chain:
-        selectedChain?.networkName ??
-        selectedChain?.axelarChainName ??
-        selectedChain?.chainId,
-      from_token: selectedToken?.symbol,
-      to_chain: destinationConfig?.routes.toChain,
-      to_token: destinationConfig?.routes.toToken,
+      fromChainId: selectedChain?.chainId,
+      fromToken: selectedToken?.symbol,
+      toChain: destinationConfig?.routes.toChain,
+      toToken: destinationConfig?.routes.toToken,
+      domain: window.origin,
     });
     await submitTransaction(routeResult);
   }, [

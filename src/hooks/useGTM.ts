@@ -51,7 +51,9 @@ export function useGTM(gtmId: string): UseGTMReturn {
 
   useEffect(() => {
     // Kill-switch: skip initialization entirely when GA4 is not allowed
-    const { shouldAllowGA4 } = Trustware.getConfig()?.features || {};
+    const { shouldAllowGA4 } = Trustware.getConfig().features;
+
+    const _features = Trustware.getConfig().features;
 
     if (!shouldAllowGA4) {
       console.warn(

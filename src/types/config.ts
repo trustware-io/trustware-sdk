@@ -101,6 +101,7 @@ export type ResolvedTrustwareConfig = {
 export type FeatureFlags = {
   tokensPagination?: boolean;
   balanceStreaming?: boolean;
+  shouldAllowGA4?: boolean;
 };
 
 export type ResolvedFeatureFlags = {
@@ -161,4 +162,5 @@ export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
 export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   tokensPagination: false,
   balanceStreaming: false,
+  shouldAllowGA4: true,
 };

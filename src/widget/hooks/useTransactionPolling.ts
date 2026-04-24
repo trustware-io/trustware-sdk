@@ -163,6 +163,7 @@ export function useTransactionPolling() {
                 from_token: selectedToken?.symbol,
                 to_chain: destinationConfig?.routes.toChain,
                 to_token: destinationConfig?.routes.toToken,
+                domain: window.origin,
               });
 
               emitSuccess?.(tx);
