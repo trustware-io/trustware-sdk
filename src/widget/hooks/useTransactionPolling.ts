@@ -165,10 +165,11 @@ export function useTransactionPolling() {
                 from_chain:
                   selectedChain?.networkName ??
                   selectedChain?.axelarChainName ??
-                  selectedChain?.chainId,
-                from_token: selectedToken?.symbol,
-                to_chain: destinationConfig?.routes.toChain,
-                to_token: destinationConfig?.routes.toToken,
+                  selectedChain?.chainId ??
+                  "unknown",
+                from_token: selectedToken?.symbol ?? "unknown",
+                to_chain: destinationConfig?.routes?.toChain ?? "unknown",
+                to_token: destinationConfig?.routes?.toToken ?? "unknown",
                 domain: window.origin,
               });
 
