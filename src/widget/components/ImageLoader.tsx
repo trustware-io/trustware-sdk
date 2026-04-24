@@ -118,7 +118,12 @@ export default function ImageLoader({
 
   return (
     <div ref={imgRef} style={{ position: "relative" }}>
-      {status === "loading" && <Skeleton />}
+      {status === "loading" && (
+        <Skeleton
+          height={imgStyle?.height as string | undefined}
+          borderRadius={imgStyle?.borderRadius as string | undefined}
+        />
+      )}
       {status === "success" && (
         <img
           src={src}

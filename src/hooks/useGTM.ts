@@ -49,15 +49,19 @@ export function useGTM(gtmId: string): UseGTMReturn {
 
   // ── Initialization ─────────────
 
+  const isGA4Allowed = useCallback((): boolean => {
+    try {
+      return Trustware.getConfig().features.shouldAllowGA4;
+    } catch {
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     // Kill-switch: skip initialization entirely when GA4 is not allowed
-    const { shouldAllowGA4 } = Trustware.getConfig().features;
-
-    const _features = Trustware.getConfig().features;
-
-    if (!shouldAllowGA4) {
+    if (!isGA4Allowed()) {
       console.warn(
-        "useGTM: GA4 tracking is disabled (shouldAllowGA4 = false)."
+        "useGTM: GA4 tracking is disabled or Trustware config not initialized."
       );
       return;
     }
@@ -76,6 +80,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
       `script[src*="googletagmanager.com/gtm.js?id=${gtmId}"]`
     );
     if (alreadyLoaded) {
+      window.dataLayer = window.dataLayer || [];
       isInitialized.current = true;
       return;
     }
@@ -104,7 +109,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
       }
       isInitialized.current = false;
     };
-  }, [gtmId]);
+  }, [gtmId, isGA4Allowed]);
 
   // ── Methods ────────────
 
@@ -113,6 +118,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
    * Call this once in your app root for users with JS disabled.
    */
   const addNoscriptIframe = useCallback((): void => {
+    if (!isGA4Allowed()) return;
     if (document.querySelector('iframe[src*="googletagmanager.com/ns.html"]'))
       return;
 
@@ -125,7 +131,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
     iframe.style.visibility = "hidden";
     noscript.appendChild(iframe);
     document.body.insertBefore(noscript, document.body.firstChild);
-  }, [gtmId]);
+  }, [gtmId, isGA4Allowed]);
 
   /**
    * Push a custom event to the GTM dataLayer.
@@ -195,6 +201,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
    */
   const directGtag = useCallback(
     (command: GtagCommand, ...args: unknown[]): void => {
+      if (!isGA4Allowed()) return;
       if (!window.gtag) {
         console.warn(
           "useGTM: window.gtag is not available. Load gtag.js separately to use this method."
@@ -203,7 +210,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
       }
       window.gtag(command, ...args);
     },
-    []
+    [isGA4Allowed]
   );
 
   return {
