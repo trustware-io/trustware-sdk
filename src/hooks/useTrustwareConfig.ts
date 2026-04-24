@@ -42,6 +42,7 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
         features: {
           tokensPagination: false,
           balanceStreaming: false,
+          shouldAllowGA4: true,
         },
       };
     }
