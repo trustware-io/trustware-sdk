@@ -43,4 +43,5 @@ export {
   WidgetSecurityFooter,
   type WidgetSecurityFooterProps,
 } from "./WidgetSecurityFooter";
+export { default as ImageLoader } from "./ImageLoader";
 export * from "./Skeletons";

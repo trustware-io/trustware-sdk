@@ -128,6 +128,8 @@ export function resolveConfig(
     balanceStreaming:
       input.features?.balanceStreaming ??
       DEFAULT_FEATURE_FLAGS.balanceStreaming,
+    shouldAllowGA4:
+      input.features?.shouldAllowGA4 ?? DEFAULT_FEATURE_FLAGS.shouldAllowGA4,
   };
 
   return {
