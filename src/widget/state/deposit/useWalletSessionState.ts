@@ -53,6 +53,9 @@ export function useWalletSessionState() {
 
   const connectWallet = useCallback(async (wallet: DetectedWallet) => {
     await walletManager.connectDetected(wallet);
+    const error = walletManager.error;
+    const api = walletManager.wallet;
+    return { error, api };
   }, []);
 
   const disconnectWallet = useCallback(async () => {

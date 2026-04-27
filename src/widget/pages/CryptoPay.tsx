@@ -27,6 +27,7 @@ import { TrustwareError } from "../../errors/TrustwareError";
 import { TrustwareErrorCode } from "../../errors/errorCodes";
 import { useTrustwareConfig } from "../../hooks/useTrustwareConfig";
 import { useTrustware } from "../../provider";
+import DefaultCryptoPay from "./CryptoPay/DefaultCryptoPay";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
@@ -51,7 +52,12 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     amountInputMode,
     setAmountInputMode,
   } = useDepositForm();
-  const { walletAddress, walletStatus, yourWalletTokens } = useDepositWallet();
+  const {
+    walletAddress,
+    walletStatus,
+    yourWalletTokens,
+    yourWalletTokensLoading,
+  } = useDepositWallet();
   const { goBack, setCurrentStep, currentStep } = useDepositNavigation();
   const config = useTrustwareConfig();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
@@ -62,6 +68,10 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     return Number.isFinite(n) && n > 0 ? n : undefined;
   }, [config.routes?.options?.routeRefreshMs]);
 
+  const IsPos = <T extends { balance: string | number }>(
+    x: T | null | undefined
+  ): x is T => x !== null && x !== undefined && x.balance !== "0";
+
   const isReady = useMemo(() => {
     if (
       selectedToken !== null &&
@@ -70,7 +80,12 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     ) {
       return true;
     }
-  }, [selectedToken, yourWalletTokens.length]);
+  }, [selectedToken, yourWalletTokens]);
+
+  const showDefaultCryptoPay = useMemo(() => {
+    const nonZer0Tks = yourWalletTokens.filter(IsPos);
+    if (!yourWalletTokensLoading && nonZer0Tks.length === 0) return true;
+  }, [yourWalletTokens, yourWalletTokensLoading]);
 
   const {
     amountComputation,
@@ -202,63 +217,68 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     >
       <WidgetPageHeader onBack={goBack} title="Confirm Deposit" />
 
-      {isReady ? (
+      {yourWalletTokensLoading ? (
         <>
-          <CryptoPayAmountSection
-            amount={amount}
-            amountComputation={amountComputation}
-            amountInputMode={amountInputMode}
-            estimatedReceive={estimatedReceive}
-            effectiveSliderMax={effectiveSliderMax}
-            effectiveSliderMin={effectiveSliderMin}
-            gasReservationWei={gasReservationWei}
-            handleAmountChange={handleAmountChange}
-            handleExpandTokens={handleExpandTokens}
-            handleSliderChange={handleSliderChange}
-            handleTokenChange={handleTokenChange}
-            hasUsdPrice={hasUsdPrice}
-            isFixedAmount={isFixedAmount}
-            isLoadingRoute={isLoadingRoute}
-            normalizedTokenBalance={normalizedTokenBalance}
-            orderedTokens={orderedTokens}
-            parsedAmount={parsedAmount}
-            selectedChain={selectedChain}
-            selectedToken={readySelectedToken}
-            setAmountInputMode={setAmountInputMode}
-            showFeeSummary={SHOW_FEE_SUMMARY}
-            tokenPriceUSD={tokenPriceUSD}
-            walletAddress={walletAddress}
-            yourWalletTokensLength={yourWalletTokens.length}
-          />
-
-          <CryptoPaySwipeSection
-            actionErrorMessage={actionErrorMessage}
-            canSwipe={canSwipe}
-            destinationConfig={destinationConfig}
-            fromChainName={selectedChain?.networkName}
-            handleSwipeConfirm={handleSwipeConfirm}
-            isApproving={isApproving}
-            isLoadingRoute={isLoadingRoute}
-            isReadingAllowance={isReadingAllowance}
-            isWalletConnected={isWalletConnected}
-            needsApproval={needsApproval}
-            selectedToken={readySelectedToken}
-            swipeResetKey={swipeResetKey}
-          />
-
-          <WidgetSecurityFooter />
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <LoadingSkeleton />
+          </div>
         </>
       ) : (
-        <div
-          style={{
-            display: "flex",
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <LoadingSkeleton />
-        </div>
+        <>
+          {isReady && (
+            <>
+              <CryptoPayAmountSection
+                amount={amount}
+                amountComputation={amountComputation}
+                amountInputMode={amountInputMode}
+                estimatedReceive={estimatedReceive}
+                effectiveSliderMax={effectiveSliderMax}
+                effectiveSliderMin={effectiveSliderMin}
+                gasReservationWei={gasReservationWei}
+                handleAmountChange={handleAmountChange}
+                handleExpandTokens={handleExpandTokens}
+                handleSliderChange={handleSliderChange}
+                handleTokenChange={handleTokenChange}
+                hasUsdPrice={hasUsdPrice}
+                isFixedAmount={isFixedAmount}
+                isLoadingRoute={isLoadingRoute}
+                normalizedTokenBalance={normalizedTokenBalance}
+                orderedTokens={orderedTokens}
+                parsedAmount={parsedAmount}
+                selectedChain={selectedChain}
+                selectedToken={readySelectedToken}
+                setAmountInputMode={setAmountInputMode}
+                showFeeSummary={SHOW_FEE_SUMMARY}
+                tokenPriceUSD={tokenPriceUSD}
+                walletAddress={walletAddress}
+                yourWalletTokensLength={yourWalletTokens.length}
+              />
+              <CryptoPaySwipeSection
+                actionErrorMessage={actionErrorMessage}
+                canSwipe={canSwipe}
+                destinationConfig={destinationConfig}
+                fromChainName={selectedChain?.networkName}
+                handleSwipeConfirm={handleSwipeConfirm}
+                isApproving={isApproving}
+                isLoadingRoute={isLoadingRoute}
+                isReadingAllowance={isReadingAllowance}
+                isWalletConnected={isWalletConnected}
+                needsApproval={needsApproval}
+                selectedToken={readySelectedToken}
+                swipeResetKey={swipeResetKey}
+              />
+              <WidgetSecurityFooter />
+            </>
+          )}
+          {showDefaultCryptoPay && <DefaultCryptoPay />}
+        </>
       )}
     </div>
   );

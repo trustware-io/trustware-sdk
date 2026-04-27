@@ -88,17 +88,21 @@ class WalletManager {
     this.clearConnectedWalletState();
     this.emit();
     try {
-      const { api } = await connectDetectedWallet(target, {
+      const { api, error } = await connectDetectedWallet(target, {
         wagmi: opts?.wagmi,
       });
-      if (api) {
+      if (api && !error) {
         this._wallet = api;
         this._connectedWalletId = target.meta.id;
         this.bindProviderEvents(target);
         await this.syncIdentityFromWallet(target.meta.id);
       }
+
+      if (error) this._error = error;
       this._status = "connected";
+      return { error: error, api };
     } catch (e) {
+      // console.log("AN error occuresd", e);
       this._error = e;
       this._status = "error";
       this.clearConnectedWalletState();

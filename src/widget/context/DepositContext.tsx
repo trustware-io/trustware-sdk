@@ -41,6 +41,7 @@ const DepositNavigationContext = createContext<
       | "resetState"
       | "stepHistory"
       | "navigationDirection"
+      | "setCurrentStepInternal"
     >
   | undefined
 >(undefined);
@@ -54,6 +55,7 @@ const DepositWalletContext = createContext<
       | "disconnectWallet"
       | "yourWalletTokens"
       | "setYourWalletTokens"
+      | "yourWalletTokensLoading"
     >
   | undefined
 >(undefined);
@@ -113,6 +115,7 @@ export function DepositProvider({
     setCurrentStep,
     goBack,
     resetNavigation,
+    setCurrentStepInternal,
   } = useDepositNavigationState(initialStep);
   const { resolvedTheme, toggleTheme } = useThemePreference();
   const {
@@ -133,14 +136,18 @@ export function DepositProvider({
   >(null);
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
-  const { yourWalletTokens, setYourWalletTokens, reloadWalletTokens } =
-    useWalletTokenState({
-      walletAddress,
-      selectedChain,
-      setSelectedChain,
-      selectedToken,
-      setSelectedToken,
-    });
+  const {
+    yourWalletTokens,
+    setYourWalletTokens,
+    reloadWalletTokens,
+    yourWalletTokensLoading,
+  } = useWalletTokenState({
+    walletAddress,
+    selectedChain,
+    setSelectedChain,
+    selectedToken,
+    setSelectedToken,
+  });
 
   // Transaction lifecycle state
   const [transactionStatus, setTransactionStatus] =
@@ -178,6 +185,7 @@ export function DepositProvider({
       resetState,
       stepHistory,
       navigationDirection,
+      setCurrentStepInternal,
     }),
     [
       currentStep,
@@ -185,6 +193,7 @@ export function DepositProvider({
       navigationDirection,
       resetState,
       setCurrentStep,
+      setCurrentStepInternal,
       stepHistory,
     ]
   );
@@ -198,6 +207,7 @@ export function DepositProvider({
       disconnectWallet,
       yourWalletTokens,
       setYourWalletTokens,
+      yourWalletTokensLoading,
     }),
     [
       connectWallet,
@@ -207,6 +217,7 @@ export function DepositProvider({
       walletAddress,
       walletStatus,
       yourWalletTokens,
+      yourWalletTokensLoading,
     ]
   );
 

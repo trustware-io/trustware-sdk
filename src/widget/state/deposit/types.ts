@@ -77,6 +77,7 @@ export interface Chain {
 export interface DepositContextValue {
   currentStep: NavigationStep;
   setCurrentStep: (step: NavigationStep) => void;
+  setCurrentStepInternal: (value: React.SetStateAction<NavigationStep>) => void;
   goBack: () => void;
   resetState: () => void;
   stepHistory: NavigationStep[];
@@ -84,7 +85,10 @@ export interface DepositContextValue {
   selectedWallet: WalletInterFaceAPI | null;
   walletAddress: string | null;
   walletStatus: WalletStatus;
-  connectWallet: (wallet: DetectedWallet) => Promise<void>;
+  connectWallet: (wallet: DetectedWallet) => Promise<{
+    error: unknown;
+    api: WalletInterFaceAPI | null;
+  }>;
   disconnectWallet: () => Promise<void>;
   selectedToken: Token | null | YourTokenData;
   setSelectedToken: (token: Token | null | YourTokenData) => void;
@@ -106,6 +110,7 @@ export interface DepositContextValue {
   toggleTheme: () => void;
   setYourWalletTokens: Dispatch<SetStateAction<YourTokenData[]>>;
   yourWalletTokens: YourTokenData[];
+  yourWalletTokensLoading: boolean;
   amountInputMode: "usd" | "token";
   setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
 }

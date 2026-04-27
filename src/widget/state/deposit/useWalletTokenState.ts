@@ -35,6 +35,7 @@ export function useWalletTokenState({
   setSelectedToken,
 }: WalletTokenStateArgs) {
   const [yourWalletTokens, setYourWalletTokens] = useState<YourTokenData[]>([]);
+  const [yourWalletTokensLoading, setYourWalletTokensLoading] = useState(false);
   const [walletTokensReloadNonce, setWalletTokensReloadNonce] = useState(0);
   const lastLoadedWalletRef = useRef<string | null>(null);
   const { tokens } = useTokens(null);
@@ -59,6 +60,7 @@ export function useWalletTokenState({
 
     async function loadWalletTokens() {
       try {
+        setYourWalletTokensLoading(true);
         if (TrustwareConfigStore.get().features.balanceStreaming) {
           let accumulatedBalances: Awaited<
             ReturnType<typeof getBalancesByAddress>
@@ -106,6 +108,8 @@ export function useWalletTokenState({
         if (!cancelled) {
           setYourWalletTokens([]);
         }
+      } finally {
+        setYourWalletTokensLoading(false);
       }
     }
 
@@ -133,6 +137,7 @@ export function useWalletTokenState({
     yourWalletTokens,
     setYourWalletTokens,
     reloadWalletTokens,
+    yourWalletTokensLoading,
   };
 }
 
