@@ -140,8 +140,7 @@ function DefaultCryptoPay() {
             lineHeight: 1.625,
           }}
         >
-          You&apos;ll need tokens before you can swap or bridge. Choose how
-          you&apos;d like to fund your wallet.
+          You&apos;ll need tokens before you can swap or bridge.
         </p>
       </div>
     </div>
