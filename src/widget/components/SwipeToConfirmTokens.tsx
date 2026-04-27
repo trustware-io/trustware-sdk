@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { colors, spacing, fontSize, fontWeight } from "../styles";
 import type { Token, YourTokenData } from "../context/DepositContext";
-import ImageLoader from "./ImageLoader";
+import { ImageLoader } from "./";
 
 export interface SwipeToConfirmTokensProps {
   /** Token being sent/deposited */

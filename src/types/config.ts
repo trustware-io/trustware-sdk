@@ -107,7 +107,7 @@ export type FeatureFlags = {
 export type ResolvedFeatureFlags = {
   tokensPagination: boolean;
   balanceStreaming: boolean;
-  shouldAllowGA4?: boolean;
+  shouldAllowGA4: boolean;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage

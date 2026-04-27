@@ -42,9 +42,7 @@ const baseConfig: Options = {
     __API_ROOT__: JSON.stringify(
       process.env.TRUSTWARE_API_ROOT || "https://api.trustware.io"
     ),
-    __GTM_ID__: JSON.stringify(
-      process.env.TRUSTWARE_GTM_ID || "GTM-WR44F796"
-    ),
+    __GTM_ID__: JSON.stringify(process.env.TRUSTWARE_GTM_ID || ""),
   },
 };
 

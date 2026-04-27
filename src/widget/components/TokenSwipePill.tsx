@@ -8,7 +8,7 @@ import React, {
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import type { Token, Chain, YourTokenData } from "../context/DepositContext";
 import { normalizeAddress } from "../helpers/chainHelpers";
-import ImageLoader from "./ImageLoader";
+import { ImageLoader } from "./";
 
 export interface TokenSwipePillProps {
   /** List of tokens to display in the carousel */
@@ -366,7 +366,7 @@ export function TokenSwipePill({
                         }}
                       >
                         <ImageLoader
-                          src={chainBadge}
+                          src={chainBadge || ""}
                           alt={
                             (selectedToken as YourTokenData).chainData
                               ?.networkName

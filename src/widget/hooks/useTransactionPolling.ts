@@ -10,7 +10,7 @@ import { useTrustware } from "../../provider";
 import type { Transaction } from "../../types";
 import { Trustware } from "../../core";
 import { GTM_ID } from "../../constants";
-import { useGTM } from "../../hooks/useGTM";
+import { useGTM } from "../../hooks";
 
 /**
  * Polling interval in milliseconds - faster for better UX
@@ -51,7 +51,13 @@ export function useTransactionPolling() {
   const { setTransactionStatus, setErrorMessage } = useDepositTransaction();
   const { emitSuccess } = useTrustware();
   const { selectedChain, selectedToken } = useDepositForm();
-  const destinationConfig = Trustware.getConfig();
+  const destinationConfig = (() => {
+    try {
+      return Trustware.getConfig();
+    } catch {
+      return undefined;
+    }
+  })();
   const { trackEvent } = useGTM(GTM_ID);
 
   const [state, setState] = useState<TransactionPollingState>({
@@ -159,10 +165,11 @@ export function useTransactionPolling() {
                 from_chain:
                   selectedChain?.networkName ??
                   selectedChain?.axelarChainName ??
-                  selectedChain?.chainId,
-                from_token: selectedToken?.symbol,
-                to_chain: destinationConfig?.routes.toChain,
-                to_token: destinationConfig?.routes.toToken,
+                  selectedChain?.chainId ??
+                  "unknown",
+                from_token: selectedToken?.symbol ?? "unknown",
+                to_chain: destinationConfig?.routes?.toChain ?? "unknown",
+                to_token: destinationConfig?.routes?.toToken ?? "unknown",
                 domain: window.origin,
               });
 
