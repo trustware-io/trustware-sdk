@@ -1,33 +1,33 @@
 import React, { useEffect, useMemo } from "react";
+import { TrustwareErrorCode } from "src/errors/errorCodes";
+import { TrustwareError } from "src/errors/TrustwareError";
+import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
+import { useTrustware } from "src/provider";
+import { ChainDef } from "src/types";
+import {
+  WidgetPageHeader,
+  LoadingSkeleton,
+  WidgetSecurityFooter,
+} from "src/widget/components";
 import {
   useDepositForm,
   useDepositNavigation,
   useDepositWallet,
   YourTokenData,
-} from "../context/DepositContext";
-import {
-  LoadingSkeleton,
-  WidgetPageHeader,
-  WidgetSecurityFooter,
-} from "../components";
+} from "src/widget/context/DepositContext";
 import {
   CryptoPayAmountSection,
   sanitizeAmountInput,
   useAmountConstraints,
   useDepositAmountModel,
-} from "../features/amount";
-import { useRoutePreviewModel } from "../features/route-preview";
-import { useOrderedWalletTokens } from "../features/token-selection";
+} from "src/widget/features/amount";
+import { useRoutePreviewModel } from "src/widget/features/route-preview";
+import { useOrderedWalletTokens } from "src/widget/features/token-selection";
 import {
-  CryptoPaySwipeSection,
   useTransactionActionModel,
-} from "../features/transaction";
-import type { ChainDef } from "../../types";
-import { TrustwareError } from "../../errors/TrustwareError";
-import { TrustwareErrorCode } from "../../errors/errorCodes";
-import { useTrustwareConfig } from "../../hooks/useTrustwareConfig";
-import { useTrustware } from "../../provider";
-import DefaultCryptoPay from "./CryptoPay/DefaultCryptoPay";
+  CryptoPaySwipeSection,
+} from "src/widget/features/transaction";
+import DefaultCryptoPay from "./DefaultCryptoPay";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
