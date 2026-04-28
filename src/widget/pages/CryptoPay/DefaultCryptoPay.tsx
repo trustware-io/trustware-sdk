@@ -129,7 +129,8 @@ function DefaultCryptoPay() {
             color: colors.foreground,
           }}
         >
-          Add funds to get started
+          {/* Add funds to get started */}
+          Deposit assets to swap or bridge.
         </h2>
         <p
           style={{
