@@ -292,27 +292,39 @@ export function SwipeToConfirmTokens({
             padding: `0 ${spacing[7]}`,
             transition: "opacity 0.2s",
             ...(effectiveProgress > 0.15 && { opacity: 0 }),
+            width: "100%",
           }}
         >
-          <span
+          <div
             style={{
-              fontSize: isVeryLongText
-                ? fontSize.xs
-                : isLongText
-                  ? "0.8125rem"
-                  : fontSize.sm,
-              color: colors.mutedForeground,
-              fontWeight: fontWeight.bold,
-              lineHeight: 1.15,
-              textAlign: "center",
+              minWidth: 0,
+              flex: 1,
+              overflowX: "auto",
               whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "100%",
+              scrollbarWidth: "none",
+              maxWidth: "85%",
             }}
           >
-            {text}
-          </span>
+            <span
+              style={{
+                fontSize: isVeryLongText
+                  ? fontSize.xs
+                  : isLongText
+                    ? "0.8125rem"
+                    : fontSize.sm,
+                color: colors.mutedForeground,
+                fontWeight: fontWeight.bold,
+                lineHeight: 1.15,
+                textAlign: "center",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "100%",
+              }}
+            >
+              {text}
+            </span>
+          </div>
         </div>
 
         {/* Long-press countdown */}

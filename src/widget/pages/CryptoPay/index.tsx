@@ -73,18 +73,25 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
   ): x is T => x !== null && x !== undefined && x.balance !== "0";
 
   const isReady = useMemo(() => {
-    if (
-      selectedToken !== null &&
-      yourWalletTokens.length > 0 &&
+    return (
+      selectedToken != null &&
+      yourWalletTokens?.length > 0 &&
       (selectedToken as YourTokenData)?.chainData !== undefined
-    ) {
-      return true;
-    }
+    );
   }, [selectedToken, yourWalletTokens]);
 
   const showDefaultCryptoPay = useMemo(() => {
-    const nonZer0Tks = yourWalletTokens.filter(IsPos);
-    if (!yourWalletTokensLoading && nonZer0Tks.length === 0) return true;
+    const nonZer0Tks = (yourWalletTokens ?? []).filter(IsPos);
+
+    return (
+      !yourWalletTokensLoading &&
+      nonZer0Tks.length === 0 &&
+      yourWalletTokens.length > 0
+    );
+  }, [yourWalletTokens, yourWalletTokensLoading]);
+
+  const showSkeleton = useMemo(() => {
+    return yourWalletTokensLoading || (yourWalletTokens ?? []).length === 0;
   }, [yourWalletTokens, yourWalletTokensLoading]);
 
   const {
@@ -217,7 +224,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     >
       <WidgetPageHeader onBack={goBack} title="Confirm Deposit" />
 
-      {yourWalletTokensLoading ? (
+      {showSkeleton ? (
         <>
           <div
             style={{

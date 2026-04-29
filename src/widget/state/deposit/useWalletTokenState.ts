@@ -109,7 +109,9 @@ export function useWalletTokenState({
           setYourWalletTokens([]);
         }
       } finally {
-        setYourWalletTokensLoading(false);
+        if (!cancelled) {
+          setYourWalletTokensLoading(false);
+        }
       }
     }
 
@@ -127,6 +129,7 @@ export function useWalletTokenState({
     tokens,
     walletAddress,
     walletTokensReloadNonce,
+    setYourWalletTokensLoading,
   ]);
 
   const reloadWalletTokens = () => {
@@ -138,6 +141,7 @@ export function useWalletTokenState({
     setYourWalletTokens,
     reloadWalletTokens,
     yourWalletTokensLoading,
+    setYourWalletTokensLoading,
   };
 }
 
