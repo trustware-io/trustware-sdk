@@ -77,8 +77,6 @@ jobs:
       - name: Publish to npm (staging)
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
         run: npx npm@latest publish --access public --tag staging --provenance
-        env:
-          TRUSTWARE_API_ROOT: https://bv-staging-api.trustware.io
 
       - name: Publish to npm (main)
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'main'

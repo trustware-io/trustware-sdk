@@ -54,7 +54,6 @@
     "build:staging": "TRUSTWARE_API_ROOT=https://bv-staging-api.trustware.io npm run build",
     "build:local": "TRUSTWARE_API_ROOT=http://localhost:8000 npm run build",
     "dev": "tsup --config tsup.config.ts --watch",
-    "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:strict": "eslint . --max-warnings 0",
