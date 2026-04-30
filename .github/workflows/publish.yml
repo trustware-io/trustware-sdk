@@ -13,7 +13,7 @@ jobs:
   publish:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    environment: npm
+    environment: ${{ github.event.workflow_run.head_branch == 'main' && 'npm-production' || 'npm-staging' }}
     permissions:
       id-token: write   # Required for npm trusted publishing (OIDC)
       contents: read
@@ -60,7 +60,7 @@ jobs:
         run: npm run build
         env:
           TRUSTWARE_API_ROOT: https://bv-staging-api.trustware.io
-          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID_STAGING }}
+          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
 
       - name: Prepare staging package
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
