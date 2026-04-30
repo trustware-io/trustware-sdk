@@ -86,7 +86,7 @@ export interface DepositContextValue {
   walletAddress: string | null;
   walletStatus: WalletStatus;
   connectWallet: (wallet: DetectedWallet) => Promise<{
-    error: unknown;
+    error: string | null;
     api: WalletInterFaceAPI | null;
   }>;
   disconnectWallet: () => Promise<void>;

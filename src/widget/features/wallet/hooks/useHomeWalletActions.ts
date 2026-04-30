@@ -4,22 +4,25 @@ import type { DetectedWallet, WalletInterFaceAPI } from "../../../../types";
 import { getUniversalConnector } from "../../../../config/walletconnect";
 import type { UniversalConnector } from "@reown/appkit-universal-connector";
 import { NavigationStep } from "src/widget/state/deposit/types";
+import { useDepositNavigationState } from "src/widget/state/deposit/useDepositNavigationState";
 
 type UseHomeWalletActionsArgs = {
   connectWallet: (wallet: DetectedWallet) => Promise<{
-    error: unknown;
+    error: string | null;
     api: WalletInterFaceAPI | null;
   }>;
   detectedWallets: DetectedWallet[];
   setCurrentStep: (step: "select-token" | "crypto-pay") => void;
-  setCurrentStepInternal: (value: React.SetStateAction<NavigationStep>) => void;
+  setCurrentStepInternal?: (
+    value: React.SetStateAction<NavigationStep>
+  ) => void;
 };
 
 export function useHomeWalletActions({
   connectWallet,
   detectedWallets,
   setCurrentStep,
-  setCurrentStepInternal,
+  // setCurrentStepInternal,
 }: UseHomeWalletActionsArgs) {
   const [isCryptoDropdownOpen, setIsCryptoDropdownOpen] = useState(false);
   const [isFiatDropdownOpen, setIsFiatDropdownOpen] = useState(false);
@@ -51,18 +54,23 @@ export function useHomeWalletActions({
     getUniversalConnector().then(setUniversalConnector);
   }, []);
 
+  const { resetNavigation } = useDepositNavigationState("home");
+
   const handleWalletSelect = async (wallet: DetectedWallet) => {
     setIsCryptoDropdownOpen(false);
 
     try {
       const { error } = await connectWallet(wallet);
       if (error) {
-        setCurrentStepInternal("home");
+        // setCurrentStepInternal("home");
+        resetNavigation();
         return;
       }
       setCurrentStep("crypto-pay");
     } catch {
       /*???*/
+      // setCurrentStepInternal("home");
+      resetNavigation();
     }
   };
 

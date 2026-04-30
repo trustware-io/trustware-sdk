@@ -72,14 +72,6 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     x: T | null | undefined
   ): x is T => x !== null && x !== undefined && x.balance !== "0";
 
-  const isReady = useMemo(() => {
-    return (
-      selectedToken != null &&
-      yourWalletTokens?.length > 0 &&
-      (selectedToken as YourTokenData)?.chainData !== undefined
-    );
-  }, [selectedToken, yourWalletTokens]);
-
   const showDefaultCryptoPay = useMemo(() => {
     const nonZer0Tks = (yourWalletTokens ?? []).filter(IsPos);
 
@@ -93,6 +85,13 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
   const showSkeleton = useMemo(() => {
     return yourWalletTokensLoading || (yourWalletTokens ?? []).length === 0;
   }, [yourWalletTokens, yourWalletTokensLoading]);
+
+  const isReady =
+    !yourWalletTokensLoading &&
+    selectedToken != null &&
+    (selectedToken as YourTokenData)?.chainData !== undefined &&
+    !showDefaultCryptoPay &&
+    !showSkeleton;
 
   const {
     amountComputation,

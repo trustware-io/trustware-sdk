@@ -299,7 +299,7 @@ export function SwipeToConfirmTokens({
             style={{
               minWidth: 0,
               flex: 1,
-              overflowX: "auto",
+              overflowX: "hidden",
               whiteSpace: "nowrap",
               scrollbarWidth: "none",
               maxWidth: "85%",
@@ -307,6 +307,8 @@ export function SwipeToConfirmTokens({
           >
             <span
               style={{
+                display: "block",
+                // +                width: "100%",
                 fontSize: isVeryLongText
                   ? fontSize.xs
                   : isLongText

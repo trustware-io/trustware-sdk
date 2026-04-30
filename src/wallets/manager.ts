@@ -18,7 +18,7 @@ class WalletManager {
   private _wallet: WalletInterFaceAPI | null = null;
   private _detected: DetectedWallet[] = [];
   private _listeners = new Set<Listener>();
-  private _error: unknown;
+  private _error: string | null = null;
   private _identity = new IdentityStore();
   private _providerCleanup: (() => void) | null = null;
   private _connectedWalletId: string | null = null;
@@ -96,14 +96,18 @@ class WalletManager {
         this._connectedWalletId = target.meta.id;
         this.bindProviderEvents(target);
         await this.syncIdentityFromWallet(target.meta.id);
+        this._status = "connected";
+        this._error = null;
+        return { error: null, api };
       }
 
-      if (error) this._error = error;
-      this._status = "connected";
-      return { error: error, api };
+      if (error) {
+        this._status = "error";
+        this._error = error;
+        return { error: error, api };
+      }
     } catch (e) {
-      // console.log("AN error occuresd", e);
-      this._error = e;
+      this._error = e instanceof Error ? e.message : String(e);
       this._status = "error";
       this.clearConnectedWalletState();
     } finally {

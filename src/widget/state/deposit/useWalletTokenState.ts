@@ -44,6 +44,7 @@ export function useWalletTokenState({
   useEffect(() => {
     if (!walletAddress || chains.length === 0 || tokens.length === 0) {
       setYourWalletTokens([]);
+
       if (!walletAddress) {
         lastLoadedWalletRef.current = null;
       }
