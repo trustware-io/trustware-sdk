@@ -56,13 +56,6 @@ jobs:
           TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
           TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
 
-      - name: Build (staging → staging API)
-        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
-        run: npm run build
-        env:
-          TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
-          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
-
       - name: Prepare staging package
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
         run: |
@@ -73,6 +66,13 @@ jobs:
             pkg.publishConfig = { registry: 'https://registry.npmjs.org/' };
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
+
+      - name: Build (staging → staging API)
+        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
+        run: npm run build
+        env:
+          TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
+          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
 
       - name: Publish to npm (staging)
         if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
