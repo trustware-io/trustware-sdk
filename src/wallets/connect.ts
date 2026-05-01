@@ -30,6 +30,7 @@ export async function connectDetectedWallet(
 ): Promise<{
   via: "wagmi" | "eip1193" | "walletconnect";
   api: WalletInterFaceAPI | null;
+  error?: string | null;
 }> {
   const { wagmi, touchAddress = true } = opts ?? {};
 
@@ -60,9 +61,18 @@ export async function connectDetectedWallet(
   }
 
   if (dw.via === "solana-window" || dw.meta.ecosystem === "solana") {
-    const api = toWalletInterfaceFromDetected(dw);
-    if (touchAddress) await api.getAddress();
-    return { via: "eip1193", api };
+    try {
+      const provider = dw.provider;
+      await provider.connect();
+      return {
+        via: "eip1193",
+        api: toWalletInterfaceFromDetected(dw),
+        error: null,
+      };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return { via: "eip1193", api: null, error: errorMsg };
+    }
   }
 
   if (wagmi) {
@@ -75,12 +85,12 @@ export async function connectDetectedWallet(
     if (conn) {
       await wagmi.connect(conn);
       // when the host uses wagmi, you can later wrap the host client using your old useWagmi adapter
-      return { via: "wagmi", api: null };
+      return { via: "wagmi", api: null, error: null };
     }
   }
 
   // fallback: raw EIP-1193
   const api = toWalletInterfaceFromDetected(dw);
   if (touchAddress) await api.getAddress(); // triggers permission prompt
-  return { via: "eip1193", api };
+  return { via: "eip1193", api, error: null };
 }

@@ -50,7 +50,6 @@ export function CryptoPaySwipeSection({
             : needsApproval
               ? "Swipe to approve"
               : "Swipe to confirm";
-
   return (
     <div
       style={{

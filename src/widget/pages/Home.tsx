@@ -28,7 +28,7 @@ export interface HomeProps {
 export function Home({ style: _style }: HomeProps): React.ReactElement {
   const { amount, setAmount, amountInputMode, setAmountInputMode } =
     useDepositForm();
-  const { setCurrentStep } = useDepositNavigation();
+  const { setCurrentStep, setCurrentStepInternal } = useDepositNavigation();
   const { connectWallet } = useDepositWallet();
   const { resolvedTheme } = useDepositUi();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
@@ -61,6 +61,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     connectWallet,
     detectedWallets,
     setCurrentStep,
+    setCurrentStepInternal,
   });
 
   return (
