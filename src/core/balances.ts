@@ -263,6 +263,7 @@ export async function getBalances(
 ): Promise<BalanceRow[]> {
   const reg = await ensureRegistry();
   const chain = reg.chain(chainRef);
+  // console.log({ chainRef, chain });
   if (!chain) return [];
 
   const trimmedAddress = address.trim();
@@ -288,6 +289,8 @@ export async function getBalances(
   });
   if (!response.ok) throw new Error(`balances: HTTP ${response.status}`);
   const json = await response.json();
+  // console.log({ url, json });
+
   const rows: RawBalanceRow[] = Array.isArray(json) ? json : (json.data ?? []);
   const normalized = normalizeRows(rows, chain, trimmedAddress, reg);
   balanceCache.set(cacheKey, normalized);

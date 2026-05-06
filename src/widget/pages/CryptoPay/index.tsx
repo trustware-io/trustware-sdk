@@ -93,6 +93,22 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     !showDefaultCryptoPay &&
     !showSkeleton;
 
+  // useEffect(() => {
+  //   console.log({
+  //     showDefaultCryptoPay,
+  //     showSkeleton,
+  //     yourWalletTokens,
+  //     yourWalletTokensLoading,
+  //     isReady,
+  //   });
+  // }, [
+  //   isReady,
+  //   showDefaultCryptoPay,
+  //   showSkeleton,
+  //   yourWalletTokens,
+  //   yourWalletTokensLoading,
+  // ]);
+
   const {
     amountComputation,
     amountValidationError,

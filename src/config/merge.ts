@@ -27,6 +27,11 @@ function resolveWalletConnectConfig(
   // Use built-in project ID by default, allow override
   const projectId = input?.projectId ?? WALLETCONNECT_PROJECT_ID;
 
+  // console.log("Using WalletConnect projectId:", {
+  //   projectId,
+  //   input: input?.projectId,
+  // });
+
   return {
     projectId,
     chains: input?.chains ?? [1], // Default to Ethereum mainnet
