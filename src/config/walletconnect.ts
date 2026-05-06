@@ -2,9 +2,13 @@ import type { AppKitNetwork } from "@reown/appkit/networks";
 import type { CustomCaipNetwork } from "@reown/appkit-common";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
 import { TrustwareConfigStore } from "./store";
+import { ResolvedWalletConnectConfig, WalletConnectConfig } from "src/types";
 
 // Get projectId from https://dashboard.walletconnect.com
-export const projectId = "896c4c8fa652baf14b9614e4026aff6a"; // this is a public projectId only to use on localhost
+// export const projectId = "896c4c8fa652baf14b9614e4026aff6a"; // this is a public projectId only to use on localhost
+export const projectId = "72ea74c400f5111d43aea638d7d83a24";
+
+console.log({ projectId });
 
 if (!projectId) {
   throw new Error("Project ID is not defined");
@@ -88,7 +92,11 @@ export const networks1 = [
 let universalConnectorPromise: Promise<UniversalConnector> | null = null;
 
 function resolvedMetadata() {
-  const configured = TrustwareConfigStore.peek()?.walletConnect?.metadata;
+  const cfg = TrustwareConfigStore.peek();
+  const walletConnect = cfg
+    ? (cfg?.walletConnect as ResolvedWalletConnectConfig)
+    : undefined;
+  const configured = walletConnect?.metadata;
   const pageUrl =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin
@@ -104,10 +112,13 @@ function resolvedMetadata() {
   };
 }
 
-export async function getUniversalConnector() {
+export async function getUniversalConnector(
+  walletCfg: WalletConnectConfig | undefined
+) {
   if (!universalConnectorPromise) {
+    console.log({ walletCfg });
     universalConnectorPromise = UniversalConnector.init({
-      projectId,
+      projectId: walletCfg?.projectId ?? projectId,
       metadata: resolvedMetadata(),
       networks: [
         {

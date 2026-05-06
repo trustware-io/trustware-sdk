@@ -91,7 +91,7 @@ export type ResolvedTrustwareConfig = {
   theme: TrustwareWidgetTheme;
   messages: TrustwareWidgetMessages;
   retry: ResolvedRetryConfig;
-  walletConnect?: ResolvedWalletConnectConfig; // Optional WalletConnect config
+  walletConnect?: ResolvedWalletConnectConfig | WalletConnectConfig | undefined;
   features: ResolvedFeatureFlags;
   onError?: (error: TrustwareError) => void;
   onSuccess?: (transaction: Transaction) => void;
