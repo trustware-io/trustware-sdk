@@ -3,6 +3,7 @@ import type {
   BuildRouteResult,
   RouteParams,
   RoutePlan,
+  RouteSponsorship,
   Transaction,
 } from "../types";
 import { TrustwareConfigStore } from "src/config/store";
@@ -41,9 +42,11 @@ export type TxRequest = {
 export type BuildRouteResponse = {
   intentId?: string;
   route?: RoutePlan;
+  sponsorship?: RouteSponsorship;
   data?: {
     intentId?: string;
     route?: RoutePlan;
+    sponsorship?: RouteSponsorship;
   };
   error?: string;
   message?: string;
@@ -91,16 +94,7 @@ export async function buildRoute1(p: RouteParams): Promise<BuildRouteResult> {
 export async function buildRoute(
   body: BuildRouteBody,
   signal?: AbortSignal
-): Promise<{
-  intentId: string;
-  txReq: TxRequest;
-  actions: unknown[];
-  finalExchangeRate: {
-    fromAmountUSD?: string;
-    toAmountMinUSD?: string;
-  };
-  route: RoutePlan | undefined;
-}> {
+): Promise<BuildRouteResult> {
   const addressValidation = validateRouteAddresses({
     fromChain: body.fromChain,
     toChain: body.toChain,
@@ -148,6 +142,7 @@ export async function buildRoute(
   const txReq: TxRequest | undefined = route?.execution?.transaction;
   const actions = Array.isArray(route?.steps) ? route.steps : [];
   const estimate = route?.estimate ?? {};
+  const sponsorship = json?.data?.sponsorship ?? json?.sponsorship ?? undefined;
 
   const finalExchangeRate = {
     fromAmountUSD: (estimate as { fromAmountUsd?: string }).fromAmountUsd,
@@ -158,7 +153,7 @@ export async function buildRoute(
     throw new Error("Invalid route: missing transaction data");
   }
 
-  return { intentId, txReq, actions, finalExchangeRate, route };
+  return { intentId, txReq, actions, finalExchangeRate, route, sponsorship };
 }
 
 export async function buildDepositAddress(
