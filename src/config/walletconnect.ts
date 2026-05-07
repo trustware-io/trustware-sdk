@@ -110,11 +110,16 @@ function resolvedMetadata() {
 export async function getUniversalConnector(
   walletCfg: WalletConnectConfig | undefined
 ) {
-  console.log({ ID: walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID });
+  const projectId = walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID;
+  if (!projectId) {
+    console.warn(
+      "[Trustware SDK] WalletConnect disabled: no projectId. Set TRUSTWARE_WALLETCONNECT_PROJECT_ID at build time or pass walletConnect.projectId in config."
+    );
+    return undefined;
+  }
   if (!universalConnectorPromise) {
-    console.log({ walletCfg });
     universalConnectorPromise = UniversalConnector.init({
-      projectId: walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID,
+      projectId,
       metadata: resolvedMetadata(),
       networks: [
         {
@@ -138,11 +143,8 @@ export async function getUniversalConnector(
       ],
     }).catch((error) => {
       universalConnectorPromise = null;
-      console.error(
-        "[Trustware SDK] Failed to initialize WalletConnect:",
-        error
-      );
-    }) as Promise<UniversalConnector>;
+      throw error;
+    });
   }
 
   return universalConnectorPromise;
