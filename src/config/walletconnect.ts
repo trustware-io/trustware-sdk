@@ -3,16 +3,11 @@ import type { CustomCaipNetwork } from "@reown/appkit-common";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
 import { TrustwareConfigStore } from "./store";
 import { ResolvedWalletConnectConfig, WalletConnectConfig } from "src/types";
+import { WALLETCONNECT_PROJECT_ID } from "src/constants";
 
 // Get projectId from https://dashboard.walletconnect.com
 // export const projectId = "896c4c8fa652baf14b9614e4026aff6a"; // this is a public projectId only to use on localhost
-export const projectId = "72ea74c400f5111d43aea638d7d83a24";
-
-console.log({ projectId });
-
-if (!projectId) {
-  throw new Error("Project ID is not defined");
-}
+// export const projectId = "";
 
 export const solanaMainnet: CustomCaipNetwork<"solana"> = {
   id: 1,
@@ -115,10 +110,11 @@ function resolvedMetadata() {
 export async function getUniversalConnector(
   walletCfg: WalletConnectConfig | undefined
 ) {
+  console.log({ ID: walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID });
   if (!universalConnectorPromise) {
     console.log({ walletCfg });
     universalConnectorPromise = UniversalConnector.init({
-      projectId: walletCfg?.projectId ?? projectId,
+      projectId: walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID,
       metadata: resolvedMetadata(),
       networks: [
         {
@@ -142,8 +138,11 @@ export async function getUniversalConnector(
       ],
     }).catch((error) => {
       universalConnectorPromise = null;
-      throw error;
-    });
+      console.error(
+        "[Trustware SDK] Failed to initialize WalletConnect:",
+        error
+      );
+    }) as Promise<UniversalConnector>;
   }
 
   return universalConnectorPromise;

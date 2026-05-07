@@ -120,7 +120,6 @@ export function resolveConfig(
   // Resolve WalletConnect config (optional)
   // const walletConnect = resolveWalletConnectConfig(input.walletConnect);
   const walletConnect = input.walletConnect;
-  console.log({ input });
   const features = {
     tokensPagination:
       input.features?.tokensPagination ??

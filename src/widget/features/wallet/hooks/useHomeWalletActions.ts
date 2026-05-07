@@ -37,23 +37,16 @@ export function useHomeWalletActions({
   const fiatDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      !TrustwareConfigStore.peek()?.walletConnect
-    ) {
+    if (typeof window === "undefined") {
       return;
     }
 
     const walletConnect = TrustwareConfigStore.peek()
       ?.walletConnect as WalletConnectConfig;
 
-    console.log({ walletConnect });
-
-    if (walletConnect) {
-      getUniversalConnector(walletConnect as WalletConnectConfig).then(
-        setUniversalConnector
-      );
-    }
+    getUniversalConnector(walletConnect as WalletConnectConfig).then(
+      setUniversalConnector
+    );
   }, [TrustwareConfigStore.peek()?.walletConnect]);
 
   useEffect(() => {
@@ -74,10 +67,6 @@ export function useHomeWalletActions({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  // useEffect(() => {
-  //   getUniversalConnector({}).then(setUniversalConnector);
-  // }, []);
 
   const { resetNavigation } = useDepositNavigationState("home");
 
@@ -104,7 +93,6 @@ export function useHomeWalletActions({
   };
 
   const handleWalletConnect = async () => {
-    console.log("handleWalletConnect");
     if (!universalConnector) {
       return;
     }
