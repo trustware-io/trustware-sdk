@@ -18,7 +18,7 @@ jobs:
       id-token: write   # Required for npm trusted publishing (OIDC)
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
 
@@ -38,15 +38,16 @@ jobs:
         run: |
           echo "Version ${{ steps.version-check.outputs.version }} already published, skipping."
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.version-check.outputs.published == 'false'
         with:
           node-version: 22
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
-      # setup-node@v4 writes `always-auth=false` to ~/.npmrc; npm 11+ no longer
-      # recognizes that key and emits a warning on every command. Strip it.
+      # setup-node writes `always-auth=false` to ~/.npmrc when registry-url
+      # is set; npm 11+ no longer recognizes that key and emits a warning on
+      # every command. Strip it.
       - name: Strip deprecated always-auth from npmrc
         if: steps.version-check.outputs.published == 'false'
         run: sed -i '/^always-auth=/d' "$HOME/.npmrc" || true
