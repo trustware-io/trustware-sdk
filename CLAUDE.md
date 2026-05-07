@@ -17,6 +17,52 @@ npm run validate     # Full validation (typecheck + lint:strict + format:check)
 npm run size         # Check bundle size (limit: 50 KB gzipped)
 ```
 
+## Release Process
+
+Publishing is **tag-driven**. Branch pushes never publish — pushing a version tag is what cuts a release. Two npm packages are published from this repo:
+
+| Tag | Package | Dist-tag | Environment |
+|-----|---------|----------|-------------|
+| `v1.2.3`           | `@trustware/sdk`         | `latest`  | `npm-production` |
+| `v1.2.3-staging.5` | `@trustware/sdk-staging` | `staging` | `npm-staging`    |
+
+### Cutting a production release
+
+```bash
+# Bump version in package.json (must match the tag exactly)
+npm version 1.2.3 --no-git-tag-version
+git commit -am "chore(release): v1.2.3"
+git push origin main
+
+# Tag and push
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The publish workflow runs `publish-production`, verifies the tag matches `package.json`, builds against the production API, and publishes `@trustware/sdk@1.2.3`.
+
+### Cutting a staging release
+
+```bash
+# From the staging branch
+git tag v1.2.3-staging.5
+git push origin v1.2.3-staging.5
+```
+
+The publish workflow runs `publish-staging`, rewrites the package to `@trustware/sdk-staging` with version `1.2.3-staging.5`, builds against the staging API, and publishes.
+
+### Why tag-driven (not branch-driven)
+
+`workflow_run` jobs execute in the repo's default-branch context, not the upstream workflow's `head_branch`. Combined with environment deployment-branch policies, that meant a CI success on `main` couldn't deploy to `npm-production` because the run's actual ref was the default branch (`staging`). Tag pushes run in the tag's context, which the `npm-production` environment allows via tag-pattern policies (`v*` for prod, `v*-staging.*` for staging).
+
+### npm trusted publishing
+
+Each npm package's trusted-publisher config references the matching GitHub environment (`@trustware/sdk` ↔ `npm-production`, `@trustware/sdk-staging` ↔ `npm-staging`). Mismatch returns 404 from npm publish.
+
+### Build-time secrets
+
+`TRUSTWARE_API_ROOT`, `TRUSTWARE_GTM_ID`, and `TRUSTWARE_WALLETCONNECT_PROJECT_ID` are sourced from Doppler (`trustware-sdk` project, `stg`/`prd` configs) and synced to the matching GitHub environment. Do **not** add a `prepublishOnly` script — npm runs it during `npm publish` after the workflow's package.json rewrite, with no env scoping, baking empty secrets into the bundle.
+
 ## Local Development with Example Webapp
 
 When developing the SDK locally and testing with the example-webapp, use `npm link`:
