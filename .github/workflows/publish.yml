@@ -1,34 +1,35 @@
-# Publishes @trustware/sdk to npm on version changes (after CI passes).
+# Publishes @trustware/sdk (production) and @trustware/sdk-staging (staging)
+# to npm. Triggered by version tags — never by branch pushes.
 #
-# Two jobs with hardcoded `environment:` instead of one job with a dynamic
-# expression. GitHub Actions has been observed to misresolve expression-driven
-# `environment:` values for `workflow_run`-triggered jobs (e.g. selecting
-# npm-production for a staging-branch workflow_run), so each branch gets its
-# own job with a static environment name and a strict `if:` guard. Branch
-# protection rules on each environment provide a second line of defense.
+# Tag conventions
+#   v1.2.3              → @trustware/sdk@1.2.3            → env npm-production
+#   v1.2.3-staging.5    → @trustware/sdk-staging@1.2.3-staging.5 → env npm-staging
+#
+# Why tag-driven (and not workflow_run): `workflow_run` jobs execute in the
+# repo's default-branch context. The npm-production environment's deployment
+# branch policy can only allow specific refs, and a workflow_run originating
+# from a CI completion on `main` still runs in the (current) default branch
+# `staging` context — which the env rejects. Tag pushes run in the tag's
+# context, which we allow via tag-pattern policies on each environment.
+#
+# CI gating: tags should only be cut from commits that already passed CI on
+# their source branch. This workflow runs `npm run validate` again before
+# publishing as belt-and-suspenders.
 
 name: Publish
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main, staging]
-  # Manual fallback: GitHub's workflow_run trigger has been observed to
-  # silently no-op (most often on main). Use `gh workflow run Publish --ref
-  # <main|staging>` to force a publish from the chosen branch.
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-staging.[0-9]+'
   workflow_dispatch:
 
 permissions: {}
 
 jobs:
   publish-staging:
-    if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'staging') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.ref_name == 'staging')
+    if: contains(github.ref_name, '-staging.')
     runs-on: ubuntu-latest
     environment: npm-staging
     permissions:
@@ -36,8 +37,6 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: staging
 
       - uses: actions/setup-node@v5
         with:
@@ -54,17 +53,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate
+        run: npm run validate
+
+      # Rewrite name + version, then build. Build must run AFTER this rewrite
+      # so SDK_VERSION baked into the bundle matches the published npm version.
       - name: Prepare staging package
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           node -e "
             const pkg = require('./package.json');
             pkg.name = '@trustware/sdk-staging';
-            pkg.version = pkg.version + '-staging.${{ github.run_number }}';
+            pkg.version = '$VERSION';
             pkg.publishConfig = { registry: 'https://registry.npmjs.org/' };
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
 
-      - name: Build (staging → staging API)
+      - name: Build (staging API)
         run: npm run build
         env:
           TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
@@ -75,12 +80,7 @@ jobs:
         run: npx npm@latest publish --access public --tag staging --provenance
 
   publish-production:
-    if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.ref_name == 'main')
+    if: ${{ !contains(github.ref_name, '-staging.') }}
     runs-on: ubuntu-latest
     environment: npm-production
     permissions:
@@ -88,47 +88,37 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: main
 
-      - name: Check if version changed
-        id: version-check
+      - name: Verify tag matches package.json version
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view @trustware/sdk version 2>/dev/null | grep -qx "$VERSION"; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "published=false" >> "$GITHUB_OUTPUT"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Skip if already published
-        if: steps.version-check.outputs.published == 'true'
-        run: echo "Version ${{ steps.version-check.outputs.version }} already published, skipping."
 
       - uses: actions/setup-node@v5
-        if: steps.version-check.outputs.published == 'false'
         with:
           node-version: 24
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Strip deprecated always-auth from npmrc
-        if: steps.version-check.outputs.published == 'false'
         run: sed -i '/^always-auth=/d' "$HOME/.npmrc" || true
 
       - name: Install dependencies
-        if: steps.version-check.outputs.published == 'false'
         run: npm ci
 
-      - name: Build (main → production API)
-        if: steps.version-check.outputs.published == 'false'
+      - name: Validate
+        run: npm run validate
+
+      - name: Build (production API)
         run: npm run build
         env:
           TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
           TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
           TRUSTWARE_WALLETCONNECT_PROJECT_ID: ${{ secrets.TRUSTWARE_WALLETCONNECT_PROJECT_ID }}
 
-      - name: Publish to npm (main)
-        if: steps.version-check.outputs.published == 'false'
+      - name: Publish to npm
         run: npx npm@latest publish --access public --provenance
