@@ -91,7 +91,7 @@ export type ResolvedTrustwareConfig = {
   theme: TrustwareWidgetTheme;
   messages: TrustwareWidgetMessages;
   retry: ResolvedRetryConfig;
-  walletConnect?: ResolvedWalletConnectConfig; // Optional WalletConnect config
+  walletConnect?: ResolvedWalletConnectConfig | WalletConnectConfig | undefined;
   features: ResolvedFeatureFlags;
   onError?: (error: TrustwareError) => void;
   onSuccess?: (transaction: Transaction) => void;
@@ -101,11 +101,13 @@ export type ResolvedTrustwareConfig = {
 export type FeatureFlags = {
   tokensPagination?: boolean;
   balanceStreaming?: boolean;
+  shouldAllowGA4?: boolean;
 };
 
 export type ResolvedFeatureFlags = {
   tokensPagination: boolean;
   balanceStreaming: boolean;
+  shouldAllowGA4: boolean;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
@@ -160,4 +162,5 @@ export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
 export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   tokensPagination: false,
   balanceStreaming: false,
+  shouldAllowGA4: true,
 };

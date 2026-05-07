@@ -50,5 +50,6 @@ export function useDepositNavigationState(initialStep: NavigationStep) {
     setCurrentStep,
     goBack,
     resetNavigation,
+    setCurrentStepInternal,
   };
 }

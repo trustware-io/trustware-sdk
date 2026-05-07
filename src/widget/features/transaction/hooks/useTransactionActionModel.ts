@@ -19,6 +19,8 @@ import {
 } from "../../../helpers/chainHelpers";
 import { divRoundDown } from "../../../../utils";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
+import { useGTM } from "../../../../hooks";
+import { GTM_ID } from "../../../../constants";
 
 type UseTransactionActionModelArgs = {
   actionErrorMessage: string | null;
@@ -69,6 +71,15 @@ export function useTransactionActionModel({
   }>({});
 
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
+  const { trackEvent } = useGTM(GTM_ID);
+
+  const destinationConfig = (() => {
+    try {
+      return Trustware.getConfig();
+    } catch {
+      return undefined;
+    }
+  })();
 
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
@@ -199,6 +210,17 @@ export function useTransactionActionModel({
       return;
     }
 
+    trackEvent("token_approval_initiated", {
+      from_chain:
+        selectedChain?.networkName ??
+        selectedChain?.axelarChainName ??
+        selectedChain?.chainId,
+      from_token: selectedToken?.symbol,
+      to_chain: destinationConfig?.routes.toChain,
+      to_token: destinationConfig?.routes.toToken,
+      domain: window.origin,
+    });
+
     setIsApproving(true);
     try {
       const targetChain = Number(
@@ -263,13 +285,19 @@ export function useTransactionActionModel({
   }, [
     amountWei,
     backendChainId,
+    destinationConfig?.routes.toChain,
+    destinationConfig?.routes.toToken,
     isApproving,
     readAllowance,
     routeResult?.txReq?.chainId,
+    selectedChain?.axelarChainName,
     selectedChain?.chainId,
     selectedChain?.id,
+    selectedChain?.networkName,
     selectedToken?.address,
+    selectedToken?.symbol,
     spender,
+    trackEvent,
     waitForApprovalConfirmation,
     walletAddress,
   ]);
@@ -402,8 +430,28 @@ export function useTransactionActionModel({
     if (!routeResult) {
       return;
     }
+    trackEvent("payment_initiated", {
+      from_chain:
+        selectedChain?.networkName ??
+        selectedChain?.axelarChainName ??
+        selectedChain?.chainId,
+      from_token: selectedToken?.symbol,
+      to_chain: destinationConfig?.routes.toChain,
+      to_token: destinationConfig?.routes.toToken,
+      domain: window.origin,
+    });
     await submitTransaction(routeResult);
-  }, [routeResult, submitTransaction]);
+  }, [
+    destinationConfig?.routes.toChain,
+    destinationConfig?.routes.toToken,
+    routeResult,
+    selectedChain?.axelarChainName,
+    selectedChain?.chainId,
+    selectedChain?.networkName,
+    selectedToken?.symbol,
+    submitTransaction,
+    trackEvent,
+  ]);
 
   const handleSwipeConfirm = useCallback(async () => {
     if (needsApproval) {

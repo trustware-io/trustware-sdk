@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { colors, spacing, fontSize, fontWeight } from "../styles";
 import type { Token, YourTokenData } from "../context/DepositContext";
+import { ImageLoader } from "./";
 
 export interface SwipeToConfirmTokensProps {
   /** Token being sent/deposited */
@@ -203,8 +204,33 @@ export function SwipeToConfirmTokens({
   const progress = getProgress();
   const effectiveProgress = isLongPressing ? longPressProgress : progress;
 
-  const getTokenInitials = (symbol: string) =>
-    symbol?.slice(0, 2).toUpperCase();
+  // const getTokenInitials = (symbol: string) =>
+  //   symbol?.slice(0, 2).toUpperCase();
+
+  const [blinkOpacity, setBlinkOpacity] = useState(1);
+  useEffect(() => {
+    if (disabled || isComplete || isDragging || isLongPressing) {
+      setBlinkOpacity(1);
+      return;
+    }
+
+    let direction = -1;
+    const interval = setInterval(() => {
+      setBlinkOpacity((prev) => {
+        const newVal = prev + direction * 0.8;
+        if (newVal <= 0.2) {
+          direction = 1;
+          return 0.2;
+        }
+        if (newVal >= 1) {
+          direction = -1;
+          return 1;
+        }
+        return newVal;
+      });
+    }, 700);
+    return () => clearInterval(interval);
+  }, [disabled, isComplete, isDragging, isLongPressing]);
 
   const getAriaLabel = () => {
     if (!isWalletConnected) return "Connect your wallet to deposit";
@@ -266,30 +292,41 @@ export function SwipeToConfirmTokens({
             padding: `0 ${spacing[7]}`,
             transition: "opacity 0.2s",
             ...(effectiveProgress > 0.15 && { opacity: 0 }),
+            width: "100%",
           }}
         >
-          <span
+          <div
             style={{
-              fontSize: isVeryLongText
-                ? fontSize.xs
-                : isLongText
-                  ? "0.8125rem"
-                  : fontSize.sm,
-              color: colors.mutedForeground,
-              fontWeight: fontWeight.bold,
-              lineHeight: 1.15,
-              textAlign: "center",
+              minWidth: 0,
+              flex: 1,
+              overflowX: "hidden",
               whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "100%",
+              scrollbarWidth: "none",
+              maxWidth: "85%",
             }}
           >
-            {/* {isWalletConnected
-              ? "Swipe to confirm"
-              : "Connect your wallet to deposit"} */}
-            {text}
-          </span>
+            <span
+              style={{
+                display: "block",
+                // +                width: "100%",
+                fontSize: isVeryLongText
+                  ? fontSize.xs
+                  : isLongText
+                    ? "0.8125rem"
+                    : fontSize.sm,
+                color: colors.mutedForeground,
+                fontWeight: fontWeight.bold,
+                lineHeight: 1.15,
+                textAlign: "center",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "100%",
+              }}
+            >
+              {text}
+            </span>
+          </div>
         </div>
 
         {/* Long-press countdown */}
@@ -417,28 +454,47 @@ export function SwipeToConfirmTokens({
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {fromToken.iconUrl ? (
-            <img
-              src={fromToken.iconUrl}
-              alt={fromToken.symbol}
-              style={{
-                width: "2.5rem",
-                height: "2.5rem",
-                objectFit: "contain",
-                borderRadius: "9999px",
-              }}
-            />
-          ) : (
-            <span
-              style={{
-                fontSize: fontSize.sm,
-                fontWeight: fontWeight.bold,
-                color: colors.white,
-              }}
-            >
-              {getTokenInitials(fromToken.symbol as string)}
-            </span>
-          )}
+          <ImageLoader
+            src={fromToken.iconUrl || ""}
+            alt={fromToken.symbol}
+            imgStyle={{
+              width: "2.5rem",
+              height: "2.5rem",
+              objectFit: "contain",
+              borderRadius: "9999px",
+            }}
+            retry={1}
+            Fallback={
+              <span
+                style={{
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.bold,
+                  color: colors.white,
+                  opacity: blinkOpacity,
+                  transition: "opacity 0.5s ease-in-out",
+                }}
+              >
+                {/* {getTokenInitials(fromToken.symbol as string)} */}
+                <svg
+                  style={{
+                    width: "2rem",
+                    height: "2rem",
+                    color: colors.zinc[500],
+                  }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </span>
+            }
+          />
         </div>
 
         {/* Destination Icon */}
@@ -473,7 +529,7 @@ export function SwipeToConfirmTokens({
         )}
 
         {/* Chevron hint */}
-        {!toTokenIcon && !isComplete && (
+        {/* {!toTokenIcon && !isComplete && (
           <div
             style={{
               position: "absolute",
@@ -508,7 +564,7 @@ export function SwipeToConfirmTokens({
               />
             </svg>
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Label */}

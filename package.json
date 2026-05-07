@@ -1,6 +1,6 @@
 {
   "name": "@trustware/sdk",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
   "license": "Apache-2.0",
   "author": "Trustware",
@@ -54,7 +54,6 @@
     "build:staging": "TRUSTWARE_API_ROOT=https://bv-staging-api.trustware.io npm run build",
     "build:local": "TRUSTWARE_API_ROOT=http://localhost:8000 npm run build",
     "dev": "tsup --config tsup.config.ts --watch",
-    "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:strict": "eslint . --max-warnings 0",

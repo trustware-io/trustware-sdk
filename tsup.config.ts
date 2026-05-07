@@ -42,6 +42,10 @@ const baseConfig: Options = {
     __API_ROOT__: JSON.stringify(
       process.env.TRUSTWARE_API_ROOT || "https://api.trustware.io"
     ),
+    __GTM_ID__: JSON.stringify(process.env.TRUSTWARE_GTM_ID || ""),
+    __WALLETCONNECT_PROJECT_ID__: JSON.stringify(
+      process.env.TRUSTWARE_WALLETCONNECT_PROJECT_ID || ""
+    ),
   },
 };
 

@@ -1,19 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { DetectedWallet } from "../../../../types";
+import type {
+  DetectedWallet,
+  WalletConnectConfig,
+  WalletInterFaceAPI,
+} from "../../../../types";
 import { getUniversalConnector } from "../../../../config/walletconnect";
 import type { UniversalConnector } from "@reown/appkit-universal-connector";
+import { NavigationStep } from "src/widget/state/deposit/types";
+import { useDepositNavigationState } from "src/widget/state/deposit/useDepositNavigationState";
+import { TrustwareConfigStore } from "src/config";
 
 type UseHomeWalletActionsArgs = {
-  connectWallet: (wallet: DetectedWallet) => Promise<void>;
+  connectWallet: (wallet: DetectedWallet) => Promise<{
+    error: string | null;
+    api: WalletInterFaceAPI | null;
+  }>;
   detectedWallets: DetectedWallet[];
   setCurrentStep: (step: "select-token" | "crypto-pay") => void;
+  setCurrentStepInternal?: (
+    value: React.SetStateAction<NavigationStep>
+  ) => void;
 };
 
 export function useHomeWalletActions({
   connectWallet,
   detectedWallets,
   setCurrentStep,
+  // setCurrentStepInternal,
 }: UseHomeWalletActionsArgs) {
   const [isCryptoDropdownOpen, setIsCryptoDropdownOpen] = useState(false);
   const [isFiatDropdownOpen, setIsFiatDropdownOpen] = useState(false);
@@ -21,6 +35,19 @@ export function useHomeWalletActions({
     useState<UniversalConnector>();
   const cryptoDropdownRef = useRef<HTMLDivElement>(null);
   const fiatDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const walletConnect = TrustwareConfigStore.peek()
+      ?.walletConnect as WalletConnectConfig;
+
+    getUniversalConnector(walletConnect as WalletConnectConfig).then(
+      setUniversalConnector
+    );
+  }, [TrustwareConfigStore.peek()?.walletConnect]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -41,18 +68,23 @@ export function useHomeWalletActions({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    getUniversalConnector().then(setUniversalConnector);
-  }, []);
+  const { resetNavigation } = useDepositNavigationState("home");
 
   const handleWalletSelect = async (wallet: DetectedWallet) => {
     setIsCryptoDropdownOpen(false);
 
     try {
-      await connectWallet(wallet);
+      const { error } = await connectWallet(wallet);
+      if (error) {
+        // setCurrentStepInternal("home");
+        resetNavigation();
+        return;
+      }
       setCurrentStep("crypto-pay");
     } catch {
-      // connection failure handled elsewhere
+      /*???*/
+      // setCurrentStepInternal("home");
+      resetNavigation();
     }
   };
 

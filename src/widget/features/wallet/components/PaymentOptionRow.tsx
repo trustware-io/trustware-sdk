@@ -28,7 +28,6 @@ export function PaymentOptionRow({
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
       style={{
         width: "100%",
         display: "flex",

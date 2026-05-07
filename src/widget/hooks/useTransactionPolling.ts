@@ -2,11 +2,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus } from "../../core/routes";
 import {
+  useDepositForm,
   useDepositNavigation,
   useDepositTransaction,
 } from "../context/DepositContext";
 import { useTrustware } from "../../provider";
 import type { Transaction } from "../../types";
+import { Trustware } from "../../core";
+import { GTM_ID } from "../../constants";
+import { useGTM } from "../../hooks";
 
 /**
  * Polling interval in milliseconds - faster for better UX
@@ -46,6 +50,15 @@ export function useTransactionPolling() {
   const { setCurrentStep } = useDepositNavigation();
   const { setTransactionStatus, setErrorMessage } = useDepositTransaction();
   const { emitSuccess } = useTrustware();
+  const { selectedChain, selectedToken } = useDepositForm();
+  const destinationConfig = (() => {
+    try {
+      return Trustware.getConfig();
+    } catch {
+      return undefined;
+    }
+  })();
+  const { trackEvent } = useGTM(GTM_ID);
 
   const [state, setState] = useState<TransactionPollingState>({
     isPolling: false,
@@ -147,6 +160,19 @@ export function useTransactionPolling() {
               }));
               setTransactionStatus("success");
               setCurrentStep("success");
+
+              trackEvent("payment_completed", {
+                from_chain:
+                  selectedChain?.networkName ??
+                  selectedChain?.axelarChainName ??
+                  selectedChain?.chainId ??
+                  "unknown",
+                from_token: selectedToken?.symbol ?? "unknown",
+                to_chain: destinationConfig?.routes?.toChain ?? "unknown",
+                to_token: destinationConfig?.routes?.toToken ?? "unknown",
+                domain: window.origin,
+              });
+
               emitSuccess?.(tx);
               return;
             }
@@ -231,10 +257,17 @@ export function useTransactionPolling() {
     },
     [
       clearPolling,
+      destinationConfig?.routes.toChain,
+      destinationConfig?.routes.toToken,
       emitSuccess,
-      setTransactionStatus,
+      selectedChain?.axelarChainName,
+      selectedChain?.chainId,
+      selectedChain?.networkName,
+      selectedToken?.symbol,
       setCurrentStep,
       setErrorMessage,
+      setTransactionStatus,
+      trackEvent,
     ]
   );
 
