@@ -1,4 +1,12 @@
-# Publishes @trustware/sdk to npm on version changes (after CI passes)
+# Publishes @trustware/sdk to npm on version changes (after CI passes).
+#
+# Two jobs with hardcoded `environment:` instead of one job with a dynamic
+# expression. GitHub Actions has been observed to misresolve expression-driven
+# `environment:` values for `workflow_run`-triggered jobs (e.g. selecting
+# npm-production for a staging-branch workflow_run), so each branch gets its
+# own job with a static environment name and a strict `if:` guard. Branch
+# protection rules on each environment provide a second line of defense.
+
 name: Publish
 
 on:
@@ -10,17 +18,68 @@ on:
 permissions: {}
 
 jobs:
-  publish:
-    if: github.event.workflow_run.conclusion == 'success'
+  publish-staging:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'staging'
     runs-on: ubuntu-latest
-    environment: ${{ github.event.workflow_run.head_branch == 'main' && 'npm-production' || 'npm-staging' }}
+    environment: npm-staging
     permissions:
       id-token: write   # Required for npm trusted publishing (OIDC)
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          ref: staging
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      # setup-node writes `always-auth=false` to ~/.npmrc when registry-url
+      # is set; npm 11+ no longer recognizes that key and emits a warning on
+      # every command. Strip it.
+      - name: Strip deprecated always-auth from npmrc
+        run: sed -i '/^always-auth=/d' "$HOME/.npmrc" || true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare staging package
+        run: |
+          node -e "
+            const pkg = require('./package.json');
+            pkg.name = '@trustware/sdk-staging';
+            pkg.version = pkg.version + '-staging.${{ github.run_number }}';
+            pkg.publishConfig = { registry: 'https://registry.npmjs.org/' };
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+
+      - name: Build (staging → staging API)
+        run: npm run build
+        env:
+          TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
+          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
+          TRUSTWARE_WALLETCONNECT_PROJECT_ID: ${{ secrets.TRUSTWARE_WALLETCONNECT_PROJECT_ID }}
+
+      - name: Publish to npm (staging)
+        run: npx npm@latest publish --access public --tag staging --provenance
+
+  publish-production:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment: npm-production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
 
       - name: Check if version changed
         id: version-check
@@ -35,51 +94,31 @@ jobs:
 
       - name: Skip if already published
         if: steps.version-check.outputs.published == 'true'
-        run: |
-          echo "Version ${{ steps.version-check.outputs.version }} already published, skipping."
+        run: echo "Version ${{ steps.version-check.outputs.version }} already published, skipping."
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.version-check.outputs.published == 'false'
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Strip deprecated always-auth from npmrc
+        if: steps.version-check.outputs.published == 'false'
+        run: sed -i '/^always-auth=/d' "$HOME/.npmrc" || true
 
       - name: Install dependencies
         if: steps.version-check.outputs.published == 'false'
         run: npm ci
 
       - name: Build (main → production API)
-        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'main'
+        if: steps.version-check.outputs.published == 'false'
         run: npm run build
         env:
           TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
           TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
           TRUSTWARE_WALLETCONNECT_PROJECT_ID: ${{ secrets.TRUSTWARE_WALLETCONNECT_PROJECT_ID }}
-
-      - name: Prepare staging package
-        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
-        run: |
-          node -e "
-            const pkg = require('./package.json');
-            pkg.name = '@trustware/sdk-staging';
-            pkg.version = pkg.version + '-staging.${{ github.run_number }}';
-            pkg.publishConfig = { registry: 'https://registry.npmjs.org/' };
-            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          "
-
-      - name: Build (staging → staging API)
-        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
-        run: npm run build
-        env:
-          TRUSTWARE_API_ROOT: ${{ secrets.TRUSTWARE_API_ROOT }}
-          TRUSTWARE_GTM_ID: ${{ secrets.TRUSTWARE_GTM_ID }}
-          TRUSTWARE_WALLETCONNECT_PROJECT_ID: ${{ secrets.TRUSTWARE_WALLETCONNECT_PROJECT_ID }}
-
-      - name: Publish to npm (staging)
-        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'staging'
-        run: npx npm@latest publish --access public --tag staging --provenance
 
       - name: Publish to npm (main)
-        if: steps.version-check.outputs.published == 'false' && github.event.workflow_run.head_branch == 'main'
+        if: steps.version-check.outputs.published == 'false'
         run: npx npm@latest publish --access public --provenance
