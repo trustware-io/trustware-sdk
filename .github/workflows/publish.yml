@@ -45,6 +45,12 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
+      # setup-node@v4 writes `always-auth=false` to ~/.npmrc; npm 11+ no longer
+      # recognizes that key and emits a warning on every command. Strip it.
+      - name: Strip deprecated always-auth from npmrc
+        if: steps.version-check.outputs.published == 'false'
+        run: sed -i '/^always-auth=/d' "$HOME/.npmrc" || true
+
       - name: Install dependencies
         if: steps.version-check.outputs.published == 'false'
         run: npm ci

@@ -6,7 +6,7 @@
   "author": "Trustware",
   "repository": {
     "type": "git",
-    "url": "https://github.com/trustware-io/trustware-sdk.git"
+    "url": "git+https://github.com/trustware-io/trustware-sdk.git"
   },
   "homepage": "https://trustware.io",
   "type": "module",
