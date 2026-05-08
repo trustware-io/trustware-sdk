@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { DetectedWallet, WalletInterFaceAPI } from "../../../../types";
+import type {
+  DetectedWallet,
+  WalletConnectConfig,
+  WalletInterFaceAPI,
+} from "../../../../types";
 import { getUniversalConnector } from "../../../../config/walletconnect";
 import type { UniversalConnector } from "@reown/appkit-universal-connector";
 import { NavigationStep } from "src/widget/state/deposit/types";
 import { useDepositNavigationState } from "src/widget/state/deposit/useDepositNavigationState";
+import { TrustwareConfigStore } from "src/config";
 
 type UseHomeWalletActionsArgs = {
   connectWallet: (wallet: DetectedWallet) => Promise<{
@@ -32,6 +37,19 @@ export function useHomeWalletActions({
   const fiatDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const walletConnect = TrustwareConfigStore.peek()
+      ?.walletConnect as WalletConnectConfig;
+
+    getUniversalConnector(walletConnect as WalletConnectConfig).then(
+      setUniversalConnector
+    );
+  }, [TrustwareConfigStore.peek()?.walletConnect]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         cryptoDropdownRef.current &&
@@ -48,10 +66,6 @@ export function useHomeWalletActions({
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    getUniversalConnector().then(setUniversalConnector);
   }, []);
 
   const { resetNavigation } = useDepositNavigationState("home");
