@@ -22,7 +22,7 @@ type UseHomeWalletActionsArgs = {
   setWalletType: React.Dispatch<
     React.SetStateAction<"walletconnect" | "other">
   >;
-  WalletConnect: () => Promise<null | undefined>;
+  WalletConnect: () => Promise<void>;
 };
 
 export function useHomeWalletActions({

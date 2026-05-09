@@ -59,6 +59,7 @@ const DepositWalletContext = createContext<
       | "yourWalletTokensLoading"
       | "WalletConnect"
       | "setWalletType"
+      | "walletType"
     >
   | undefined
 >(undefined);
@@ -125,7 +126,7 @@ export function DepositProvider({
 
   const {
     selectedWallet,
-    walletAddress,
+    walletAddress: otherWalletAddress,
     walletStatus,
     connectWallet,
     disconnectWallet,
@@ -156,10 +157,12 @@ export function DepositProvider({
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
 
-  const wltAddr = useMemo(
+  const walletAddress = useMemo(
     () =>
-      walletType === "walletconnect" ? walletConnectAddress : walletAddress,
-    [walletType, walletConnectAddress, walletAddress]
+      walletType === "walletconnect"
+        ? walletConnectAddress
+        : otherWalletAddress,
+    [walletType, walletConnectAddress, otherWalletAddress]
   );
 
   const {
@@ -168,7 +171,7 @@ export function DepositProvider({
     reloadWalletTokens,
     yourWalletTokensLoading,
   } = useWalletTokenState({
-    walletAddress: wltAddr,
+    walletAddress,
     selectedChain,
     setSelectedChain,
     selectedToken,
@@ -239,6 +242,7 @@ export function DepositProvider({
       WalletConnect,
       disconnectWalletConnect,
       setWalletType,
+      walletType,
     }),
     [
       WalletConnect,
@@ -251,6 +255,7 @@ export function DepositProvider({
       walletAddress,
       walletConnectAddress,
       walletStatus,
+      walletType,
       yourWalletTokens,
       yourWalletTokensLoading,
     ]

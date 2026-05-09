@@ -244,10 +244,11 @@ const bitcoinChains: CustomCaipNetwork<"bip122">[] = [bitcoinMainnet];
 // AppKit receives this array for its UI; the namespace config below is derived
 // from the typed arrays above, so adding a chain in one place updates both.
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
-  ...solanaChains,
-  ...bitcoinChains,
+  // ...solanaChains,
+  // ...bitcoinChains,
   ...evmChains,
-];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+] as any;
 
 // ─── Namespace config ─────────────────────────────────────────────────────────
 
