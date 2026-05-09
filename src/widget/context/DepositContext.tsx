@@ -16,6 +16,7 @@ import { useDepositNavigationState } from "../state/deposit/useDepositNavigation
 import { useThemePreference } from "../state/deposit/useThemePreference";
 import { useWalletSessionState } from "../state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "../state/deposit/useWalletTokenState";
+import { useWalletConnect } from "../state/deposit/useWalletConnect";
 
 export type {
   Chain,
@@ -56,6 +57,8 @@ const DepositWalletContext = createContext<
       | "yourWalletTokens"
       | "setYourWalletTokens"
       | "yourWalletTokensLoading"
+      | "WalletConnect"
+      | "setWalletType"
     >
   | undefined
 >(undefined);
@@ -117,7 +120,9 @@ export function DepositProvider({
     resetNavigation,
     setCurrentStepInternal,
   } = useDepositNavigationState(initialStep);
+
   const { resolvedTheme, toggleTheme } = useThemePreference();
+
   const {
     selectedWallet,
     walletAddress,
@@ -130,19 +135,40 @@ export function DepositProvider({
     "usd"
   );
 
+  const [walletType, setWalletType] = useState<"walletconnect" | "other">(
+    "other"
+  );
+
+  const {
+    universalConnector,
+    walletConnectAddress,
+    WalletConnect,
+    disconnectWalletConnect,
+  } = useWalletConnect({
+    setWalletType,
+    setCurrentStep,
+  });
+
   // Token and chain state
   const [selectedToken, setSelectedToken] = useState<
     Token | null | YourTokenData
   >(null);
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
+
+  const wltAddr = useMemo(
+    () =>
+      walletType === "walletconnect" ? walletConnectAddress : walletAddress,
+    [walletType, walletConnectAddress, walletAddress]
+  );
+
   const {
     yourWalletTokens,
     setYourWalletTokens,
     reloadWalletTokens,
     yourWalletTokensLoading,
   } = useWalletTokenState({
-    walletAddress,
+    walletAddress: wltAddr,
     selectedChain,
     setSelectedChain,
     selectedToken,
@@ -208,13 +234,22 @@ export function DepositProvider({
       yourWalletTokens,
       setYourWalletTokens,
       yourWalletTokensLoading,
+      universalConnector,
+      walletConnectAddress,
+      WalletConnect,
+      disconnectWalletConnect,
+      setWalletType,
     }),
     [
+      WalletConnect,
       connectWallet,
       disconnectWallet,
+      disconnectWalletConnect,
       selectedWallet,
       setYourWalletTokens,
+      universalConnector,
       walletAddress,
+      walletConnectAddress,
       walletStatus,
       yourWalletTokens,
       yourWalletTokensLoading,

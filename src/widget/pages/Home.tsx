@@ -29,7 +29,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
   const { amount, setAmount, amountInputMode, setAmountInputMode } =
     useDepositForm();
   const { setCurrentStep, setCurrentStepInternal } = useDepositNavigation();
-  const { connectWallet } = useDepositWallet();
+  const { connectWallet, WalletConnect, setWalletType } = useDepositWallet();
   const { resolvedTheme } = useDepositUi();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
     useAmountConstraints();
@@ -62,6 +62,8 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     detectedWallets,
     setCurrentStep,
     setCurrentStepInternal,
+    WalletConnect,
+    setWalletType,
   });
 
   return (
@@ -114,7 +116,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
             marginBottom: spacing[4],
           }}
         >
-          Enter an amount
+          Enter an amounteyeyey
         </p>
 
         <AmountInputDisplay
