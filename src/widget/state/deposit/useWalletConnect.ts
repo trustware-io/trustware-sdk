@@ -69,14 +69,23 @@ export function useWalletConnect({
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (universalConnector as any)?.on("session_update", () =>
-    console.log("session_update")
-  );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (universalConnector as any)?.on("session_delete", () =>
-    console.log("session_delete")
-  );
+  useEffect(() => {
+    const provider = universalConnector?.provider;
+    if (!provider) {
+      return;
+    }
+
+    const handleSessionUpdate = () => console.log("session_update");
+    const handleSessionDelete = () => console.log("session_delete");
+
+    provider.on("session_update", handleSessionUpdate);
+    provider.on("session_delete", handleSessionDelete);
+
+    return () => {
+      provider.off("session_update", handleSessionUpdate);
+      provider.off("session_delete", handleSessionDelete);
+    };
+  }, [universalConnector]);
 
   return {
     universalConnector,
