@@ -54,6 +54,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
   } = useDepositForm();
   const {
     walletAddress,
+    walletType,
     walletStatus,
     yourWalletTokens,
     yourWalletTokensLoading,
@@ -152,6 +153,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     selectedChain,
     selectedToken,
     walletAddress,
+    walletType,
     walletStatus,
   });
   const { handleTokenChange, orderedTokens } = useOrderedWalletTokens({
@@ -275,7 +277,13 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                 isApproving={isApproving}
                 isLoadingRoute={isLoadingRoute}
                 isReadingAllowance={isReadingAllowance}
-                isWalletConnected={isWalletConnected}
+                isWalletConnected={
+                  isWalletConnected
+                    ? isWalletConnected
+                    : walletAddress !== null && walletType == "walletconnect"
+                      ? true
+                      : false
+                }
                 needsApproval={needsApproval}
                 selectedToken={readySelectedToken}
                 swipeResetKey={swipeResetKey}

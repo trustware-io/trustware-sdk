@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from "react";
 
 import type {
   DetectedWallet,
-  WalletConnectConfig,
+  // WalletConnectConfig,
   WalletInterFaceAPI,
 } from "../../../../types";
-import { getUniversalConnector } from "../../../../config/walletconnect";
-import type { UniversalConnector } from "@reown/appkit-universal-connector";
+
 import { NavigationStep } from "src/widget/state/deposit/types";
 import { useDepositNavigationState } from "src/widget/state/deposit/useDepositNavigationState";
-import { TrustwareConfigStore } from "src/config";
 
 type UseHomeWalletActionsArgs = {
   connectWallet: (wallet: DetectedWallet) => Promise<{
@@ -21,33 +19,25 @@ type UseHomeWalletActionsArgs = {
   setCurrentStepInternal?: (
     value: React.SetStateAction<NavigationStep>
   ) => void;
+  setWalletType: React.Dispatch<
+    React.SetStateAction<"walletconnect" | "other">
+  >;
+  WalletConnect: () => Promise<void>;
 };
 
 export function useHomeWalletActions({
   connectWallet,
   detectedWallets,
   setCurrentStep,
+  setWalletType,
+  WalletConnect,
   // setCurrentStepInternal,
 }: UseHomeWalletActionsArgs) {
   const [isCryptoDropdownOpen, setIsCryptoDropdownOpen] = useState(false);
   const [isFiatDropdownOpen, setIsFiatDropdownOpen] = useState(false);
-  const [universalConnector, setUniversalConnector] =
-    useState<UniversalConnector>();
+
   const cryptoDropdownRef = useRef<HTMLDivElement>(null);
   const fiatDropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const walletConnect = TrustwareConfigStore.peek()
-      ?.walletConnect as WalletConnectConfig;
-
-    getUniversalConnector(walletConnect as WalletConnectConfig).then(
-      setUniversalConnector
-    );
-  }, [TrustwareConfigStore.peek()?.walletConnect]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -74,6 +64,7 @@ export function useHomeWalletActions({
     setIsCryptoDropdownOpen(false);
 
     try {
+      setWalletType("other");
       const { error } = await connectWallet(wallet);
       if (error) {
         // setCurrentStepInternal("home");
@@ -93,14 +84,20 @@ export function useHomeWalletActions({
   };
 
   const handleWalletConnect = async () => {
-    if (!universalConnector) {
-      return;
-    }
-
-    const { session: providerSession } = await universalConnector.connect();
-    if (providerSession) {
-      setCurrentStep("select-token");
-    }
+    // if (!universalConnector) {
+    //   return;
+    // }
+    // const { session: providerSession } = await universalConnector.connect();
+    // console.log({ providerSession }, "qqqqqq");
+    // if (providerSession) {
+    //   const ns = providerSession.namespaces["eip155"];
+    //   if (!ns?.accounts?.length) return null;
+    //   // Return the address from the first account in this namespace
+    //   const adr = ns.accounts[0].split(":").slice(-1)[0];
+    //   console.log({ adr });
+    //   setCurrentStep("crypto-pay");
+    // }
+    WalletConnect().catch(() => resetNavigation());
   };
 
   const browserWallets = detectedWallets.filter(
