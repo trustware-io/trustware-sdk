@@ -116,7 +116,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
             marginBottom: spacing[4],
           }}
         >
-          Enter an amounteyeyey
+          Enter an amount
         </p>
 
         <AmountInputDisplay
