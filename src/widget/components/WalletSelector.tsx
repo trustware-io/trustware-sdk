@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { mergeStyles } from "../lib/utils";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
-import { useWalletDetection } from "../../wallets/detect";
+import { useWalletDetection } from "../../wallets";
 import { useDepositWallet } from "../context/DepositContext";
 import { toast } from "./Toast";
 import type { DetectedWallet } from "../../types";

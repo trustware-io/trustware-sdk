@@ -13,7 +13,7 @@ import {
   useAmountConstraints,
   useHomeAmountModel,
 } from "../features/amount";
-import { useWalletDetection } from "../../wallets/detect";
+import { useWalletDetection } from "../../wallets";
 import { HomePaymentOptions, useHomeWalletActions } from "../features/wallet";
 
 export interface HomeProps {

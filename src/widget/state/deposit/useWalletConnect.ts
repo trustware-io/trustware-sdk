@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { TrustwareConfigStore } from "src/config";
 import { getUniversalConnector } from "src/config/walletconnect";
 import { WalletConnectConfig, WalletInterFaceAPI } from "src/types";
-import { walletManager } from "../../../wallets/manager";
+import { walletManager } from "../../../wallets";
 import { NavigationStep } from "./types";
 
 type WalletConnectSession = {
