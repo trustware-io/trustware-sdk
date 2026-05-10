@@ -38,7 +38,7 @@ export function useRoutePreviewModel({
   walletAddress,
 }: UseRoutePreviewModelArgs) {
   const { chains } = useChains();
-
+  console.log({ walletAddress });
   const destinationConfig = useMemo(
     () => ({
       dappName: config.messages?.title || "DApp",

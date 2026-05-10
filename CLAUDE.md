@@ -174,7 +174,7 @@ WalletConnect uses `@reown/appkit-universal-connector`. The legacy `src/wallets/
 
 - ESLint 9.x flat config
 - Prettier (2-space indent, 80 char width, semicolons)
-- Path alias: `@/` → `src/`
+- Module resolution: `baseUrl: "."` (no `paths` configured). Imports use `src/...` (baseUrl-relative) or relative paths. **No `@/` alias** — do not introduce it without also wiring `tsconfig` `paths` and the tsup/build resolver.
 
 ### Import Conventions
 

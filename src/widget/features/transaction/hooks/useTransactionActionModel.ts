@@ -32,6 +32,7 @@ type UseTransactionActionModelArgs = {
   selectedToken: Token | YourTokenData | null;
   walletAddress: string | null;
   walletStatus: string;
+  walletType: "walletconnect" | "other";
 };
 
 type CachedFeeData = {

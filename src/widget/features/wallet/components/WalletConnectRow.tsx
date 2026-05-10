@@ -14,7 +14,7 @@ export function WalletConnectRow({
   return (
     <PaymentOptionRow
       onClick={() => void onClick()}
-      label="WalletConnect"
+      label="WalletConnect(EVM)"
       icon={
         <div style={walletActionIconBoxStyle}>
           <svg
