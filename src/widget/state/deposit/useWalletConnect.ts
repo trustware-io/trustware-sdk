@@ -27,8 +27,8 @@ export function useWalletConnect({
       walletManager.status === "connected" &&
       walletManager.connectedVia === "walletconnect"
     ) {
-      console.log("I am connedcted");
-      const address = walletManager.identity?.addresses[0]?.address ?? null; // ← was resolveAddressForChain
+      // console.log("I am connedcted");
+      const address = walletManager.identity?.addresses[0]?.address ?? null;
       if (address) {
         setWalletType("walletconnect");
         setCurrentStep("crypto-pay");
@@ -40,10 +40,10 @@ export function useWalletConnect({
     const { error } = await connectWC();
 
     if (!error) {
-      console.log("I didnt error");
-      const address = walletManager.identity?.addresses[0]?.address ?? null; // ← same here
+      // console.log("I didnt error");
+      const address = walletManager.identity?.addresses[0]?.address ?? null;
       if (address) {
-        console.log("I have an address", address);
+        // console.log("I have an address", address);
         setCurrentStep("crypto-pay");
       }
     } else {
