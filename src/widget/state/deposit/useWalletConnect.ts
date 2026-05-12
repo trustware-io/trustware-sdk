@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { UniversalConnector } from "@reown/appkit-universal-connector";
-import { useCallback, useEffect, useState } from "react";
+
+import { useCallback } from "react";
 import { TrustwareConfigStore } from "src/config";
-import { getUniversalConnector } from "src/config/walletconnect";
 import { WalletConnectConfig } from "src/types";
 import { NavigationStep } from "./types";
+import { useWalletConnectConnect, walletManager } from "src/wallets";
 
 export function useWalletConnect({
   setWalletType,
@@ -15,100 +15,59 @@ export function useWalletConnect({
   >;
   setCurrentStep: (step: NavigationStep) => void;
 }) {
-  const [universalConnector, setUniversalConnector] =
-    useState<UniversalConnector>();
-  const [walletConnectAddress, setWalletConnectAddress] = useState<
-    string | null
-  >(null);
+  const walletConnectCfg = TrustwareConfigStore.peek()?.walletConnect as
+    | WalletConnectConfig
+    | undefined;
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
+  const connectWC = useWalletConnectConnect(walletConnectCfg);
+
+  const WalletConnect = useCallback(async () => {
+    // console.log("got called");
+    if (
+      walletManager.status === "connected" &&
+      walletManager.connectedVia === "walletconnect"
+    ) {
+      console.log("I am connedcted");
+      const address = walletManager.identity?.addresses[0]?.address ?? null; // ← was resolveAddressForChain
+      if (address) {
+        setWalletType("walletconnect");
+        setCurrentStep("crypto-pay");
+        return;
+      }
     }
 
-    const walletConnect = TrustwareConfigStore.peek()
-      ?.walletConnect as WalletConnectConfig;
+    setWalletType("walletconnect");
+    const { error } = await connectWC();
 
-    getUniversalConnector(walletConnect as WalletConnectConfig).then(
-      setUniversalConnector
-    );
-  }, [TrustwareConfigStore.peek()?.walletConnect]);
-
-  useEffect(() => {
-    return () => {
-      universalConnector?.disconnect();
-    };
-  }, [universalConnector]);
-
-  function getAddrAndRedirect(session: any): string | null {
-    const ns = session.namespaces["eip155"];
-    if (!ns?.accounts?.length) return null;
-    // Return the address from the first account in this namespace
-    const adr = ns.accounts[0].split(":").slice(-1)[0];
-    setWalletConnectAddress(adr);
-    setCurrentStep("crypto-pay");
-    console.log({ adr });
-    return adr;
-  }
-
-  const WalletConnect = useCallback(
-    async function () {
-      console.log("got called");
-      if (!universalConnector) {
-        return;
+    if (!error) {
+      console.log("I didnt error");
+      const address = walletManager.identity?.addresses[0]?.address ?? null; // ← same here
+      if (address) {
+        console.log("I have an address", address);
+        setCurrentStep("crypto-pay");
       }
-
-      setWalletType("walletconnect");
-
-      const session = universalConnector.provider.session;
-      const nowInSeconds = Math.floor(Date.now() / 1000);
-      const isActive = session && session.expiry > nowInSeconds;
-
-      console.log({ isActive, session });
-
-      if (isActive && session) {
-        getAddrAndRedirect(session);
-        return;
-      }
-
-      const { session: providerSession } = await universalConnector.connect();
-
-      if (providerSession) {
-        getAddrAndRedirect(providerSession);
-        return;
-      }
-    },
-    [setCurrentStep, setWalletType, universalConnector]
-  );
-
-  const disconnectWalletConnect = async () => {
-    if (universalConnector) {
-      await universalConnector.disconnect();
+    } else {
       setWalletType("other");
-      setCurrentStep("home");
     }
-  };
+  }, [connectWC, setCurrentStep, setWalletType]);
 
-  useEffect(() => {
-    const provider = universalConnector?.provider;
-    if (!provider) {
-      return;
-    }
+  const disconnectWalletConnect = useCallback(async () => {
+    // walletManager.disconnect() handles: wallet.disconnect(), provider event
+    // cleanup, resetUniversalConnector(), and status → "idle" emission.
+    await walletManager.disconnect();
+    setWalletType("other");
+    setCurrentStep("home");
+  }, [setCurrentStep, setWalletType]);
 
-    const handleSessionUpdate = () => console.log("session_update");
-    const handleSessionDelete = () => console.log("session_delete");
-
-    provider.on("session_update", handleSessionUpdate);
-    provider.on("session_delete", handleSessionDelete);
-
-    // return () => {
-    //   provider.off("session_update", handleSessionUpdate);
-    //   provider.off("session_delete", handleSessionDelete);
-    // };
-  }, [universalConnector]);
+  const walletConnectAddress =
+    walletManager.status === "connected" &&
+    walletManager.connectedVia === "walletconnect"
+      ? walletManager.wallet?.ecosystem === "evm"
+        ? (walletManager.identity?.addresses[0]?.address ?? null) // identity snapshot has the last-synced address
+        : null
+      : null;
 
   return {
-    universalConnector,
     walletConnectAddress,
     WalletConnect,
     disconnectWalletConnect,

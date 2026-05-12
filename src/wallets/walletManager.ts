@@ -1,21 +1,23 @@
+import { useCallback, useEffect } from "react";
+
 import type {
   DetectedWallet,
   WalletInterFaceAPI,
   SimpleWalletInterface,
   WalletIdentityAddress,
-  WalletConnectConfig,
 } from "../types";
 import type { WagmiBridge } from "./bridges";
 import { connectDetectedWallet } from "./connect";
-import { useWalletDetection } from "./detect"; // you can also inline detect() if you want non-react
+import { useWalletDetection } from "./detect";
 import { IdentityStore, buildWalletIdentityAddress } from "../identity";
 import { bindSolanaProviderEvents } from "./solana";
 import {
-  evmChains,
   getUniversalConnector,
   resetUniversalConnector,
-} from "src/config/walletconnect";
-import { useCallback, useEffect } from "react";
+} from "./walletConnectConfig"; // your existing file
+import type { WalletConnectConfig } from "src/types";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Status = "idle" | "detecting" | "connecting" | "connected" | "error";
 type ConnectedVia = "extension" | "walletconnect" | "direct" | null;
@@ -31,21 +33,13 @@ export interface WalletSnapshot {
   detected: DetectedWallet[];
   wallet: WalletInterFaceAPI | null;
   simple: SimpleWalletInterface | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  identity: ReturnType<any>;
+  identity: ReturnType<IdentityStore["snapshot"]>;
   connectedWalletId: string | null;
 }
 
-function getChainMeta(chainId: number) {
-  const chain = evmChains.find((c) => c.id === chainId);
-  if (!chain) throw new Error(`Chain ${chainId} not configured`);
-  return {
-    chainId: `0x${chainId.toString(16)}`,
-    chainName: chain.name,
-    nativeCurrency: chain.nativeCurrency,
-    rpcUrls: chain.rpcUrls.default.http,
-  };
-}
+// ─── WalletConnect adapter ────────────────────────────────────────────────────
+// Wraps UniversalConnector in the WalletInterFaceAPI shape so the rest of the
+// app (including useTransactionActionModel) is agnostic to connection method.
 
 async function buildWalletConnectAPI(
   walletCfg: WalletConnectConfig | undefined
@@ -54,7 +48,7 @@ async function buildWalletConnectAPI(
 
   // UniversalConnector exposes a provider that is EIP-1193-compatible for EVM.
   // For multi-chain support, extend this adapter as needed.
-  const provider = connector.provider;
+  const provider = connector.getProvider();
 
   const api: WalletInterFaceAPI = {
     ecosystem: "evm",
@@ -74,37 +68,32 @@ async function buildWalletConnectAPI(
       return parseInt(hex, 16);
     },
 
-    // async switchChain(chainId: number) {
-    //   await provider.request({
-    //     method: "wallet_switchEthereumChain",
-    //     params: [{ chainId: `0x${chainId.toString(16)}` }],
-    //   });
-    // },
-
     async switchChain(chainId: number) {
-      const hexChainId = `0x${chainId.toString(16)}`;
-      try {
-        await provider.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: hexChainId }],
-        });
-      } catch (err: unknown) {
-        const code = (err as { code?: number })?.code;
-        // 4902 = chain not added to wallet yet
-        if (code === 4902) {
-          const chainMeta = getChainMeta(chainId); // see below
-          await provider.request({
-            method: "wallet_addEthereumChain",
-            params: [chainMeta],
-          });
-        } else {
-          throw err;
-        }
-      }
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: `0x${chainId.toString(16)}` }],
+      });
     },
 
     async request(args) {
       return provider.request(args);
+    },
+
+    async sendTransaction(tx) {
+      const from = await api.getAddress();
+      const hash = (await provider.request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from,
+            to: tx.to,
+            data: tx.data,
+            value: tx.value ? `0x${tx.value.toString(16)}` : "0x0",
+            ...(tx.chainId ? { chainId: `0x${tx.chainId.toString(16)}` } : {}),
+          },
+        ],
+      })) as `0x${string}`;
+      return { hash };
     },
 
     async disconnect() {
@@ -115,9 +104,12 @@ async function buildWalletConnectAPI(
   return api;
 }
 
+// ─── Provider event binding for WalletConnect ─────────────────────────────────
+
 function bindWalletConnectEvents(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  provider: ReturnType<any>,
+  provider: ReturnType<
+    Awaited<ReturnType<typeof getUniversalConnector>>["getProvider"]
+  >,
   callbacks: {
     onAccountsChanged: (accounts: string[]) => void;
     onChainChanged: (chainId: string) => void;
@@ -146,6 +138,8 @@ function bindWalletConnectEvents(
   };
 }
 
+// ─── WalletManager ────────────────────────────────────────────────────────────
+
 class WalletManager {
   private _status: Status = "idle";
   private _connectedVia: ConnectedVia = null;
@@ -156,6 +150,8 @@ class WalletManager {
   private _identity = new IdentityStore();
   private _providerCleanup: (() => void) | null = null;
   private _connectedWalletId: string | null = null;
+
+  // ─── Getters ───────────────────────────────────────────────────────────────
 
   get status() {
     return this._status;
@@ -206,6 +202,8 @@ class WalletManager {
     };
   }
 
+  // ─── Subscriptions ─────────────────────────────────────────────────────────
+
   onChange(fn: Listener) {
     this._listeners.add(fn);
     return () => this._listeners.delete(fn);
@@ -215,10 +213,14 @@ class WalletManager {
     for (const fn of this._listeners) fn(this._status);
   }
 
+  // ─── Detection ─────────────────────────────────────────────────────────────
+
+  /** Provide detection results (from your hook or custom function). */
   setDetected(list: DetectedWallet[]) {
     this._detected = list;
   }
 
+  /** Auto attach to the first/best detected extension wallet. */
   async autoAttach(opts?: {
     wagmi?: WagmiBridge;
     pick?: (list: DetectedWallet[]) => DetectedWallet | undefined;
@@ -228,6 +230,8 @@ class WalletManager {
     if (!target) return;
     await this.connectDetected(target, opts);
   }
+
+  // ─── Extension wallet connection ───────────────────────────────────────────
 
   async connectDetected(
     target: DetectedWallet,
@@ -277,6 +281,12 @@ class WalletManager {
     }
   }
 
+  // ─── WalletConnect connection ──────────────────────────────────────────────
+
+  /**
+   * Connect via WalletConnect / UniversalConnector.
+   * Pass the same WalletConnectConfig you use in getUniversalConnector().
+   */
   async connectWalletConnect(walletCfg?: WalletConnectConfig) {
     if (
       this._status === "connected" &&
@@ -292,8 +302,10 @@ class WalletManager {
     this.emit();
 
     try {
+      // getUniversalConnector handles singleton + projectId-change detection.
       const connector = await getUniversalConnector(walletCfg);
 
+      // Open the WalletConnect modal / QR flow.
       await connector.connect();
 
       const api = await buildWalletConnectAPI(walletCfg);
@@ -302,7 +314,8 @@ class WalletManager {
       this._connectedVia = "walletconnect";
       this._connectedWalletId = "walletconnect";
 
-      const provider = connector.provider;
+      // Bind provider events for account/chain/disconnect changes.
+      const provider = connector.getProvider();
       this._providerCleanup = bindWalletConnectEvents(provider, {
         onAccountsChanged: (accounts) => {
           if (accounts.length === 0) {
@@ -321,7 +334,7 @@ class WalletManager {
         onDisconnect: () => {
           this.clearConnectedState();
           this._status = "idle";
-          // did this to reset the singleton so the next connect() starts fresh.
+          // Also reset the singleton so the next connect() starts fresh.
           resetUniversalConnector();
           this.emit();
         },
@@ -341,6 +354,8 @@ class WalletManager {
       return { error: message, api: null };
     }
   }
+
+  // ─── Disconnect ────────────────────────────────────────────────────────────
 
   async disconnect(wagmi?: WagmiBridge) {
     // Disconnect wagmi if it was used for the extension path.
@@ -362,6 +377,9 @@ class WalletManager {
     this.emit();
   }
 
+  // ─── Direct attachment (legacy provider prop) ──────────────────────────────
+
+  /** Directly attach a pre-provided wallet interface. */
   attachWallet(api: WalletInterFaceAPI) {
     this.clearConnectedState();
     this._wallet = api;
@@ -372,10 +390,14 @@ class WalletManager {
     this.emit();
   }
 
+  // ─── Status helpers ────────────────────────────────────────────────────────
+
   setStatus(s: Status) {
     this._status = s;
     this.emit();
   }
+
+  // ─── Identity ──────────────────────────────────────────────────────────────
 
   addIdentityAddress(address: WalletIdentityAddress) {
     this._identity.upsert(address);
@@ -384,6 +406,8 @@ class WalletManager {
   resolveAddressForChain(chain: Parameters<IdentityStore["resolve"]>[0]) {
     return this._identity.resolve(chain);
   }
+
+  // ─── Private helpers ───────────────────────────────────────────────────────
 
   private clearProviderCleanup() {
     this._providerCleanup?.();
@@ -482,13 +506,21 @@ class WalletManager {
         this._identity.upsert(identityAddress);
       }
     } catch {
-      //{//*??}
+      // identity sync is best-effort
     }
   }
 }
 
+// ─── Singleton export ─────────────────────────────────────────────────────────
+
 export const walletManager = new WalletManager();
 
+// ─── React hooks ─────────────────────────────────────────────────────────────
+
+/**
+ * Feeds detected extension wallets into the manager.
+ * Call once near the top of your widget tree.
+ */
 export function useWireDetectionIntoManager() {
   const { detected } = useWalletDetection();
   useEffect(() => {
@@ -496,6 +528,11 @@ export function useWireDetectionIntoManager() {
   }, [detected]);
 }
 
+/**
+ * Returns a stable connect function for WalletConnect.
+ * Keeps walletCfg out of the dependency array to avoid
+ * re-creating the callback on every render.
+ */
 export function useWalletConnectConnect(walletCfg?: WalletConnectConfig) {
   const cfgRef = { current: walletCfg };
 

@@ -140,15 +140,11 @@ export function DepositProvider({
     "other"
   );
 
-  const {
-    universalConnector,
-    walletConnectAddress,
-    WalletConnect,
-    disconnectWalletConnect,
-  } = useWalletConnect({
-    setWalletType,
-    setCurrentStep,
-  });
+  const { walletConnectAddress, WalletConnect, disconnectWalletConnect } =
+    useWalletConnect({
+      setWalletType,
+      setCurrentStep,
+    });
 
   // Token and chain state
   const [selectedToken, setSelectedToken] = useState<
@@ -237,7 +233,6 @@ export function DepositProvider({
       yourWalletTokens,
       setYourWalletTokens,
       yourWalletTokensLoading,
-      universalConnector,
       walletConnectAddress,
       WalletConnect,
       disconnectWalletConnect,
@@ -251,7 +246,6 @@ export function DepositProvider({
       disconnectWalletConnect,
       selectedWallet,
       setYourWalletTokens,
-      universalConnector,
       walletAddress,
       walletConnectAddress,
       walletStatus,

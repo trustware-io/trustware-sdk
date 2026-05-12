@@ -1,153 +1,3 @@
-// import type { AppKitNetwork } from "@reown/appkit/networks";
-// import type { CustomCaipNetwork } from "@reown/appkit-common";
-// import { UniversalConnector } from "@reown/appkit-universal-connector";
-// import { TrustwareConfigStore } from "./store";
-// import { ResolvedWalletConnectConfig, WalletConnectConfig } from "src/types";
-// import { WALLETCONNECT_PROJECT_ID } from "src/constants";
-
-// // Get projectId from https://dashboard.walletconnect.com
-// // export const projectId = "896c4c8fa652baf14b9614e4026aff6a"; // this is a public projectId only to use on localhost
-// // export const projectId = "";
-
-// export const solanaMainnet: CustomCaipNetwork<"solana"> = {
-//   id: 1,
-//   chainNamespace: "solana",
-//   caipNetworkId: "solana:5eykt4UsFv8P8NJdTREpY1vzqAQ3H1FQ",
-//   name: "Solana Mainnet",
-//   nativeCurrency: {
-//     name: "Solana",
-//     symbol: "SOL",
-//     decimals: 9,
-//   },
-//   rpcUrls: {
-//     default: {
-//       http: ["https://api.mainnet-beta.solana.com"],
-//     },
-//   },
-// };
-
-// export const bitcoinMainnet: CustomCaipNetwork<"bip122"> = {
-//   id: 0,
-//   chainNamespace: "bip122",
-//   caipNetworkId: "bip122:000000000019d6689c085ae165831e93",
-//   name: "Bitcoin Mainnet",
-//   nativeCurrency: {
-//     name: "Bitcoin",
-//     symbol: "BTC",
-//     decimals: 8,
-//   },
-//   rpcUrls: {
-//     default: {
-//       http: ["https://api.blockcypher.com/v1/btc/main"],
-//     },
-//   },
-// };
-
-// export const ethereumMainnet: CustomCaipNetwork<"eip155"> = {
-//   id: 1,
-//   chainNamespace: "eip155",
-//   caipNetworkId: "eip155:1",
-//   name: "Ethereum Mainnet",
-//   nativeCurrency: {
-//     name: "Ether",
-//     symbol: "ETH",
-//     decimals: 18,
-//   },
-//   rpcUrls: {
-//     default: {
-//       http: ["https://rpc.ankr.com/eth"],
-//     },
-//   },
-// };
-
-// export const seiMainnet: CustomCaipNetwork<"eip155"> = {
-//   id: 1329,
-//   chainNamespace: "eip155",
-//   caipNetworkId: "eip155:1329",
-//   name: "Sei Mainnet",
-//   nativeCurrency: {
-//     name: "Sei",
-//     symbol: "SEI",
-//     decimals: 18,
-//   },
-//   rpcUrls: {
-//     default: {
-//       http: ["https://evm-rpc.sei-apis.com"],
-//     },
-//   },
-// };
-
-// export const networks1 = [
-//   solanaMainnet,
-//   bitcoinMainnet,
-//   ethereumMainnet,
-//   seiMainnet,
-// ] as [AppKitNetwork, ...AppKitNetwork[]];
-
-// let universalConnectorPromise: Promise<UniversalConnector> | null = null;
-
-// function resolvedMetadata() {
-//   const cfg = TrustwareConfigStore.peek();
-//   const walletConnect = cfg
-//     ? (cfg?.walletConnect as ResolvedWalletConnectConfig)
-//     : undefined;
-//   const configured = walletConnect?.metadata;
-//   const pageUrl =
-//     typeof window !== "undefined" && window.location?.origin
-//       ? window.location.origin
-//       : configured?.url;
-
-//   return {
-//     name: configured?.name ?? "Trustware",
-//     description: configured?.description ?? "Cross-chain bridge & top-up",
-//     url: pageUrl ?? "https://trustware.io",
-//     icons: configured?.icons?.length
-//       ? configured.icons
-//       : ["https://app.trustware.io/icon.png"],
-//   };
-// }
-
-// export async function getUniversalConnector(
-//   walletCfg: WalletConnectConfig | undefined
-// ) {
-//   console.log({ ID: walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID });
-//   if (!universalConnectorPromise) {
-//     console.log({ walletCfg });
-//     universalConnectorPromise = UniversalConnector.init({
-//       projectId: walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID,
-//       metadata: resolvedMetadata(),
-//       networks: [
-//         {
-//           namespace: "solana",
-//           chains: [solanaMainnet],
-//           methods: ["solana_signMessage", "solana_signTransaction"],
-//           events: [],
-//         },
-//         {
-//           namespace: "eip155",
-//           chains: [ethereumMainnet, seiMainnet],
-//           methods: ["eth_sendTransaction", "eth_sign", "personal_sign"],
-//           events: ["accountsChanged", "chainChanged"],
-//         },
-//         {
-//           namespace: "bip122",
-//           chains: [bitcoinMainnet],
-//           methods: ["btc_signMessage"],
-//           events: [],
-//         },
-//       ],
-//     }).catch((error) => {
-//       universalConnectorPromise = null;
-//       console.error(
-//         "[Trustware SDK] Failed to initialize WalletConnect:",
-//         error
-//       );
-//     }) as Promise<UniversalConnector>;
-//   }
-
-//   return universalConnectorPromise;
-// }
-
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import type { CustomCaipNetwork } from "@reown/appkit-common";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
@@ -155,11 +5,7 @@ import { TrustwareConfigStore } from "./store";
 import { ResolvedWalletConnectConfig, WalletConnectConfig } from "src/types";
 import { WALLETCONNECT_PROJECT_ID } from "src/constants";
 
-// ─── Network definitions ──────────────────────────────────────────────────────
-
-// FIX 1: solanaMainnet no longer uses id:1 (that belongs to Ethereum).
-// Solana doesn't have a meaningful numeric EVM chain ID, so we use a large
-// unique constant that won't collide with any EVM chain.
+//used a large unique constant that won't collide with any EVM chain.
 export const solanaMainnet: CustomCaipNetwork<"solana"> = {
   id: 900,
   chainNamespace: "solana",
@@ -177,8 +23,6 @@ export const solanaMainnet: CustomCaipNetwork<"solana"> = {
   },
 };
 
-// FIX 2: bitcoinMainnet no longer uses id:0 (falsy in JS).
-// BIP-122 chain IDs are derived from the genesis block hash; we use a
 // well-known non-zero placeholder that won't be treated as falsy.
 export const bitcoinMainnet: CustomCaipNetwork<"bip122"> = {
   id: 8333,
@@ -197,20 +41,159 @@ export const bitcoinMainnet: CustomCaipNetwork<"bip122"> = {
   },
 };
 
+// ─── EVM chains ───────────────────────────────────────────────────────────────
+
 export const ethereumMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1",
   name: "Ethereum Mainnet",
-  nativeCurrency: {
-    name: "Ether",
-    symbol: "ETH",
-    decimals: 18,
-  },
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    default: {
-      http: ["https://rpc.ankr.com/eth"],
-    },
+    default: { http: ["https://rpc.ankr.com/eth"] },
+  },
+};
+
+export const polygonMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 137,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:137",
+  name: "Polygon Mainnet",
+  nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/polygon"] },
+  },
+};
+
+export const arbitrumMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 42161,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:42161",
+  name: "Arbitrum One",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/arbitrum"] },
+  },
+};
+
+export const optimismMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 10,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:10",
+  name: "Optimism Mainnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/optimism"] },
+  },
+};
+
+export const baseMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 8453,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:8453",
+  name: "Base Mainnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://mainnet.base.org"] },
+  },
+};
+
+export const avalancheMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 43114,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:43114",
+  name: "Avalanche C-Chain",
+  nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/avalanche"] },
+  },
+};
+
+export const bscMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 56,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:56",
+  name: "BNB Smart Chain",
+  nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/bsc"] },
+  },
+};
+
+export const gnosisMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 100,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:100",
+  name: "Gnosis Chain",
+  nativeCurrency: { name: "xDAI", symbol: "XDAI", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/gnosis"] },
+  },
+};
+
+export const fantomMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 250,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:250",
+  name: "Fantom Opera",
+  nativeCurrency: { name: "Fantom", symbol: "FTM", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/fantom"] },
+  },
+};
+
+export const celoMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 42220,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:42220",
+  name: "Celo Mainnet",
+  nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.ankr.com/celo"] },
+  },
+};
+
+export const zkSyncMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 324,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:324",
+  name: "zkSync Era Mainnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://mainnet.era.zksync.io"] },
+  },
+};
+
+export const lineaMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 59144,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:59144",
+  name: "Linea Mainnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.linea.build"] },
+  },
+};
+
+export const mantleMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 5000,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:5000",
+  name: "Mantle Mainnet",
+  nativeCurrency: { name: "Mantle", symbol: "MNT", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.mantle.xyz"] },
+  },
+};
+
+export const blastMainnet: CustomCaipNetwork<"eip155"> = {
+  id: 81457,
+  chainNamespace: "eip155",
+  caipNetworkId: "eip155:81457",
+  name: "Blast Mainnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.blast.io"] },
   },
 };
 
@@ -219,17 +202,29 @@ export const seiMainnet: CustomCaipNetwork<"eip155"> = {
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1329",
   name: "Sei Mainnet",
-  nativeCurrency: {
-    name: "Sei",
-    symbol: "SEI",
-    decimals: 18,
-  },
+  nativeCurrency: { name: "Sei", symbol: "SEI", decimals: 18 },
   rpcUrls: {
-    default: {
-      http: ["https://evm-rpc.sei-apis.com"],
-    },
+    default: { http: ["https://evm-rpc.sei-apis.com"] },
   },
 };
+
+export const evmChains: CustomCaipNetwork<"eip155">[] = [
+  ethereumMainnet,
+  polygonMainnet,
+  arbitrumMainnet,
+  optimismMainnet,
+  baseMainnet,
+  avalancheMainnet,
+  bscMainnet,
+  gnosisMainnet,
+  fantomMainnet,
+  celoMainnet,
+  zkSyncMainnet,
+  lineaMainnet,
+  mantleMainnet,
+  blastMainnet,
+  seiMainnet,
+];
 
 // ─── Typed chain registries ───────────────────────────────────────────────────
 // Each namespace keeps its own correctly-typed array. This avoids filtering
@@ -237,20 +232,15 @@ export const seiMainnet: CustomCaipNetwork<"eip155"> = {
 // gives TypeScript full visibility into each chain's shape.
 
 const solanaChains: CustomCaipNetwork<"solana">[] = [solanaMainnet];
-const evmChains: CustomCaipNetwork<"eip155">[] = [ethereumMainnet, seiMainnet];
+
 const bitcoinChains: CustomCaipNetwork<"bip122">[] = [bitcoinMainnet];
 
-// FIX 6: Single source of truth for all networks.
-// AppKit receives this array for its UI; the namespace config below is derived
-// from the typed arrays above, so adding a chain in one place updates both.
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   // ...solanaChains,
   // ...bitcoinChains,
   ...evmChains,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ] as any;
-
-// ─── Namespace config ─────────────────────────────────────────────────────────
 
 const namespaceConfig = [
   {
@@ -274,18 +264,13 @@ const namespaceConfig = [
   {
     namespace: "bip122" as const,
     chains: bitcoinChains,
-    // FIX 8: Use the standard WalletConnect BIP-122 method name, not the
-    // non-standard "btc_signMessage" prefix that most wallets reject.
+
     methods: ["signMessage", "sendTransfer"],
     events: [] as string[],
   },
 ];
 
-// ─── Metadata ─────────────────────────────────────────────────────────────────
-
-// FIX 5: resolvedMetadata() warns clearly when url cannot be determined,
-// rather than silently falling back to a hardcoded domain that will fail
-// WalletConnect's domain verification for real deployments.
+// ─── Metadata ──
 function resolvedMetadata() {
   const cfg = TrustwareConfigStore.peek();
   const walletConnect = cfg
@@ -317,10 +302,8 @@ function resolvedMetadata() {
   };
 }
 
-// ─── Singleton connector ──────────────────────────────────────────────────────
-
 let universalConnectorPromise: Promise<UniversalConnector> | null = null;
-// FIX 4: Track which projectId was used to create the current singleton so we
+// Keep track of which projectId was used to create the current singleton so we
 // can detect when it changes and reinitialize accordingly.
 let initializedProjectId: string | null = null;
 
@@ -329,7 +312,7 @@ export async function getUniversalConnector(
 ): Promise<UniversalConnector> {
   const projectId = walletCfg?.projectId ?? WALLETCONNECT_PROJECT_ID;
 
-  // FIX 4: If the projectId has changed since the last init, bust the cache
+  // If the projectId has changed since the last init, bust the cache
   // so the connector is recreated with the correct credentials.
   if (universalConnectorPromise && initializedProjectId !== projectId) {
     console.warn(
@@ -347,7 +330,7 @@ export async function getUniversalConnector(
       metadata: resolvedMetadata(),
       networks: namespaceConfig,
     }).catch((error) => {
-      // FIX 3: Reset the promise so the next call can retry, then re-throw
+      // Reseting the promise so the next call can retry, then re-throw
       // so callers receive a real rejection instead of resolving to undefined.
       universalConnectorPromise = null;
       initializedProjectId = null;
@@ -362,9 +345,7 @@ export async function getUniversalConnector(
   return universalConnectorPromise;
 }
 
-// ─── Cleanup helper ───────────────────────────────────────────────────────────
-// Call this if you need to force a full re-initialization (e.g. on logout).
-
+// will Call this if I need to force a full re-initialization (e.g. on logout).
 export function resetUniversalConnector(): void {
   universalConnectorPromise = null;
   initializedProjectId = null;
