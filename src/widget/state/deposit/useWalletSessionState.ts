@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { useWalletDetection } from "../../../wallets/detect";
-import { walletManager } from "../../../wallets/manager";
+import { useWalletDetection, walletManager } from "../../../wallets";
 
 import type { WalletInterFaceAPI, DetectedWallet } from "../../../types";
 import type { WalletStatus } from "./types";

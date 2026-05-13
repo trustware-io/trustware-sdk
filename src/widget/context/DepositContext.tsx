@@ -16,6 +16,7 @@ import { useDepositNavigationState } from "../state/deposit/useDepositNavigation
 import { useThemePreference } from "../state/deposit/useThemePreference";
 import { useWalletSessionState } from "../state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "../state/deposit/useWalletTokenState";
+import { useWalletConnect } from "../state/deposit/useWalletConnect";
 
 export type {
   Chain,
@@ -56,6 +57,9 @@ const DepositWalletContext = createContext<
       | "yourWalletTokens"
       | "setYourWalletTokens"
       | "yourWalletTokensLoading"
+      | "WalletConnect"
+      | "setWalletType"
+      | "walletType"
     >
   | undefined
 >(undefined);
@@ -117,10 +121,12 @@ export function DepositProvider({
     resetNavigation,
     setCurrentStepInternal,
   } = useDepositNavigationState(initialStep);
+
   const { resolvedTheme, toggleTheme } = useThemePreference();
+
   const {
     selectedWallet,
-    walletAddress,
+    walletAddress: otherWalletAddress,
     walletStatus,
     connectWallet,
     disconnectWallet,
@@ -130,12 +136,35 @@ export function DepositProvider({
     "usd"
   );
 
+  const [walletType, setWalletType] = useState<"walletconnect" | "other">(
+    "other"
+  );
+
+  const {
+    universalConnector,
+    walletConnectAddress,
+    WalletConnect,
+    disconnectWalletConnect,
+  } = useWalletConnect({
+    setWalletType,
+    setCurrentStep,
+  });
+
   // Token and chain state
   const [selectedToken, setSelectedToken] = useState<
     Token | null | YourTokenData
   >(null);
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
+
+  const walletAddress = useMemo(
+    () =>
+      walletType === "walletconnect"
+        ? walletConnectAddress
+        : otherWalletAddress,
+    [walletType, walletConnectAddress, otherWalletAddress]
+  );
+
   const {
     yourWalletTokens,
     setYourWalletTokens,
@@ -208,14 +237,25 @@ export function DepositProvider({
       yourWalletTokens,
       setYourWalletTokens,
       yourWalletTokensLoading,
+      universalConnector,
+      walletConnectAddress,
+      WalletConnect,
+      disconnectWalletConnect,
+      setWalletType,
+      walletType,
     }),
     [
+      WalletConnect,
       connectWallet,
       disconnectWallet,
+      disconnectWalletConnect,
       selectedWallet,
       setYourWalletTokens,
+      universalConnector,
       walletAddress,
+      walletConnectAddress,
       walletStatus,
+      walletType,
       yourWalletTokens,
       yourWalletTokensLoading,
     ]

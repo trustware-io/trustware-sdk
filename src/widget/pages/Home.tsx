@@ -13,7 +13,7 @@ import {
   useAmountConstraints,
   useHomeAmountModel,
 } from "../features/amount";
-import { useWalletDetection } from "../../wallets/detect";
+import { useWalletDetection } from "../../wallets";
 import { HomePaymentOptions, useHomeWalletActions } from "../features/wallet";
 
 export interface HomeProps {
@@ -29,7 +29,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
   const { amount, setAmount, amountInputMode, setAmountInputMode } =
     useDepositForm();
   const { setCurrentStep, setCurrentStepInternal } = useDepositNavigation();
-  const { connectWallet } = useDepositWallet();
+  const { connectWallet, WalletConnect, setWalletType } = useDepositWallet();
   const { resolvedTheme } = useDepositUi();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
     useAmountConstraints();
@@ -62,6 +62,8 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     detectedWallets,
     setCurrentStep,
     setCurrentStepInternal,
+    WalletConnect,
+    setWalletType,
   });
 
   return (

@@ -5,7 +5,7 @@ import type {
   WalletInterFaceAPI,
 } from "../types";
 import { TrustwareConfigStore } from "../config/store";
-import { walletManager } from "../wallets/manager";
+import { walletManager } from "../wallets";
 import {
   buildRoute,
   buildDepositAddress,
