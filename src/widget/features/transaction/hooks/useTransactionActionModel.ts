@@ -229,6 +229,11 @@ export function useTransactionActionModel({
           selectedChain?.chainId ??
           selectedChain?.id
       );
+      console.log("[approve] targetChain:", targetChain, {
+        txReqChainId: routeResult?.txReq?.chainId,
+        selectedChainId: selectedChain?.chainId,
+        selectedChainIdAlt: selectedChain?.id,
+      });
       if (Number.isFinite(targetChain)) {
         const current = await wallet.getChainId();
         if (current !== targetChain) {
@@ -236,6 +241,9 @@ export function useTransactionActionModel({
             await wallet.switchChain(targetChain);
           } catch {
             // user cancellation will be surfaced by the send path
+            // throw new Error(
+            //   `Please switch to chain ${targetChain} in your wallet before approving.`
+            // );
           }
         }
       }
@@ -457,10 +465,44 @@ export function useTransactionActionModel({
   const handleSwipeConfirm = useCallback(async () => {
     if (needsApproval) {
       await handleApproveExact();
+
+      // handleApproveExact() calls readAllowance() internally on success,
+      // but allowanceWei is stale in this closure. Re-read directly.
+      if (
+        !backendChainId ||
+        !selectedToken?.address ||
+        !walletAddress ||
+        !spender
+      ) {
+        return;
+      }
+
+      const freshAllowance = await getEVMAllowance({
+        chainId: backendChainId,
+        tokenAddress: selectedToken.address,
+        ownerAddress: walletAddress,
+        spenderAddress: spender,
+      })
+        .then((r) => BigInt(r.allowance || "0"))
+        .catch(() => 0n);
+
+      if (freshAllowance >= amountWei) {
+        await handleConfirm();
+      }
       return;
     }
+
     await handleConfirm();
-  }, [handleApproveExact, handleConfirm, needsApproval]);
+  }, [
+    amountWei,
+    backendChainId,
+    handleApproveExact,
+    handleConfirm,
+    needsApproval,
+    selectedToken?.address,
+    spender,
+    walletAddress,
+  ]);
 
   const isWalletConnected = walletStatus === "connected";
   const canSwipe =
