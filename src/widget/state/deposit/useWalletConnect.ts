@@ -6,6 +6,29 @@ import { WalletConnectConfig } from "src/types";
 import { NavigationStep } from "./types";
 import { useWalletConnectConnect, walletManager } from "src/wallets";
 
+type WalletConnectSession = {
+  expiry?: number;
+  namespaces?: Record<string, { accounts?: string[] }>;
+};
+
+function getEvmAccount(session?: WalletConnectSession | null) {
+  const account = session?.namespaces?.eip155?.accounts?.[0];
+  const [, chainId, address] = account?.split(":") ?? [];
+
+  if (!chainId || !address) {
+    return null;
+  }
+
+  return {
+    address,
+    chainId: Number(chainId),
+  };
+}
+
+function toHexChainId(chainId: number) {
+  return `0x${chainId.toString(16)}`;
+}
+
 export function useWalletConnect({
   setWalletType,
   setCurrentStep,

@@ -13,7 +13,7 @@ import {
   useAmountConstraints,
   useHomeAmountModel,
 } from "../features/amount";
-import { useWalletDetection } from "../../wallets/detect";
+import { useWalletDetection } from "../../wallets";
 import { HomePaymentOptions, useHomeWalletActions } from "../features/wallet";
 
 export interface HomeProps {
@@ -116,7 +116,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
             marginBottom: spacing[4],
           }}
         >
-          Enter an amounteyeyey
+          Enter an amount
         </p>
 
         <AmountInputDisplay
