@@ -114,6 +114,7 @@ export interface DepositContextValue {
   amountInputMode: "usd" | "token";
   setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
   WalletConnect: () => Promise<void>;
+  disconnectWalletConnect: () => Promise<void>;
   setWalletType: React.Dispatch<
     React.SetStateAction<"walletconnect" | "other">
   >;

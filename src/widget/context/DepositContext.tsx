@@ -58,6 +58,7 @@ const DepositWalletContext = createContext<
       | "setYourWalletTokens"
       | "yourWalletTokensLoading"
       | "WalletConnect"
+      | "disconnectWalletConnect"
       | "setWalletType"
       | "walletType"
     >
