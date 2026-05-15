@@ -7,7 +7,7 @@ import type {
 } from "../types";
 import type { WagmiBridge } from "./bridges";
 import { connectDetectedWallet } from "./connect";
-import { useWalletDetection } from "./detect"; // you can also inline detect() if you want non-react
+import { useWalletDetection } from "./detect";
 import { IdentityStore, buildWalletIdentityAddress } from "../identity";
 import { bindSolanaProviderEvents } from "./solana";
 import {
@@ -15,17 +15,15 @@ import {
   getUniversalConnector,
   resetUniversalConnector,
 } from "src/config/walletconnect";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 type Status = "idle" | "detecting" | "connecting" | "connected" | "error";
 type ConnectedVia = "extension" | "walletconnect" | "direct" | null;
 type Listener = (s: Status) => void;
 
-/** Subset exposed to consumers who only need read access. */
 export interface WalletSnapshot {
   status: Status;
   connectedVia: ConnectedVia;
-  /** "walletconnect" when via WC, "other" for everything else — matches useTransactionActionModel's walletType prop */
   walletType: "walletconnect" | "other";
   error: string | null;
   detected: DetectedWallet[];
@@ -34,6 +32,8 @@ export interface WalletSnapshot {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   identity: ReturnType<any>;
   connectedWalletId: string | null;
+  address: string | null;
+  isConnected: boolean;
 }
 
 function getChainMeta(chainId: number) {
@@ -51,9 +51,6 @@ async function buildWalletConnectAPI(
   walletCfg: WalletConnectConfig | undefined
 ): Promise<WalletInterFaceAPI> {
   const connector = await getUniversalConnector(walletCfg);
-
-  // UniversalConnector exposes a provider that is EIP-1193-compatible for EVM.
-  // For multi-chain support, extend this adapter as needed.
   const provider = connector.provider;
 
   const api: WalletInterFaceAPI = {
@@ -74,13 +71,6 @@ async function buildWalletConnectAPI(
       return parseInt(hex, 16);
     },
 
-    // async switchChain(chainId: number) {
-    //   await provider.request({
-    //     method: "wallet_switchEthereumChain",
-    //     params: [{ chainId: `0x${chainId.toString(16)}` }],
-    //   });
-    // },
-
     async switchChain(chainId: number) {
       const hexChainId = `0x${chainId.toString(16)}`;
       try {
@@ -90,9 +80,8 @@ async function buildWalletConnectAPI(
         });
       } catch (err: unknown) {
         const code = (err as { code?: number })?.code;
-        // 4902 = chain not added to wallet yet
         if (code === 4902) {
-          const chainMeta = getChainMeta(chainId); // see below
+          const chainMeta = getChainMeta(chainId);
           await provider.request({
             method: "wallet_addEthereumChain",
             params: [chainMeta],
@@ -156,6 +145,9 @@ class WalletManager {
   private _identity = new IdentityStore();
   private _providerCleanup: (() => void) | null = null;
   private _connectedWalletId: string | null = null;
+  private _address: string | null = null;
+  private _onExternalDisconnectCallback: (() => void) | null = null;
+  private _snapshot: WalletSnapshot | null = null;
 
   get status() {
     return this._status;
@@ -175,8 +167,13 @@ class WalletManager {
   get connectedWalletId() {
     return this._connectedWalletId;
   }
+  get address(): string | null {
+    return this._address;
+  }
+  get isConnected(): boolean {
+    return this._status === "connected";
+  }
 
-  /** "walletconnect" | "other" — matches useTransactionActionModel's walletType prop */
   get walletType(): "walletconnect" | "other" {
     return this._connectedVia === "walletconnect" ? "walletconnect" : "other";
   }
@@ -191,8 +188,14 @@ class WalletManager {
     return this._identity.snapshot;
   }
 
-  /** Full snapshot for consumers who subscribe via onChange. */
   get snapshot(): WalletSnapshot {
+    if (!this._snapshot) {
+      this._snapshot = this.buildSnapshot();
+    }
+    return this._snapshot;
+  }
+
+  private buildSnapshot(): WalletSnapshot {
     return {
       status: this._status,
       connectedVia: this._connectedVia,
@@ -203,6 +206,8 @@ class WalletManager {
       simple: this.simple,
       identity: this.identity,
       connectedWalletId: this._connectedWalletId,
+      address: this._address,
+      isConnected: this.isConnected,
     };
   }
 
@@ -212,7 +217,21 @@ class WalletManager {
   }
 
   private emit() {
+    this._snapshot = null;
     for (const fn of this._listeners) fn(this._status);
+  }
+
+  onExternalDisconnect(cb: () => void): () => void {
+    this._onExternalDisconnectCallback = cb;
+    return () => {
+      if (this._onExternalDisconnectCallback === cb) {
+        this._onExternalDisconnectCallback = null;
+      }
+    };
+  }
+
+  private triggerExternalDisconnect() {
+    this._onExternalDisconnectCallback?.();
   }
 
   setDetected(list: DetectedWallet[]) {
@@ -293,11 +312,9 @@ class WalletManager {
 
     try {
       const connector = await getUniversalConnector(walletCfg);
-
       await connector.connect();
 
       const api = await buildWalletConnectAPI(walletCfg);
-
       this._wallet = api;
       this._connectedVia = "walletconnect";
       this._connectedWalletId = "walletconnect";
@@ -306,8 +323,8 @@ class WalletManager {
       this._providerCleanup = bindWalletConnectEvents(provider, {
         onAccountsChanged: (accounts) => {
           if (accounts.length === 0) {
-            this.clearConnectedState();
-            this._status = "idle";
+            this.fullReset();
+            this.triggerExternalDisconnect();
             this.emit();
             return;
           }
@@ -319,10 +336,10 @@ class WalletManager {
           this.emit();
         },
         onDisconnect: () => {
-          this.clearConnectedState();
-          this._status = "idle";
-          // did this to reset the singleton so the next connect() starts fresh.
+          // User disconnected from inside their mobile wallet
+          this.fullReset();
           resetUniversalConnector();
+          this.triggerExternalDisconnect();
           this.emit();
         },
       });
@@ -343,7 +360,6 @@ class WalletManager {
   }
 
   async disconnect(wagmi?: WagmiBridge) {
-    // Disconnect wagmi if it was used for the extension path.
     if (wagmi && this._connectedVia === "extension") {
       await wagmi.disconnect().catch(() => {});
     }
@@ -352,13 +368,11 @@ class WalletManager {
       await this._wallet.disconnect().catch(() => {});
     }
 
-    // For WalletConnect, reset the singleton so the next connection is clean.
     if (this._connectedVia === "walletconnect") {
       resetUniversalConnector();
     }
 
-    this.clearConnectedState();
-    this._status = "idle";
+    this.fullReset();
     this.emit();
   }
 
@@ -397,7 +411,14 @@ class WalletManager {
     this._connectedWalletId = null;
   }
 
-  /** Bind EVM/Solana provider events for extension wallets. */
+  private fullReset() {
+    this.clearConnectedState();
+    this._address = null;
+    this._identity = new IdentityStore();
+    this._status = "idle";
+    this._error = null;
+  }
+
   private bindExtensionProviderEvents(target: DetectedWallet) {
     if (!target.provider) return;
 
@@ -413,8 +434,8 @@ class WalletManager {
           this.emit();
         },
         onDisconnect: () => {
-          this.clearConnectedState();
-          this._status = "idle";
+          this.fullReset();
+          this.triggerExternalDisconnect();
           this.emit();
         },
       });
@@ -433,8 +454,8 @@ class WalletManager {
     const onAccountsChanged = (accounts?: unknown) => {
       const nextAccounts = Array.isArray(accounts) ? accounts : [];
       if (nextAccounts.length === 0) {
-        this.clearConnectedState();
-        this._status = "idle";
+        this.fullReset();
+        this.triggerExternalDisconnect();
         this.emit();
         return;
       }
@@ -444,8 +465,8 @@ class WalletManager {
     };
 
     const onDisconnect = () => {
-      this.clearConnectedState();
-      this._status = "idle";
+      this.fullReset();
+      this.triggerExternalDisconnect();
       this.emit();
     };
 
@@ -464,25 +485,37 @@ class WalletManager {
     if (!this._wallet) return;
     try {
       const address = await this._wallet.getAddress();
+
+      // Cache address for synchronous reads via .address getter
+      this._address = address;
+
       const chain =
         this._wallet.ecosystem === "evm"
           ? { chainId: String(await this._wallet.getChainId()), type: "evm" }
-          : {
-              chainId: "solana-mainnet-beta",
-              networkIdentifier: "solana-mainnet-beta",
-              type: "solana",
-            };
+          : this._wallet.ecosystem === "solana"
+            ? {
+                chainId: "solana-mainnet-beta",
+                networkIdentifier: "solana-mainnet-beta",
+                type: "solana",
+              }
+            : {
+                chainId: "bip122:000000000019d6689c085ae165831e93",
+                networkIdentifier: "bitcoin-mainnet",
+                type: "bitcoin",
+              };
+
       const identityAddress = buildWalletIdentityAddress({
         address,
         chain,
         source: "provider",
         providerId,
       });
+
       if (identityAddress) {
         this._identity.upsert(identityAddress);
       }
     } catch {
-      //{//*??}
+      // {???/?}
     }
   }
 }
@@ -498,9 +531,36 @@ export function useWireDetectionIntoManager() {
 
 export function useWalletConnectConnect(walletCfg?: WalletConnectConfig) {
   const cfgRef = { current: walletCfg };
-
   return useCallback(
     () => walletManager.connectWalletConnect(cfgRef.current),
     []
   );
+}
+
+export function useWalletInfo(wagmi?: WagmiBridge) {
+  const snapshot = useSyncExternalStore(
+    (cb) => walletManager.onChange(cb),
+    () => walletManager.snapshot,
+    () => walletManager.snapshot
+  );
+
+  const disconnect = useCallback(async () => {
+    await walletManager.disconnect(wagmi);
+  }, []);
+
+  return {
+    walletMetaId: snapshot.connectedWalletId,
+    address: snapshot.address,
+    isConnected: snapshot.isConnected,
+    connectedVia: snapshot.connectedVia,
+    walletType: snapshot.walletType,
+    status: snapshot.status,
+    disconnect,
+  };
+}
+
+export function useWalletExternalDisconnect(cb: () => void) {
+  useEffect(() => {
+    return walletManager.onExternalDisconnect(cb);
+  }, []);
 }

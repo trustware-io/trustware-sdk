@@ -4,6 +4,7 @@ import { colors } from "../../../styles";
 import { PaymentOptionRow } from "./PaymentOptionRow";
 import { walletActionIconBoxStyle } from "./paymentOptionStyles";
 import { useDepositWallet } from "src/widget/context/DepositContext";
+import { useWalletInfo } from "src/wallets";
 
 export interface WalletConnectRowProps {
   onClick: () => Promise<void>;
@@ -17,6 +18,10 @@ export function WalletConnectRow({
     selectedNamespace.toUpperCase() === "EVM"
       ? "WalletConnect (EVM)"
       : "WalletConnect (Solana)";
+
+  const { isConnected, connectedVia } = useWalletInfo();
+
+  const isSelected = isConnected && connectedVia === "walletconnect";
   return (
     <PaymentOptionRow
       onClick={() => void onClick()}
@@ -36,21 +41,22 @@ export function WalletConnectRow({
           </svg>
         </div>
       }
-      trailing={
-        <svg
-          style={{
-            width: "1rem",
-            height: "1rem",
-            color: colors.mutedForeground,
-          }}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      }
+      isSelected={isSelected}
+      // trailing={
+      //   <svg
+      //     style={{
+      //       width: "1rem",
+      //       height: "1rem",
+      //       color: colors.mutedForeground,
+      //     }}
+      //     viewBox="0 0 24 24"
+      //     fill="none"
+      //     stroke="currentColor"
+      //     strokeWidth={2}
+      //   >
+      //     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+      //   </svg>
+      // }
     />
   );
 }

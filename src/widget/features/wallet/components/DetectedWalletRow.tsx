@@ -3,6 +3,7 @@ import type React from "react";
 import type { DetectedWallet } from "../../../../types";
 import { borderRadius, colors, fontSize, fontWeight } from "../../../styles";
 import { PaymentOptionRow } from "./PaymentOptionRow";
+import { useWalletInfo } from "src/wallets";
 
 export interface DetectedWalletRowProps {
   onSelect: (wallet: DetectedWallet) => Promise<void>;
@@ -13,6 +14,9 @@ export function DetectedWalletRow({
   onSelect,
   wallet,
 }: DetectedWalletRowProps): React.ReactElement {
+  const { isConnected, walletMetaId } = useWalletInfo();
+
+  const isSelected = isConnected && wallet?.meta.id === walletMetaId;
   return (
     <PaymentOptionRow
       onClick={() => void onSelect(wallet)}
@@ -53,6 +57,7 @@ export function DetectedWalletRow({
           </div>
         )
       }
+      isSelected={isSelected}
     />
   );
 }
