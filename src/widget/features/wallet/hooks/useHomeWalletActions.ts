@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   DetectedWallet,
@@ -8,6 +8,7 @@ import type {
 
 import { NavigationStep } from "src/widget/state/deposit/types";
 import { useDepositNavigationState } from "src/widget/state/deposit/useDepositNavigationState";
+import { useDepositWallet } from "src/widget/context/DepositContext";
 
 type UseHomeWalletActionsArgs = {
   connectWallet: (wallet: DetectedWallet) => Promise<{
@@ -100,9 +101,20 @@ export function useHomeWalletActions({
     WalletConnect().catch(() => resetNavigation());
   };
 
-  const browserWallets = detectedWallets.filter(
-    (wallet) => wallet.meta.id !== "walletconnect"
-  );
+  // const browserWallets = detectedWallets.filter(
+  //   (wallet) => wallet.meta.id !== "walletconnect"
+  // );
+
+  const { selectedNamespace } = useDepositWallet();
+  const browserWallets = useMemo(() => {
+    if (!detectedWallets?.length) return [];
+
+    return detectedWallets.filter(
+      (wallet) =>
+        wallet?.meta?.id !== "walletconnect" &&
+        wallet?.meta?.ecosystem === selectedNamespace
+    );
+  }, [detectedWallets, selectedNamespace]);
 
   return {
     browserWallets,

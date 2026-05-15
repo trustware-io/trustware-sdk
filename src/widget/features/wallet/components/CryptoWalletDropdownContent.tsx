@@ -18,6 +18,8 @@ import {
   dropdownStatusDotStyle,
   dropdownSurfaceStyle,
 } from "./paymentOptionStyles";
+import { WalletNamespaceTabs } from "./WalletNamespaceTabs";
+import { useDepositWallet } from "src/widget/context/DepositContext";
 
 export interface CryptoWalletDropdownContentProps {
   browserWallets: DetectedWallet[];
@@ -30,6 +32,7 @@ export function CryptoWalletDropdownContent({
   handleWalletConnect,
   handleWalletSelect,
 }: CryptoWalletDropdownContentProps): React.ReactElement {
+  const { selectedNamespace } = useDepositWallet();
   return (
     <div
       style={{
@@ -52,7 +55,7 @@ export function CryptoWalletDropdownContent({
           <span
             style={{
               fontSize: fontSize.xs,
-              fontWeight: fontWeight.medium,
+              fontWeight: fontWeight.normal,
               color: colors.primary,
             }}
           >
@@ -60,6 +63,10 @@ export function CryptoWalletDropdownContent({
               ? "Detected Wallets"
               : "No Wallets Detected"}
           </span>
+
+          <div style={{ display: "flex", gap: spacing[2] }}>
+            <WalletNamespaceTabs showBitcoin={false} />
+          </div>
         </div>
 
         {browserWallets.length > 0 ? (
@@ -86,7 +93,9 @@ export function CryptoWalletDropdownContent({
       <div style={dividerBorderStyle} />
 
       <div style={{ padding: spacing[3] }}>
-        <WalletConnectRow onClick={handleWalletConnect} />
+        {selectedNamespace === "evm" && (
+          <WalletConnectRow onClick={handleWalletConnect} />
+        )}
       </div>
     </div>
   );

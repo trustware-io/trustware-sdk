@@ -3,6 +3,7 @@ import type React from "react";
 import { colors } from "../../../styles";
 import { PaymentOptionRow } from "./PaymentOptionRow";
 import { walletActionIconBoxStyle } from "./paymentOptionStyles";
+import { useDepositWallet } from "src/widget/context/DepositContext";
 
 export interface WalletConnectRowProps {
   onClick: () => Promise<void>;
@@ -11,10 +12,15 @@ export interface WalletConnectRowProps {
 export function WalletConnectRow({
   onClick,
 }: WalletConnectRowProps): React.ReactElement {
+  const { selectedNamespace } = useDepositWallet();
+  const label =
+    selectedNamespace.toUpperCase() === "EVM"
+      ? "WalletConnect (EVM)"
+      : "WalletConnect (Solana)";
   return (
     <PaymentOptionRow
       onClick={() => void onClick()}
-      label="WalletConnect(EVM)"
+      label={label}
       icon={
         <div style={walletActionIconBoxStyle}>
           <svg

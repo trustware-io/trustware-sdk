@@ -164,7 +164,7 @@ function WidgetInner({
   const { resetState } = useDepositNavigation();
   const { transactionStatus } = useDepositTransaction();
   const { resolvedTheme } = useDepositUi();
-  const { status, revalidate } = useTrustware();
+  const { status, revalidate, errors } = useTrustware();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   /**
@@ -224,6 +224,7 @@ function WidgetInner({
           isDark={resolvedTheme === "dark"}
           isRefreshing={isRefreshing}
           onRefresh={handleRefresh}
+          errorMessage={errors}
         />
       </WidgetContainer>
       <ConfirmCloseDialog

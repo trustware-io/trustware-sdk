@@ -47,6 +47,7 @@ export type TrustwareConfigOptions = {
     toChain: string; // Default destination chain
     toToken: string; // Default destination token
     fromToken?: string; // Default source token (optional)
+    fromChain?: string; // Default source chain (optional)
     fromAddress?: string; // Default source address (optional)
     toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
     defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
