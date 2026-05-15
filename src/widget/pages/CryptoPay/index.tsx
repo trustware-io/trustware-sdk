@@ -9,6 +9,7 @@ import {
   LoadingSkeleton,
   WidgetSecurityFooter,
 } from "src/widget/components";
+import { borderRadius, colors, fontSize, spacing } from "src/widget/styles";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -58,6 +59,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     walletStatus,
     yourWalletTokens,
     yourWalletTokensLoading,
+    disconnectWalletConnect,
   } = useDepositWallet();
   const { goBack, setCurrentStep, currentStep } = useDepositNavigation();
   const config = useTrustwareConfig();
@@ -224,6 +226,70 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
       }}
     >
       <WidgetPageHeader onBack={goBack} title="Confirm Deposit" />
+
+      {walletType === "walletconnect" && walletAddress && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: `${spacing[2]} ${spacing[4]}`,
+            backgroundColor: colors.card,
+            borderBottom: `1px solid ${colors.border}`,
+            gap: spacing[2],
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: spacing[2],
+              fontSize: fontSize.xs,
+              color: colors.mutedForeground,
+              overflow: "hidden",
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              style={{
+                width: "0.875rem",
+                height: "0.875rem",
+                flexShrink: 0,
+                color: colors.blue[500],
+              }}
+            >
+              <path d="M6.09 10.56c3.26-3.2 8.56-3.2 11.82 0l.39.39a.4.4 0 010 .58l-1.34 1.31a.21.21 0 01-.3 0l-.54-.53c-2.28-2.23-5.97-2.23-8.24 0l-.58.56a.21.21 0 01-.3 0L5.66 11.6a.4.4 0 010-.58l.43-.46zm14.6 2.72l1.2 1.17a.4.4 0 010 .58l-5.38 5.27a.43.43 0 01-.6 0l-3.82-3.74a.11.11 0 00-.15 0l-3.82 3.74a.43.43 0 01-.6 0L2.15 15.03a.4.4 0 010-.58l1.2-1.17a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0l3.82 3.74c.04.04.1.04.15 0l3.82-3.74a.43.43 0 01.6 0z" />
+            </svg>
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void disconnectWalletConnect()}
+            style={{
+              flexShrink: 0,
+              fontSize: fontSize.xs,
+              color: colors.destructive,
+              background: "transparent",
+              border: `1px solid ${colors.destructive}`,
+              borderRadius: borderRadius.md,
+              padding: `${spacing[1]} ${spacing[2]}`,
+              cursor: "pointer",
+              lineHeight: 1.4,
+            }}
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
 
       {showSkeleton ? (
         <>
