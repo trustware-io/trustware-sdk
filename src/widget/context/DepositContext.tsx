@@ -61,6 +61,8 @@ const DepositWalletContext = createContext<
       | "disconnectWalletConnect"
       | "setWalletType"
       | "walletType"
+      | "selectedNamespace"
+      | "setSelectedNamespace"
     >
   | undefined
 >(undefined);
@@ -103,6 +105,8 @@ export interface DepositProviderProps {
   /** Initial step to start the widget at */
   initialStep?: NavigationStep;
 }
+
+export type WalletNamespace = "evm" | "Solana" | "bitcoin";
 
 /**
  * Provider for deposit widget context including navigation state.
@@ -153,6 +157,9 @@ export function DepositProvider({
   >(null);
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
+
+  const [selectedNamespace, setSelectedNamespace] =
+    useState<WalletNamespace>("evm");
 
   const walletAddress = useMemo(
     () =>
@@ -239,6 +246,8 @@ export function DepositProvider({
       disconnectWalletConnect,
       setWalletType,
       walletType,
+      selectedNamespace,
+      setSelectedNamespace,
     }),
     [
       WalletConnect,
@@ -253,6 +262,8 @@ export function DepositProvider({
       walletType,
       yourWalletTokens,
       yourWalletTokensLoading,
+      selectedNamespace,
+      setSelectedNamespace,
     ]
   );
 
