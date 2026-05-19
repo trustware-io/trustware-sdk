@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface ImageLoaderProps {
   src: string;
@@ -7,7 +7,6 @@ interface ImageLoaderProps {
   retryDelay?: number;
   lazy?: boolean;
   Fallback?: React.ReactNode;
-  // skeleton?: React.ReactNode;
   onLoad?: () => void;
   onError?: () => void;
   imgStyle?: React.CSSProperties;
@@ -42,7 +41,6 @@ export default function ImageLoader({
   retryDelay = 1000,
   lazy = true,
   Fallback = null,
-  // skeleton = null,
   imgStyle,
   onLoad,
   onError,
@@ -52,6 +50,13 @@ export default function ImageLoader({
   const [srcIsEmpty, setSrcIsEmpty] = useState<boolean>(false);
   const imgRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const onLoadRef = useRef(onLoad);
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onLoadRef.current = onLoad;
+    onErrorRef.current = onError;
+  }, [onLoad, onError]);
 
   // Retry logic effect
   useEffect(() => {
@@ -64,11 +69,8 @@ export default function ImageLoader({
     }
   }, [status, attempt, retry, retryDelay]);
 
-  // Load image
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const loadImage = (): void => {
+  const loadImage = useCallback((): void => {
     if (!src) {
-      // Handle empty src case immediately <- '', null or undefined ->
       setSrcIsEmpty(true);
       return;
     }
@@ -78,23 +80,20 @@ export default function ImageLoader({
     img.src = src;
     img.onload = () => {
       setStatus("success");
-      onLoad?.();
+      onLoadRef.current?.();
     };
     img.onerror = () => {
       setStatus("error");
-      onError?.();
+      onErrorRef.current?.();
     };
-  };
+  }, [src]);
 
-  // Lazy loading with IntersectionObserver
   useEffect(() => {
     if (!lazy) {
-      // Avoid synchronous setState in effect
-      setTimeout(() => {
-        loadImage();
-      }, 0);
-      return;
+      const timer = setTimeout(() => loadImage(), 0);
+      return () => clearTimeout(timer);
     }
+
     observerRef.current = new IntersectionObserver(
       (entries: IntersectionObserverEntry[]) => {
         entries.forEach((entry) => {
@@ -106,9 +105,11 @@ export default function ImageLoader({
       },
       { threshold: 0.1 }
     );
+
     if (imgRef.current) {
       observerRef.current.observe(imgRef.current);
     }
+
     return () => observerRef.current?.disconnect();
   }, [lazy, src, loadImage]);
 
@@ -129,21 +130,20 @@ export default function ImageLoader({
           src={src}
           alt={alt}
           style={{
-            // Css guards to prevent external styles from interfering with image rendering
-            all: "revert", // Undo any inherited/global resets (e.g. Tailwind, normalize.css)
-            display: "block", // Prevent inline baseline gap
-            width: "100%", // Restore intended sizing
-            maxWidth: "100%", // Prevent overflow
-            height: "auto", // Maintain aspect ratio
-            border: "none", // Strip any border resets
-            padding: 0, // Strip padding resets
-            margin: 0, // Strip margin resets
-            objectFit: "cover", // Preserve visual intent
-            verticalAlign: "middle", // Guard against inline stripping
-            filter: "none", // Prevent inherited filter washes
-            opacity: 1, // Prevent inherited opacity stripping
-            mixBlendMode: "normal", // Prevent blend mode interference
-            colorScheme: "normal", // Prevent dark-mode inversion
+            all: "revert",
+            display: "block",
+            width: "100%",
+            maxWidth: "100%",
+            height: "auto",
+            border: "none",
+            padding: 0,
+            margin: 0,
+            objectFit: "cover",
+            verticalAlign: "middle",
+            filter: "none",
+            opacity: 1,
+            mixBlendMode: "normal",
+            colorScheme: "normal",
             ...imgStyle,
           }}
         />
