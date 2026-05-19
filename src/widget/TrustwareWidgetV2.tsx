@@ -30,6 +30,7 @@ import {
 import { WidgetRouter } from "./app/WidgetRouter";
 import { ACTIVE_TRANSACTION_STATUSES } from "./app/widgetSteps";
 import { useTrustware } from "../provider";
+import { useWalletExternalDisconnect } from "src/wallets/manager";
 
 // Styles for WidgetContent
 const widgetContentContainerStyle: React.CSSProperties = {
@@ -43,7 +44,7 @@ const themeToggleContainerStyle: React.CSSProperties = {
   position: "absolute",
   top: spacing[3],
   right: spacing[3],
-  zIndex: 10,
+  zIndex: 12,
 };
 
 /**
@@ -64,11 +65,13 @@ function WidgetContent({
   onStateChange,
   showThemeToggle,
 }: WidgetContentProps): React.ReactElement {
-  const { currentStep, navigationDirection, stepHistory } =
+  const { currentStep, navigationDirection, stepHistory, setCurrentStep } =
     useDepositNavigation();
   const { amount, selectedChain, selectedToken } = useDepositForm();
   const { transactionHash, transactionStatus } = useDepositTransaction();
   const { resolvedTheme, toggleTheme } = useDepositUi();
+
+  useWalletExternalDisconnect(() => setCurrentStep("home"));
 
   /**
    * Persist state changes to sessionStorage
@@ -164,7 +167,7 @@ function WidgetInner({
   const { resetState } = useDepositNavigation();
   const { transactionStatus } = useDepositTransaction();
   const { resolvedTheme } = useDepositUi();
-  const { status, revalidate } = useTrustware();
+  const { status, revalidate, errors } = useTrustware();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   /**
@@ -224,6 +227,7 @@ function WidgetInner({
           isDark={resolvedTheme === "dark"}
           isRefreshing={isRefreshing}
           onRefresh={handleRefresh}
+          errorMessage={errors}
         />
       </WidgetContainer>
       <ConfirmCloseDialog

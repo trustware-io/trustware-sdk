@@ -1,5 +1,3 @@
-import React from "react";
-
 import {
   borderRadius,
   colors,
@@ -9,12 +7,16 @@ import {
 } from "../../../styles";
 import { selectionRingStyle } from "./paymentOptionStyles";
 
+import { DetectedWallet } from "src/types/wallets";
+
 export interface PaymentOptionRowProps {
   disabled?: boolean;
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   trailing?: React.ReactNode;
+  wallet?: DetectedWallet;
+  isSelected?: boolean;
 }
 
 export function PaymentOptionRow({
@@ -23,6 +25,7 @@ export function PaymentOptionRow({
   label,
   onClick,
   trailing,
+  isSelected,
 }: PaymentOptionRowProps): React.ReactElement {
   return (
     <button
@@ -63,7 +66,15 @@ export function PaymentOptionRow({
           {label}
         </span>
       </div>
-      {trailing ?? <div style={selectionRingStyle} />}
+      {trailing ?? (
+        <div
+          style={{
+            ...selectionRingStyle,
+            backgroundColor: isSelected ? colors.green[500] : colors.muted,
+            padding: spacing[0.5],
+          }}
+        />
+      )}
     </button>
   );
 }
