@@ -75,6 +75,7 @@ export default function ImageLoader({
       return;
     }
 
+    setSrcIsEmpty(false);
     setStatus("loading");
     const img = new Image();
     img.src = src;
