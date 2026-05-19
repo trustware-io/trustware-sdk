@@ -58,8 +58,11 @@ const DepositWalletContext = createContext<
       | "setYourWalletTokens"
       | "yourWalletTokensLoading"
       | "WalletConnect"
+      | "disconnectWalletConnect"
       | "setWalletType"
       | "walletType"
+      | "selectedNamespace"
+      | "setSelectedNamespace"
     >
   | undefined
 >(undefined);
@@ -103,6 +106,8 @@ export interface DepositProviderProps {
   initialStep?: NavigationStep;
 }
 
+export type WalletNamespace = "evm" | "Solana" | "bitcoin";
+
 /**
  * Provider for deposit widget context including navigation state.
  */
@@ -140,15 +145,11 @@ export function DepositProvider({
     "other"
   );
 
-  const {
-    universalConnector,
-    walletConnectAddress,
-    WalletConnect,
-    disconnectWalletConnect,
-  } = useWalletConnect({
-    setWalletType,
-    setCurrentStep,
-  });
+  const { walletConnectAddress, WalletConnect, disconnectWalletConnect } =
+    useWalletConnect({
+      setWalletType,
+      setCurrentStep,
+    });
 
   // Token and chain state
   const [selectedToken, setSelectedToken] = useState<
@@ -156,6 +157,9 @@ export function DepositProvider({
   >(null);
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
+
+  const [selectedNamespace, setSelectedNamespace] =
+    useState<WalletNamespace>("evm");
 
   const walletAddress = useMemo(
     () =>
@@ -237,12 +241,13 @@ export function DepositProvider({
       yourWalletTokens,
       setYourWalletTokens,
       yourWalletTokensLoading,
-      universalConnector,
       walletConnectAddress,
       WalletConnect,
       disconnectWalletConnect,
       setWalletType,
       walletType,
+      selectedNamespace,
+      setSelectedNamespace,
     }),
     [
       WalletConnect,
@@ -251,13 +256,14 @@ export function DepositProvider({
       disconnectWalletConnect,
       selectedWallet,
       setYourWalletTokens,
-      universalConnector,
       walletAddress,
       walletConnectAddress,
       walletStatus,
       walletType,
       yourWalletTokens,
       yourWalletTokensLoading,
+      selectedNamespace,
+      setSelectedNamespace,
     ]
   );
 

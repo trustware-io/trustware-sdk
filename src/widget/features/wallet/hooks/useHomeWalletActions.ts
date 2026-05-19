@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type {
-  DetectedWallet,
-  // WalletConnectConfig,
-  WalletInterFaceAPI,
-} from "../../../../types";
+import type { DetectedWallet, WalletInterFaceAPI } from "../../../../types";
 
 import { NavigationStep } from "src/widget/state/deposit/types";
 import { useDepositNavigationState } from "src/widget/state/deposit/useDepositNavigationState";
+import { useDepositWallet } from "src/widget/context/DepositContext";
+import { useWalletInfo } from "src/wallets";
 
 type UseHomeWalletActionsArgs = {
   connectWallet: (wallet: DetectedWallet) => Promise<{
@@ -39,6 +37,8 @@ export function useHomeWalletActions({
   const cryptoDropdownRef = useRef<HTMLDivElement>(null);
   const fiatDropdownRef = useRef<HTMLDivElement>(null);
 
+  const { disconnect } = useWalletInfo();
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -60,49 +60,57 @@ export function useHomeWalletActions({
 
   const { resetNavigation } = useDepositNavigationState("home");
 
-  const handleWalletSelect = async (wallet: DetectedWallet) => {
-    setIsCryptoDropdownOpen(false);
+  const { setYourWalletTokens } = useDepositWallet();
+  const { isConnected, walletMetaId, connectedVia } = useWalletInfo();
 
-    try {
-      setWalletType("other");
-      const { error } = await connectWallet(wallet);
-      if (error) {
+  const handleWalletSelect = useCallback(
+    async (wallet: DetectedWallet) => {
+      setIsCryptoDropdownOpen(false);
+
+      try {
+        if (walletMetaId !== wallet.meta?.id && isConnected) {
+          disconnect();
+          setYourWalletTokens([]);
+        }
+        setWalletType("other");
+        const { error } = await connectWallet(wallet);
+        if (error) {
+          // setCurrentStepInternal("home");
+          resetNavigation();
+          return;
+        }
+        setCurrentStep("crypto-pay");
+      } catch {
+        /*???*/
         // setCurrentStepInternal("home");
         resetNavigation();
-        return;
       }
-      setCurrentStep("crypto-pay");
-    } catch {
-      /*???*/
-      // setCurrentStepInternal("home");
-      resetNavigation();
-    }
-  };
+    },
+    [setYourWalletTokens, disconnect]
+  );
 
   const handleFiatSelect = () => {
     setIsFiatDropdownOpen(false);
   };
 
-  const handleWalletConnect = async () => {
-    // if (!universalConnector) {
-    //   return;
-    // }
-    // const { session: providerSession } = await universalConnector.connect();
-    // console.log({ providerSession }, "qqqqqq");
-    // if (providerSession) {
-    //   const ns = providerSession.namespaces["eip155"];
-    //   if (!ns?.accounts?.length) return null;
-    //   // Return the address from the first account in this namespace
-    //   const adr = ns.accounts[0].split(":").slice(-1)[0];
-    //   console.log({ adr });
-    //   setCurrentStep("crypto-pay");
-    // }
+  const handleWalletConnect = useCallback(async () => {
+    if (connectedVia !== "walletconnect" && isConnected) {
+      disconnect();
+      setYourWalletTokens([]);
+    }
     WalletConnect().catch(() => resetNavigation());
-  };
+  }, [setYourWalletTokens, disconnect]);
 
-  const browserWallets = detectedWallets.filter(
-    (wallet) => wallet.meta.id !== "walletconnect"
-  );
+  const { selectedNamespace } = useDepositWallet();
+  const browserWallets = useMemo(() => {
+    if (!detectedWallets?.length) return [];
+
+    return detectedWallets.filter(
+      (wallet) =>
+        wallet?.meta?.id !== "walletconnect" &&
+        wallet?.meta?.ecosystem === selectedNamespace
+    );
+  }, [detectedWallets, selectedNamespace]);
 
   return {
     browserWallets,

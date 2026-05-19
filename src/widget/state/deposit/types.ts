@@ -5,6 +5,7 @@ import type {
   DetectedWallet,
   WalletInterFaceAPI,
 } from "../../../types";
+import { WalletNamespace } from "src/widget/context/DepositContext";
 
 export type ResolvedTheme = "light" | "dark";
 
@@ -114,8 +115,11 @@ export interface DepositContextValue {
   amountInputMode: "usd" | "token";
   setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
   WalletConnect: () => Promise<void>;
+  disconnectWalletConnect: () => Promise<void>;
   setWalletType: React.Dispatch<
     React.SetStateAction<"walletconnect" | "other">
   >;
   walletType: "walletconnect" | "other";
+  selectedNamespace: WalletNamespace;
+  setSelectedNamespace: React.Dispatch<SetStateAction<WalletNamespace>>;
 }

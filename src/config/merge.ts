@@ -10,6 +10,7 @@ import {
   DEFAULT_MESSAGES,
 } from "./defaults";
 import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
+import { validateAddressForChain } from "src";
 // import { getUniversalConnector } from "./walletconnect";
 
 /**
@@ -81,6 +82,28 @@ export function resolveConfig(
     );
   }
 
+  // ── Address validation
+  const toChain = input.routes.toChain;
+
+  if (input.routes.toAddress) {
+    const result = validateAddressForChain(input.routes.toAddress, toChain);
+    if (!result.isValid) {
+      console.error(`[Trustware SDK] Invalid toAddress: ${result.error}`);
+      throw new Error(`Invalid toAddress: ${result.error}`);
+    }
+  }
+
+  if (input.routes.fromAddress) {
+    const result = validateAddressForChain(
+      input.routes.fromAddress,
+      input.routes.fromChain ?? toChain
+    );
+    if (!result.isValid) {
+      console.error(`[Trustware SDK] Invalid fromAddress: ${result.error}`);
+      throw new Error(`Invalid fromAddress: ${result.error}`);
+    }
+  }
+
   const autoDetectProvider =
     typeof input.autoDetectProvider === "boolean"
       ? input.autoDetectProvider
@@ -91,6 +114,7 @@ export function resolveConfig(
     toToken: input.routes.toToken,
     fromToken: input.routes.fromToken,
     fromAddress: input.routes.fromAddress,
+    fromChain: input.routes.fromChain,
     toAddress: input.routes.toAddress,
     defaultSlippage: normalizeSlippage(
       input.routes.defaultSlippage ?? DEFAULT_SLIPPAGE
