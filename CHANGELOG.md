@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.6] - 2026-05-19 (staging only — not yet released to production)
 
-Published to the `staging` dist-tag as `@trustware/sdk-staging@1.1.6-staging.1`.
-No production `@trustware/sdk@1.1.6` / `v1.1.6` tag has been cut yet.
+Published to the `staging` dist-tag as `@trustware/sdk-staging@1.1.6-staging.3`
+(earlier iterations: `1.1.6-staging.1`, `1.1.6-staging.2`). No production
+`@trustware/sdk@1.1.6` / `v1.1.6` tag has been cut yet.
 
 ### Added
 
@@ -18,11 +19,15 @@ No production `@trustware/sdk@1.1.6` / `v1.1.6` tag has been cut yet.
 
 - Block sending the same token to self — a no-op transfer is no longer offered (#68).
 - Disconnect the previously connected wallet when the user switches wallets.
+- `features.tokensPagination` now defaults to `true`. Consumers that
+  explicitly set `features.tokensPagination: false` are unaffected.
 
 ### Fixed
 
 - Gate the allowance probe on token↔chain consistency so it no longer fires
   with a mismatched token/chain pair (#70).
+- `ImageLoader`: clear `srcIsEmpty` when `src` transitions empty → non-empty,
+  so the fallback no longer renders alongside the successfully-loaded image (#71).
 - Chain support corrections.
 - TrustWallet connection fix.
 
