@@ -5,9 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.6] - 2026-05-19
+## [1.1.6] - 2026-05-19 (staging only — not yet released to production)
 
-Currently published to the `staging` dist-tag as `@trustware/sdk-staging@1.1.6-staging.1`.
+Published to the `staging` dist-tag as `@trustware/sdk-staging@1.1.6-staging.1`.
+No production `@trustware/sdk@1.1.6` / `v1.1.6` tag has been cut yet.
 
 ### Added
 
@@ -67,5 +68,7 @@ Currently published to the `staging` dist-tag as `@trustware/sdk-staging@1.1.6-s
 
 ## [1.1.1] - 2026-03-24
 
-Baseline release. Versions 1.1.2–1.1.3 were release-pipeline fixes only
-(npm trusted publishing, provenance, CI gating) with no SDK changes.
+Baseline release. `1.1.2` was a release-pipeline-only publish (npm trusted
+publishing, provenance, CI gating) with no SDK changes; `1.1.3` was never
+released to production (staging prereleases only). The next production
+release after `1.1.1` was `1.1.4`.
