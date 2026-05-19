@@ -161,7 +161,7 @@ export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
 };
 
 export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
-  tokensPagination: false,
+  tokensPagination: true,
   balanceStreaming: false,
   shouldAllowGA4: true,
 };

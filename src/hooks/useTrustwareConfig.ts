@@ -40,7 +40,7 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           approachingThreshold: 5,
         },
         features: {
-          tokensPagination: false,
+          tokensPagination: true,
           balanceStreaming: false,
           shouldAllowGA4: true,
         },
