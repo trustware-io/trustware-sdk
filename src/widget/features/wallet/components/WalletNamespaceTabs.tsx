@@ -15,7 +15,7 @@ export function WalletNamespaceTabs({ showBitcoin = false }: Props) {
   const { selectedNamespace, setSelectedNamespace } = useDepositWallet();
   const tabs: { id: WalletNamespace; label: string }[] = [
     { id: "evm", label: "EVM" },
-    { id: "solana", label: "Solana" },
+    { id: "Solana", label: "Solana" },
     ...(showBitcoin
       ? [{ id: "bitcoin" as WalletNamespace, label: "Bitcoin" }]
       : []),

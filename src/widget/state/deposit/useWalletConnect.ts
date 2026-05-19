@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { useCallback } from "react";
 import { TrustwareConfigStore } from "src/config";
 import { WalletConnectConfig } from "src/types";
