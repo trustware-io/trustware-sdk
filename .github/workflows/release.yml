@@ -32,6 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Required to dispatch publish.yml after the tag push. Pushes made by
+      # GITHUB_TOKEN do not trigger `on: push: tags` workflows (anti-loop
+      # protection), so we explicitly invoke publish.yml via workflow_dispatch.
+      actions: write
     steps:
       - name: Validate version format
         run: |
@@ -83,10 +87,15 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
+      - name: Dispatch publish workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run publish.yml --ref "$TAG"
+
       - name: Summary
         run: |
           echo "### Release cut" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Branch: \`$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Publish workflow will trigger on the tag push." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Publish workflow dispatched on tag ref." >> "$GITHUB_STEP_SUMMARY"
