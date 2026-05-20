@@ -26,10 +26,24 @@ Publishing is **tag-driven**. Branch pushes never publish — pushing a version 
 | `v1.2.3`           | `@trustware/sdk`         | `latest`  | `npm-production` |
 | `v1.2.3-staging.5` | `@trustware/sdk-staging` | `staging` | `npm-staging`    |
 
+### Bumping the version
+
+**ALWAYS use `npm version` — never hand-edit `package.json`.** `npm version` updates both `package.json` and `package-lock.json` atomically. Hand-editing leaves `package-lock.json` stale, which makes `npm ci` (used in both CI and publish workflows) fail, and silently ships a lockfile whose top-level `version` lies about the release.
+
+```bash
+npm version 1.2.3 --no-git-tag-version          # production
+npm version 1.2.3-staging.5 --no-git-tag-version # staging
+```
+
+If you've already hand-edited `package.json`, recover with:
+```bash
+npm install --package-lock-only --ignore-scripts
+```
+
 ### Cutting a production release
 
 ```bash
-# Bump version in package.json (must match the tag exactly)
+# Bump version (updates package.json AND package-lock.json)
 npm version 1.2.3 --no-git-tag-version
 git commit -am "chore(release): v1.2.3"
 git push origin main
@@ -44,7 +58,11 @@ The publish workflow runs `publish-production`, verifies the tag matches `packag
 ### Cutting a staging release
 
 ```bash
-# From the staging branch
+# From the staging branch — bump first so package.json matches the tag
+npm version 1.2.3-staging.5 --no-git-tag-version
+git commit -am "chore(release): v1.2.3-staging.5"
+git push origin staging
+
 git tag v1.2.3-staging.5
 git push origin v1.2.3-staging.5
 ```
