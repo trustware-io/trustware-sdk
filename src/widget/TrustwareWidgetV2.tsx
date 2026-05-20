@@ -15,8 +15,9 @@ import {
   useDepositNavigation,
   useDepositTransaction,
   useDepositUi,
-  type NavigationStep,
+  // type NavigationStep,
 } from "./context/DepositContext";
+import { NavigationStep } from "../widget/state/deposit/types";
 import { ThemeToggle, WidgetContainer, type Theme } from "./components";
 import {
   clearPersistedState,

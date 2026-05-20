@@ -17,6 +17,7 @@ import { useThemePreference } from "../state/deposit/useThemePreference";
 import { useWalletSessionState } from "../state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "../state/deposit/useWalletTokenState";
 import { useWalletConnect } from "../state/deposit/useWalletConnect";
+import { useWalletInfo } from "src/wallets";
 
 export type {
   Chain,
@@ -169,13 +170,15 @@ export function DepositProvider({
     [walletType, walletConnectAddress, otherWalletAddress]
   );
 
+  const { address: fallbackAddress } = useWalletInfo();
+
   const {
     yourWalletTokens,
     setYourWalletTokens,
     reloadWalletTokens,
     yourWalletTokensLoading,
   } = useWalletTokenState({
-    walletAddress,
+    walletAddress: walletAddress ?? fallbackAddress ?? null,
     selectedChain,
     setSelectedChain,
     selectedToken,
