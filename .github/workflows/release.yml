@@ -1,0 +1,92 @@
+# Cuts a release by bumping package.json + package-lock.json via `npm version`,
+# committing on the appropriate branch, then pushing the matching tag.
+# The tag push triggers `publish.yml`, which performs the actual npm publish.
+#
+# Trigger: workflow_dispatch (manual). Inputs:
+#   version  e.g. 1.1.8  or  1.1.8-staging.1
+#
+# Branch is derived from the version:
+#   X.Y.Z              → main
+#   X.Y.Z-staging.N    → staging
+#
+# This workflow does NOT merge staging into main. For production releases,
+# merge staging → main yourself first, then run this workflow with the
+# production version.
+#
+# CHANGELOG.md is not touched — update it in a separate commit before running.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 1.1.8 or 1.1.8-staging.1) — no leading v'
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  cut-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Validate version format
+        run: |
+          VERSION="${{ inputs.version }}"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-staging\.[0-9]+)?$'; then
+            echo "::error::Invalid version '$VERSION'. Expected X.Y.Z or X.Y.Z-staging.N"
+            exit 1
+          fi
+          if echo "$VERSION" | grep -q -- '-staging\.'; then
+            echo "BRANCH=staging" >> "$GITHUB_ENV"
+          else
+            echo "BRANCH=main" >> "$GITHUB_ENV"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+
+      - name: Checkout target branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail if tag already exists
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Bump version (package.json + package-lock.json)
+        run: npm version "$VERSION" --no-git-tag-version
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit, push, tag
+        run: |
+          git add package.json package-lock.json
+          git commit -m "chore(release): $TAG"
+          git push origin "$BRANCH"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Summary
+        run: |
+          echo "### Release cut" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: \`$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Publish workflow will trigger on the tag push." >> "$GITHUB_STEP_SUMMARY"

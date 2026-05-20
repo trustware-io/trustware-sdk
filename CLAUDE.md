@@ -26,6 +26,12 @@ Publishing is **tag-driven**. Branch pushes never publish — pushing a version 
 | `v1.2.3`           | `@trustware/sdk`         | `latest`  | `npm-production` |
 | `v1.2.3-staging.5` | `@trustware/sdk-staging` | `staging` | `npm-staging`    |
 
+### Automated release (recommended)
+
+Use the **Release** workflow (`.github/workflows/release.yml`) — GitHub Actions → Release → Run workflow → enter version (e.g. `1.1.8` or `1.1.8-staging.1`). It picks the branch from the version pattern, runs `npm version`, commits, pushes the branch, and pushes the tag. The tag push triggers `publish.yml`.
+
+It does **not** merge staging → main and does **not** touch `CHANGELOG.md`. For a production release: merge staging → main yourself, update CHANGELOG, then run the workflow with the production version.
+
 ### Bumping the version
 
 **ALWAYS use `npm version` — never hand-edit `package.json`.** `npm version` updates both `package.json` and `package-lock.json` atomically. Hand-editing leaves `package-lock.json` stale, which makes `npm ci` (used in both CI and publish workflows) fail, and silently ships a lockfile whose top-level `version` lies about the release.
