@@ -108,7 +108,8 @@ export function useHomeWalletActions({
     return detectedWallets.filter(
       (wallet) =>
         wallet?.meta?.id !== "walletconnect" &&
-        wallet?.meta?.ecosystem === selectedNamespace
+        wallet?.meta?.ecosystem.trim().toLowerCase() ===
+          selectedNamespace.trim().toLowerCase()
     );
   }, [detectedWallets, selectedNamespace]);
 

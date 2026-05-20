@@ -1,5 +1,3 @@
-import React from "react";
-
 import type { DetectedWallet } from "../../../../types";
 import {
   borderRadius,
@@ -33,6 +31,7 @@ export function CryptoWalletDropdownContent({
   handleWalletSelect,
 }: CryptoWalletDropdownContentProps): React.ReactElement {
   const { selectedNamespace } = useDepositWallet();
+
   return (
     <div
       style={{
