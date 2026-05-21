@@ -1,24 +1,26 @@
 <div align="center">
 
 <pre>
-████████╗██████╗ ██╗   ██╗███████╗████████╗██╗    ██╗ █████╗ ██████╗ ███████╗
-╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║    ██║██╔══██╗██╔══██╗██╔════╝
-   ██║   ██████╔╝██║   ██║███████╗   ██║   ██║ █╗ ██║███████║██████╔╝█████╗
-   ██║   ██╔══██╗██║   ██║╚════██║   ██║   ██║███╗██║██╔══██║██╔══██╗██╔══╝
-   ██║   ██║  ██║╚██████╔╝███████║   ██║   ╚███╔███╔╝██║  ██║██║  ██║███████╗
-   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+    ████████╗██████╗ ██╗   ██╗███████╗████████╗██╗    ██╗  █████╗ ██████╗ ███████╗
+    ╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║    ██║ ██╔══██╗██╔══██╗██╔════╝
+       ██║   ██████╔╝██║   ██║███████╗   ██║   ██║ █╗ ██║ ███████║██████╔╝█████╗
+       ██║   ██╔══██╗██║   ██║╚════██║   ██║   ██║███╗██║ ██╔══██║██╔══██╗██╔══╝
+       ██║   ██║  ██║╚██████╔╝███████║   ██║   ╚███╔███╔╝ ██║  ██║██║  ██║███████╗
+       ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝    ╚══╝╚══╝  ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+                         ▓▓▓▓▓▓▓▓  S · D · K  ▓▓▓▓▓▓▓▓
+
+           ◆ ─── Ξ ─── ◇ ─── ⬢ ─── ₿ ─── ⬡ ─── ✦ ─── ◈ ─── ◊
+             c r o s s   ·   c h a i n   ·   l i q u i d i t y
 </pre>
 
 # Trustware SDK
 
-**Cross-chain deposits, bridging, and top-ups for any React app.**
+**Any chain. Any token. Any wallet. One drop-in widget for everyone.**
 
 [![npm version](https://img.shields.io/npm/v/@trustware/sdk?style=flat-square&color=0ea5e9&label=npm)](https://www.npmjs.com/package/@trustware/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/@trustware/sdk?style=flat-square&color=0ea5e9)](https://www.npmjs.com/package/@trustware/sdk)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/@trustware/sdk?style=flat-square&color=10b981&label=gzip)](https://bundlephobia.com/package/@trustware/sdk)
 [![license](https://img.shields.io/npm/l/@trustware/sdk?style=flat-square&color=64748b)](./LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/trustware-io/trustware-sdk/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/trustware-io/trustware-sdk/actions/workflows/ci.yml)
-[![Publish](https://img.shields.io/github/actions/workflow/status/trustware-io/trustware-sdk/publish.yml?style=flat-square&label=publish)](https://github.com/trustware-io/trustware-sdk/actions/workflows/publish.yml)
 [![React](https://img.shields.io/badge/React-18.2+%20%7C%2019-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
