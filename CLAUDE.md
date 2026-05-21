@@ -30,7 +30,13 @@ Publishing is **tag-driven**. Branch pushes never publish — pushing a version 
 
 Use the **Release** workflow (`.github/workflows/release.yml`) — GitHub Actions → Release → Run workflow → enter version (e.g. `1.1.8` or `1.1.8-staging.1`). It picks the branch from the version pattern, runs `npm version`, commits, pushes the branch, and pushes the tag. The tag push triggers `publish.yml`.
 
-It does **not** merge staging → main and does **not** touch `CHANGELOG.md`. For a production release: merge staging → main yourself, update CHANGELOG, then run the workflow with the production version.
+It does **not** merge staging → main. For a production release: merge staging → main yourself, then run the workflow with the production version — `CHANGELOG.md` is regenerated automatically (see below).
+
+### Changelog automation
+
+`cliff.toml` configures [git-cliff](https://git-cliff.org) to generate Keep-a-Changelog entries from Conventional Commits. On production releases (`X.Y.Z`), the Release workflow runs git-cliff and commits the updated `CHANGELOG.md` alongside the version bump. Staging tags are skipped (`skip_tags` in `cliff.toml`), so their commits roll into the next production release section. `publish.yml` also creates a GitHub Release for every published tag with git-cliff-generated notes (staging releases marked as prereleases).
+
+Preview locally before cutting: `git-cliff --tag v1.2.3 --unreleased`.
 
 ### Bumping the version
 
