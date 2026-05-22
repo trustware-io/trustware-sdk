@@ -5,8 +5,50 @@ import {
   resolveProperties,
   type ClientMiddlewareFn,
 } from "@aa-sdk/core"
-import { createWalletClient, custom, type Chain } from "viem"
+import { createWalletClient, custom, keccak256, stringToHex, type Chain } from "viem"
 import { apiBase, jsonHeaders } from "../core/http"
+
+// Map 4-byte selector → human-readable name for ClientPaymasterUpgradeable custom errors.
+// These are thrown inside FailedOpWithRevert.inner which Account Kit cannot decode on its own.
+const _sel = (sig: string) => keccak256(stringToHex(sig)).slice(0, 10).toLowerCase()
+const PAYMASTER_ERROR_SELECTORS: Record<string, string> = {
+  [_sel("InvalidCallDataHash()")]: "InvalidCallDataHash()",
+  [_sel("NonceAlreadyUsed()")]:    "NonceAlreadyUsed()",
+  [_sel("InvalidSigner()")]:       "InvalidSigner()",
+  [_sel("MaxCostExceeded()")]:     "MaxCostExceeded()",
+  [_sel("InvalidPaymasterData()")]: "InvalidPaymasterData()",
+  [_sel("InvalidSender()")]:       "InvalidSender()",
+  [_sel("InvalidChain()")]:        "InvalidChain()",
+  [_sel("InvalidEntryPoint()")]:   "InvalidEntryPoint()",
+  [_sel("InvalidPaymaster()")]:    "InvalidPaymaster()",
+  [_sel("PaymasterPaused()")]:     "PaymasterPaused()",
+  [_sel("NotEntryPoint()")]:       "NotEntryPoint()",
+}
+
+// Walks common locations Alchemy/bundlers put revert data and returns the first hex string found.
+function extractRevertHex(err: { code?: number; message?: string; data?: unknown }): string | undefined {
+  // Direct data field (string)
+  if (typeof err.data === "string" && err.data.startsWith("0x")) return err.data
+  // Nested data.revert (some Alchemy bundler versions)
+  if (err.data && typeof err.data === "object") {
+    const d = err.data as Record<string, unknown>
+    if (typeof d.revert === "string" && d.revert.startsWith("0x")) return d.revert
+    if (typeof d.data === "string" && d.data.startsWith("0x")) return d.data
+  }
+  // Hex embedded in message: "AA33 reverted: 0x..."
+  if (typeof err.message === "string") {
+    const m = err.message.match(/0x[0-9a-fA-F]+/)
+    if (m) return m[0]
+  }
+  return undefined
+}
+
+function decodePaymasterRevert(revertHex: string): string | undefined {
+  // 4-byte selector starts at index 2 (after "0x")
+  if (revertHex.length < 10) return undefined
+  const selector = revertHex.slice(0, 10).toLowerCase()
+  return PAYMASTER_ERROR_SELECTORS[selector]
+}
 
 type Eip1193Request = (args: { method: string; params?: object | unknown[] }) => Promise<unknown>
 
@@ -73,8 +115,32 @@ export async function createTrustwareSmartAccountClient(
           chainId: String(chainId),
         }),
       })
-      const j = (await resp.json()) as { result?: unknown; error?: { message?: string } }
-      if (j.error) throw new Error(j.error.message ?? String(j.error))
+      const j = (await resp.json()) as { result?: unknown; error?: { code?: number; message?: string; data?: unknown } }
+      if (j.error) {
+        const rawErr = j.error as { code?: number; message?: string; data?: unknown }
+        const revertHex = extractRevertHex(rawErr)
+        const decoded = revertHex ? decodePaymasterRevert(revertHex) : undefined
+
+        console.error("[bundler] rpc error", {
+          method,
+          code: rawErr.code,
+          message: rawErr.message,
+          data: rawErr.data,
+          revertHex,
+          decoded,
+        })
+
+        const msg = decoded
+          ? `Paymaster validation failed: ${decoded}`
+          : rawErr.code === -32602
+            ? `UserOp rejected: ${rawErr.message ?? "replacement underpriced"}`
+            : (rawErr.message ?? String(j.error))
+
+        throw Object.assign(new Error(msg), {
+          code: rawErr.code,
+          data: rawErr.data,
+        })
+      }
       return j.result
     },
   })

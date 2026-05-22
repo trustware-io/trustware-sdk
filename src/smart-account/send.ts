@@ -282,7 +282,34 @@ export async function sendRouteAsUserOperation(
     batch.push({ target, data: callData, value }) // bridge execution
   }
 
-  const result = await client.sendUserOperation({ uo: batch })
+  // LightAccount deployment (initCode, first UserOp) costs 200k–350k gas. Bundler estimators
+  // sometimes undercount this, causing AA13 OOG. Apply a 2× multiplier to verificationGasLimit
+  // so the deployment always has enough headroom. Subsequent UserOps (no initCode) are barely
+  // affected because verificationGasLimit for a deployed SA is only ~20k.
+  const baseOverrides = { verificationGasLimit: { multiplier: 2 } } as const
+
+  // When a previous UserOp for this SA is still pending in the bundler mempool
+  // (same nonce, higher gas prices), the bundler returns -32602 "replacement underpriced".
+  // Retry once with fees bumped 15% above the mempool minimums to evict the stuck op.
+  // The paymasterAndData middleware re-runs on retry, fetching a fresh sponsorship.
+  let result: Awaited<ReturnType<typeof client.sendUserOperation>>
+  try {
+    result = await client.sendUserOperation({ uo: batch, overrides: baseOverrides })
+  } catch (firstErr) {
+    const e = firstErr as { code?: number; data?: { currentMaxFee?: string; currentMaxPriorityFee?: string } }
+    if (e.code !== -32602 || !e.data?.currentMaxFee) throw firstErr
+
+    const bump = (hex: string): bigint => (BigInt(hex) * 115n) / 100n
+    console.debug("[send] replacement underpriced — retrying with bumped fees", e.data)
+    result = await client.sendUserOperation({
+      uo: batch,
+      overrides: {
+        ...baseOverrides,
+        maxFeePerGas: bump(e.data.currentMaxFee),
+        maxPriorityFeePerGas: bump(e.data.currentMaxPriorityFee ?? e.data.currentMaxFee),
+      },
+    })
+  }
 
   // Record the txHash with the backend so status polling starts immediately.
   await submitReceipt(intentId, result.hash)
