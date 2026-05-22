@@ -21,6 +21,8 @@ export type TransactionSubmitState = {
   error: string | null;
 };
 
+type SendOverride = (routeResult: BuildRouteResult) => Promise<string>
+
 /**
  * Hook for submitting transactions to the wallet.
  * Handles the wallet signing flow and error mapping.
@@ -51,7 +53,7 @@ export function useTransactionSubmit() {
    * @returns The transaction hash if successful, null if failed
    */
   const submitTransaction = useCallback(
-    async (routeResult: BuildRouteResult): Promise<string | null> => {
+    async (routeResult: BuildRouteResult, sendOverride?: SendOverride): Promise<string | null> => {
       if (!routeResult?.txReq) {
         const errorMsg = "Invalid route data. Please try again.";
         setState({
@@ -75,14 +77,25 @@ export function useTransactionSubmit() {
       setTransactionStatus("confirming");
 
       try {
-        // Get the fallback chain ID from selected chain
-        const fallbackChainId = selectedChain?.chainId;
+        let hash: string;
 
-        // Send the transaction to the wallet for signing
-        const hash = await Trustware.sendRouteTransaction(
-          routeResult,
-          Number(fallbackChainId)
-        );
+        if (sendOverride) {
+          // Smart-account path: sendOverride (sendRouteAsUserOperation) already
+          // submits the receipt internally, so we skip the submitReceipt call.
+          hash = await sendOverride(routeResult);
+        } else {
+          // Standard EOA path.
+          const fallbackChainId = selectedChain?.chainId;
+          hash = await Trustware.sendRouteTransaction(
+            routeResult,
+            Number(fallbackChainId)
+          );
+          try {
+            await submitReceipt(routeResult.intentId, hash);
+          } catch {
+            // Non-fatal: the backend status poller will eventually pick it up.
+          }
+        }
 
         // Transaction was signed and submitted
         setState({
@@ -94,14 +107,6 @@ export function useTransactionSubmit() {
         // Update context with the transaction hash and intent ID
         setTransactionHash(hash);
         setIntentId(routeResult.intentId);
-
-        // Notify backend of the transaction receipt
-        try {
-          await submitReceipt(routeResult.intentId, hash);
-        } catch {
-          // Don't fail the transaction if receipt submission fails
-          // The backend poller will eventually pick it up
-        }
 
         // Transition to processing step (polling will be handled by Processing page)
         setTransactionStatus("processing");

@@ -435,6 +435,14 @@ export function useTransactionActionModel({
     }
   }, [estimateGasReservationWei, routeResult]);
 
+  const [smartAccountFailed, setSmartAccountFailed] = useState(false);
+
+  // Reset fallback flag whenever a new route is built so a fresh route gets
+  // another attempt at the sponsored path.
+  useEffect(() => {
+    setSmartAccountFailed(false);
+  }, [routeResult?.intentId]);
+
   const handleConfirm = useCallback(async () => {
     if (!routeResult) {
       return;
@@ -449,17 +457,80 @@ export function useTransactionActionModel({
       to_token: destinationConfig?.routes.toToken,
       domain: window.origin,
     });
+
+    // Silent smart-account sponsored path. Conditions: sponsorship present,
+    // wallet is EIP-1193 EVM, ERC-20 token, numeric chain ID available, and
+    // the path hasn't already failed once in this session.
+    const wallet = Trustware.getWallet();
+    const numericChainId = Number(backendChainId);
+    if (
+      routeResult.sponsorship &&
+      !smartAccountFailed &&
+      wallet?.ecosystem === "evm" &&
+      wallet.type === "eip1193" &&
+      !isNativeSelected &&
+      walletAddress &&
+      Number.isFinite(numericChainId)
+    ) {
+      let wasRejected = false;
+      const sendOverride = async (r: BuildRouteResult) => {
+        const mod = await import("../../../../smart-account");
+        try {
+          const result = await mod.sendRouteAsUserOperation({
+            route: r,
+            fromToken: (selectedToken?.address ?? "") as string,
+            fromAmountWei: amountWei,
+            eoaAddress: walletAddress as `0x${string}`,
+            chainId: numericChainId,
+            // Minimal viem Chain: RPC calls go through our backend bundler proxy,
+            // so the http array can be empty — Account Kit only needs id + name.
+            viemChain: {
+              id: numericChainId,
+              name:
+                selectedChain?.networkName ??
+                selectedChain?.axelarChainName ??
+                String(numericChainId),
+              nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+              rpcUrls: { default: { http: [] as unknown as readonly [string, ...string[]] } },
+            },
+            eip1193Request: (args) => wallet.request(args),
+          });
+          return result.userOpHash;
+        } catch (e) {
+          const msg = String((e as Error)?.message ?? e).toLowerCase();
+          wasRejected =
+            (e as { code?: number })?.code === 4001 ||
+            msg.includes("user rejected") ||
+            msg.includes("user denied");
+          throw e;
+        }
+      };
+
+      const hash = await submitTransaction(routeResult, sendOverride);
+      if (hash === null && !wasRejected) {
+        // Non-rejection failure: mark as failed so the next retry uses EOA.
+        setSmartAccountFailed(true);
+      }
+      return;
+    }
+
     await submitTransaction(routeResult);
   }, [
+    amountWei,
+    backendChainId,
     destinationConfig?.routes.toChain,
     destinationConfig?.routes.toToken,
+    isNativeSelected,
     routeResult,
     selectedChain?.axelarChainName,
     selectedChain?.chainId,
     selectedChain?.networkName,
+    selectedToken?.address,
     selectedToken?.symbol,
+    smartAccountFailed,
     submitTransaction,
     trackEvent,
+    walletAddress,
   ]);
 
   const handleSwipeConfirm = useCallback(async () => {

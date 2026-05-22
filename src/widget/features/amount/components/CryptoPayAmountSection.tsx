@@ -42,6 +42,7 @@ export interface CryptoPayAmountSectionProps {
   ) => Promise<void> | void;
   hasUsdPrice: boolean;
   isFixedAmount: boolean;
+  isGasSponsored?: boolean;
   isLoadingRoute: boolean;
   normalizedTokenBalance: number;
   orderedTokens: YourTokenData[];
@@ -69,6 +70,7 @@ export function CryptoPayAmountSection({
   handleTokenChange,
   hasUsdPrice,
   isFixedAmount,
+  isGasSponsored,
   isLoadingRoute,
   normalizedTokenBalance,
   orderedTokens,
@@ -171,6 +173,7 @@ export function CryptoPayAmountSection({
           amount={amount}
           estimatedReceive={estimatedReceive}
           gasReservationWei={gasReservationWei}
+          isGasSponsored={isGasSponsored}
           isLoadingRoute={isLoadingRoute}
           parsedAmount={parsedAmount}
           selectedTokenDecimals={selectedToken?.decimals}

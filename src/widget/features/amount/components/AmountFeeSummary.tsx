@@ -15,6 +15,7 @@ export interface AmountFeeSummaryProps {
   amount: string;
   estimatedReceive?: string | null;
   gasReservationWei: bigint;
+  isGasSponsored?: boolean;
   isLoadingRoute: boolean;
   parsedAmount: number;
   selectedTokenDecimals?: number;
@@ -42,6 +43,7 @@ export function AmountFeeSummary({
   amount,
   estimatedReceive,
   gasReservationWei,
+  isGasSponsored,
   isLoadingRoute,
   parsedAmount,
   selectedTokenDecimals,
@@ -99,13 +101,31 @@ export function AmountFeeSummary({
         <>
           <div style={feeSummaryRowStyle}>
             <span style={{ color: colors.mutedForeground }}>Network fee</span>
-            <span style={feeSummaryValueStyle}>
-              {weiToDecimalString(
-                gasReservationWei,
-                selectedTokenDecimals ?? 0,
-                6
-              )}{" "}
-            </span>
+            {isGasSponsored ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.semibold,
+                  color: colors.green[500],
+                  background: `${colors.green[500]}1a`,
+                  borderRadius: "9999px",
+                  padding: "0.1rem 0.5rem",
+                }}
+              >
+                ✦ Gas sponsored
+              </span>
+            ) : (
+              <span style={feeSummaryValueStyle}>
+                {weiToDecimalString(
+                  gasReservationWei,
+                  selectedTokenDecimals ?? 0,
+                  6
+                )}
+              </span>
+            )}
           </div>
 
           <div style={feeSummaryDividerStyle} />

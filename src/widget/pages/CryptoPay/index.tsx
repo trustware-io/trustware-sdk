@@ -322,6 +322,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                 handleTokenChange={handleTokenChange}
                 hasUsdPrice={hasUsdPrice}
                 isFixedAmount={isFixedAmount}
+                isGasSponsored={!!routeResult?.sponsorship}
                 isLoadingRoute={isLoadingRoute}
                 normalizedTokenBalance={normalizedTokenBalance}
                 orderedTokens={orderedTokens}
@@ -329,7 +330,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                 selectedChain={selectedChain}
                 selectedToken={readySelectedToken}
                 setAmountInputMode={setAmountInputMode}
-                showFeeSummary={SHOW_FEE_SUMMARY}
+                showFeeSummary={SHOW_FEE_SUMMARY || !!routeResult?.sponsorship}
                 tokenPriceUSD={tokenPriceUSD}
                 walletAddress={walletAddress}
                 yourWalletTokensLength={yourWalletTokens.length}
