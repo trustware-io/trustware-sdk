@@ -18,6 +18,39 @@ const NATIVE_ADDRS = new Set([
   "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 ])
 
+type FeeRequirement = { minFee: bigint; minPriorityFee: bigint }
+
+// Account Kit wraps the original bundler error inside a SmartAccountUserOperationExecutionError.
+// Walk the full cause chain to find a fee requirement from either:
+//   -32602 "replacement underpriced" — bundler provides currentMaxFee/currentMaxPriorityFee in data
+//   -32000 "precheck failed: maxFeePerGas is X but must be at least Y" — parse Y from message
+function extractFeeRequirement(err: unknown): FeeRequirement | null {
+  if (!err || typeof err !== "object") return null
+  const e = err as { code?: unknown; message?: unknown; data?: unknown; cause?: unknown }
+
+  if (e.code === -32602 && e.data && typeof e.data === "object") {
+    const d = e.data as Record<string, unknown>
+    if (typeof d.currentMaxFee === "string") {
+      const fee = BigInt(d.currentMaxFee)
+      const priority = typeof d.currentMaxPriorityFee === "string"
+        ? BigInt(d.currentMaxPriorityFee)
+        : fee
+      return { minFee: fee, minPriorityFee: priority }
+    }
+  }
+
+  if (e.code === -32000 && typeof e.message === "string") {
+    // "precheck failed: maxFeePerGas is 8252770 but must be at least 34104859"
+    const m = e.message.match(/must be at least (\d+)/)
+    if (m) {
+      const fee = BigInt(m[1])
+      return { minFee: fee, minPriorityFee: fee }
+    }
+  }
+
+  return extractFeeRequirement(e.cause)
+}
+
 // Canonical WETH9 address per chain. OP Stack chains share the same address.
 const WETH_BY_CHAIN: Record<number, `0x${string}`> = {
   1:     "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // Ethereum
@@ -288,28 +321,48 @@ export async function sendRouteAsUserOperation(
   // affected because verificationGasLimit for a deployed SA is only ~20k.
   const baseOverrides = { verificationGasLimit: { multiplier: 2 } } as const
 
-  // When a previous UserOp for this SA is still pending in the bundler mempool
-  // (same nonce, higher gas prices), the bundler returns -32602 "replacement underpriced".
-  // Retry once with fees bumped 15% above the mempool minimums to evict the stuck op.
-  // The paymasterAndData middleware re-runs on retry, fetching a fresh sponsorship.
+  // Retry loop (max 3 attempts) to handle two sequential fee-rejection scenarios:
+  //   1. -32602 "replacement underpriced": a prior UserOp is stuck in the mempool with the same
+  //      nonce; bundler requires the new op to have ≥110% of the stuck op's fees. Account Kit
+  //      wraps this error in SmartAccountUserOperationExecutionError, so we walk the cause chain.
+  //   2. -32000 "precheck failed: maxFeePerGas must be at least X": the bundler's own minimum
+  //      floor (e.g. ~34 gwei on Base) can exceed the replacement bump from step 1.
+  // Each attempt accumulates the maximum required fee seen so far and bumps 15% above it.
   let result: Awaited<ReturnType<typeof client.sendUserOperation>>
-  try {
-    result = await client.sendUserOperation({ uo: batch, overrides: baseOverrides })
-  } catch (firstErr) {
-    const e = firstErr as { code?: number; data?: { currentMaxFee?: string; currentMaxPriorityFee?: string } }
-    if (e.code !== -32602 || !e.data?.currentMaxFee) throw firstErr
+  let feeFloor: FeeRequirement | null = null
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const overrides = feeFloor
+        ? {
+            ...baseOverrides,
+            maxFeePerGas: (feeFloor.minFee * 115n) / 100n,
+            maxPriorityFeePerGas: (feeFloor.minPriorityFee * 115n) / 100n,
+          }
+        : baseOverrides
+      result = await client.sendUserOperation({ uo: batch, overrides })
+      lastErr = null
+      break
+    } catch (err) {
+      lastErr = err
+      const req = extractFeeRequirement(err)
+      if (!req) throw err
 
-    const bump = (hex: string): bigint => (BigInt(hex) * 115n) / 100n
-    console.debug("[send] replacement underpriced — retrying with bumped fees", e.data)
-    result = await client.sendUserOperation({
-      uo: batch,
-      overrides: {
-        ...baseOverrides,
-        maxFeePerGas: bump(e.data.currentMaxFee),
-        maxPriorityFeePerGas: bump(e.data.currentMaxPriorityFee ?? e.data.currentMaxFee),
-      },
-    })
+      const newFloor: FeeRequirement = feeFloor
+        ? {
+            minFee: req.minFee > feeFloor.minFee ? req.minFee : feeFloor.minFee,
+            minPriorityFee: req.minPriorityFee > feeFloor.minPriorityFee ? req.minPriorityFee : feeFloor.minPriorityFee,
+          }
+        : req
+      console.debug(`[send] attempt ${attempt} fee rejection — retrying with floor`, {
+        minFee: newFloor.minFee.toString(),
+        minPriorityFee: newFloor.minPriorityFee.toString(),
+      })
+      feeFloor = newFloor
+    }
   }
+  if (lastErr) throw lastErr
+  result = result!
 
   // Record the txHash with the backend so status polling starts immediately.
   await submitReceipt(intentId, result.hash)
