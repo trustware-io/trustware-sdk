@@ -9,9 +9,15 @@ import {
   encodePermitTransferFrom,
   encodeErc20Approve,
   encodeErc20Allowance,
-  encodeErc20BalanceOf,
   encodeWethWithdraw,
 } from "./permit2";
+import {
+  WETH_BY_CHAIN,
+  UNISWAP_V3_ROUTER,
+  DEFAULT_POOL_FEE,
+  encodeUniswapExactOutputSingle,
+  estimateRelayFeeInToken,
+} from "./uniswap";
 
 const NATIVE_ADDRS = new Set([
   "0x0000000000000000000000000000000000000000",
@@ -19,6 +25,16 @@ const NATIVE_ADDRS = new Set([
 ]);
 
 type FeeRequirement = { minFee: bigint; minPriorityFee: bigint };
+
+// Walks the cause chain looking for a PAYMASTER_UNAVAILABLE code, which means the backend's
+// sign pipeline had a transient failure (e.g. elros timeout) — distinct from NO_PAYMASTER
+// (404: no deployment exists) which is not retryable.
+function isPaymasterUnavailable(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: unknown; cause?: unknown };
+  if (e.code === "PAYMASTER_UNAVAILABLE") return true;
+  return isPaymasterUnavailable(e.cause);
+}
 
 // Account Kit wraps the original bundler error inside a SmartAccountUserOperationExecutionError.
 // Walk the full cause chain to find a fee requirement from either:
@@ -56,16 +72,6 @@ function extractFeeRequirement(err: unknown): FeeRequirement | null {
 
   return extractFeeRequirement(e.cause);
 }
-
-// Canonical WETH9 address per chain. OP Stack chains share the same address.
-const WETH_BY_CHAIN: Record<number, `0x${string}`> = {
-  1: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // Ethereum
-  8453: "0x4200000000000000000000000000000000000006", // Base
-  10: "0x4200000000000000000000000000000000000006", // Optimism
-  42161: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", // Arbitrum One
-  137: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", // Polygon (WETH)
-  43114: "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB", // Avalanche (WETH.e)
-};
 
 function isNativeToken(addr: string): boolean {
   return NATIVE_ADDRS.has(addr.toLowerCase());
@@ -119,41 +125,6 @@ async function ensurePermit2Allowance(
   console.debug("[send] PERMIT2 approval confirmed", { txHash });
 }
 
-// Ensures the SA has at least `requiredWei` of native ETH. If not, sends the
-// deficit from `owner` (EOA) to `saAddress` as a regular transaction and waits
-// for confirmation. Used as a fallback when the EOA has no WETH to pull via
-// Permit2 but does have native ETH.
-async function ensureSaEthBalance(
-  eip1193Request: Eip1193Request,
-  saAddress: `0x${string}`,
-  owner: `0x${string}`,
-  requiredWei: bigint
-): Promise<void> {
-  const balHex = (await eip1193Request({
-    method: "eth_getBalance",
-    params: [saAddress, "latest"],
-  })) as string;
-  const currentBal = BigInt(balHex);
-  console.debug("[send] SA ETH balance", {
-    saAddress,
-    currentBal: currentBal.toString(),
-    required: requiredWei.toString(),
-  });
-  if (currentBal >= requiredWei) return;
-
-  const needed = requiredWei - currentBal;
-  console.debug("[send] funding SA with ETH for bridge relay fee", {
-    saAddress,
-    needed: "0x" + needed.toString(16),
-  });
-  const txHash = (await eip1193Request({
-    method: "eth_sendTransaction",
-    params: [{ from: owner, to: saAddress, value: "0x" + needed.toString(16) }],
-  })) as string;
-  console.debug("[send] waiting for SA ETH funding tx", { txHash });
-  await waitForTransaction(eip1193Request, txHash);
-  console.debug("[send] SA ETH funding confirmed", { txHash });
-}
 
 async function waitForTransaction(
   eip1193Request: Eip1193Request,
@@ -180,6 +151,9 @@ export type SendRouteAsUserOperationParams = {
   route: BuildRouteResult;
   fromToken: string;
   fromAmountWei: bigint;
+  /** Token decimals for the from-token (e.g. 6 for USDC). Used for relay fee estimation when
+   *  the route's step metadata doesn't include it. Omit only for native/WETH routes. */
+  fromDecimals?: number;
   eoaAddress: `0x${string}`;
   chainId: number;
   viemChain: Chain;
@@ -188,6 +162,9 @@ export type SendRouteAsUserOperationParams = {
 
 export type SendRouteAsUserOperationResult = {
   userOpHash: string;
+  /** On-chain transaction hash. Populated once the UserOp lands in a block; undefined if
+   *  the inclusion wait timed out (the UserOp may still land later). */
+  txHash?: string;
   intentId: string;
 };
 
@@ -198,6 +175,7 @@ export async function sendRouteAsUserOperation(
     route,
     fromToken,
     fromAmountWei,
+    fromDecimals: callerFromDecimals,
     chainId,
     viemChain,
     eip1193Request,
@@ -240,7 +218,7 @@ export async function sendRouteAsUserOperation(
     );
   }
 
-  const client = await createTrustwareSmartAccountClient(
+  const { client, getSponsorshipRequestId } = await createTrustwareSmartAccountClient(
     eoaAddress,
     chainId,
     viemChain,
@@ -263,22 +241,91 @@ export async function sendRouteAsUserOperation(
   } else {
     // ERC-20 route: pull tokens from EOA via Permit2 SignatureTransfer, then execute.
     const token = fromToken as `0x${string}`;
+    const weth = WETH_BY_CHAIN[chainId];
+    const swapRouter = UNISWAP_V3_ROUTER[chainId];
 
-    // Ensure EOA has approved Permit2 to pull the fromToken. One-time regular
-    // EOA transaction — the SA cannot approve on the EOA's behalf.
-    await ensurePermit2Allowance(
-      eip1193Request,
-      eoaAddress,
-      token,
-      fromAmountWei
-    );
+    // --- Relay fee strategy (Axelar requires native ETH as msg.value) ---
+    // When the route has a non-zero relay fee and the SA doesn't already hold enough ETH,
+    // we cover it atomically inside the UserOp batch by swapping a slice of the from-token
+    // into ETH. No extra user signature is needed — only the single Permit2 sig below.
+    //
+    // Special case: if the from-token IS WETH we skip the swap and withdraw directly.
+    //
+    // The Permit2 amount is expanded to fromAmountWei + amountInMaximum so the SA
+    // receives enough tokens to both fund the swap and pay the bridge.
+    type RelayFeeStrategy = "none" | "weth-withdraw" | "swap";
+    let relayFeeStrategy: RelayFeeStrategy = "none";
+    let amountInMaximum = 0n;
+
+    if (value > 0n) {
+      const saBalHex = (await eip1193Request({
+        method: "eth_getBalance",
+        params: [saAddress, "latest"],
+      })) as string;
+      const saEthBal = BigInt(saBalHex as string);
+
+      console.debug("[send] relay fee check", {
+        value: value.toString(),
+        saEthBal: saEthBal.toString(),
+      });
+
+      if (saEthBal >= value) {
+        // SA already holds enough ETH from a prior refund or top-up — nothing extra needed.
+        console.debug("[send] SA has enough ETH for relay fee");
+      } else if (weth && token.toLowerCase() === weth.toLowerCase()) {
+        // from-token IS WETH: pull value extra and withdraw directly — no DEX needed.
+        amountInMaximum = value;
+        relayFeeStrategy = "weth-withdraw";
+        console.debug("[send] relay fee via WETH withdraw", { amountInMaximum: value.toString() });
+      } else if (weth && swapRouter) {
+        // Swap a slice of the from-token → WETH → ETH inside the UserOp.
+        // Prefer caller-supplied decimals (most accurate). Fall back to route step
+        // metadata, then to 18 only for WETH which always has 18 decimals.
+        const fromDecimals: number =
+          callerFromDecimals ??
+          (route.route?.steps?.[0] as { action?: { fromToken?: { decimals?: number } } } | undefined)
+            ?.action?.fromToken?.decimals ?? 18
+        amountInMaximum = await estimateRelayFeeInToken(
+          value,
+          fromAmountWei,
+          route.finalExchangeRate.fromAmountUSD,
+          chainId,
+          token,
+          fromDecimals,
+        );
+        if (amountInMaximum === 0n) {
+          throw Object.assign(
+            new Error("Cannot estimate relay fee token amount — ETH price unavailable. Ensure the smart account has native ETH for the bridge relay fee."),
+            { code: "RELAY_FEE_ESTIMATE_FAILED" }
+          );
+        }
+        relayFeeStrategy = "swap";
+        console.debug("[send] relay fee via in-batch swap", {
+          swapRouter,
+          weth,
+          amountInMaximum: amountInMaximum.toString(),
+          valueWei: value.toString(),
+        });
+      } else {
+        throw Object.assign(
+          new Error(`Chain ${chainId} has no configured swap router. Ensure the smart account has native ETH for the bridge relay fee.`),
+          { code: "NO_SWAP_ROUTER" }
+        );
+      }
+    }
+
+    // Total Permit2 amount includes the bridge amount plus any tokens needed for the relay fee swap.
+    const totalPermit2Amount = fromAmountWei + amountInMaximum;
+
+    // Ensure EOA has approved Permit2 to pull the full amount. One-time EOA transaction.
+    await ensurePermit2Allowance(eip1193Request, eoaAddress, token, totalPermit2Amount);
 
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800); // 30-minute window
-
     const nonce = randomPermit2Nonce();
+
     console.debug("[send] permit2 params", {
       token,
-      amount: "0x" + BigInt(fromAmountWei as string | bigint).toString(16),
+      amount: totalPermit2Amount.toString(),
       nonce: "0x" + nonce.toString(16),
       deadline: "0x" + deadline.toString(16),
       spender: saAddress,
@@ -288,102 +335,42 @@ export async function sendRouteAsUserOperation(
     const sig = await signPermit2(eip1193Request, {
       chainId,
       token,
-      amount: fromAmountWei,
+      amount: totalPermit2Amount,
       spender: saAddress,
       nonce,
       deadline,
       owner: eoaAddress,
     });
 
-    const permitCalldata = encodePermitTransferFrom(
-      token,
-      fromAmountWei,
-      nonce,
-      deadline,
-      saAddress,
-      eoaAddress,
-      sig
-    );
-    const approveCalldata = encodeErc20Approve(target, fromAmountWei);
-
+    // Build batch: [permit2 pull, relay fee swap (if needed), bridge approve, bridge call]
     batch = [
-      { target: PERMIT2, data: permitCalldata }, // pull fromToken: EOA → SA
-      { target: token, data: approveCalldata }, // SA approves bridge router to spend
+      {
+        target: PERMIT2,
+        data: encodePermitTransferFrom(token, totalPermit2Amount, nonce, deadline, saAddress, eoaAddress, sig),
+      },
     ];
 
-    if (value > 0n) {
-      // Route requires native ETH forwarded as msg.value (e.g. Axelar bridge relay fee).
-      // Prefer pulling WETH from the EOA via Permit2 + withdraw atomically in the UserOp
-      // (no extra EOA transaction). Fall back to a plain ETH send from EOA to SA when the
-      // EOA holds native ETH but no WETH.
-      const weth = WETH_BY_CHAIN[chainId];
-      const wethBalance = weth
-        ? await (async () => {
-            const raw = (await eip1193Request({
-              method: "eth_call",
-              params: [
-                { to: weth, data: encodeErc20BalanceOf(eoaAddress) },
-                "latest",
-              ],
-            })) as string;
-            return raw && raw !== "0x" ? BigInt(raw) : 0n;
-          })()
-        : 0n;
-
-      console.debug("[send] relay fee strategy", {
-        value: value.toString(),
-        weth,
-        wethBalance: wethBalance.toString(),
-        useWethPull: wethBalance >= value,
-      });
-
-      if (weth && wethBalance >= value) {
-        // EOA has WETH: pull it via Permit2 and unwrap inside the UserOp.
-        await ensurePermit2Allowance(eip1193Request, eoaAddress, weth, value);
-
-        const wethNonce = randomPermit2Nonce();
-        console.debug("[send] weth permit2 params (relay fee)", {
-          token: weth,
-          amount: "0x" + value.toString(16),
-          nonce: "0x" + wethNonce.toString(16),
-          deadline: "0x" + deadline.toString(16),
-          spender: saAddress,
-          owner: eoaAddress,
-        });
-
-        const wethSig = await signPermit2(eip1193Request, {
-          chainId,
-          token: weth,
-          amount: value,
-          spender: saAddress,
-          nonce: wethNonce,
-          deadline,
-          owner: eoaAddress,
-        });
-
-        batch.push(
-          {
-            target: PERMIT2,
-            data: encodePermitTransferFrom(
-              weth,
-              value,
-              wethNonce,
-              deadline,
-              saAddress,
-              eoaAddress,
-              wethSig
-            ),
-          }, // pull WETH: EOA → SA
-          { target: weth, data: encodeWethWithdraw(value) } // WETH.withdraw: WETH → ETH
-        );
-      } else {
-        // EOA has no WETH (or unknown chain): send native ETH from EOA to SA before
-        // the UserOp so the SA can forward it as msg.value to the bridge.
-        await ensureSaEthBalance(eip1193Request, saAddress, eoaAddress, value);
-      }
+    if (relayFeeStrategy === "weth-withdraw") {
+      // from-token is WETH: withdraw exactly value wei to convert to ETH.
+      batch.push({ target: weth!, data: encodeWethWithdraw(value) });
+    } else if (relayFeeStrategy === "swap") {
+      // Swap amountInMaximum of from-token → exactly value WETH, then unwrap to ETH.
+      // exactOutputSingle only takes what it needs (≤ amountInMaximum), so the SA
+      // retains any unused from-tokens for the bridge call.
+      batch.push(
+        { target: token, data: encodeErc20Approve(swapRouter!, amountInMaximum) },
+        {
+          target: swapRouter!,
+          data: encodeUniswapExactOutputSingle(token, weth!, DEFAULT_POOL_FEE, saAddress, value, amountInMaximum),
+        },
+        { target: weth!, data: encodeWethWithdraw(value) },
+      );
     }
 
-    batch.push({ target, data: callData, value }); // bridge execution
+    batch.push(
+      { target: token, data: encodeErc20Approve(target, fromAmountWei) },
+      { target, data: callData, value },
+    );
   }
 
   // Bundler enforces a verificationGasLimit efficiency floor (actual/limit ≥ 0.4 on Base/Alchemy),
@@ -397,13 +384,15 @@ export async function sendRouteAsUserOperation(
     preVerificationGas: { multiplier: 1.2 },
   } as const;
 
-  // Retry loop (max 3 attempts) to handle two sequential fee-rejection scenarios:
+  // Retry loop (max 5 attempts) handles three rejection scenarios:
   //   1. -32602 "replacement underpriced": a prior UserOp is stuck in the mempool with the same
   //      nonce; bundler requires the new op to have ≥110% of the stuck op's fees. Account Kit
   //      wraps this error in SmartAccountUserOperationExecutionError, so we walk the cause chain.
   //   2. -32000 "precheck failed: maxFeePerGas must be at least X": the bundler's own minimum
   //      floor (e.g. ~34 gwei on Base) can exceed the replacement bump from step 1.
-  // Each retry escalates 30% above max(bundler-reported floor, what-we-just-sent). The
+  //   3. PAYMASTER_UNAVAILABLE: the backend sign pipeline timed out (elros slow/cold start).
+  //      This is transient — retry after a short delay without bumping fees.
+  // Each fee retry escalates 30% above max(bundler-reported floor, what-we-just-sent). The
   // "what-we-just-sent" anchor matters: some bundlers keep reporting the original stuck op's
   // fee even after we submit a higher replacement, so escalating only off the bundler value
   // would loop forever sending the same number. Anchoring on our previous send guarantees
@@ -412,8 +401,10 @@ export async function sendRouteAsUserOperation(
   let prevSent: { maxFee: bigint; maxPriority: bigint } | null = null;
   let lastErr: unknown;
   for (let attempt = 0; attempt < 5; attempt++) {
-    const sendMaxFee = prevSent ? (prevSent.maxFee * 130n) / 100n : undefined;
-    const sendMaxPriority = prevSent
+    const sendMaxFee: bigint | undefined = prevSent
+      ? (prevSent.maxFee * 130n) / 100n
+      : undefined;
+    const sendMaxPriority: bigint | undefined = prevSent
       ? (prevSent.maxPriority * 130n) / 100n
       : undefined;
     try {
@@ -430,12 +421,23 @@ export async function sendRouteAsUserOperation(
       break;
     } catch (err) {
       lastErr = err;
+
+      // PAYMASTER_UNAVAILABLE = transient backend error (sign pipeline timeout). Retry
+      // after a short delay without changing gas — the next attempt re-fetches the signature.
+      if (isPaymasterUnavailable(err)) {
+        console.debug(
+          `[send] attempt ${attempt} paymaster unavailable (transient), retrying in 2s`
+        );
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+
       const req = extractFeeRequirement(err);
       if (!req) throw err;
 
       // Anchor next attempt on max(bundler floor, what-we-just-sent).
-      const baseFee = sendMaxFee ?? 0n;
-      const basePri = sendMaxPriority ?? 0n;
+      const baseFee: bigint = sendMaxFee ?? 0n;
+      const basePri: bigint = sendMaxPriority ?? 0n;
       prevSent = {
         maxFee: req.minFee > baseFee ? req.minFee : baseFee,
         maxPriority:
@@ -453,8 +455,41 @@ export async function sendRouteAsUserOperation(
   if (lastErr) throw lastErr;
   result = result!;
 
-  // Record the txHash with the backend so status polling starts immediately.
-  await submitReceipt(intentId, result.hash);
+  // Wait for the UserOp to land in a block so we can pass the real L1 transaction hash to the
+  // backend. The backend's status poller uses this hash to query Squid/LiFi/Axelar — those APIs
+  // require a real on-chain txHash, not a UserOp hash.
+  let txHash: string;
+  try {
+    txHash = await client.waitForUserOperationTransaction({ hash: result.hash });
+    console.debug("[send] UserOp included", { userOpHash: result.hash, txHash });
+  } catch (waitErr) {
+    // The SDK's wait timed out. Do one final receipt check in case the UO landed just after
+    // the timeout window (avoids a false failure on a slow-but-successful inclusion).
+    let finalTxHash: string | undefined;
+    try {
+      const receipt = await eip1193Request({
+        method: "eth_getUserOperationReceipt" as never,
+        params: [result.hash],
+      }) as { receipt?: { transactionHash?: string } } | null;
+      finalTxHash = receipt?.receipt?.transactionHash;
+    } catch {
+      // ignore — receipt check is best-effort
+    }
 
-  return { userOpHash: result.hash, intentId };
+    if (!finalTxHash) {
+      // UO was not included — likely dropped by the bundler. Do NOT submit a receipt using the
+      // userOpHash as txHash: that would create a ghost transaction in the backend that can never
+      // resolve (Axelar/Squid return 404 for a userOpHash).
+      throw Object.assign(
+        new Error("Transaction was submitted but not confirmed on-chain. The operation may have been dropped. Please try again."),
+        { code: "USEROP_NOT_INCLUDED", userOpHash: result.hash }
+      );
+    }
+    txHash = finalTxHash;
+    console.debug("[send] UserOp confirmed via fallback receipt check", { userOpHash: result.hash, txHash });
+  }
+
+  await submitReceipt(intentId, txHash, getSponsorshipRequestId());
+
+  return { userOpHash: result.hash, txHash, intentId };
 }

@@ -480,6 +480,7 @@ export function useTransactionActionModel({
             route: r,
             fromToken: (selectedToken?.address ?? "") as string,
             fromAmountWei: amountWei,
+            fromDecimals: (selectedToken as { decimals?: number } | null)?.decimals,
             eoaAddress: walletAddress as `0x${string}`,
             chainId: numericChainId,
             // Minimal viem Chain: RPC calls go through our backend bundler proxy,

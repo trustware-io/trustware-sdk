@@ -66,6 +66,8 @@ export async function createTrustwareSmartAccountClient(
   eip1193Request: Eip1193Request,
   paymasterAddress: `0x${string}`
 ) {
+  let lastSponsorshipRequestId: string | undefined
+
   const walletClient = createWalletClient({
     account: eoaAddress,
     transport: custom({ request: eip1193Request }),
@@ -149,12 +151,16 @@ export async function createTrustwareSmartAccountClient(
   // can verify it is deployed. The all-zero paymasterData is safe because the
   // state override above makes validatePaymasterUserOp always succeed during
   // gas estimation. The real signature is fetched by paymasterAndData below.
+  //
+  // paymasterPostOpGasLimit must match elros's defaultPostOpGasLimit (50,000 = 0xc350)
+  // so that the gas limits in the submitted UserOp match what was estimated. If the
+  // dummy and real values differ, some bundlers flag the change as a precheck failure.
   const dummyPaymasterAndData: ClientMiddlewareFn = async (struct) => {
     return {
       ...struct,
       paymaster: paymasterAddress,
       paymasterVerificationGasLimit: "0x186a0",
-      paymasterPostOpGasLimit: "0x186a0",
+      paymasterPostOpGasLimit: "0xc350",
       paymasterData: `0x${"00".repeat(544)}`,
     } as typeof struct
   }
@@ -179,8 +185,10 @@ export async function createTrustwareSmartAccountClient(
       BigInt(uo.paymasterVerificationGasLimit ?? "0x0") +
       BigInt(uo.paymasterPostOpGasLimit ?? "0x0")
 
-    // 1.3x buffer to accommodate maxFeePerGas variance between estimation and submission
-    const maxCostWei = (totalGas * BigInt(uo.maxFeePerGas ?? "0x0") * 13n) / 10n
+    // 2x buffer to accommodate maxFeePerGas variance between estimation and submission.
+    // 1.3x proved too thin — a >30% gas spike between estimation and inclusion causes the
+    // paymaster contract to revert with MaxCostExceeded, which bypasses the fee retry loop.
+    const maxCostWei = totalGas * BigInt(uo.maxFeePerGas ?? "0x0") * 2n
 
     const resp = await fetch(`${apiBase()}/v1/paymaster/sponsor-calldata`, {
       method: "POST",
@@ -195,13 +203,17 @@ export async function createTrustwareSmartAccountClient(
 
     if (!resp.ok) {
       const j = await resp.json().catch(() => ({})) as { error?: string }
+      // 404 = no deployment or rule for this chain/sender — non-retryable, SDK falls back to EOA.
+      // 5xx = sign pipeline timeout or transient backend error — retryable by the send loop.
+      const code = resp.status === 404 ? "NO_PAYMASTER" : "PAYMASTER_UNAVAILABLE"
       throw Object.assign(
         new Error(j?.error ?? `paymaster sponsor-calldata HTTP ${resp.status}`),
-        { code: "NO_PAYMASTER" }
+        { code }
       )
     }
 
-    const j = (await resp.json()) as { data: { paymasterAndData: string } }
+    const j = (await resp.json()) as { data: { paymasterAndData: string; requestId?: string } }
+    if (j.data.requestId) lastSponsorshipRequestId = j.data.requestId
     const blob = (j.data.paymasterAndData ?? "").replace(/^0x/, "")
 
     // Split the 596-byte backend blob into EP v0.7 separate paymaster fields:
@@ -229,11 +241,16 @@ export async function createTrustwareSmartAccountClient(
     } as typeof struct
   }
 
-  return createLightAccountClient({
+  const client = await createLightAccountClient({
     transport: bundlerTransport,
     chain: viemChain,
     signer,
     dummyPaymasterAndData,
     paymasterAndData,
   })
+
+  return {
+    client,
+    getSponsorshipRequestId: () => lastSponsorshipRequestId,
+  }
 }
