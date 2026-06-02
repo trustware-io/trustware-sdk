@@ -204,9 +204,6 @@ export function SwipeToConfirmTokens({
   const progress = getProgress();
   const effectiveProgress = isLongPressing ? longPressProgress : progress;
 
-  // const getTokenInitials = (symbol: string) =>
-  //   symbol?.slice(0, 2).toUpperCase();
-
   const [blinkOpacity, setBlinkOpacity] = useState(1);
   useEffect(() => {
     if (disabled || isComplete || isDragging || isLongPressing) {
@@ -463,7 +460,6 @@ export function SwipeToConfirmTokens({
               objectFit: "contain",
               borderRadius: "9999px",
             }}
-            retry={1}
             Fallback={
               <span
                 style={{
@@ -527,44 +523,6 @@ export function SwipeToConfirmTokens({
             />
           </div>
         )}
-
-        {/* Chevron hint */}
-        {/* {!toTokenIcon && !isComplete && (
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: "3rem",
-              height: "3rem",
-              borderRadius: "9999px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "opacity 0.2s",
-              right: `${padding}px`,
-              opacity: 0.3 + effectiveProgress * 0.7,
-            }}
-          >
-            <svg
-              style={{
-                width: "1.5rem",
-                height: "1.5rem",
-                color: colors.white,
-              }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </div>
-        )} */}
       </div>
 
       {/* Label */}
