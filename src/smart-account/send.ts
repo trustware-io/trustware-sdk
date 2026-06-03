@@ -228,6 +228,15 @@ export async function sendRouteAsUserOperation(
   const saAddress = client.account.address;
   console.debug("[send] saAddress:", saAddress, "eoaAddress:", eoaAddress);
 
+  // Detect first-time deployment — factory will be included in the UO, so
+  // verificationGasLimit and callGasLimit need more headroom.
+  const saCode = await eip1193Request({
+    method: "eth_getCode",
+    params: [saAddress, "latest"],
+  }) as string;
+  const isNewAccount = !saCode || saCode === "0x";
+  if (isNewAccount) console.debug("[send] new account — SA factory deployment will be included in UO");
+
   type BatchCall = {
     target: `0x${string}`;
     data: `0x${string}`;
@@ -378,11 +387,15 @@ export async function sendRouteAsUserOperation(
   // at ~50%, safely above the floor while still giving the LightAccount factory deploy enough
   // headroom for the AA13 OOG case. Pad callGasLimit + preVerificationGas modestly too — OOG can
   // hit any of the three gas fields, not just verification.
+  // New accounts (no on-chain code yet) include factory/initCode in the UO, which drives up
+  // verificationGasLimit significantly — the bundler must simulate LightAccountFactory.createAccount
+  // in addition to the normal signature check. 3× gives the factory deploy + AA13 OOG headroom;
+  // 2× callGasLimit covers the additional state writes during first-time account initialization.
   const baseOverrides = {
-    verificationGasLimit: { multiplier: 2 },
-    callGasLimit: { multiplier: 1.5 },
+    verificationGasLimit: { multiplier: isNewAccount ? 3 : 2 },
+    callGasLimit: { multiplier: isNewAccount ? 2 : 1.5 },
     preVerificationGas: { multiplier: 1.2 },
-  } as const;
+  };
 
   // Retry loop (max 5 attempts) handles three rejection scenarios:
   //   1. -32602 "replacement underpriced": a prior UserOp is stuck in the mempool with the same
@@ -397,6 +410,33 @@ export async function sendRouteAsUserOperation(
   // fee even after we submit a higher replacement, so escalating only off the bundler value
   // would loop forever sending the same number. Anchoring on our previous send guarantees
   // monotonic increase across attempts.
+  // Fetch fresh gas price from the bundler before the first send. rundler_getUserOperationGasPrice
+  // returns values that already include the builder's safety buffers (50% on base fee, 30% on
+  // priority fee), so the first attempt is priced to actually get bundled rather than relying on
+  // Account Kit's potentially stale estimation. Failure is non-fatal — we fall back to AK's own
+  // estimate and let the retry loop handle any subsequent fee rejections.
+  let initialFeeOverrides: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined;
+  try {
+    type GasTier = { maxFeePerGas: string; maxPriorityFeePerGas: string };
+    const gasPrice = await (client as unknown as { request: (args: { method: string; params: unknown[] }) => Promise<unknown> }).request({
+      method: "rundler_getUserOperationGasPrice",
+      params: [],
+    }) as { slow?: GasTier; standard?: GasTier; fast?: GasTier } | null;
+    const tier = gasPrice?.standard ?? gasPrice?.fast ?? gasPrice?.slow;
+    if (tier?.maxFeePerGas && tier?.maxPriorityFeePerGas) {
+      initialFeeOverrides = {
+        maxFeePerGas: BigInt(tier.maxFeePerGas),
+        maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas),
+      };
+      console.debug("[send] rundler gas price", {
+        maxFeePerGas: initialFeeOverrides.maxFeePerGas.toString(),
+        maxPriorityFeePerGas: initialFeeOverrides.maxPriorityFeePerGas.toString(),
+      });
+    }
+  } catch {
+    console.debug("[send] rundler_getUserOperationGasPrice unavailable, using Account Kit estimation");
+  }
+
   let result: Awaited<ReturnType<typeof client.sendUserOperation>>;
   let prevSent: { maxFee: bigint; maxPriority: bigint } | null = null;
   let lastErr: unknown;
@@ -415,6 +455,8 @@ export async function sendRouteAsUserOperation(
               maxFeePerGas: sendMaxFee,
               maxPriorityFeePerGas: sendMaxPriority!,
             }
+          : initialFeeOverrides
+          ? { ...baseOverrides, ...initialFeeOverrides }
           : baseOverrides;
       result = await client.sendUserOperation({ uo: batch, overrides });
       lastErr = null;
