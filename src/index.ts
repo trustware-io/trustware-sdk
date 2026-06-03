@@ -1,6 +1,9 @@
 // src/index.ts
 export { Trustware, TrustwareCore } from "./core";
 export { RateLimitError } from "./core/http";
+// src/index.ts — add this
+export { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
+export type { YourTokenData } from "src/widget/state/deposit/types";
 export {
   connectDetectedWallet,
   useWalletDetection,
@@ -10,6 +13,9 @@ export {
   useEIP1193,
   useWagmi,
   toWalletInterfaceFromDetected,
+  useWalletInfo,
+  useWalletExternalDisconnect,
+  walletManager,
 } from "./wallets/";
 export { TrustwareWidget } from "./widget/";
 export { TrustwareProvider, useTrustware } from "./provider";
