@@ -45,6 +45,7 @@ export interface CryptoPayAmountSectionProps {
   isGasSponsored?: boolean;
   isLoadingRoute: boolean;
   normalizedTokenBalance: number;
+  relayFeeUsd?: number;
   orderedTokens: YourTokenData[];
   parsedAmount: number;
   selectedChain: ChainDef | null;
@@ -73,6 +74,7 @@ export function CryptoPayAmountSection({
   isGasSponsored,
   isLoadingRoute,
   normalizedTokenBalance,
+  relayFeeUsd,
   orderedTokens,
   parsedAmount,
   selectedChain,
@@ -176,6 +178,7 @@ export function CryptoPayAmountSection({
           isGasSponsored={isGasSponsored}
           isLoadingRoute={isLoadingRoute}
           parsedAmount={parsedAmount}
+          relayFeeUsd={relayFeeUsd}
           selectedTokenDecimals={selectedToken?.decimals}
         />
       ) : null}

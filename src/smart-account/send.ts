@@ -2,6 +2,7 @@ import type { Chain } from "viem";
 import { submitReceipt } from "../core/routes";
 import type { BuildRouteResult } from "../types";
 import { createTrustwareSmartAccountClient } from "./client";
+import { isPaymasterUnavailable, extractFeeRequirement } from "./fee-utils";
 import {
   PERMIT2,
   randomPermit2Nonce,
@@ -23,55 +24,6 @@ const NATIVE_ADDRS = new Set([
   "0x0000000000000000000000000000000000000000",
   "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 ]);
-
-type FeeRequirement = { minFee: bigint; minPriorityFee: bigint };
-
-// Walks the cause chain looking for a PAYMASTER_UNAVAILABLE code, which means the backend's
-// sign pipeline had a transient failure (e.g. elros timeout) — distinct from NO_PAYMASTER
-// (404: no deployment exists) which is not retryable.
-function isPaymasterUnavailable(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: unknown; cause?: unknown };
-  if (e.code === "PAYMASTER_UNAVAILABLE") return true;
-  return isPaymasterUnavailable(e.cause);
-}
-
-// Account Kit wraps the original bundler error inside a SmartAccountUserOperationExecutionError.
-// Walk the full cause chain to find a fee requirement from either:
-//   -32602 "replacement underpriced" — bundler provides currentMaxFee/currentMaxPriorityFee in data
-//   -32000 "precheck failed: maxFeePerGas is X but must be at least Y" — parse Y from message
-function extractFeeRequirement(err: unknown): FeeRequirement | null {
-  if (!err || typeof err !== "object") return null;
-  const e = err as {
-    code?: unknown;
-    message?: unknown;
-    data?: unknown;
-    cause?: unknown;
-  };
-
-  if (e.code === -32602 && e.data && typeof e.data === "object") {
-    const d = e.data as Record<string, unknown>;
-    if (typeof d.currentMaxFee === "string") {
-      const fee = BigInt(d.currentMaxFee);
-      const priority =
-        typeof d.currentMaxPriorityFee === "string"
-          ? BigInt(d.currentMaxPriorityFee)
-          : fee;
-      return { minFee: fee, minPriorityFee: priority };
-    }
-  }
-
-  if (e.code === -32000 && typeof e.message === "string") {
-    // "precheck failed: maxFeePerGas is 8252770 but must be at least 34104859"
-    const m = e.message.match(/must be at least (\d+)/);
-    if (m) {
-      const fee = BigInt(m[1]);
-      return { minFee: fee, minPriorityFee: fee };
-    }
-  }
-
-  return extractFeeRequirement(e.cause);
-}
 
 function isNativeToken(addr: string): boolean {
   return NATIVE_ADDRS.has(addr.toLowerCase());
@@ -397,141 +349,123 @@ export async function sendRouteAsUserOperation(
     preVerificationGas: { multiplier: 1.2 },
   };
 
-  // Retry loop (max 5 attempts) handles three rejection scenarios:
-  //   1. -32602 "replacement underpriced": a prior UserOp is stuck in the mempool with the same
-  //      nonce; bundler requires the new op to have ≥110% of the stuck op's fees. Account Kit
-  //      wraps this error in SmartAccountUserOperationExecutionError, so we walk the cause chain.
-  //   2. -32000 "precheck failed: maxFeePerGas must be at least X": the bundler's own minimum
-  //      floor (e.g. ~34 gwei on Base) can exceed the replacement bump from step 1.
-  //   3. PAYMASTER_UNAVAILABLE: the backend sign pipeline timed out (elros slow/cold start).
-  //      This is transient — retry after a short delay without bumping fees.
-  // Each fee retry escalates 30% above max(bundler-reported floor, what-we-just-sent). The
-  // "what-we-just-sent" anchor matters: some bundlers keep reporting the original stuck op's
-  // fee even after we submit a higher replacement, so escalating only off the bundler value
-  // would loop forever sending the same number. Anchoring on our previous send guarantees
-  // monotonic increase across attempts.
-  // Fetch fresh gas price from the bundler before the first send. rundler_getUserOperationGasPrice
-  // returns values that already include the builder's safety buffers (50% on base fee, 30% on
-  // priority fee), so the first attempt is priced to actually get bundled rather than relying on
-  // Account Kit's potentially stale estimation. Failure is non-fatal — we fall back to AK's own
-  // estimate and let the retry loop handle any subsequent fee rejections.
-  let initialFeeOverrides: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined;
-  try {
-    type GasTier = { maxFeePerGas: string; maxPriorityFeePerGas: string };
-    const gasPrice = await (client as unknown as { request: (args: { method: string; params: unknown[] }) => Promise<unknown> }).request({
-      method: "rundler_getUserOperationGasPrice",
-      params: [],
-    }) as { slow?: GasTier; standard?: GasTier; fast?: GasTier } | null;
-    const tier = gasPrice?.standard ?? gasPrice?.fast ?? gasPrice?.slow;
-    if (tier?.maxFeePerGas && tier?.maxPriorityFeePerGas) {
-      initialFeeOverrides = {
-        maxFeePerGas: BigInt(tier.maxFeePerGas),
-        maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas),
-      };
-      console.debug("[send] rundler gas price", {
-        maxFeePerGas: initialFeeOverrides.maxFeePerGas.toString(),
-        maxPriorityFeePerGas: initialFeeOverrides.maxPriorityFeePerGas.toString(),
-      });
-    }
-  } catch {
-    console.debug("[send] rundler_getUserOperationGasPrice unavailable, using Account Kit estimation");
-  }
+  // Route bundler-specific RPC calls through the client's transport (not the wallet's
+  // eip1193 — MetaMask doesn't support ERC-4337 bundler methods).
+  type BundlerClient = { request: (args: { method: string; params: unknown[] }) => Promise<unknown> };
+  const bundlerReq = (method: string, params: unknown[] = []) =>
+    (client as unknown as BundlerClient).request({ method, params });
 
+  // Fetch the fast-tier fee from rundler right before each send attempt so we always
+  // use fresh fees (base fee moves block-to-block on L2). Alchemy explicitly recommends
+  // calling this before every eth_sendUserOperation — stale fees are the primary cause
+  // of pool-accept / builder-reject ghost UOs. Fast tier: 2× base fee, 1.5× priority.
+  // Returns undefined on failure so callers fall back to Account Kit's own estimation.
+  type GasTier = { maxFeePerGas: string; maxPriorityFeePerGas: string };
+  const fetchFreshFees = async (): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined> => {
+    try {
+      const gasPrice = await bundlerReq("rundler_getUserOperationGasPrice") as { slow?: GasTier; standard?: GasTier; fast?: GasTier } | null;
+      const tier = gasPrice?.fast ?? gasPrice?.standard ?? gasPrice?.slow;
+      if (tier?.maxFeePerGas && tier?.maxPriorityFeePerGas) {
+        return { maxFeePerGas: BigInt(tier.maxFeePerGas) * 2n, maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas) * 2n };
+      }
+    } catch { /* non-fatal */ }
+    return undefined;
+  };
+
+  // Send loop (max 5 attempts). Handles:
+  //   1. -32602 "replacement underpriced": a prior UO is stuck in the mempool with the same nonce.
+  //      Bundler requires >110% of the stuck op's fees. We use 112% to clear the floor.
+  //   2. -32000 "precheck failed: maxFeePerGas must be at least X": exact bundler floor.
+  //      We use 101% (tiny rounding buffer only).
+  //   3. PAYMASTER_UNAVAILABLE: transient sign pipeline timeout — retry after 2s, fresh fees.
+  // Gas price is re-fetched fresh on every non-fee-error attempt (Alchemy's recommendation).
   let result: Awaited<ReturnType<typeof client.sendUserOperation>>;
-  let prevSent: { maxFee: bigint; maxPriority: bigint } | null = null;
+  let nextFee: { maxFee: bigint; maxPriority: bigint } | null = null;
   let lastErr: unknown;
   for (let attempt = 0; attempt < 5; attempt++) {
-    const sendMaxFee: bigint | undefined = prevSent
-      ? (prevSent.maxFee * 130n) / 100n
-      : undefined;
-    const sendMaxPriority: bigint | undefined = prevSent
-      ? (prevSent.maxPriority * 130n) / 100n
-      : undefined;
     try {
-      const overrides =
-        sendMaxFee !== undefined
-          ? {
-              ...baseOverrides,
-              maxFeePerGas: sendMaxFee,
-              maxPriorityFeePerGas: sendMaxPriority!,
-            }
-          : initialFeeOverrides
-          ? { ...baseOverrides, ...initialFeeOverrides }
-          : baseOverrides;
+      let feeOverrides: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined;
+      if (nextFee !== null) {
+        // Fee error on last attempt — use the calculated required fee directly.
+        feeOverrides = { maxFeePerGas: nextFee.maxFee, maxPriorityFeePerGas: nextFee.maxPriority };
+      } else {
+        // First attempt or paymaster retry — fetch fresh fees from the bundler.
+        feeOverrides = await fetchFreshFees();
+        console.debug(`[send] attempt ${attempt} fresh fees`, feeOverrides
+          ? { maxFeePerGas: feeOverrides.maxFeePerGas.toString(), maxPriorityFeePerGas: feeOverrides.maxPriorityFeePerGas.toString() }
+          : "unavailable — using AK estimation");
+      }
+      const overrides = feeOverrides ? { ...baseOverrides, ...feeOverrides } : baseOverrides;
       result = await client.sendUserOperation({ uo: batch, overrides });
       lastErr = null;
       break;
     } catch (err) {
       lastErr = err;
 
-      // PAYMASTER_UNAVAILABLE = transient backend error (sign pipeline timeout). Retry
-      // after a short delay without changing gas — the next attempt re-fetches the signature.
       if (isPaymasterUnavailable(err)) {
-        console.debug(
-          `[send] attempt ${attempt} paymaster unavailable (transient), retrying in 2s`
-        );
+        console.debug(`[send] attempt ${attempt} paymaster unavailable (transient), retrying in 2s`);
         await new Promise((r) => setTimeout(r, 2000));
+        nextFee = null; // trigger fresh fee fetch on next attempt
         continue;
       }
 
       const req = extractFeeRequirement(err);
       if (!req) throw err;
 
-      // Anchor next attempt on max(bundler floor, what-we-just-sent).
-      const baseFee: bigint = sendMaxFee ?? 0n;
-      const basePri: bigint = sendMaxPriority ?? 0n;
-      prevSent = {
-        maxFee: req.minFee > baseFee ? req.minFee : baseFee,
-        maxPriority:
-          req.minPriorityFee > basePri ? req.minPriorityFee : basePri,
+      // Anchor next fee on max(bundler-reported floor, what we just sent) then apply the
+      // minimum bump the protocol requires for each error type.
+      const bumpNumerator = req.isReplacement ? 112n : 101n;
+      const prevFee: bigint = nextFee?.maxFee ?? 0n;
+      const prevPri: bigint = nextFee?.maxPriority ?? 0n;
+      nextFee = {
+        maxFee: (req.minFee > prevFee ? req.minFee : prevFee) * bumpNumerator / 100n,
+        maxPriority: (req.minPriorityFee > prevPri ? req.minPriorityFee : prevPri) * bumpNumerator / 100n,
       };
-      console.debug(
-        `[send] attempt ${attempt} fee rejection — next attempt will bump from`,
-        {
-          maxFee: prevSent.maxFee.toString(),
-          maxPriority: prevSent.maxPriority.toString(),
-        }
-      );
+      console.debug(`[send] attempt ${attempt} fee rejection (isReplacement=${req.isReplacement}) — next fees`, {
+        maxFee: nextFee.maxFee.toString(),
+        maxPriority: nextFee.maxPriority.toString(),
+      });
     }
   }
   if (lastErr) throw lastErr;
   result = result!;
 
-  // Wait for the UserOp to land in a block so we can pass the real L1 transaction hash to the
-  // backend. The backend's status poller uses this hash to query Squid/LiFi/Axelar — those APIs
-  // require a real on-chain txHash, not a UserOp hash.
-  let txHash: string;
-  try {
-    txHash = await client.waitForUserOperationTransaction({ hash: result.hash });
-    console.debug("[send] UserOp included", { userOpHash: result.hash, txHash });
-  } catch (waitErr) {
-    // The SDK's wait timed out. Do one final receipt check in case the UO landed just after
-    // the timeout window (avoids a false failure on a slow-but-successful inclusion).
-    let finalTxHash: string | undefined;
-    try {
-      const receipt = await eip1193Request({
-        method: "eth_getUserOperationReceipt" as never,
-        params: [result.hash],
-      }) as { receipt?: { transactionHash?: string } } | null;
-      finalTxHash = receipt?.receipt?.transactionHash;
-    } catch {
-      // ignore — receipt check is best-effort
+  // Poll for receipt via the bundler transport (NOT eip1193 — wallet providers don't support
+  // eth_getUserOperationReceipt). Alchemy's builder drops ghost ops immediately; accepted ops
+  // land within 2-5 seconds on Base. We poll every 3s for up to 45s, then give up and throw
+  // USEROP_NOT_INCLUDED — this is far faster than Account Kit's 60-100s wait and avoids the
+  // "4 polls then connection timeout" pattern that comes from its internal polling loop.
+  const userOpHash = result.hash as string;
+  let txHash: string | undefined;
+  {
+    const pollInterval = 3_000;
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      try {
+        const r = await bundlerReq("eth_getUserOperationReceipt", [userOpHash]) as { receipt?: { transactionHash?: string } } | null;
+        if (r?.receipt?.transactionHash) {
+          txHash = r.receipt.transactionHash;
+          break;
+        }
+      } catch { /* bundler hiccup — keep polling */ }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await new Promise((res) => setTimeout(res, Math.min(pollInterval, remaining)));
     }
-
-    if (!finalTxHash) {
-      // UO was not included — likely dropped by the bundler. Do NOT submit a receipt using the
-      // userOpHash as txHash: that would create a ghost transaction in the backend that can never
-      // resolve (Axelar/Squid return 404 for a userOpHash).
-      throw Object.assign(
-        new Error("Transaction was submitted but not confirmed on-chain. The operation may have been dropped. Please try again."),
-        { code: "USEROP_NOT_INCLUDED", userOpHash: result.hash }
-      );
-    }
-    txHash = finalTxHash;
-    console.debug("[send] UserOp confirmed via fallback receipt check", { userOpHash: result.hash, txHash });
   }
 
-  await submitReceipt(intentId, txHash, getSponsorshipRequestId());
+  if (!txHash) {
+    // Pool accepted the UO (we got a hash) but the builder dropped it — common when maxFeePerGas
+    // is below the builder's inclusion floor even after pool acceptance. Do NOT submit using the
+    // userOpHash as txHash: Squid/LiFi/Axelar return 404 for a userOpHash.
+    throw Object.assign(
+      new Error("Transaction was submitted but not included on-chain. The operation was likely dropped by the bundler — please try again."),
+      { code: "USEROP_NOT_INCLUDED", userOpHash }
+    );
+  }
+  console.debug("[send] UserOp included", { userOpHash, txHash });
 
-  return { userOpHash: result.hash, txHash, intentId };
+  await submitReceipt(intentId, txHash!, getSponsorshipRequestId());
+
+  return { userOpHash, txHash: txHash!, intentId };
 }

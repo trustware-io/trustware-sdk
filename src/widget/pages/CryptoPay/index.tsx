@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from "react";
+import { computeRelayFeeUsd, computeAdjustedSliderMax } from "src/widget/utils/relayFeeUtils";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
@@ -142,6 +143,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     gasReservationWei,
     handleSwipeConfirm,
     isApproving,
+    isNativeSelected,
     isReadingAllowance,
     isWalletConnected,
     needsApproval,
@@ -209,6 +211,13 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     if (isFixedAmount) return;
     setAmount(value.toString());
   };
+
+  const relayFeeUsd = useMemo(
+    () => computeRelayFeeUsd(routeResult, isNativeSelected),
+    [isNativeSelected, routeResult]
+  );
+
+  const adjustedSliderMax = computeAdjustedSliderMax(effectiveSliderMax, relayFeeUsd, tokenPriceUSD);
 
   /**
    * Handle expand click to navigate to token selection
@@ -313,7 +322,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                 amountComputation={amountComputation}
                 amountInputMode={amountInputMode}
                 estimatedReceive={estimatedReceive}
-                effectiveSliderMax={effectiveSliderMax}
+                effectiveSliderMax={adjustedSliderMax}
                 effectiveSliderMin={effectiveSliderMin}
                 gasReservationWei={gasReservationWei}
                 handleAmountChange={handleAmountChange}
@@ -322,15 +331,16 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                 handleTokenChange={handleTokenChange}
                 hasUsdPrice={hasUsdPrice}
                 isFixedAmount={isFixedAmount}
-                isGasSponsored={!!routeResult?.sponsorship}
+                isGasSponsored={!!routeResult?.sponsorship && !isNativeSelected}
                 isLoadingRoute={isLoadingRoute}
                 normalizedTokenBalance={normalizedTokenBalance}
                 orderedTokens={orderedTokens}
                 parsedAmount={parsedAmount}
+                relayFeeUsd={relayFeeUsd > 0 ? relayFeeUsd : undefined}
                 selectedChain={selectedChain}
                 selectedToken={readySelectedToken}
                 setAmountInputMode={setAmountInputMode}
-                showFeeSummary={SHOW_FEE_SUMMARY || !!routeResult?.sponsorship}
+                showFeeSummary={SHOW_FEE_SUMMARY || (!!routeResult?.sponsorship && !isNativeSelected)}
                 tokenPriceUSD={tokenPriceUSD}
                 walletAddress={walletAddress}
                 yourWalletTokensLength={yourWalletTokens.length}

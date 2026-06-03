@@ -129,6 +129,7 @@ export function useTransactionActionModel({
     if (
       !isEvm ||
       isNativeSelected ||
+      !!routeResult?.sponsorship || // sponsored routes: SA approves bridge inside the UO batch
       !backendChainId ||
       !walletAddress ||
       !spender ||
@@ -156,6 +157,7 @@ export function useTransactionActionModel({
     backendChainId,
     isEvm,
     isNativeSelected,
+    routeResult?.sponsorship,
     selectedToken?.address,
     spender,
     walletAddress,
@@ -168,6 +170,7 @@ export function useTransactionActionModel({
   const needsApproval =
     isEvm &&
     !isNativeSelected &&
+    !routeResult?.sponsorship && // sponsored routes use Permit2 + SA internal batch — no EOA bridge approval
     !!walletAddress &&
     !!spender &&
     amountWei > 0n &&
@@ -614,6 +617,7 @@ export function useTransactionActionModel({
     gasReservationWei,
     handleSwipeConfirm,
     isApproving,
+    isNativeSelected,
     isReadingAllowance,
     isSubmitting,
     isWalletConnected,

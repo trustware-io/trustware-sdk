@@ -18,6 +18,7 @@ export interface AmountFeeSummaryProps {
   isGasSponsored?: boolean;
   isLoadingRoute: boolean;
   parsedAmount: number;
+  relayFeeUsd?: number;
   selectedTokenDecimals?: number;
 }
 
@@ -46,6 +47,7 @@ export function AmountFeeSummary({
   isGasSponsored,
   isLoadingRoute,
   parsedAmount,
+  relayFeeUsd,
   selectedTokenDecimals,
 }: AmountFeeSummaryProps): React.ReactElement {
   return (
@@ -127,6 +129,18 @@ export function AmountFeeSummary({
               </span>
             )}
           </div>
+
+          {relayFeeUsd != null && relayFeeUsd > 0 && (
+            <>
+              <div style={feeSummaryDividerStyle} />
+              <div style={feeSummaryRowStyle}>
+                <span style={{ color: colors.mutedForeground }}>Bridge relay fee</span>
+                <span style={{ ...feeSummaryValueStyle, color: colors.mutedForeground }}>
+                  ~${relayFeeUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} reserved
+                </span>
+              </div>
+            </>
+          )}
 
           <div style={feeSummaryDividerStyle} />
 
