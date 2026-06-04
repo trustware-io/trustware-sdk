@@ -9,7 +9,10 @@ import {
   getEVMFeeData,
   getEVMTxStatus,
 } from "../../../../core/sdkRpc";
-import type { Token, YourTokenData } from "../../../context/DepositContext";
+import {
+  type Token,
+  type YourTokenData,
+} from "../../../context/DepositContext";
 import { useTransactionSubmit } from "../../../hooks";
 import {
   getNativeTokenAddress,
