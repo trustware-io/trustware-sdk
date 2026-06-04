@@ -10,6 +10,7 @@ import {
   encodePermitTransferFrom,
   encodeErc20Approve,
   encodeErc20Allowance,
+  encodeErc20BalanceOf,
   encodeWethWithdraw,
 } from "./permit2";
 import {
@@ -278,38 +279,57 @@ export async function sendRouteAsUserOperation(
     // Total Permit2 amount includes the bridge amount plus any tokens needed for the relay fee swap.
     const totalPermit2Amount = fromAmountWei + amountInMaximum;
 
-    // Ensure EOA has approved Permit2 to pull the full amount. One-time EOA transaction.
-    await ensurePermit2Allowance(eip1193Request, eoaAddress, token, totalPermit2Amount);
-
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800); // 30-minute window
-    const nonce = randomPermit2Nonce();
-
-    console.debug("[send] permit2 params", {
+    // Check the SA's existing token balance. Refunds from failed swaps/bridges land in the SA,
+    // so on a retry the SA may already hold some (or all) of what we need. Only pull the shortfall
+    // from the EOA — avoids a redundant EOA approval tx and prevents draining more than necessary.
+    const saTokenBalHex = (await eip1193Request({
+      method: "eth_call",
+      params: [{ to: token, data: encodeErc20BalanceOf(saAddress) }, "latest"],
+    })) as string;
+    const saTokenBalance = saTokenBalHex && saTokenBalHex !== "0x" ? BigInt(saTokenBalHex) : 0n;
+    const permitNeeded = totalPermit2Amount > saTokenBalance ? totalPermit2Amount - saTokenBalance : 0n;
+    console.debug("[send] SA token balance check", {
       token,
-      amount: totalPermit2Amount.toString(),
-      nonce: "0x" + nonce.toString(16),
-      deadline: "0x" + deadline.toString(16),
-      spender: saAddress,
-      owner: eoaAddress,
+      saTokenBalance: saTokenBalance.toString(),
+      totalPermit2Amount: totalPermit2Amount.toString(),
+      permitNeeded: permitNeeded.toString(),
     });
 
-    const sig = await signPermit2(eip1193Request, {
-      chainId,
-      token,
-      amount: totalPermit2Amount,
-      spender: saAddress,
-      nonce,
-      deadline,
-      owner: eoaAddress,
-    });
+    // Build batch: [permit2 pull if needed, relay fee swap (if needed), bridge approve, bridge call]
+    batch = [];
 
-    // Build batch: [permit2 pull, relay fee swap (if needed), bridge approve, bridge call]
-    batch = [
-      {
+    if (permitNeeded > 0n) {
+      await ensurePermit2Allowance(eip1193Request, eoaAddress, token, permitNeeded);
+
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800); // 30-minute window
+      const nonce = randomPermit2Nonce();
+
+      console.debug("[send] permit2 params", {
+        token,
+        amount: permitNeeded.toString(),
+        nonce: "0x" + nonce.toString(16),
+        deadline: "0x" + deadline.toString(16),
+        spender: saAddress,
+        owner: eoaAddress,
+      });
+
+      const sig = await signPermit2(eip1193Request, {
+        chainId,
+        token,
+        amount: permitNeeded,
+        spender: saAddress,
+        nonce,
+        deadline,
+        owner: eoaAddress,
+      });
+
+      batch.push({
         target: PERMIT2,
-        data: encodePermitTransferFrom(token, totalPermit2Amount, nonce, deadline, saAddress, eoaAddress, sig),
-      },
-    ];
+        data: encodePermitTransferFrom(token, permitNeeded, nonce, deadline, saAddress, eoaAddress, sig),
+      });
+    } else {
+      console.debug("[send] SA already holds sufficient token balance — skipping Permit2 pull");
+    }
 
     if (relayFeeStrategy === "weth-withdraw") {
       // from-token is WETH: withdraw exactly value wei to convert to ETH.
@@ -334,17 +354,15 @@ export async function sendRouteAsUserOperation(
     );
   }
 
-  // Bundler enforces a verificationGasLimit efficiency floor (actual/limit ≥ 0.4 on Base/Alchemy),
-  // so an absolute 1.5M floor is rejected with "efficiency too low". 2× multiplier puts efficiency
-  // at ~50%, safely above the floor while still giving the LightAccount factory deploy enough
-  // headroom for the AA13 OOG case. Pad callGasLimit + preVerificationGas modestly too — OOG can
-  // hit any of the three gas fields, not just verification.
-  // New accounts (no on-chain code yet) include factory/initCode in the UO, which drives up
-  // verificationGasLimit significantly — the bundler must simulate LightAccountFactory.createAccount
-  // in addition to the normal signature check. 3× gives the factory deploy + AA13 OOG headroom;
-  // 2× callGasLimit covers the additional state writes during first-time account initialization.
+  // Bundler enforces a verificationGasLimit efficiency floor: actual_preOpGas / limit ≥ 0.4.
+  // That means the multiplier must be ≤ 1/0.4 = 2.5×. We use 2× (efficiency ≈ 50%) for all
+  // accounts — this holds true regardless of whether the account is new (factory deploy adds
+  // gas, but Account Kit's estimator captures that; ratio stays the same). Using 3× violates
+  // the floor and is rejected with "-32602 efficiency too low" before simulation even runs.
+  // callGasLimit uses 2× for new accounts because first-time storage slot writes cost more;
+  // preVerificationGas gets a modest 20% pad for calldata variance.
   const baseOverrides = {
-    verificationGasLimit: { multiplier: isNewAccount ? 3 : 2 },
+    verificationGasLimit: { multiplier: 2 },
     callGasLimit: { multiplier: isNewAccount ? 2 : 1.5 },
     preVerificationGas: { multiplier: 1.2 },
   };
