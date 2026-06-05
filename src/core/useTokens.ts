@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { getSharedRegistry } from "./registryClient";
 import type { TokenDef } from "../types";
-import type { Token } from "../widget/context/DepositContext";
+// import type { Token } from "../widget/context/DepositContext";
+import { Token } from "../widget/state/deposit/types";
 import { useChains } from "./useChains";
 import { sortTokensByPopularity } from "../widget/helpers/tokenPopularity";
 import { TrustwareConfigStore } from "../config/store";

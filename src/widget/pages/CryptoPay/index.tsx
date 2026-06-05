@@ -86,8 +86,8 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
   }, [yourWalletTokens, yourWalletTokensLoading]);
 
   const showSkeleton = useMemo(() => {
-    return yourWalletTokensLoading || (yourWalletTokens ?? []).length === 0;
-  }, [yourWalletTokens, yourWalletTokensLoading]);
+    return yourWalletTokensLoading;
+  }, [yourWalletTokensLoading]);
 
   const isReady =
     !yourWalletTokensLoading &&

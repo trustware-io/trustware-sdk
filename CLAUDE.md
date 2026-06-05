@@ -26,10 +26,36 @@ Publishing is **tag-driven**. Branch pushes never publish — pushing a version 
 | `v1.2.3`           | `@trustware/sdk`         | `latest`  | `npm-production` |
 | `v1.2.3-staging.5` | `@trustware/sdk-staging` | `staging` | `npm-staging`    |
 
+### Automated release (recommended)
+
+Use the **Release** workflow (`.github/workflows/release.yml`) — GitHub Actions → Release → Run workflow → enter version (e.g. `1.1.8` or `1.1.8-staging.1`). It picks the branch from the version pattern, runs `npm version`, commits, pushes the branch, and pushes the tag. The tag push triggers `publish.yml`.
+
+It does **not** merge staging → main. For a production release: merge staging → main yourself, then run the workflow with the production version — `CHANGELOG.md` is regenerated automatically (see below).
+
+### Changelog automation
+
+`cliff.toml` configures [git-cliff](https://git-cliff.org) to generate Keep-a-Changelog entries from Conventional Commits. On production releases (`X.Y.Z`), the Release workflow runs git-cliff and commits the updated `CHANGELOG.md` alongside the version bump. Staging tags are skipped (`skip_tags` in `cliff.toml`), so their commits roll into the next production release section. `publish.yml` also creates a GitHub Release for every published tag with git-cliff-generated notes (staging releases marked as prereleases).
+
+Preview locally before cutting: `git-cliff --tag v1.2.3 --unreleased`.
+
+### Bumping the version
+
+**ALWAYS use `npm version` — never hand-edit `package.json`.** `npm version` updates both `package.json` and `package-lock.json` atomically. Hand-editing leaves `package-lock.json` stale, which makes `npm ci` (used in both CI and publish workflows) fail, and silently ships a lockfile whose top-level `version` lies about the release.
+
+```bash
+npm version 1.2.3 --no-git-tag-version          # production
+npm version 1.2.3-staging.5 --no-git-tag-version # staging
+```
+
+If you've already hand-edited `package.json`, recover with:
+```bash
+npm install --package-lock-only --ignore-scripts
+```
+
 ### Cutting a production release
 
 ```bash
-# Bump version in package.json (must match the tag exactly)
+# Bump version (updates package.json AND package-lock.json)
 npm version 1.2.3 --no-git-tag-version
 git commit -am "chore(release): v1.2.3"
 git push origin main
@@ -44,7 +70,11 @@ The publish workflow runs `publish-production`, verifies the tag matches `packag
 ### Cutting a staging release
 
 ```bash
-# From the staging branch
+# From the staging branch — bump first so package.json matches the tag
+npm version 1.2.3-staging.5 --no-git-tag-version
+git commit -am "chore(release): v1.2.3-staging.5"
+git push origin staging
+
 git tag v1.2.3-staging.5
 git push origin v1.2.3-staging.5
 ```

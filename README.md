@@ -1,4 +1,31 @@
+<div align="center">
+
+<pre>
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ▓▒░  T R U S T W A R E  ░▒▓   ◢ SDK ◣  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+      ◆ ── Ξ ── ◇ ── ⬢ ── ₿ ── ⬡ ── ✦
+        cross · chain · liquidity
+</pre>
+
 # Trustware SDK
+
+**Any chain. Any token. Any wallet. One drop-in widget for everyone.**
+
+[![npm version](https://img.shields.io/npm/v/@trustware/sdk?style=flat-square&color=0ea5e9&label=npm)](https://www.npmjs.com/package/@trustware/sdk)
+[![npm downloads](https://img.shields.io/npm/dm/@trustware/sdk?style=flat-square&color=0ea5e9)](https://www.npmjs.com/package/@trustware/sdk)
+[![license](https://img.shields.io/npm/l/@trustware/sdk?style=flat-square&color=64748b)](./LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/trustware-io/trustware-sdk/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/trustware-io/trustware-sdk/actions/workflows/ci.yml)
+[![React](https://img.shields.io/badge/React-18.2+%20%7C%2019-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+
+[📚 Docs](https://docs.trustware.io) · [🌐 Website](https://trustware.io) · [📦 npm](https://www.npmjs.com/package/@trustware/sdk) · [💬 Issues](https://github.com/trustware-io/trustware-sdk/issues)
+
+</div>
+
+---
+
+> 📚 **Full documentation is now at [docs.trustware.io](https://docs.trustware.io).** This README covers installation and a quick start — see the docs site for the complete API reference, integration guides, and examples.
 
 Trustware SDK gives you three integration styles on top of the same routing and wallet infrastructure:
 
