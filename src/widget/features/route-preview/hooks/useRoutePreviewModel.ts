@@ -38,7 +38,6 @@ export function useRoutePreviewModel({
   walletAddress,
 }: UseRoutePreviewModelArgs) {
   const { chains } = useChains();
-  console.log({ walletAddress });
   const destinationConfig = useMemo(
     () => ({
       dappName: config.messages?.title || "DApp",
@@ -73,7 +72,7 @@ export function useRoutePreviewModel({
       fromToken:
         selectedToken?.address ??
         getNativeTokenAddress(selectedChain?.type ?? selectedChain?.chainType),
-      fromAmountWei: amountWei ?? 0n,
+      fromAmountWei: amountWei,
       fromAmountUsd: amountUsd || undefined,
       fromAddress: walletAddress || undefined,
       refundAddress: walletAddress || undefined,

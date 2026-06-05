@@ -18,3 +18,4 @@ export {
 } from "../../hooks/useAmountConstraints";
 export { useDepositAmountModel } from "./hooks/useDepositAmountModel";
 export { useHomeAmountModel } from "./hooks/useHomeAmountModel";
+export type { AmountInputMode, AmountComputationLike } from "./types";

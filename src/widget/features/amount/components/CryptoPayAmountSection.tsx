@@ -18,13 +18,7 @@ import {
 import { AmountBalanceRow } from "./AmountBalanceRow";
 import { AmountConversionRow } from "./AmountConversionRow";
 import { AmountFeeSummary } from "./AmountFeeSummary";
-
-type AmountInputMode = "usd" | "token";
-
-type AmountComputationLike = {
-  tokenAmount?: number | string | null;
-  usdAmount?: number | string | null;
-};
+import type { AmountInputMode, AmountComputationLike } from "../types";
 
 export interface CryptoPayAmountSectionProps {
   amount: string;
