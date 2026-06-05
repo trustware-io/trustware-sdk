@@ -92,7 +92,7 @@ export function useRoutePreviewModel({
     walletAddress,
   ]);
 
-  const routeBuilderState = useRouteBuilder(routeConfig);
+  const routeBuilderState = useRouteBuilder({ ...routeConfig, enabled: !!isReady });
 
   const routePrerequisiteError = useMemo(() => {
     if (!isReady) return;

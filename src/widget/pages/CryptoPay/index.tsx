@@ -87,11 +87,10 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
   }, [yourWalletTokens, yourWalletTokensLoading]);
 
   const showSkeleton = useMemo(() => {
-    return yourWalletTokensLoading || (yourWalletTokens ?? []).length === 0;
-  }, [yourWalletTokens, yourWalletTokensLoading]);
+    return (yourWalletTokens ?? []).length === 0;
+  }, [yourWalletTokens]);
 
   const isReady =
-    !yourWalletTokensLoading &&
     selectedToken != null &&
     (selectedToken as YourTokenData)?.chainData !== undefined &&
     !showDefaultCryptoPay &&

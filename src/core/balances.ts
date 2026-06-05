@@ -229,9 +229,10 @@ async function parseStreamingBalances(
           if (!trimmed) continue;
 
           try {
-            const chunk = normalizeStreamChunk(
-              JSON.parse(trimmed) as RawBalanceChunk
-            );
+            const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+            // Skip non-balance frames (e.g. the final "summary" event from the backend)
+            if (!parsed.chain_id) continue;
+            const chunk = normalizeStreamChunk(parsed as RawBalanceChunk);
             emitBalanceStreamChunk(address, chunk.length);
             yield chunk;
           } catch (error) {
@@ -244,9 +245,18 @@ async function parseStreamingBalances(
 
       const tail = buffer.trim();
       if (tail) {
-        const chunk = normalizeStreamChunk(JSON.parse(tail) as RawBalanceChunk);
-        emitBalanceStreamChunk(address, chunk.length);
-        yield chunk;
+        try {
+          const parsed = JSON.parse(tail) as Record<string, unknown>;
+          if (parsed.chain_id) {
+            const chunk = normalizeStreamChunk(parsed as RawBalanceChunk);
+            emitBalanceStreamChunk(address, chunk.length);
+            yield chunk;
+          }
+        } catch (error) {
+          if (options.strict) {
+            throw error;
+          }
+        }
       }
     } finally {
       reader.releaseLock();
