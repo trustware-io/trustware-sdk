@@ -241,12 +241,20 @@ export async function sendRouteAsUserOperation(
         console.debug("[send] relay fee via WETH withdraw", { amountInMaximum: value.toString() });
       } else if (weth && swapRouter) {
         // Swap a slice of the from-token → WETH → ETH inside the UserOp.
-        // Prefer caller-supplied decimals (most accurate). Fall back to route step
-        // metadata, then to 18 only for WETH which always has 18 decimals.
+        // Prefer caller-supplied decimals (most accurate), then fall back to route metadata.
         const fromDecimals: number =
           callerFromDecimals ??
           (route.route?.steps?.[0] as { action?: { fromToken?: { decimals?: number } } } | undefined)
-            ?.action?.fromToken?.decimals ?? 18
+            ?.action?.fromToken?.decimals ??
+          (() => {
+            throw Object.assign(
+              new Error(
+                `Cannot estimate relay fee: token decimals unavailable for ${token}. ` +
+                  "Provide fromDecimals in the route params."
+              ),
+              { code: "MISSING_TOKEN_DECIMALS", tokenAddress: token }
+            );
+          })()
         amountInMaximum = await estimateRelayFeeInToken(
           value,
           fromAmountWei,

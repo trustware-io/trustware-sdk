@@ -105,9 +105,7 @@ export async function estimateRelayFeeInToken(
   const fromUSD = parseFloat(fromAmountUSD ?? "")
   if (isFinite(fromUSD) && fromUSD > 0) {
     tokenUnitsPerDollar = Number(fromAmountWei) / fromUSD
-    console.debug("[uniswap] relay fee: using fromAmountUSD from route", { fromAmountUSD, fromAmountWei: fromAmountWei.toString() })
   } else if (fromToken && fromDecimals !== undefined) {
-    console.debug("[uniswap] relay fee: fromAmountUSD missing, fetching token price", { fromToken, fromDecimals, chainId: cid })
     try {
       const resp = await fetch(
         `${apiBase()}/v1/price/token?chainId=${cid}&address=${fromToken}`,
@@ -119,13 +117,10 @@ export async function estimateRelayFeeInToken(
       if (tokenPriceUSD <= 0) throw new Error("zero token price")
       // CoinGecko returns price per full token, so scale by decimals.
       tokenUnitsPerDollar = Math.pow(10, fromDecimals) / tokenPriceUSD
-      console.debug("[uniswap] relay fee: token price fetched", { tokenPriceUSD, tokenUnitsPerDollar })
-    } catch (e) {
-      console.warn("[uniswap] relay fee: token price fetch failed", e)
+    } catch {
       return 0n
     }
   } else {
-    console.warn("[uniswap] relay fee: no price source available", { fromAmountUSD, fromToken, fromDecimals })
     return 0n
   }
 
@@ -142,15 +137,8 @@ export async function estimateRelayFeeInToken(
     const relayFeeUSD = (Number(valueWei) / 1e18) * ethPriceUSD
     const amountIn = Math.ceil(relayFeeUSD * tokenUnitsPerDollar * 1.25)
 
-    console.debug("[uniswap] relay fee estimate", {
-      ethPriceUSD,
-      relayFeeUSD,
-      tokenUnitsPerDollar,
-      amountInMaximum: amountIn.toString(),
-    })
     return BigInt(amountIn)
-  } catch (e) {
-    console.warn("[uniswap] relay fee estimate failed", e)
+  } catch {
     return 0n
   }
 }

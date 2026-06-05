@@ -49,11 +49,8 @@ export async function sendRouteTransaction(
     if (b.sponsorship) {
       if (keccak256(data) === b.sponsorship.callDataHash) {
         validatedSponsorship = b.sponsorship;
-      } else {
-        console.warn(
-          "Trustware: sponsorship calldata hash mismatch — sending without paymaster"
-        );
       }
+      // Mismatch: validatedSponsorship stays undefined; tx proceeds without paymaster.
     }
 
     if (Number.isFinite(target)) {

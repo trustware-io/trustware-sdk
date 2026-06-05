@@ -8,6 +8,25 @@ import {
 import { createWalletClient, custom, keccak256, stringToHex, type Chain } from "viem"
 import { apiBase, jsonHeaders } from "../core/http"
 
+const FETCH_TIMEOUT_MS = 30_000
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw Object.assign(new Error(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s: ${url}`), {
+        code: "FETCH_TIMEOUT",
+      })
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 // Map 4-byte selector → human-readable name for ClientPaymasterUpgradeable custom errors.
 // These are thrown inside FailedOpWithRevert.inner which Account Kit cannot decode on its own.
 const _sel = (sig: string) => keccak256(stringToHex(sig)).slice(0, 10).toLowerCase()
@@ -106,7 +125,7 @@ export async function createTrustwareSmartAccountClient(
         }
       }
 
-      const resp = await fetch(`${apiBase()}/v1/bundler/send-user-operation`, {
+      const resp = await fetchWithTimeout(`${apiBase()}/v1/bundler/send-user-operation`, {
         method: "POST",
         headers: jsonHeaders(),
         body: JSON.stringify({
@@ -122,15 +141,6 @@ export async function createTrustwareSmartAccountClient(
         const rawErr = j.error as { code?: number; message?: string; data?: unknown }
         const revertHex = extractRevertHex(rawErr)
         const decoded = revertHex ? decodePaymasterRevert(revertHex) : undefined
-
-        console.error("[bundler] rpc error", {
-          method,
-          code: rawErr.code,
-          message: rawErr.message,
-          data: rawErr.data,
-          revertHex,
-          decoded,
-        })
 
         const msg = decoded
           ? `Paymaster validation failed: ${decoded}`
@@ -190,7 +200,7 @@ export async function createTrustwareSmartAccountClient(
     // paymaster contract to revert with MaxCostExceeded, which bypasses the fee retry loop.
     const maxCostWei = totalGas * BigInt(uo.maxFeePerGas ?? "0x0") * 2n
 
-    const resp = await fetch(`${apiBase()}/v1/paymaster/sponsor-calldata`, {
+    const resp = await fetchWithTimeout(`${apiBase()}/v1/paymaster/sponsor-calldata`, {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({
@@ -216,6 +226,16 @@ export async function createTrustwareSmartAccountClient(
     if (j.data.requestId) lastSponsorshipRequestId = j.data.requestId
     const blob = (j.data.paymasterAndData ?? "").replace(/^0x/, "")
 
+    // 596 bytes minimum: 20 (paymaster) + 16 (verifGasLimit) + 16 (postOpGasLimit) + 544 (paymasterData)
+    if (blob.length < 1192 || !/^[0-9a-fA-F]+$/.test(blob)) {
+      throw Object.assign(
+        new Error(
+          `Invalid paymasterAndData from backend: expected ≥ 1192 hex chars, got ${blob.length}`
+        ),
+        { code: "PAYMASTER_RESPONSE_INVALID" }
+      )
+    }
+
     // Split the 596-byte backend blob into EP v0.7 separate paymaster fields:
     //   [0:40]   paymaster address (20 bytes)
     //   [40:72]  paymasterVerificationGasLimit (16 bytes)
@@ -227,14 +247,6 @@ export async function createTrustwareSmartAccountClient(
       paymasterPostOpGasLimit: `0x${blob.slice(72, 104)}`,
       paymasterData: `0x${blob.slice(104)}`,
     }
-    console.debug(
-      "[TW] paymasterAndData split",
-      `blob=${blob.length}hex=${blob.length/2}bytes`,
-      `paymaster=${splitFields.paymaster}`,
-      `verifGasLimit=${splitFields.paymasterVerificationGasLimit}`,
-      `postOpGasLimit=${splitFields.paymasterPostOpGasLimit}`,
-      `paymasterData=${blob.length > 104 ? (blob.length - 104) / 2 : 0}bytes`,
-    )
     return {
       ...struct,
       ...splitFields,

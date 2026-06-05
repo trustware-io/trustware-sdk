@@ -138,21 +138,10 @@ export async function signPermit2(
     },
   }
 
-  console.debug("[permit2] signing", {
-    owner: params.owner,
-    spender: params.spender,
-    token: params.token,
-    amount: amountBig.toString(),
-    nonce: nonceBig.toString(),
-    deadline: deadlineBig.toString(),
-    chainId: params.chainId,
-  })
-
   const sig = await eip1193Request({
     method: "eth_signTypedData_v4",
     params: [params.owner, JSON.stringify(typedData)],
   })
-  console.debug("[permit2] sig", sig)
 
   // Sanity-check: manually compute the EIP-712 digest that Permit2 uses on-chain.
   // This is non-fatal — if recovery mismatches, we log all intermediates for debugging
@@ -189,24 +178,6 @@ export async function signPermit2(
     const recovered = await recoverAddress({ hash: digest, signature: sig as `0x${string}` })
     const valid = recovered.toLowerCase() === params.owner.toLowerCase()
 
-    console.debug("[permit2] recovery intermediates", {
-      TOKEN_PERMISSIONS_TYPEHASH,
-      PERMIT_TYPEHASH,
-      DOMAIN_TYPEHASH,
-      nameHash,
-      domainSeparator,
-      tokenHash,
-      structHash,
-      digest,
-      recovered,
-      owner: params.owner,
-      valid,
-      // normalised inputs used for signing:
-      amount: amountBig.toString(),
-      nonce: nonceBig.toString(),
-      deadline: deadlineBig.toString(),
-    })
-
     if (!valid) {
       throw Object.assign(
         new Error(
@@ -219,7 +190,7 @@ export async function signPermit2(
     }
   } catch (e) {
     if ((e as { code?: string }).code === "PERMIT2_WRONG_SIGNER") throw e
-    console.warn("[permit2] recovery check failed (non-fatal):", e)
+    // Non-fatal: recovery check failure doesn't block the bundler submission.
   }
 
   return sig as `0x${string}`
