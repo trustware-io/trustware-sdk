@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   BalanceRow,
@@ -18,6 +18,7 @@ import {
 } from "../../helpers/chainHelpers";
 
 import type { Token, YourTokenData } from "./types";
+import { useWalletInfo } from "src/wallets";
 
 type WalletTokenStateArgs = {
   walletAddress: string | null;
@@ -53,6 +54,15 @@ export function useWalletTokenState({
   const setSelectedTokenRef = useRef(setSelectedToken);
   setSelectedTokenRef.current = setSelectedToken;
 
+  const { address: fallbackAddress } = useWalletInfo();
+
+  const getCurrentWalletAddress = useCallback(
+    (address: string): string | null => {
+      return address ?? fallbackAddress ?? null;
+    },
+    [fallbackAddress]
+  );
+
   useEffect(() => {
     if (!walletAddress || chains.length === 0 || tokens.length === 0) {
       setYourWalletTokens([]);
@@ -71,24 +81,28 @@ export function useWalletTokenState({
 
     let cancelled = false;
 
-    async function loadWalletTokens() {
+    async function loadWalletTokens(isRetry = false): Promise<boolean> {
       try {
         setYourWalletTokensLoading(true);
+
         if (TrustwareConfigStore.get().features.balanceStreaming) {
           let accumulatedBalances: Awaited<
             ReturnType<typeof getBalancesByAddress>
           > = [];
+          let isupdated = false;
           for await (const chunk of getBalancesByAddressStream(
-            currentWalletAddress
+            // currentWalletAddress
+            getCurrentWalletAddress(currentWalletAddress) ?? ""
           )) {
             if (cancelled) {
-              return;
+              return false;
             }
             accumulatedBalances = mergeWalletBalanceChunks(
               accumulatedBalances,
               chunk
             );
-            applyWalletTokenState({
+
+            const updatedTokens = applyWalletTokenState({
               balances: accumulatedBalances,
               chains,
               selectedChain: selectedChainRef.current,
@@ -98,13 +112,17 @@ export function useWalletTokenState({
               setYourWalletTokens,
               tokens,
             });
+            isupdated = updatedTokens.length > 0;
           }
+
+          return isupdated;
         } else {
           const balances = await getBalancesByAddress(currentWalletAddress);
+          let isupdated = false;
           if (cancelled) {
-            return;
+            return false;
           }
-          applyWalletTokenState({
+          const updatedTokens = applyWalletTokenState({
             balances,
             chains,
             selectedChain: selectedChainRef.current,
@@ -114,27 +132,42 @@ export function useWalletTokenState({
             setYourWalletTokens,
             tokens,
           });
-        }
+          isupdated = updatedTokens.length > 0;
 
-        lastLoadedWalletRef.current = loadKey;
+          return isupdated;
+        }
       } catch {
         if (!cancelled) {
           setYourWalletTokens([]);
         }
+        return false;
       } finally {
-        if (!cancelled) {
+        if (!cancelled && isRetry) {
           setYourWalletTokensLoading(false);
         }
       }
     }
 
-    void loadWalletTokens();
+    async function loadWithRetry() {
+      const hadBalances = await loadWalletTokens();
+
+      if (!hadBalances && !cancelled) {
+        console.log("Wallet tokens came back empty, retrying once...");
+        await loadWalletTokens(true);
+      }
+
+      if (!cancelled) {
+        setYourWalletTokensLoading(false);
+        lastLoadedWalletRef.current = loadKey;
+      }
+    }
+
+    void loadWithRetry();
 
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chains, tokens, walletAddress, walletTokensReloadNonce]);
+  }, [chains, tokens, walletAddress, walletTokensReloadNonce, getCurrentWalletAddress]);
 
   const reloadWalletTokens = () => {
     setWalletTokensReloadNonce((prev) => prev + 1);
@@ -172,6 +205,7 @@ function applyWalletTokenState({
   const sortedTokens = updatedTokens.sort(
     (a, b) => Number(b.balance) - Number(a.balance)
   );
+
   setYourWalletTokens(sortedTokens);
 
   const selectedTokenStillExists =
@@ -206,6 +240,8 @@ function applyWalletTokenState({
         : null
     );
   }
+
+  return updatedTokens;
 }
 
 function mergeWalletBalanceChunks(

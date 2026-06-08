@@ -5,120 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [1.1.7] - 2026-05-20
 
-### Breaking Changes
+### Fixed
 
-- **Widget Rewrite**: The `TrustwareWidget` component has been completely rewritten with a new architecture:
-  - New modern UI design with Tailwind CSS and shadcn-ui styling
-  - Swipe-to-confirm interaction for transaction approval
-  - Improved accessibility with keyboard navigation and long-press alternatives
-  - Dark/light mode toggle with system preference support
-  - Animated page transitions
+- Solana wallets not listing in the wallet selector (#72).
 
-- **Props Changes**:
-  - Removed: Internal state props (widget now manages its own state)
-  - Added: `theme` prop accepts `'light' | 'dark' | 'system'`
-  - Added: `defaultOpen` prop to control initial visibility (defaults to `true`)
-  - Added: `showThemeToggle` prop to show/hide theme toggle button (defaults to `true`)
-  - Added: `onClose` and `onOpen` callback props
-  - Added: `initialStep` prop for starting at a specific navigation state
+## [1.1.6] - 2026-05-19
 
-- **Ref API**: The widget now exposes a ref with programmatic control methods:
-  ```tsx
-  interface TrustwareWidgetRef {
-    open: () => void;
-    close: () => void;
-    isOpen: () => boolean;
-  }
-  ```
-
-- **CSS Import Required**: The new widget requires importing its styles:
-  ```tsx
-  import '@trustware/sdk/styles.css';
-  ```
+Released to production as `@trustware/sdk@1.1.6` (`v1.1.6`). Earlier staging
+iterations: `1.1.6-staging.1`, `1.1.6-staging.2`, `1.1.6-staging.3`.
 
 ### Added
 
-- **New Types**:
-  - `TrustwareWidgetProps` - Props for the TrustwareWidget component
-  - `TrustwareWidgetRef` - Ref methods for programmatic control
-  - `TrustwareWidgetV2`, `TrustwareWidgetV2Props`, `TrustwareWidgetV2Ref` - Explicit v2 exports
+- Warn the user when funds would be sent to a wrong/unintended address (#69).
 
-### Removed
+### Changed
 
-- Old widget implementation files:
-  - `amountInput.tsx`
-  - `confirmPayment.tsx`
-  - `paymentFailure.tsx`
-  - `paymentStatus.tsx`
-  - `paymentSuccuess.tsx`
-  - `provider.tsx`
-  - `tokenChainSelection.tsx`
-  - `walletSelection.tsx`
-  - `welcome.tsx`
+- Block sending the same token to self — a no-op transfer is no longer offered (#68).
+- Disconnect the previously connected wallet when the user switches wallets.
+- `features.tokensPagination` now defaults to `true`. Consumers that
+  explicitly set `features.tokensPagination: false` are unaffected.
 
-### Migration Guide
+### Fixed
 
-#### Basic Usage
+- Gate the allowance probe on token↔chain consistency so it no longer fires
+  with a mismatched token/chain pair (#70).
+- `ImageLoader`: clear `srcIsEmpty` when `src` transitions empty → non-empty,
+  so the fallback no longer renders alongside the successfully-loaded image (#71).
+- Chain support corrections.
+- TrustWallet connection fix.
 
-Before:
-```tsx
-import { TrustwareWidget } from '@trustware/sdk';
+### Internal
 
-<TrustwareWidget />
-```
+- Removed dead `getEvmAccount` / `toHexChainId` helpers and a stale
+  `eslint-disable`; console-log cleanup. No runtime behavior change.
 
-After:
-```tsx
-import { TrustwareWidget } from '@trustware/sdk';
-import '@trustware/sdk/styles.css';
+## [1.1.5] - 2026-05-09
 
-<TrustwareWidget theme="dark" />
-```
+### Changed
 
-#### Programmatic Control
+- Wired WalletConnect into the wallet manager so connection state is shared.
+- Refactored wallet modules to barrel imports.
 
-The new widget supports programmatic open/close control via refs:
+### Fixed
 
-```tsx
-import { TrustwareWidget, TrustwareWidgetRef } from '@trustware/sdk';
-import '@trustware/sdk/styles.css';
-import { useRef } from 'react';
+- Corrected the "Enter an amount" copy on the Home screen.
 
-function App() {
-  const widgetRef = useRef<TrustwareWidgetRef>(null);
+## [1.1.4] - 2026-05-07
 
-  return (
-    <>
-      <button onClick={() => widgetRef.current?.open()}>
-        Open Deposit Widget
-      </button>
-      <TrustwareWidget
-        ref={widgetRef}
-        defaultOpen={false}
-        onClose={() => console.log('Widget closed')}
-        onOpen={() => console.log('Widget opened')}
-      />
-    </>
-  );
-}
-```
+### Added
 
-#### Theme Configuration
+- Change destination chain and token at runtime.
+- GTM / GA4 analytics wiring with per-environment GTM ID.
 
-The new widget supports light/dark/system themes:
+### Changed
 
-```tsx
-// Follow system preference (default)
-<TrustwareWidget theme="system" />
+- Release flow is now tag-driven (pushing a version tag publishes; branch
+  pushes never publish). CI must pass before a tag is cut.
+- CI and publish workflows bumped to Node 24 and actions v5.
 
-// Force dark mode
-<TrustwareWidget theme="dark" />
+### Fixed
 
-// Force light mode
-<TrustwareWidget theme="light" />
+- Source the WalletConnect project ID from the environment instead of a
+  hardcoded value.
+- Fall back to `"unknown"` in the `payment_completed` analytics payload
+  instead of dropping the event.
 
-// Hide the theme toggle button
-<TrustwareWidget theme="dark" showThemeToggle={false} />
-```
+### Security
+
+- `npm audit fix` cleared all outstanding Dependabot alerts.
+
+## [1.1.1] - 2026-03-24
+
+Baseline release. `1.1.2` was a release-pipeline-only publish (npm trusted
+publishing, provenance, CI gating) with no SDK changes; `1.1.3` was never
+released to production (staging prereleases only). The next production
+release after `1.1.1` was `1.1.4`.

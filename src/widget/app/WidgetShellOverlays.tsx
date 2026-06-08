@@ -43,6 +43,7 @@ interface InitErrorOverlayProps {
   isDark: boolean;
   isRefreshing: boolean;
   onRefresh: () => void;
+  errorMessage?: string;
 }
 
 export function InitErrorOverlay({
@@ -50,8 +51,11 @@ export function InitErrorOverlay({
   isDark,
   isRefreshing,
   onRefresh,
+  errorMessage,
 }: InitErrorOverlayProps): React.ReactElement | null {
   if (!open) return null;
+
+  const isAddressError = errorMessage?.toLowerCase().includes("address");
 
   return (
     <div
@@ -92,9 +96,11 @@ export function InitErrorOverlay({
             color: colors.cardForeground,
           }}
         >
-          API key validation failed
+          {isAddressError
+            ? "Invalid address configuration"
+            : "API key validation failed"}
         </h2>
-        <p
+        {/* <p
           id="init-error-description"
           style={{
             marginTop: spacing[2],
@@ -102,8 +108,31 @@ export function InitErrorOverlay({
             color: colors.mutedForeground,
           }}
         >
-          We could not validate your Trustware API key. Please refresh to retry.
-        </p>
+          
+          {errorMessage ??
+            "We could not validate your Trustware API key. Please refresh to retry."}
+        </p> */}
+        {/* Red error detail box for address errors */}
+        {errorMessage && (
+          <div
+            style={{
+              marginTop: spacing[3],
+              padding: `${spacing[2.5]} ${spacing[3]}`,
+              borderRadius: borderRadius.md,
+              backgroundColor: isDark
+                ? "rgba(220, 38, 38, 0.15)"
+                : "rgba(254, 242, 242, 1)",
+              border: `1px solid ${isDark ? "rgba(220, 38, 38, 0.4)" : "rgba(252, 165, 165, 1)"}`,
+              fontSize: fontSize.xs,
+              color: isDark ? "#fca5a5" : "#b91c1c",
+              fontFamily: "monospace",
+              wordBreak: "break-all",
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
         <button
           onClick={onRefresh}
           disabled={isRefreshing}

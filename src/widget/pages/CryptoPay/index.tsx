@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo } from "react";
-import { computeRelayFeeUsd, computeAdjustedSliderMax } from "src/widget/utils/relayFeeUtils";
+import {
+  computeRelayFeeUsd,
+  computeAdjustedSliderMax,
+} from "src/widget/utils/relayFeeUtils";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
@@ -216,7 +219,11 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     [isNativeSelected, routeResult]
   );
 
-  const adjustedSliderMax = computeAdjustedSliderMax(effectiveSliderMax, relayFeeUsd, tokenPriceUSD);
+  const adjustedSliderMax = computeAdjustedSliderMax(
+    effectiveSliderMax,
+    relayFeeUsd,
+    tokenPriceUSD
+  );
 
   /**
    * Handle expand click to navigate to token selection
@@ -339,7 +346,10 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                 selectedChain={selectedChain}
                 selectedToken={readySelectedToken}
                 setAmountInputMode={setAmountInputMode}
-                showFeeSummary={SHOW_FEE_SUMMARY || (!!routeResult?.sponsorship && !isNativeSelected)}
+                showFeeSummary={
+                  SHOW_FEE_SUMMARY ||
+                  (!!routeResult?.sponsorship && !isNativeSelected)
+                }
                 tokenPriceUSD={tokenPriceUSD}
                 walletAddress={walletAddress}
                 yourWalletTokensLength={yourWalletTokens.length}

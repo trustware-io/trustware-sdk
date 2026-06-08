@@ -9,13 +9,17 @@ import {
   getEVMFeeData,
   getEVMTxStatus,
 } from "../../../../core/sdkRpc";
-import type { Token, YourTokenData } from "../../../context/DepositContext";
+import {
+  type Token,
+  type YourTokenData,
+} from "../../../context/DepositContext";
 import { useTransactionSubmit } from "../../../hooks";
 import {
   getNativeTokenAddress,
   isNativeTokenAddress,
   isZeroAddrLike,
   normalizeAddress,
+  normalizeChainKey,
 } from "../../../helpers/chainHelpers";
 import { divRoundDown } from "../../../../utils";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
@@ -100,6 +104,31 @@ export function useTransactionActionModel({
     selectedChain?.networkIdentifier,
   ]);
 
+  // selectedToken lives on selectedChain, but the allowance/approval probe
+  // targets backendChainId (which prefers routeResult.txReq.chainId — the
+  // route's tx-execution chain). For any cross-chain route, or a
+  // destination-token selection, or a stale window right after a chain
+  // switch, those diverge and we'd query allowance for a token address on
+  // a chain it isn't deployed on (empty eth_call → backend 502/404). Only
+  // probe when the token's chain actually matches backendChainId.
+  const selectedTokenOnBackendChain = useMemo(() => {
+    if (!backendChainId) return false;
+    const target = normalizeChainKey(backendChainId);
+    return [
+      selectedChain?.chainId,
+      selectedChain?.id,
+      selectedChain?.networkIdentifier,
+    ].some((c) => {
+      const k = normalizeChainKey(c ?? null);
+      return k !== "" && k === target;
+    });
+  }, [
+    backendChainId,
+    selectedChain?.chainId,
+    selectedChain?.id,
+    selectedChain?.networkIdentifier,
+  ]);
+
   const isNativeSelected = useMemo(() => {
     const address = selectedToken?.address;
 
@@ -131,6 +160,7 @@ export function useTransactionActionModel({
       isNativeSelected ||
       !!routeResult?.sponsorship || // sponsored routes: SA approves bridge inside the UO batch
       !backendChainId ||
+      !selectedTokenOnBackendChain ||
       !walletAddress ||
       !spender ||
       !selectedToken?.address
@@ -158,6 +188,7 @@ export function useTransactionActionModel({
     isEvm,
     isNativeSelected,
     routeResult?.sponsorship,
+    selectedTokenOnBackendChain,
     selectedToken?.address,
     spender,
     walletAddress,
@@ -483,7 +514,8 @@ export function useTransactionActionModel({
             route: r,
             fromToken: (selectedToken?.address ?? "") as string,
             fromAmountWei: amountWei,
-            fromDecimals: (selectedToken as { decimals?: number } | null)?.decimals,
+            fromDecimals: (selectedToken as { decimals?: number } | null)
+              ?.decimals,
             eoaAddress: walletAddress as `0x${string}`,
             chainId: numericChainId,
             // Minimal viem Chain: RPC calls go through our backend bundler proxy,
@@ -495,7 +527,11 @@ export function useTransactionActionModel({
                 selectedChain?.axelarChainName ??
                 String(numericChainId),
               nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-              rpcUrls: { default: { http: [] as unknown as readonly [string, ...string[]] } },
+              rpcUrls: {
+                default: {
+                  http: [] as unknown as readonly [string, ...string[]],
+                },
+              },
             },
             eip1193Request: (args) => wallet.request(args),
           });
@@ -545,6 +581,7 @@ export function useTransactionActionModel({
       // but allowanceWei is stale in this closure. Re-read directly.
       if (
         !backendChainId ||
+        !selectedTokenOnBackendChain ||
         !selectedToken?.address ||
         !walletAddress ||
         !spender
@@ -574,6 +611,7 @@ export function useTransactionActionModel({
     handleApproveExact,
     handleConfirm,
     needsApproval,
+    selectedTokenOnBackendChain,
     selectedToken?.address,
     spender,
     walletAddress,

@@ -1,4 +1,3 @@
-import React from "react";
 import { colors, spacing, fontSize, fontWeight } from "../styles";
 import {
   useDepositForm,
@@ -17,14 +16,13 @@ import { useWalletDetection } from "../../wallets";
 import { HomePaymentOptions, useHomeWalletActions } from "../features/wallet";
 
 export interface HomeProps {
-  /** Additional inline styles */
   style?: React.CSSProperties;
 }
 
-/**
- * Home page for the deposit widget.
- * Displays a large amount input and dropdown buttons for payment method selection.
- */
+export interface HomeProps {
+  style?: React.CSSProperties;
+}
+
 export function Home({ style: _style }: HomeProps): React.ReactElement {
   const { amount, setAmount, amountInputMode, setAmountInputMode } =
     useDepositForm();
@@ -66,6 +64,8 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     setWalletType,
   });
 
+  const isDarkTheme = resolvedTheme === "dark";
+
   return (
     <div
       style={{
@@ -82,6 +82,8 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
           justifyContent: "center",
           padding: `${spacing[4]} ${spacing[4]}`,
           borderBottom: `1px solid ${colors.border}`,
+          position: "relative",
+          zIndex: 10,
         }}
       >
         <h1
@@ -173,7 +175,7 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
           handleWalletSelect={handleWalletSelect}
           isCryptoDropdownOpen={isCryptoDropdownOpen}
           isFiatDropdownOpen={isFiatDropdownOpen}
-          isDarkTheme={resolvedTheme === "dark"}
+          isDarkTheme={isDarkTheme}
           setIsCryptoDropdownOpen={setIsCryptoDropdownOpen}
           setIsFiatDropdownOpen={setIsFiatDropdownOpen}
         />

@@ -38,6 +38,7 @@ export function useRoutePreviewModel({
   walletAddress,
 }: UseRoutePreviewModelArgs) {
   const { chains } = useChains();
+
   const destinationConfig = useMemo(
     () => ({
       dappName: config.messages?.title || "DApp",
@@ -92,7 +93,10 @@ export function useRoutePreviewModel({
     walletAddress,
   ]);
 
-  const routeBuilderState = useRouteBuilder({ ...routeConfig, enabled: !!isReady });
+  const routeBuilderState = useRouteBuilder({
+    ...routeConfig,
+    enabled: !!isReady,
+  });
 
   const routePrerequisiteError = useMemo(() => {
     if (!isReady) return;
@@ -108,6 +112,15 @@ export function useRoutePreviewModel({
     if (!routeConfig.toAddress) {
       return "Destination address missing. Please check widget configuration.";
     }
+
+    if (
+      routeConfig.toToken.toString().toLowerCase() ==
+        routeConfig.fromToken.toString().toLowerCase() &&
+      Number(routeConfig.toChainId) == Number(routeConfig.fromChainId)
+    ) {
+      return "No self-transfer on same chain.";
+    }
+
     if (amountValidationError || amountWei <= 0n) {
       return amountValidationError;
     }

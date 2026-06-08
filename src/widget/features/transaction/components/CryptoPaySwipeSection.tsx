@@ -1,5 +1,3 @@
-import React from "react";
-
 import { SwipeToConfirmTokens } from "./SwipeToConfirmTokens";
 import type { YourTokenData } from "../../../context/DepositContext";
 import { spacing } from "../../../styles";
@@ -38,7 +36,7 @@ export function CryptoPaySwipeSection({
   swipeResetKey,
 }: CryptoPaySwipeSectionProps): React.ReactElement {
   const swipeText = actionErrorMessage
-    ? actionErrorMessage
+    ? refineErrorMessage(actionErrorMessage)
     : !isWalletConnected
       ? "Connect your wallet to deposit"
       : isLoadingRoute
@@ -50,6 +48,13 @@ export function CryptoPaySwipeSection({
             : needsApproval
               ? "Swipe to approve"
               : "Swipe to confirm";
+
+  function refineErrorMessage(message: string) {
+    return ["squid", "api", "body"].includes(message.toLowerCase())
+      ? "route not avaliable"
+      : message;
+  }
+
   return (
     <div
       style={{
