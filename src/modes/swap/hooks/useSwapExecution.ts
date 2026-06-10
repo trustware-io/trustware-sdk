@@ -15,6 +15,8 @@ import type { SwapTxStatus } from "../types";
 const FAST_POLL_MS = 1500;
 const SLOW_POLL_MS = 2500;
 const TIMEOUT_MS = 5 * 60 * 1000;
+// How long to avoid the SA path after a transient failure before retrying.
+const SA_COOLDOWN_MS = 30_000;
 
 // The API returns snake_case but Transaction type is camelCase — normalize both forms.
 function normalizeTx(raw: Transaction): Transaction {
@@ -87,9 +89,9 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     allowanceStatus: "unknown",
   });
 
-  // Tracks whether the SA path failed non-rejection this session.
-  // When true the next execute() call skips directly to EOA.
-  const [smartAccountFailed, setSmartAccountFailed] = useState(false);
+  // Wall-clock time after which the SA path is available again.
+  // 0 = always available. Set to Date.now() + SA_COOLDOWN_MS on transient failure.
+  const saFailedUntilRef = useRef(0);
 
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -261,7 +263,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       // same viemChain minimal shape, same fallback-on-non-rejection pattern.
       const canUseSA =
         !!routeResult.sponsorship &&
-        !smartAccountFailed &&
+        Date.now() >= saFailedUntilRef.current &&
         wallet?.ecosystem === "evm" &&
         wallet.type === "eip1193" &&
         !isNative &&
@@ -331,8 +333,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             onError(msg);
             return;
           }
-          // Non-rejection SA failure: mark failed, fall through to EOA immediately
-          setSmartAccountFailed(true);
+          // Non-rejection SA failure: cool down SA path, fall through to EOA immediately
+          saFailedUntilRef.current = Date.now() + SA_COOLDOWN_MS;
           setState((p) => ({ ...p, txStatus: "confirming" }));
         }
       }
@@ -364,6 +366,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
             if (!wallet || wallet.ecosystem !== "evm") {
               throw new Error("EVM wallet required for token approval");
+            }
+
+            if (!chainIdStr || chainIdStr === "0") {
+              throw new Error("Invalid chain ID for token approval");
             }
 
             // Switch to correct chain first
@@ -417,9 +423,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               approvalHash = response.hash as `0x${string}`;
             }
 
-            if (chainIdStr) {
-              await waitForApprovalConfirmation(chainIdStr, approvalHash);
-            }
+            await waitForApprovalConfirmation(chainIdStr, approvalHash);
 
             setState((p) => ({
               ...p,
@@ -460,12 +464,16 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         onError(msg);
       }
     },
-    [fromChain, startPolling, smartAccountFailed]
+    [fromChain, startPolling]
   );
+
+  const resetSmartAccountFailure = useCallback(() => {
+    saFailedUntilRef.current = 0;
+  }, []);
 
   const reset = useCallback(() => {
     clearPolling();
-    setSmartAccountFailed(false);
+    saFailedUntilRef.current = 0;
     setState({
       txStatus: "idle",
       txHash: null,
@@ -477,7 +485,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     });
   }, [clearPolling]);
 
-  return { ...state, execute, reset, checkAllowance };
+  return { ...state, execute, reset, checkAllowance, resetSmartAccountFailure };
 }
 
 function mapTxError(err: unknown): string {

@@ -199,7 +199,7 @@ export function SwapMode({
   >(null);
 
   // Forex rates refreshed every 5 min — fallback to 1 (USD) on error
-  const forexRates = useForex();
+  const { rates: forexRates } = useForex();
   const currencyMeta = getCurrencyMeta(selectedCurrency);
   const currencyRate = forexRates[selectedCurrency] ?? 1;
   const currencySymbol = currencyMeta.symbol;

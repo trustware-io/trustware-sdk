@@ -8,6 +8,14 @@ export type FeeRequirement = {
 
 const CAUSE_CHAIN_LIMIT = 50;
 
+function safeBigInt(value: string, fallback: bigint): bigint {
+  try {
+    return BigInt(value);
+  } catch {
+    return fallback;
+  }
+}
+
 // Walks the cause chain looking for PAYMASTER_UNAVAILABLE, which means the backend's
 // sign pipeline had a transient failure — distinct from NO_PAYMASTER (non-retryable).
 export function isPaymasterUnavailable(err: unknown): boolean {
@@ -43,7 +51,7 @@ export function extractFeeRequirement(err: unknown): FeeRequirement | null {
           const fee = BigInt(d.currentMaxFee);
           const priority =
             typeof d.currentMaxPriorityFee === "string"
-              ? BigInt(d.currentMaxPriorityFee)
+              ? safeBigInt(d.currentMaxPriorityFee, fee)
               : fee;
           return { minFee: fee, minPriorityFee: priority, isReplacement: true };
         } catch {

@@ -29,6 +29,9 @@ export function SwapWalletSelector({
 }: SwapWalletSelectorProps): React.ReactElement {
   const { detected } = useWalletDetection();
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [connectedWalletId, setConnectedWalletId] = useState<string | null>(
+    null
+  );
   const [timerExpired, setTimerExpired] = useState(false);
   const prevStatusRef = useRef(walletStatus);
 
@@ -59,6 +62,7 @@ export function SwapWalletSelector({
     setConnectingId(wallet.meta.id);
     try {
       await connectWallet(wallet);
+      setConnectedWalletId(wallet.meta.id);
     } catch (err) {
       setConnectingId(null);
       const msg =
@@ -242,7 +246,8 @@ export function SwapWalletSelector({
               const isConnected =
                 walletStatus === "connected" &&
                 connectingId === null &&
-                walletAddress !== null;
+                walletAddress !== null &&
+                connectedWalletId === wallet.meta.id;
 
               return (
                 <div
