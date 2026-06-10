@@ -99,16 +99,47 @@ export type ResolvedTrustwareConfig = {
   onEvent?: (event: TrustwareEvent) => void;
 };
 
+/** A token identified by contract address + chain ID. Used for swap mode configuration. */
+export type SwapTokenRef = {
+  /** EVM contract address (or native placeholder, e.g. "0xeeee...") */
+  address: string;
+  /** Numeric chain ID, e.g. 8453 for Base */
+  chainId: number;
+};
+
 export type FeatureFlags = {
   tokensPagination?: boolean;
   balanceStreaming?: boolean;
   shouldAllowGA4?: boolean;
+  swapMode?: boolean;
+  /**
+   * Pre-selects the destination token in swap mode. When set, the widget opens
+   * with this token already chosen as the "buy" side.
+   * Example: `{ address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", chainId: 8453 }` (Base USDC)
+   */
+  swapDefaultDestToken?: SwapTokenRef;
+  /**
+   * When true (and `swapDefaultDestToken` is set), the destination token is fixed
+   * and the user cannot change it. The "select token to buy" button is disabled.
+   */
+  swapLockDestToken?: boolean;
+  /**
+   * Restricts the destination ("buy") token selector to only these tokens. The user
+   * can still sell any token from their wallet; only the buy side is limited.
+   * Each entry is a token address + chain ID pair. When omitted, all tokens are selectable.
+   * Example: `[{ address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", chainId: 1 }]`
+   */
+  swapAllowedDestTokens?: SwapTokenRef[];
 };
 
 export type ResolvedFeatureFlags = {
   tokensPagination: boolean;
   balanceStreaming: boolean;
   shouldAllowGA4: boolean;
+  swapMode: boolean;
+  swapDefaultDestToken: SwapTokenRef | null;
+  swapLockDestToken: boolean;
+  swapAllowedDestTokens: SwapTokenRef[] | null;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
@@ -164,4 +195,8 @@ export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   tokensPagination: true,
   balanceStreaming: false,
   shouldAllowGA4: true,
+  swapMode: false,
+  swapDefaultDestToken: null,
+  swapLockDestToken: false,
+  swapAllowedDestTokens: null,
 };

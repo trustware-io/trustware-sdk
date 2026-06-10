@@ -153,6 +153,16 @@ export function resolveConfig(
       DEFAULT_FEATURE_FLAGS.balanceStreaming,
     shouldAllowGA4:
       input.features?.shouldAllowGA4 ?? DEFAULT_FEATURE_FLAGS.shouldAllowGA4,
+    swapMode: input.features?.swapMode ?? DEFAULT_FEATURE_FLAGS.swapMode,
+    swapDefaultDestToken:
+      input.features?.swapDefaultDestToken ??
+      DEFAULT_FEATURE_FLAGS.swapDefaultDestToken,
+    swapLockDestToken:
+      input.features?.swapLockDestToken ??
+      DEFAULT_FEATURE_FLAGS.swapLockDestToken,
+    swapAllowedDestTokens:
+      input.features?.swapAllowedDestTokens ??
+      DEFAULT_FEATURE_FLAGS.swapAllowedDestTokens,
   };
 
   return {

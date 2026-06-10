@@ -1,4 +1,3 @@
-import { Transaction, VersionedTransaction } from "@solana/web3.js";
 import { getSolanaTxStatus, sendSolanaSerialized } from "../core/sdkRpc";
 
 import type {
@@ -37,8 +36,9 @@ function decodeBase64(serializedTransaction: string) {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
-function decodeBase64Transaction(serializedTransaction: string) {
+async function decodeBase64Transaction(serializedTransaction: string) {
   const bytes = decodeBase64(serializedTransaction);
+  const { Transaction, VersionedTransaction } = await import("@solana/web3.js");
   try {
     return VersionedTransaction.deserialize(bytes);
   } catch {
@@ -161,7 +161,9 @@ export function toSolanaWalletInterface(
       serializedTransactionBase64: string,
       chainId?: string
     ) {
-      const transaction = decodeBase64Transaction(serializedTransactionBase64);
+      const transaction = await decodeBase64Transaction(
+        serializedTransactionBase64
+      );
 
       if (provider.signAndSendTransaction) {
         const result = await provider.signAndSendTransaction(transaction, {

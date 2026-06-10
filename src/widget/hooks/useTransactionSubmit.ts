@@ -21,7 +21,7 @@ export type TransactionSubmitState = {
   error: string | null;
 };
 
-type SendOverride = (routeResult: BuildRouteResult) => Promise<string>
+type SendOverride = (routeResult: BuildRouteResult) => Promise<string>;
 
 /**
  * Hook for submitting transactions to the wallet.
@@ -53,7 +53,10 @@ export function useTransactionSubmit() {
    * @returns The transaction hash if successful, null if failed
    */
   const submitTransaction = useCallback(
-    async (routeResult: BuildRouteResult, sendOverride?: SendOverride): Promise<string | null> => {
+    async (
+      routeResult: BuildRouteResult,
+      sendOverride?: SendOverride
+    ): Promise<string | null> => {
       if (!routeResult?.txReq) {
         const errorMsg = "Invalid route data. Please try again.";
         setState({

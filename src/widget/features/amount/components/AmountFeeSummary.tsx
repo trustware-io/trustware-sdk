@@ -134,9 +134,21 @@ export function AmountFeeSummary({
             <>
               <div style={feeSummaryDividerStyle} />
               <div style={feeSummaryRowStyle}>
-                <span style={{ color: colors.mutedForeground }}>Bridge relay fee</span>
-                <span style={{ ...feeSummaryValueStyle, color: colors.mutedForeground }}>
-                  ~${relayFeeUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} reserved
+                <span style={{ color: colors.mutedForeground }}>
+                  Bridge relay fee
+                </span>
+                <span
+                  style={{
+                    ...feeSummaryValueStyle,
+                    color: colors.mutedForeground,
+                  }}
+                >
+                  ~$
+                  {relayFeeUsd.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  reserved
                 </span>
               </div>
             </>

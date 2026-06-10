@@ -1,1 +1,1 @@
-export * from "./smart-account/index"
+export * from "./smart-account/index";

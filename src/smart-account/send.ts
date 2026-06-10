@@ -78,7 +78,6 @@ async function ensurePermit2Allowance(
   console.debug("[send] PERMIT2 approval confirmed", { txHash });
 }
 
-
 async function waitForTransaction(
   eip1193Request: Eip1193Request,
   txHash: string,
@@ -171,24 +170,28 @@ export async function sendRouteAsUserOperation(
     );
   }
 
-  const { client, getSponsorshipRequestId } = await createTrustwareSmartAccountClient(
-    eoaAddress,
-    chainId,
-    viemChain,
-    eip1193Request,
-    paymasterAddress
-  );
+  const { client, getSponsorshipRequestId } =
+    await createTrustwareSmartAccountClient(
+      eoaAddress,
+      chainId,
+      viemChain,
+      eip1193Request,
+      paymasterAddress
+    );
   const saAddress = client.account.address;
   console.debug("[send] saAddress:", saAddress, "eoaAddress:", eoaAddress);
 
   // Detect first-time deployment — factory will be included in the UO, so
   // verificationGasLimit and callGasLimit need more headroom.
-  const saCode = await eip1193Request({
+  const saCode = (await eip1193Request({
     method: "eth_getCode",
     params: [saAddress, "latest"],
-  }) as string;
+  })) as string;
   const isNewAccount = !saCode || saCode === "0x";
-  if (isNewAccount) console.debug("[send] new account — SA factory deployment will be included in UO");
+  if (isNewAccount)
+    console.debug(
+      "[send] new account — SA factory deployment will be included in UO"
+    );
 
   type BatchCall = {
     target: `0x${string}`;
@@ -238,14 +241,19 @@ export async function sendRouteAsUserOperation(
         // from-token IS WETH: pull value extra and withdraw directly — no DEX needed.
         amountInMaximum = value;
         relayFeeStrategy = "weth-withdraw";
-        console.debug("[send] relay fee via WETH withdraw", { amountInMaximum: value.toString() });
+        console.debug("[send] relay fee via WETH withdraw", {
+          amountInMaximum: value.toString(),
+        });
       } else if (weth && swapRouter) {
         // Swap a slice of the from-token → WETH → ETH inside the UserOp.
         // Prefer caller-supplied decimals (most accurate), then fall back to route metadata.
         const fromDecimals: number =
           callerFromDecimals ??
-          (route.route?.steps?.[0] as { action?: { fromToken?: { decimals?: number } } } | undefined)
-            ?.action?.fromToken?.decimals ??
+          (
+            route.route?.steps?.[0] as
+              | { action?: { fromToken?: { decimals?: number } } }
+              | undefined
+          )?.action?.fromToken?.decimals ??
           (() => {
             throw Object.assign(
               new Error(
@@ -254,18 +262,20 @@ export async function sendRouteAsUserOperation(
               ),
               { code: "MISSING_TOKEN_DECIMALS", tokenAddress: token }
             );
-          })()
+          })();
         amountInMaximum = await estimateRelayFeeInToken(
           value,
           fromAmountWei,
           route.finalExchangeRate.fromAmountUSD,
           chainId,
           token,
-          fromDecimals,
+          fromDecimals
         );
         if (amountInMaximum === 0n) {
           throw Object.assign(
-            new Error("Cannot estimate relay fee token amount — ETH price unavailable. Ensure the smart account has native ETH for the bridge relay fee."),
+            new Error(
+              "Cannot estimate relay fee token amount — ETH price unavailable. Ensure the smart account has native ETH for the bridge relay fee."
+            ),
             { code: "RELAY_FEE_ESTIMATE_FAILED" }
           );
         }
@@ -278,7 +288,9 @@ export async function sendRouteAsUserOperation(
         });
       } else {
         throw Object.assign(
-          new Error(`Chain ${chainId} has no configured swap router. Ensure the smart account has native ETH for the bridge relay fee.`),
+          new Error(
+            `Chain ${chainId} has no configured swap router. Ensure the smart account has native ETH for the bridge relay fee.`
+          ),
           { code: "NO_SWAP_ROUTER" }
         );
       }
@@ -294,8 +306,12 @@ export async function sendRouteAsUserOperation(
       method: "eth_call",
       params: [{ to: token, data: encodeErc20BalanceOf(saAddress) }, "latest"],
     })) as string;
-    const saTokenBalance = saTokenBalHex && saTokenBalHex !== "0x" ? BigInt(saTokenBalHex) : 0n;
-    const permitNeeded = totalPermit2Amount > saTokenBalance ? totalPermit2Amount - saTokenBalance : 0n;
+    const saTokenBalance =
+      saTokenBalHex && saTokenBalHex !== "0x" ? BigInt(saTokenBalHex) : 0n;
+    const permitNeeded =
+      totalPermit2Amount > saTokenBalance
+        ? totalPermit2Amount - saTokenBalance
+        : 0n;
     console.debug("[send] SA token balance check", {
       token,
       saTokenBalance: saTokenBalance.toString(),
@@ -307,7 +323,12 @@ export async function sendRouteAsUserOperation(
     batch = [];
 
     if (permitNeeded > 0n) {
-      await ensurePermit2Allowance(eip1193Request, eoaAddress, token, permitNeeded);
+      await ensurePermit2Allowance(
+        eip1193Request,
+        eoaAddress,
+        token,
+        permitNeeded
+      );
 
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800); // 30-minute window
       const nonce = randomPermit2Nonce();
@@ -333,10 +354,20 @@ export async function sendRouteAsUserOperation(
 
       batch.push({
         target: PERMIT2,
-        data: encodePermitTransferFrom(token, permitNeeded, nonce, deadline, saAddress, eoaAddress, sig),
+        data: encodePermitTransferFrom(
+          token,
+          permitNeeded,
+          nonce,
+          deadline,
+          saAddress,
+          eoaAddress,
+          sig
+        ),
       });
     } else {
-      console.debug("[send] SA already holds sufficient token balance — skipping Permit2 pull");
+      console.debug(
+        "[send] SA already holds sufficient token balance — skipping Permit2 pull"
+      );
     }
 
     if (relayFeeStrategy === "weth-withdraw") {
@@ -347,18 +378,28 @@ export async function sendRouteAsUserOperation(
       // exactOutputSingle only takes what it needs (≤ amountInMaximum), so the SA
       // retains any unused from-tokens for the bridge call.
       batch.push(
-        { target: token, data: encodeErc20Approve(swapRouter!, amountInMaximum) },
+        {
+          target: token,
+          data: encodeErc20Approve(swapRouter!, amountInMaximum),
+        },
         {
           target: swapRouter!,
-          data: encodeUniswapExactOutputSingle(token, weth!, DEFAULT_POOL_FEE, saAddress, value, amountInMaximum),
+          data: encodeUniswapExactOutputSingle(
+            token,
+            weth!,
+            DEFAULT_POOL_FEE,
+            saAddress,
+            value,
+            amountInMaximum
+          ),
         },
-        { target: weth!, data: encodeWethWithdraw(value) },
+        { target: weth!, data: encodeWethWithdraw(value) }
       );
     }
 
     batch.push(
       { target: token, data: encodeErc20Approve(target, fromAmountWei) },
-      { target, data: callData, value },
+      { target, data: callData, value }
     );
   }
 
@@ -377,7 +418,9 @@ export async function sendRouteAsUserOperation(
 
   // Route bundler-specific RPC calls through the client's transport (not the wallet's
   // eip1193 — MetaMask doesn't support ERC-4337 bundler methods).
-  type BundlerClient = { request: (args: { method: string; params: unknown[] }) => Promise<unknown> };
+  type BundlerClient = {
+    request: (args: { method: string; params: unknown[] }) => Promise<unknown>;
+  };
   const bundlerReq = (method: string, params: unknown[] = []) =>
     (client as unknown as BundlerClient).request({ method, params });
 
@@ -387,14 +430,23 @@ export async function sendRouteAsUserOperation(
   // of pool-accept / builder-reject ghost UOs. Fast tier: 2× base fee, 1.5× priority.
   // Returns undefined on failure so callers fall back to Account Kit's own estimation.
   type GasTier = { maxFeePerGas: string; maxPriorityFeePerGas: string };
-  const fetchFreshFees = async (): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined> => {
+  const fetchFreshFees = async (): Promise<
+    { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined
+  > => {
     try {
-      const gasPrice = await bundlerReq("rundler_getUserOperationGasPrice") as { slow?: GasTier; standard?: GasTier; fast?: GasTier } | null;
+      const gasPrice = (await bundlerReq(
+        "rundler_getUserOperationGasPrice"
+      )) as { slow?: GasTier; standard?: GasTier; fast?: GasTier } | null;
       const tier = gasPrice?.fast ?? gasPrice?.standard ?? gasPrice?.slow;
       if (tier?.maxFeePerGas && tier?.maxPriorityFeePerGas) {
-        return { maxFeePerGas: BigInt(tier.maxFeePerGas) * 2n, maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas) * 2n };
+        return {
+          maxFeePerGas: BigInt(tier.maxFeePerGas) * 2n,
+          maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas) * 2n,
+        };
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
     return undefined;
   };
 
@@ -410,18 +462,32 @@ export async function sendRouteAsUserOperation(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      let feeOverrides: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined;
+      let feeOverrides:
+        | { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }
+        | undefined;
       if (nextFee !== null) {
         // Fee error on last attempt — use the calculated required fee directly.
-        feeOverrides = { maxFeePerGas: nextFee.maxFee, maxPriorityFeePerGas: nextFee.maxPriority };
+        feeOverrides = {
+          maxFeePerGas: nextFee.maxFee,
+          maxPriorityFeePerGas: nextFee.maxPriority,
+        };
       } else {
         // First attempt or paymaster retry — fetch fresh fees from the bundler.
         feeOverrides = await fetchFreshFees();
-        console.debug(`[send] attempt ${attempt} fresh fees`, feeOverrides
-          ? { maxFeePerGas: feeOverrides.maxFeePerGas.toString(), maxPriorityFeePerGas: feeOverrides.maxPriorityFeePerGas.toString() }
-          : "unavailable — using AK estimation");
+        console.debug(
+          `[send] attempt ${attempt} fresh fees`,
+          feeOverrides
+            ? {
+                maxFeePerGas: feeOverrides.maxFeePerGas.toString(),
+                maxPriorityFeePerGas:
+                  feeOverrides.maxPriorityFeePerGas.toString(),
+              }
+            : "unavailable — using AK estimation"
+        );
       }
-      const overrides = feeOverrides ? { ...baseOverrides, ...feeOverrides } : baseOverrides;
+      const overrides = feeOverrides
+        ? { ...baseOverrides, ...feeOverrides }
+        : baseOverrides;
       result = await client.sendUserOperation({ uo: batch, overrides });
       lastErr = null;
       break;
@@ -429,7 +495,9 @@ export async function sendRouteAsUserOperation(
       lastErr = err;
 
       if (isPaymasterUnavailable(err)) {
-        console.debug(`[send] attempt ${attempt} paymaster unavailable (transient), retrying in 2s`);
+        console.debug(
+          `[send] attempt ${attempt} paymaster unavailable (transient), retrying in 2s`
+        );
         await new Promise((r) => setTimeout(r, 2000));
         nextFee = null; // trigger fresh fee fetch on next attempt
         continue;
@@ -444,13 +512,21 @@ export async function sendRouteAsUserOperation(
       const prevFee: bigint = nextFee?.maxFee ?? 0n;
       const prevPri: bigint = nextFee?.maxPriority ?? 0n;
       nextFee = {
-        maxFee: (req.minFee > prevFee ? req.minFee : prevFee) * bumpNumerator / 100n,
-        maxPriority: (req.minPriorityFee > prevPri ? req.minPriorityFee : prevPri) * bumpNumerator / 100n,
+        maxFee:
+          ((req.minFee > prevFee ? req.minFee : prevFee) * bumpNumerator) /
+          100n,
+        maxPriority:
+          ((req.minPriorityFee > prevPri ? req.minPriorityFee : prevPri) *
+            bumpNumerator) /
+          100n,
       };
-      console.debug(`[send] attempt ${attempt} fee rejection (isReplacement=${req.isReplacement}) — next fees`, {
-        maxFee: nextFee.maxFee.toString(),
-        maxPriority: nextFee.maxPriority.toString(),
-      });
+      console.debug(
+        `[send] attempt ${attempt} fee rejection (isReplacement=${req.isReplacement}) — next fees`,
+        {
+          maxFee: nextFee.maxFee.toString(),
+          maxPriority: nextFee.maxPriority.toString(),
+        }
+      );
     }
   }
   if (lastErr) throw lastErr;
@@ -468,15 +544,21 @@ export async function sendRouteAsUserOperation(
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
       try {
-        const r = await bundlerReq("eth_getUserOperationReceipt", [userOpHash]) as { receipt?: { transactionHash?: string } } | null;
+        const r = (await bundlerReq("eth_getUserOperationReceipt", [
+          userOpHash,
+        ])) as { receipt?: { transactionHash?: string } } | null;
         if (r?.receipt?.transactionHash) {
           txHash = r.receipt.transactionHash;
           break;
         }
-      } catch { /* bundler hiccup — keep polling */ }
+      } catch {
+        /* bundler hiccup — keep polling */
+      }
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
-      await new Promise((res) => setTimeout(res, Math.min(pollInterval, remaining)));
+      await new Promise((res) =>
+        setTimeout(res, Math.min(pollInterval, remaining))
+      );
     }
   }
 
@@ -485,7 +567,9 @@ export async function sendRouteAsUserOperation(
     // is below the builder's inclusion floor even after pool acceptance. Do NOT submit using the
     // userOpHash as txHash: Squid/LiFi/Axelar return 404 for a userOpHash.
     throw Object.assign(
-      new Error("Transaction was submitted but not included on-chain. The operation was likely dropped by the bundler — please try again."),
+      new Error(
+        "Transaction was submitted but not included on-chain. The operation was likely dropped by the bundler — please try again."
+      ),
       { code: "USEROP_NOT_INCLUDED", userOpHash }
     );
   }

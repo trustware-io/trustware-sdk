@@ -167,7 +167,13 @@ export function useWalletTokenState({
     return () => {
       cancelled = true;
     };
-  }, [chains, tokens, walletAddress, walletTokensReloadNonce, getCurrentWalletAddress]);
+  }, [
+    chains,
+    tokens,
+    walletAddress,
+    walletTokensReloadNonce,
+    getCurrentWalletAddress,
+  ]);
 
   const reloadWalletTokens = () => {
     setWalletTokensReloadNonce((prev) => prev + 1);

@@ -222,13 +222,20 @@ export async function buildDepositAddress(
   };
 }
 
-export async function submitReceipt(intentId: string, txHash: string, sponsorshipRequestId?: string) {
+export async function submitReceipt(
+  intentId: string,
+  txHash: string,
+  sponsorshipRequestId?: string
+) {
   const r = await rateLimitedFetch(
     `${apiBase()}/v1/route-intent/${intentId}/receipt`,
     {
       method: "POST",
       headers: jsonHeaders({ "Idempotency-Key": txHash }),
-      body: JSON.stringify({ txHash, ...(sponsorshipRequestId ? { sponsorshipRequestId } : {}) }),
+      body: JSON.stringify({
+        txHash,
+        ...(sponsorshipRequestId ? { sponsorshipRequestId } : {}),
+      }),
     }
   );
   await assertOK(r);

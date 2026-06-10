@@ -29,7 +29,12 @@ export function extractFeeRequirement(err: unknown): FeeRequirement | null {
   let current = err;
   for (let depth = 0; depth < CAUSE_CHAIN_LIMIT; depth++) {
     if (!current || typeof current !== "object") return null;
-    const e = current as { code?: unknown; message?: unknown; data?: unknown; cause?: unknown };
+    const e = current as {
+      code?: unknown;
+      message?: unknown;
+      data?: unknown;
+      cause?: unknown;
+    };
 
     if (e.code === -32602 && e.data && typeof e.data === "object") {
       const d = e.data as Record<string, unknown>;
@@ -37,9 +42,13 @@ export function extractFeeRequirement(err: unknown): FeeRequirement | null {
         try {
           const fee = BigInt(d.currentMaxFee);
           const priority =
-            typeof d.currentMaxPriorityFee === "string" ? BigInt(d.currentMaxPriorityFee) : fee;
+            typeof d.currentMaxPriorityFee === "string"
+              ? BigInt(d.currentMaxPriorityFee)
+              : fee;
           return { minFee: fee, minPriorityFee: priority, isReplacement: true };
-        } catch { /* malformed fee string — fall through to cause chain */ }
+        } catch {
+          /* malformed fee string — fall through to cause chain */
+        }
       }
     }
 
@@ -49,7 +58,9 @@ export function extractFeeRequirement(err: unknown): FeeRequirement | null {
         try {
           const fee = BigInt(m[1]);
           return { minFee: fee, minPriorityFee: fee, isReplacement: false };
-        } catch { /* malformed fee string — fall through to cause chain */ }
+        } catch {
+          /* malformed fee string — fall through to cause chain */
+        }
       }
     }
 

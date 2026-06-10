@@ -11,7 +11,10 @@ describe("isPaymasterUnavailable", () => {
   });
 
   it("returns true when code is PAYMASTER_UNAVAILABLE at top level", () => {
-    assert.equal(isPaymasterUnavailable({ code: "PAYMASTER_UNAVAILABLE" }), true);
+    assert.equal(
+      isPaymasterUnavailable({ code: "PAYMASTER_UNAVAILABLE" }),
+      true
+    );
   });
 
   it("returns true when code is nested inside cause chain", () => {
@@ -46,7 +49,10 @@ describe("extractFeeRequirement", () => {
   });
 
   it("returns null when no matching error code is found", () => {
-    assert.equal(extractFeeRequirement({ code: -32001, message: "unrelated" }), null);
+    assert.equal(
+      extractFeeRequirement({ code: -32001, message: "unrelated" }),
+      null
+    );
     assert.equal(extractFeeRequirement({ code: -32602 }), null); // no data
     assert.equal(extractFeeRequirement({ code: -32602, data: {} }), null); // data but no currentMaxFee
   });
@@ -55,7 +61,10 @@ describe("extractFeeRequirement", () => {
     it("parses currentMaxFee and currentMaxPriorityFee", () => {
       const err = {
         code: -32602,
-        data: { currentMaxFee: "1000000000", currentMaxPriorityFee: "500000000" },
+        data: {
+          currentMaxFee: "1000000000",
+          currentMaxPriorityFee: "500000000",
+        },
       };
       const req = extractFeeRequirement(err);
       assert.notEqual(req, null);
@@ -81,7 +90,8 @@ describe("extractFeeRequirement", () => {
     it("parses 'must be at least N' from message", () => {
       const err = {
         code: -32000,
-        message: "precheck failed: maxFeePerGas is 8252770 but must be at least 34104859",
+        message:
+          "precheck failed: maxFeePerGas is 8252770 but must be at least 34104859",
       };
       const req = extractFeeRequirement(err);
       assert.notEqual(req, null);
