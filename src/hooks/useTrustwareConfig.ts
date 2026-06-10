@@ -43,6 +43,10 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           tokensPagination: true,
           balanceStreaming: false,
           shouldAllowGA4: true,
+          swapMode: false,
+          swapDefaultDestToken: null,
+          swapLockDestToken: false,
+          swapAllowedDestTokens: null,
         },
       };
     }

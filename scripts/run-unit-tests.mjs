@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-env node */
+/* global console, process */
 /**
  * Compile *.test.ts source files with esbuild (bundling local imports, leaving node_modules
  * external) then run them with the built-in Node.js test runner.

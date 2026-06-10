@@ -5,9 +5,9 @@ import {
   concat,
   recoverAddress,
   stringToHex,
-} from "viem"
+} from "viem";
 
-export const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const
+export const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
 
 const PERMIT2_ABI = [
   {
@@ -44,7 +44,7 @@ const PERMIT2_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
-] as const
+] as const;
 
 const ERC20_APPROVE_ABI = [
   {
@@ -57,31 +57,34 @@ const ERC20_APPROVE_ABI = [
     outputs: [{ name: "", type: "bool" }],
     stateMutability: "nonpayable",
   },
-] as const
+] as const;
 
 // 128-bit random nonce — collision-free for SignatureTransfer (bitmap tracks used nonces).
 // Do NOT use permit2.allowance() nonce here — that is for AllowanceTransfer, not SignatureTransfer.
 export function randomPermit2Nonce(): bigint {
-  const buf = new Uint8Array(16)
-  crypto.getRandomValues(buf)
+  const buf = new Uint8Array(16);
+  crypto.getRandomValues(buf);
   const hex = Array.from(buf)
     .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
-  return BigInt("0x" + hex)
+    .join("");
+  return BigInt("0x" + hex);
 }
 
-type Eip1193Request = (args: { method: string; params?: object | unknown[] }) => Promise<unknown>
+type Eip1193Request = (args: {
+  method: string;
+  params?: object | unknown[];
+}) => Promise<unknown>;
 
 export async function signPermit2(
   eip1193Request: Eip1193Request,
   params: {
-    chainId: number
-    token: `0x${string}`
-    amount: bigint
-    spender: `0x${string}`
-    nonce: bigint
-    deadline: bigint
-    owner: `0x${string}`
+    chainId: number;
+    token: `0x${string}`;
+    amount: bigint;
+    spender: `0x${string}`;
+    nonce: bigint;
+    deadline: bigint;
+    owner: `0x${string}`;
   }
 ): Promise<`0x${string}`> {
   // Permit2 domain has no "version" field — the contract is not ERC-712-versioned.
@@ -94,9 +97,9 @@ export async function signPermit2(
   // though the TypeScript type says bigint — JSON doesn't support BigInt so values coming
   // from API responses arrive as strings. Wrapping in BigInt() normalises any hex string,
   // decimal string, number, or bigint to a proper decimal representation before signing.
-  const amountBig   = BigInt(params.amount)
-  const nonceBig    = BigInt(params.nonce)
-  const deadlineBig = BigInt(params.deadline)
+  const amountBig = BigInt(params.amount);
+  const nonceBig = BigInt(params.nonce);
+  const deadlineBig = BigInt(params.deadline);
 
   const typedData = {
     domain: {
@@ -136,12 +139,12 @@ export async function signPermit2(
       nonce: nonceBig.toString(),
       deadline: deadlineBig.toString(),
     },
-  }
+  };
 
   const sig = await eip1193Request({
     method: "eth_signTypedData_v4",
     params: [params.owner, JSON.stringify(typedData)],
-  })
+  });
 
   // Sanity-check: manually compute the EIP-712 digest that Permit2 uses on-chain.
   // This is non-fatal — if recovery mismatches, we log all intermediates for debugging
@@ -149,51 +152,75 @@ export async function signPermit2(
   try {
     const TOKEN_PERMISSIONS_TYPEHASH = keccak256(
       stringToHex("TokenPermissions(address token,uint256 amount)")
-    )
+    );
     const PERMIT_TYPEHASH = keccak256(
-      stringToHex("PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)")
-    )
+      stringToHex(
+        "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
+      )
+    );
     const DOMAIN_TYPEHASH = keccak256(
-      stringToHex("EIP712Domain(string name,uint256 chainId,address verifyingContract)")
-    )
-    const nameHash = keccak256(stringToHex("Permit2"))
+      stringToHex(
+        "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
+      )
+    );
+    const nameHash = keccak256(stringToHex("Permit2"));
 
-    const domainSeparator = keccak256(encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes32" }, { type: "uint256" }, { type: "address" }],
-      [DOMAIN_TYPEHASH, nameHash, BigInt(params.chainId), PERMIT2]
-    ))
+    const domainSeparator = keccak256(
+      encodeAbiParameters(
+        [
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "uint256" },
+          { type: "address" },
+        ],
+        [DOMAIN_TYPEHASH, nameHash, BigInt(params.chainId), PERMIT2]
+      )
+    );
 
-    const tokenHash = keccak256(encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "address" }, { type: "uint256" }],
-      [TOKEN_PERMISSIONS_TYPEHASH, params.token, amountBig]
-    ))
+    const tokenHash = keccak256(
+      encodeAbiParameters(
+        [{ type: "bytes32" }, { type: "address" }, { type: "uint256" }],
+        [TOKEN_PERMISSIONS_TYPEHASH, params.token, amountBig]
+      )
+    );
 
-    const structHash = keccak256(encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes32" }, { type: "address" }, { type: "uint256" }, { type: "uint256" }],
-      [PERMIT_TYPEHASH, tokenHash, params.spender, nonceBig, deadlineBig]
-    ))
+    const structHash = keccak256(
+      encodeAbiParameters(
+        [
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "address" },
+          { type: "uint256" },
+          { type: "uint256" },
+        ],
+        [PERMIT_TYPEHASH, tokenHash, params.spender, nonceBig, deadlineBig]
+      )
+    );
 
-    const digest = keccak256(concat(["0x1901", domainSeparator, structHash]))
+    const digest = keccak256(concat(["0x1901", domainSeparator, structHash]));
 
-    const recovered = await recoverAddress({ hash: digest, signature: sig as `0x${string}` })
-    const valid = recovered.toLowerCase() === params.owner.toLowerCase()
+    const recovered = await recoverAddress({
+      hash: digest,
+      signature: sig as `0x${string}`,
+    });
+    const valid = recovered.toLowerCase() === params.owner.toLowerCase();
 
     if (!valid) {
       throw Object.assign(
         new Error(
           `Permit2: wallet signed with wrong account. ` +
-          `Expected ${params.owner} but ${recovered} signed. ` +
-          `Switch your wallet to account ${params.owner} and try again.`
+            `Expected ${params.owner} but ${recovered} signed. ` +
+            `Switch your wallet to account ${params.owner} and try again.`
         ),
         { code: "PERMIT2_WRONG_SIGNER", recovered, expected: params.owner }
-      )
+      );
     }
   } catch (e) {
-    if ((e as { code?: string }).code === "PERMIT2_WRONG_SIGNER") throw e
+    if ((e as { code?: string }).code === "PERMIT2_WRONG_SIGNER") throw e;
     // Non-fatal: recovery check failure doesn't block the bundler submission.
   }
 
-  return sig as `0x${string}`
+  return sig as `0x${string}`;
 }
 
 export function encodePermitTransferFrom(
@@ -214,7 +241,7 @@ export function encodePermitTransferFrom(
       eoaAddress,
       sig,
     ],
-  })
+  });
 }
 
 export function encodeErc20Approve(
@@ -225,7 +252,7 @@ export function encodeErc20Approve(
     abi: ERC20_APPROVE_ABI,
     functionName: "approve",
     args: [spender, amount],
-  })
+  });
 }
 
 const ERC20_ALLOWANCE_ABI = [
@@ -239,7 +266,7 @@ const ERC20_ALLOWANCE_ABI = [
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
-] as const
+] as const;
 
 export function encodeErc20Allowance(
   owner: `0x${string}`,
@@ -249,7 +276,7 @@ export function encodeErc20Allowance(
     abi: ERC20_ALLOWANCE_ABI,
     functionName: "allowance",
     args: [owner, spender],
-  })
+  });
 }
 
 const ERC20_BALANCE_OF_ABI = [
@@ -260,14 +287,14 @@ const ERC20_BALANCE_OF_ABI = [
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
-] as const
+] as const;
 
 export function encodeErc20BalanceOf(owner: `0x${string}`): `0x${string}` {
   return encodeFunctionData({
     abi: ERC20_BALANCE_OF_ABI,
     functionName: "balanceOf",
     args: [owner],
-  })
+  });
 }
 
 // WETH9 deposit/withdraw — same ABI on every EVM chain.
@@ -279,8 +306,12 @@ const WETH_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
-] as const
+] as const;
 
 export function encodeWethWithdraw(amount: bigint): `0x${string}` {
-  return encodeFunctionData({ abi: WETH_ABI, functionName: "withdraw", args: [amount] })
+  return encodeFunctionData({
+    abi: WETH_ABI,
+    functionName: "withdraw",
+    args: [amount],
+  });
 }

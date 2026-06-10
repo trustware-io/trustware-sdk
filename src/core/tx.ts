@@ -68,7 +68,12 @@ export async function sendRouteTransaction(
       const from = (await w.getAddress()) as `0x${string}`;
 
       const hexValue = value ? `0x${value.toString(16)}` : "0x0";
-      const params: Record<string, unknown> = { from, to, data, value: hexValue };
+      const params: Record<string, unknown> = {
+        from,
+        to,
+        data,
+        value: hexValue,
+      };
       if (Number.isFinite(target)) {
         params.chainId = `0x${target.toString(16)}`;
       }

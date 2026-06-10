@@ -1,10 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeRelayFeeUsd, computeAdjustedSliderMax } from "../utils/relayFeeUtils";
+import {
+  computeRelayFeeUsd,
+  computeAdjustedSliderMax,
+} from "../utils/relayFeeUtils";
 
 describe("computeRelayFeeUsd", () => {
   it("returns 0 when isNativeSelected is true", () => {
-    const route = { sponsorship: { paymaster: "0x1" }, txReq: { value: "1000000000000000000" } };
+    const route = {
+      sponsorship: { paymaster: "0x1" },
+      txReq: { value: "1000000000000000000" },
+    };
     assert.equal(computeRelayFeeUsd(route, true), 0);
   });
 
@@ -33,15 +39,15 @@ describe("computeRelayFeeUsd", () => {
       txReq: { value: "1000000000000000000" },
       route: {
         estimate: {
-          fees: [
-            { amountUSD: "1.50" },
-            { amountUSD: "0.75" },
-          ],
+          fees: [{ amountUSD: "1.50" }, { amountUSD: "0.75" }],
         },
       },
     };
     const result = computeRelayFeeUsd(route, false);
-    assert.ok(Math.abs(result - 2.25) < 0.0001, `expected ~2.25, got ${result}`);
+    assert.ok(
+      Math.abs(result - 2.25) < 0.0001,
+      `expected ~2.25, got ${result}`
+    );
   });
 
   it("falls back to amountUsd (lowercase) when amountUSD absent", () => {
@@ -127,7 +133,10 @@ describe("computeAdjustedSliderMax", () => {
     const result = computeAdjustedSliderMax(1.0, 10, 2000);
     const expected = 1.0 - (10 / 2000) * 1.15;
     assert.ok(result !== undefined);
-    assert.ok(Math.abs(result! - expected) < 1e-10, `expected ${expected}, got ${result}`);
+    assert.ok(
+      Math.abs(result! - expected) < 1e-10,
+      `expected ${expected}, got ${result}`
+    );
   });
 
   it("clamps to 0 when relay fee reserve exceeds slider max", () => {

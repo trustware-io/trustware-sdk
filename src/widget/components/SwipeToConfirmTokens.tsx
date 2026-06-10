@@ -207,6 +207,7 @@ export function SwipeToConfirmTokens({
   const [blinkOpacity, setBlinkOpacity] = useState(1);
   useEffect(() => {
     if (disabled || isComplete || isDragging || isLongPressing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBlinkOpacity(1);
       return;
     }
