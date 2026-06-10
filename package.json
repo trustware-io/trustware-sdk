@@ -1,6 +1,6 @@
 {
   "name": "@trustware/sdk",
-  "version": "1.1.8-staging.3",
+  "version": "1.1.8-staging.4",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
   "license": "Apache-2.0",
   "author": "Trustware",
@@ -44,6 +44,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
+    },
+    "./smart-account": {
+      "types": "./dist/smart-account.d.ts",
+      "import": "./dist/smart-account.mjs",
+      "require": "./dist/smart-account.cjs"
     }
   },
   "files": [
@@ -61,6 +66,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "check:surface": "node scripts/check-public-surface.mjs",
+    "test:unit": "node scripts/run-unit-tests.mjs",
     "test:widget-smoke": "npm run build && node --test scripts/widget-flow-smoke.test.mjs",
     "validate": "npm run typecheck && npm run lint:strict && npm run format:check",
     "size": "size-limit",
@@ -71,6 +77,12 @@
       "name": "Full SDK (ESM)",
       "path": "dist/index.mjs",
       "limit": "50 KB",
+      "gzip": true
+    },
+    {
+      "name": "Smart Account (ESM)",
+      "path": "dist/smart-account.mjs",
+      "limit": "250 KB",
       "gzip": true
     }
   ],
@@ -88,6 +100,8 @@
     }
   },
   "devDependencies": {
+    "@aa-sdk/core": "^4.88.2",
+    "@account-kit/smart-contracts": "^4.88.2",
     "@eslint/js": "^9.39.2",
     "@size-limit/preset-small-lib": "^12.0.0",
     "@types/eslint__js": "^8.42.3",
@@ -125,7 +139,6 @@
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-common": "^1.8.17",
     "@reown/appkit-universal-connector": "^1.8.17",
-    "@solana/web3.js": "^1.98.1",
-    "ethers": "^6.16.0"
+    "@solana/web3.js": "^1.98.4"
   }
 }

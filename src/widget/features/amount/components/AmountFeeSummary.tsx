@@ -15,8 +15,10 @@ export interface AmountFeeSummaryProps {
   amount: string;
   estimatedReceive?: string | null;
   gasReservationWei: bigint;
+  isGasSponsored?: boolean;
   isLoadingRoute: boolean;
   parsedAmount: number;
+  relayFeeUsd?: number;
   selectedTokenDecimals?: number;
 }
 
@@ -42,8 +44,10 @@ export function AmountFeeSummary({
   amount,
   estimatedReceive,
   gasReservationWei,
+  isGasSponsored,
   isLoadingRoute,
   parsedAmount,
+  relayFeeUsd,
   selectedTokenDecimals,
 }: AmountFeeSummaryProps): React.ReactElement {
   return (
@@ -99,14 +103,56 @@ export function AmountFeeSummary({
         <>
           <div style={feeSummaryRowStyle}>
             <span style={{ color: colors.mutedForeground }}>Network fee</span>
-            <span style={feeSummaryValueStyle}>
-              {weiToDecimalString(
-                gasReservationWei,
-                selectedTokenDecimals ?? 0,
-                6
-              )}{" "}
-            </span>
+            {isGasSponsored ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.semibold,
+                  color: colors.green[500],
+                  background: `${colors.green[500]}1a`,
+                  borderRadius: "9999px",
+                  padding: "0.1rem 0.5rem",
+                }}
+              >
+                ✦ Gas sponsored
+              </span>
+            ) : (
+              <span style={feeSummaryValueStyle}>
+                {weiToDecimalString(
+                  gasReservationWei,
+                  selectedTokenDecimals ?? 0,
+                  6
+                )}
+              </span>
+            )}
           </div>
+
+          {relayFeeUsd != null && relayFeeUsd > 0 && (
+            <>
+              <div style={feeSummaryDividerStyle} />
+              <div style={feeSummaryRowStyle}>
+                <span style={{ color: colors.mutedForeground }}>
+                  Bridge relay fee
+                </span>
+                <span
+                  style={{
+                    ...feeSummaryValueStyle,
+                    color: colors.mutedForeground,
+                  }}
+                >
+                  ~$
+                  {relayFeeUsd.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  reserved
+                </span>
+              </div>
+            </>
+          )}
 
           <div style={feeSummaryDividerStyle} />
 

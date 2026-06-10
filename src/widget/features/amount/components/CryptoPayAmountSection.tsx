@@ -18,13 +18,7 @@ import {
 import { AmountBalanceRow } from "./AmountBalanceRow";
 import { AmountConversionRow } from "./AmountConversionRow";
 import { AmountFeeSummary } from "./AmountFeeSummary";
-
-type AmountInputMode = "usd" | "token";
-
-type AmountComputationLike = {
-  tokenAmount?: number | string | null;
-  usdAmount?: number | string | null;
-};
+import type { AmountInputMode, AmountComputationLike } from "../types";
 
 export interface CryptoPayAmountSectionProps {
   amount: string;
@@ -42,8 +36,10 @@ export interface CryptoPayAmountSectionProps {
   ) => Promise<void> | void;
   hasUsdPrice: boolean;
   isFixedAmount: boolean;
+  isGasSponsored?: boolean;
   isLoadingRoute: boolean;
   normalizedTokenBalance: number;
+  relayFeeUsd?: number;
   orderedTokens: YourTokenData[];
   parsedAmount: number;
   selectedChain: ChainDef | null;
@@ -69,8 +65,10 @@ export function CryptoPayAmountSection({
   handleTokenChange,
   hasUsdPrice,
   isFixedAmount,
+  isGasSponsored,
   isLoadingRoute,
   normalizedTokenBalance,
+  relayFeeUsd,
   orderedTokens,
   parsedAmount,
   selectedChain,
@@ -171,8 +169,10 @@ export function CryptoPayAmountSection({
           amount={amount}
           estimatedReceive={estimatedReceive}
           gasReservationWei={gasReservationWei}
+          isGasSponsored={isGasSponsored}
           isLoadingRoute={isLoadingRoute}
           parsedAmount={parsedAmount}
+          relayFeeUsd={relayFeeUsd}
           selectedTokenDecimals={selectedToken?.decimals}
         />
       ) : null}

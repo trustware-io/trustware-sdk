@@ -60,9 +60,19 @@ export function useSelectTokenModel({
         return;
       }
 
+      if (!walletAddress) {
+        setSelectedToken({
+          ...token,
+          balance: "0",
+          chainData: selectedChain as Chain,
+        } as unknown as YourTokenData);
+        goBack();
+        return;
+      }
+
       const balance = await getBalances(
         selectedChain?.chainId as string | number,
-        walletAddress as string
+        walletAddress
       );
       const chainType = normalizeChainType(selectedChain);
 

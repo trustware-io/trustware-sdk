@@ -42,12 +42,23 @@ export function useWalletTokenState({
   const { tokens } = useTokens(null);
   const { chains } = useChains();
 
+  // Refs so the load effect always has fresh values without re-triggering on selection changes.
+  // selectedChain/selectedToken mutate inside the effect (via applyWalletTokenState) which
+  // would create an infinite cancel-and-restart loop in streaming mode if they were deps.
+  const selectedChainRef = useRef(selectedChain);
+  selectedChainRef.current = selectedChain;
+  const selectedTokenRef = useRef(selectedToken);
+  selectedTokenRef.current = selectedToken;
+  const setSelectedChainRef = useRef(setSelectedChain);
+  setSelectedChainRef.current = setSelectedChain;
+  const setSelectedTokenRef = useRef(setSelectedToken);
+  setSelectedTokenRef.current = setSelectedToken;
+
   const { address: fallbackAddress } = useWalletInfo();
 
   const getCurrentWalletAddress = useCallback(
     (address: string): string | null => {
-      const _fallbackAddress = address ?? fallbackAddress ?? null;
-      return _fallbackAddress;
+      return address ?? fallbackAddress ?? null;
     },
     [fallbackAddress]
   );
@@ -94,10 +105,10 @@ export function useWalletTokenState({
             const updatedTokens = applyWalletTokenState({
               balances: accumulatedBalances,
               chains,
-              selectedChain,
-              selectedToken,
-              setSelectedChain,
-              setSelectedToken,
+              selectedChain: selectedChainRef.current,
+              selectedToken: selectedTokenRef.current,
+              setSelectedChain: setSelectedChainRef.current,
+              setSelectedToken: setSelectedTokenRef.current,
               setYourWalletTokens,
               tokens,
             });
@@ -114,10 +125,10 @@ export function useWalletTokenState({
           const updatedTokens = applyWalletTokenState({
             balances,
             chains,
-            selectedChain,
-            selectedToken,
-            setSelectedChain,
-            setSelectedToken,
+            selectedChain: selectedChainRef.current,
+            selectedToken: selectedTokenRef.current,
+            setSelectedChain: setSelectedChainRef.current,
+            setSelectedToken: setSelectedTokenRef.current,
             setYourWalletTokens,
             tokens,
           });
@@ -158,15 +169,9 @@ export function useWalletTokenState({
     };
   }, [
     chains,
-    selectedChain,
-    selectedToken,
-    setSelectedChain,
-    setSelectedToken,
     tokens,
     walletAddress,
     walletTokensReloadNonce,
-    setYourWalletTokensLoading,
-    lastLoadedWalletRef,
     getCurrentWalletAddress,
   ]);
 

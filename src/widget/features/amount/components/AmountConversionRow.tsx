@@ -2,13 +2,7 @@ import type React from "react";
 
 import { colors, fontSize } from "../../../styles";
 import { tokenConversionRowStyle } from "./cryptoPayAmountStyles";
-
-type AmountInputMode = "usd" | "token";
-
-type AmountComputationLike = {
-  tokenAmount?: number | string | null;
-  usdAmount?: number | string | null;
-};
+import type { AmountInputMode, AmountComputationLike } from "../types";
 
 export interface AmountConversionRowProps {
   amountComputation: AmountComputationLike;
