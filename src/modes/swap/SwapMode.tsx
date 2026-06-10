@@ -27,6 +27,7 @@ import {
   isZeroAddrLike,
 } from "src/widget/helpers/chainHelpers";
 import { useTrustwareConfig } from "src/hooks";
+import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
 import { useSwapExecution } from "./hooks/useSwapExecution";
 import { useForex } from "./hooks/useForex";
@@ -216,6 +217,8 @@ export function SwapMode({
   );
   const settingsRef = useRef<HTMLDivElement>(null);
   const currencyDropdownRef = useRef<HTMLDivElement>(null);
+
+  const { emitEvent } = useTrustware();
 
   // Read feature flags from config
   const { features } = useTrustwareConfig();
@@ -409,8 +412,16 @@ export function SwapMode({
         setAmountInputMode("usd");
       }
       setStage("home");
+      emitEvent?.({
+        type: "swap_route_changed",
+        fromChain: String(chain.chainId),
+        fromToken: token.address,
+        toChain: String(toChain?.chainId ?? ""),
+        toToken: toToken?.address ?? "",
+        ...(amount ? { amount } : {}),
+      });
     },
-    [route]
+    [route, emitEvent, toToken, toChain, amount]
   );
 
   const handleSelectToToken = useCallback(
@@ -419,20 +430,37 @@ export function SwapMode({
       setToChain(chain);
       route.clear();
       setStage("home");
+      emitEvent?.({
+        type: "swap_route_changed",
+        fromChain: String(fromChain?.chainId ?? ""),
+        fromToken: fromToken?.address ?? "",
+        toChain: String(chain.chainId),
+        toToken: token.address,
+        ...(amount ? { amount } : {}),
+      });
     },
-    [route]
+    [route, emitEvent, fromToken, fromChain, amount]
   );
 
   const handleFlip = useCallback(() => {
     // When dest is locked, flipping would lose the locked token — disallow it
     if (lockDestToken) return;
+    const newFrom = toToken ?? fromToken;
+    const newFromChain = toChain ?? fromChain;
     setFromToken((prev) => toToken ?? prev);
     setFromChain((prev) => toChain ?? prev);
     setToToken(fromToken);
     setToChain(fromChain);
     setAmount("");
     route.clear();
-  }, [lockDestToken, fromToken, fromChain, toToken, toChain, route]);
+    emitEvent?.({
+      type: "swap_route_changed",
+      fromChain: String(newFromChain?.chainId ?? ""),
+      fromToken: newFrom?.address ?? "",
+      toChain: String(fromChain?.chainId ?? ""),
+      toToken: fromToken?.address ?? "",
+    });
+  }, [lockDestToken, fromToken, fromChain, toToken, toChain, route, emitEvent]);
 
   const fromChainType = normalizeChainType(fromChain);
   const toChainType = normalizeChainType(toChain);
