@@ -83,13 +83,16 @@ jobs:
 
       # Staging release notes show every commit since the last production tag
       # (cliff.toml ignores staging tags as boundaries), giving a running
-      # preview of what's heading to prod next.
+      # preview of what's heading to prod next. Do NOT pass --tag here: the
+      # staging tag matches cliff.toml's skip_tags, so git-cliff would skip the
+      # release and emit an empty body. Omitting --tag renders the unreleased
+      # commits under an "[Unreleased]" heading instead.
       - name: Generate release notes
         id: changelog
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --tag ${{ github.ref_name }} --unreleased --strip all
+          args: --unreleased --strip all
 
       - name: Create GitHub Release (staging)
         uses: softprops/action-gh-release@v2
