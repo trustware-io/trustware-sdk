@@ -139,7 +139,6 @@
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-common": "^1.8.17",
     "@reown/appkit-universal-connector": "^1.8.17",
-    "@solana/web3.js": "^0.0.3",
-    "ethers": "^5.8.0"
+    "@solana/web3.js": "^1.98.4"
   }
 }
