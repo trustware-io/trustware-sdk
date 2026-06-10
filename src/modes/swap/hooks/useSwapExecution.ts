@@ -29,9 +29,7 @@ function normalizeTx(raw: Transaction): Transaction {
       (r.from_chain_tx_url as string) ||
       undefined,
     toChainTxUrl:
-      (r.toChainTxUrl as string) ||
-      (r.to_chain_tx_url as string) ||
-      undefined,
+      (r.toChainTxUrl as string) || (r.to_chain_tx_url as string) || undefined,
   };
 }
 

@@ -194,9 +194,9 @@ export function SwapMode({
   const [destAddress, setDestAddress] = useState("");
   const [quoteAge, setQuoteAge] = useState(0);
   const quoteTimestampRef = useRef<number | null>(null);
-  const latestFetchParamsRef = useRef<Parameters<
-    ReturnType<typeof useSwapRoute>["fetch"]
-  >[0] | null>(null);
+  const latestFetchParamsRef = useRef<
+    Parameters<ReturnType<typeof useSwapRoute>["fetch"]>[0] | null
+  >(null);
 
   // Forex rates refreshed every 5 min — fallback to 1 (USD) on error
   const forexRates = useForex();
@@ -808,8 +808,8 @@ export function SwapMode({
 
   // Reset dest address whenever the destination chain type changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-time reset when the destination chain type switches
     setDestAddress("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toChainType]);
 
   // Keep a stable ref to route.fetch so effects don't need it in deps
@@ -851,7 +851,14 @@ export function SwapMode({
 
   // Keep a ref with the latest fetch params so the timer can refetch without stale closures
   useEffect(() => {
-    if (!canGetQuote || !fromToken || !fromChain || !toToken || !toChain || !walletAddress) {
+    if (
+      !canGetQuote ||
+      !fromToken ||
+      !fromChain ||
+      !toToken ||
+      !toChain ||
+      !walletAddress
+    ) {
       latestFetchParamsRef.current = null;
       return;
     }
@@ -865,12 +872,23 @@ export function SwapMode({
       toAddress: needsDestAddress ? destAddress.trim() : walletAddress,
       slippage,
     };
-  }, [canGetQuote, fromToken, fromChain, toToken, toChain, tokenAmountStr, walletAddress, needsDestAddress, destAddress, slippage]);
+  }, [
+    canGetQuote,
+    fromToken,
+    fromChain,
+    toToken,
+    toChain,
+    tokenAmountStr,
+    walletAddress,
+    needsDestAddress,
+    destAddress,
+    slippage,
+  ]);
 
   // Reset countdown when a fresh quote arrives
   useEffect(() => {
-    if (!route.data) { quoteTimestampRef.current = null; setQuoteAge(0); return; }
-    quoteTimestampRef.current = Date.now();
+    quoteTimestampRef.current = route.data ? Date.now() : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset countdown to 0 when a new quote arrives from the route query
     setQuoteAge(0);
   }, [route.data]);
 
@@ -2201,15 +2219,31 @@ export function SwapMode({
                   width="14"
                   height="14"
                   viewBox="0 0 14 14"
-                  style={{ transform: "rotate(-90deg)", flexShrink: 0, opacity: 0.75, marginLeft: "0.125rem" }}
+                  style={{
+                    transform: "rotate(-90deg)",
+                    flexShrink: 0,
+                    opacity: 0.75,
+                    marginLeft: "0.125rem",
+                  }}
                 >
-                  <circle cx="7" cy="7" r="5" fill="none" stroke="hsl(var(--tw-border))" strokeWidth="1.5" />
                   <circle
                     cx="7"
                     cy="7"
                     r="5"
                     fill="none"
-                    stroke={quoteAge >= QUOTE_TTL - 10 ? colors.destructive : colors.primary}
+                    stroke="hsl(var(--tw-border))"
+                    strokeWidth="1.5"
+                  />
+                  <circle
+                    cx="7"
+                    cy="7"
+                    r="5"
+                    fill="none"
+                    stroke={
+                      quoteAge >= QUOTE_TTL - 10
+                        ? colors.destructive
+                        : colors.primary
+                    }
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeDasharray="31.416"
@@ -3175,8 +3209,7 @@ export function SwapMode({
                       priceImpact > 0.05
                         ? "rgba(239,68,68,0.15)"
                         : "rgba(234,179,8,0.15)",
-                    color:
-                      priceImpact > 0.05 ? "#f87171" : "#ca8a04",
+                    color: priceImpact > 0.05 ? "#f87171" : "#ca8a04",
                   }}
                 >
                   -{(priceImpact * 100).toFixed(1)}%
@@ -3232,7 +3265,9 @@ export function SwapMode({
                       navigator.clipboard
                         .readText()
                         .then((text) => setDestAddress(text.trim()))
-                        .catch(() => {/* clipboard access denied */});
+                        .catch(() => {
+                          /* clipboard access denied */
+                        });
                     }}
                     style={{
                       position: "absolute",
@@ -3373,15 +3408,30 @@ export function SwapMode({
                     width="14"
                     height="14"
                     viewBox="0 0 14 14"
-                    style={{ transform: "rotate(-90deg)", flexShrink: 0, opacity: 0.75 }}
+                    style={{
+                      transform: "rotate(-90deg)",
+                      flexShrink: 0,
+                      opacity: 0.75,
+                    }}
                   >
-                    <circle cx="7" cy="7" r="5" fill="none" stroke="hsl(var(--tw-border))" strokeWidth="1.5" />
                     <circle
                       cx="7"
                       cy="7"
                       r="5"
                       fill="none"
-                      stroke={quoteAge >= QUOTE_TTL - 10 ? colors.destructive : colors.primary}
+                      stroke="hsl(var(--tw-border))"
+                      strokeWidth="1.5"
+                    />
+                    <circle
+                      cx="7"
+                      cy="7"
+                      r="5"
+                      fill="none"
+                      stroke={
+                        quoteAge >= QUOTE_TTL - 10
+                          ? colors.destructive
+                          : colors.primary
+                      }
                       strokeWidth="1.5"
                       strokeLinecap="round"
                       strokeDasharray="31.416"
@@ -3470,10 +3520,12 @@ export function SwapMode({
                       >
                         {routePath}
                       </span>
-                    ) : route.data?.route?.provider ?? (
-                      <span style={{ color: colors.mutedForeground }}>
-                        Available after quote
-                      </span>
+                    ) : (
+                      (route.data?.route?.provider ?? (
+                        <span style={{ color: colors.mutedForeground }}>
+                          Available after quote
+                        </span>
+                      ))
                     )
                   }
                 />
@@ -3832,12 +3884,21 @@ function ReviewDetailRow({
       >
         {label}
         <span
-          style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
+          style={{
+            position: "relative",
+            display: "inline-flex",
+            alignItems: "center",
+          }}
           onMouseEnter={() => setTipVisible(true)}
           onMouseLeave={() => setTipVisible(false)}
         >
           <svg
-            style={{ width: "0.875rem", height: "0.875rem", opacity: 0.6, cursor: tooltip ? "help" : "default" }}
+            style={{
+              width: "0.875rem",
+              height: "0.875rem",
+              opacity: 0.6,
+              cursor: tooltip ? "help" : "default",
+            }}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
