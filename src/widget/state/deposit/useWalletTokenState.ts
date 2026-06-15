@@ -225,7 +225,12 @@ function applyWalletTokenState({
 
   const nextSelectedToken =
     selectedTokenStillExists && selectedToken
-      ? selectedToken
+      ? (sortedTokens.find(
+          (token) =>
+            normalizeChainKey(token.chainId) ===
+              normalizeChainKey(selectedToken.chainId) &&
+            token.address === selectedToken.address
+        ) ?? selectedToken)
       : (sortedTokens.find((token) => Number(token.balance) > 0) ?? null);
 
   setSelectedToken(nextSelectedToken);
