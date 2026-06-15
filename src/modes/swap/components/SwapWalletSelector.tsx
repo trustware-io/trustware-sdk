@@ -14,7 +14,11 @@ import {
 } from "src/wallets";
 import { TrustwareConfigStore } from "src/config";
 import { toast } from "src/widget/components/Toast";
-import type { DetectedWallet, WalletInterFaceAPI, WalletConnectConfig } from "src/types";
+import type {
+  DetectedWallet,
+  WalletInterFaceAPI,
+  WalletConnectConfig,
+} from "src/types";
 import type { WalletStatus } from "src/widget/state/deposit/types";
 
 type SwapNamespace = "evm" | "solana";
@@ -42,8 +46,9 @@ export function SwapWalletSelector({
     disconnect,
   } = useWalletInfo();
 
-  const walletConnectCfg = TrustwareConfigStore.peek()
-    ?.walletConnect as WalletConnectConfig | undefined;
+  const walletConnectCfg = TrustwareConfigStore.peek()?.walletConnect as
+    | WalletConnectConfig
+    | undefined;
   const connectWC = useWalletConnectConnect(walletConnectCfg);
   const [wcConnecting, setWcConnecting] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
@@ -536,7 +541,9 @@ export function SwapWalletSelector({
                       border: `1px solid ${colors.primary}`,
                     }
                   )}
-                  onClick={!wcConnected ? () => void handleWalletConnect() : undefined}
+                  onClick={
+                    !wcConnected ? () => void handleWalletConnect() : undefined
+                  }
                 >
                   {/* WalletConnect logo box */}
                   <div

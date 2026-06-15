@@ -67,7 +67,9 @@ type WalletStandardWallet = {
     string,
     {
       version?: string;
-      connect?: (opts?: { silent?: boolean }) => Promise<{ accounts: WalletStandardAccount[] }>;
+      connect?: (opts?: {
+        silent?: boolean;
+      }) => Promise<{ accounts: WalletStandardAccount[] }>;
       disconnect?: () => Promise<void>;
       signTransaction?: (params: {
         account: WalletStandardAccount;
@@ -108,9 +110,12 @@ function collectWalletStandardWallets(): WalletStandardWallet[] {
   // Tell wallets the app is ready — those already registered respond synchronously
   try {
     window.dispatchEvent(
-      Object.assign(new Event("wallet-standard:app-ready", { bubbles: false }), {
-        detail: api,
-      })
+      Object.assign(
+        new Event("wallet-standard:app-ready", { bubbles: false }),
+        {
+          detail: api,
+        }
+      )
     );
   } catch {
     // non-fatal
@@ -118,7 +123,8 @@ function collectWalletStandardWallets(): WalletStandardWallet[] {
 
   // Also pick up wallets that fire register-wallet independently
   const handler = (e: Event) => {
-    const cb = (e as CustomEvent<(a: WalletStandardRegisterAPI) => void>).detail;
+    const cb = (e as CustomEvent<(a: WalletStandardRegisterAPI) => void>)
+      .detail;
     if (typeof cb === "function") cb(api);
   };
   window.addEventListener("wallet-standard:register-wallet", handler);
@@ -134,8 +140,7 @@ function collectWalletStandardWallets(): WalletStandardWallet[] {
 function walletStandardToSolanaProvider(
   wallet: WalletStandardWallet
 ): SolanaProviderLike {
-  let currentAccount: WalletStandardAccount | null =
-    wallet.accounts[0] ?? null;
+  let currentAccount: WalletStandardAccount | null = wallet.accounts[0] ?? null;
 
   const provider: SolanaProviderLike = {
     get isConnected() {
@@ -149,10 +154,12 @@ function walletStandardToSolanaProvider(
 
     async connect() {
       const feature = wallet.features["standard:connect"];
-      if (!feature?.connect) throw new Error("Wallet Standard connect not available");
+      if (!feature?.connect)
+        throw new Error("Wallet Standard connect not available");
       const result = await feature.connect({ silent: false });
       currentAccount = result.accounts[0] ?? null;
-      if (!currentAccount) throw new Error("No Solana account returned from MetaMask");
+      if (!currentAccount)
+        throw new Error("No Solana account returned from MetaMask");
       return { publicKey: { toString: () => currentAccount!.address } };
     },
 
@@ -167,9 +174,7 @@ function walletStandardToSolanaProvider(
       if (!feature?.signAndSendTransaction || !currentAccount) {
         throw new Error("signAndSendTransaction not available");
       }
-      const txBytes = (
-        transaction as { serialize(): Uint8Array }
-      ).serialize();
+      const txBytes = (transaction as { serialize(): Uint8Array }).serialize();
       const results = await feature.signAndSendTransaction({
         account: currentAccount,
         transaction: txBytes,
@@ -187,9 +192,7 @@ function walletStandardToSolanaProvider(
       if (!feature?.signTransaction || !currentAccount) {
         throw new Error("signTransaction not available");
       }
-      const txBytes = (
-        transaction as { serialize(): Uint8Array }
-      ).serialize();
+      const txBytes = (transaction as { serialize(): Uint8Array }).serialize();
       const results = await feature.signTransaction({
         account: currentAccount,
         transaction: txBytes,

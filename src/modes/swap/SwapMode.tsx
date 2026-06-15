@@ -575,7 +575,15 @@ export function SwapMode({
     setCopiedHash(null);
     setStage("home");
     reloadWalletTokens();
-  }, [fromToken, fromChain, toToken, toChain, execution, route, reloadWalletTokens]);
+  }, [
+    fromToken,
+    fromChain,
+    toToken,
+    toChain,
+    execution,
+    route,
+    reloadWalletTokens,
+  ]);
 
   const handleCopyHash = useCallback((hash: string) => {
     if (!navigator?.clipboard?.writeText) return;
@@ -2914,8 +2922,7 @@ export function SwapMode({
                       const effectiveAmount = (() => {
                         if (!isNative || p.value !== 1)
                           return fromBalance * p.value;
-                        if (isSolana)
-                          return Math.max(0, fromBalance - 0.01);
+                        if (isSolana) return Math.max(0, fromBalance - 0.01);
                         return fromBalance * 0.995;
                       })();
                       if (amountInputMode === "usd" && hasFromUsdPrice) {
