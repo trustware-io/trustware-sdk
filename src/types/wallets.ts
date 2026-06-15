@@ -6,6 +6,7 @@ export type WalletId =
   | "rainbow"
   | "phantom-evm"
   | "phantom-solana"
+  | "metamask-solana"
   | "solflare"
   | "backpack"
   | "rabby"

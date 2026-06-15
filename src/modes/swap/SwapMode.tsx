@@ -318,7 +318,7 @@ export function SwapMode({
   );
 
   // Fetch wallet balances for the "sell" selector only
-  const { yourWalletTokens } = useWalletTokenState({
+  const { yourWalletTokens, reloadWalletTokens } = useWalletTokenState({
     walletAddress,
     selectedChain: fromChain,
     setSelectedChain: setFromChainStable,
@@ -557,7 +557,8 @@ export function SwapMode({
     setCompletedAt(null);
     setCopiedHash(null);
     setStage("home");
-  }, [execution, route]);
+    reloadWalletTokens();
+  }, [execution, route, reloadWalletTokens]);
 
   const handleSwapBack = useCallback(() => {
     const prevFrom = fromToken;
@@ -573,7 +574,8 @@ export function SwapMode({
     setCompletedAt(null);
     setCopiedHash(null);
     setStage("home");
-  }, [fromToken, fromChain, toToken, toChain, execution, route]);
+    reloadWalletTokens();
+  }, [fromToken, fromChain, toToken, toChain, execution, route, reloadWalletTokens]);
 
   const handleCopyHash = useCallback((hash: string) => {
     if (!navigator?.clipboard?.writeText) return;
@@ -2897,7 +2899,6 @@ export function SwapMode({
                     onClick={() => {
                       if (fromBalance === null) return;
                       const decimals = fromToken?.decimals ?? 18;
-                      // For Max on native tokens, keep 0.5% for gas so the tx doesn't fail
                       const isNative =
                         !!fromToken &&
                         (isNativeTokenAddress(
@@ -2905,14 +2906,21 @@ export function SwapMode({
                           fromChainType ?? ""
                         ) ||
                           isZeroAddrLike(fromToken.address, fromChainType));
-                      const effectivePct =
-                        isNative && p.value === 1 ? 0.995 : p.value;
+                      // Compute spendable amount — leave a fee reserve for gas tokens
+                      // SOL: fixed 0.01 SOL (fees + rent-exempt buffer; % is unsafe at low balances)
+                      // EVM native: 0.5% (ETH fees are variable so % is appropriate)
+                      const isSolana =
+                        normalizeChainType(fromChain) === "solana";
+                      const effectiveAmount = (() => {
+                        if (!isNative || p.value !== 1)
+                          return fromBalance * p.value;
+                        if (isSolana)
+                          return Math.max(0, fromBalance - 0.01);
+                        return fromBalance * 0.995;
+                      })();
                       if (amountInputMode === "usd" && hasFromUsdPrice) {
                         const fiatVal =
-                          fromBalance *
-                          effectivePct *
-                          fromTokenPriceUSD *
-                          currencyRate;
+                          effectiveAmount * fromTokenPriceUSD * currencyRate;
                         // Enough decimal places so the value is never rounded to 0
                         // and no balance is left stranded by floor-truncation.
                         const dp =
@@ -2929,7 +2937,7 @@ export function SwapMode({
                       } else {
                         setAmount(
                           truncateDecimal(
-                            fromBalance * effectivePct,
+                            effectiveAmount,
                             Math.min(decimals, 6)
                           )
                         );

@@ -9,6 +9,7 @@ export const POPULAR_ORDER: WalletId[] = [
   "rainbow",
   "phantom-evm",
   "phantom-solana",
+  "metamask-solana",
   "solflare",
   "okx",
   "brave",
@@ -89,6 +90,15 @@ export const WALLETS: WalletMeta[] = [
     android: "https://play.google.com/store/apps/details?id=app.phantom",
     ios: "https://apps.apple.com/app/phantom-crypto-wallet/id1598432977",
     deepLink: (url) => `phantom://browse/${encodeURIComponent(url)}`,
+  },
+  {
+    id: "metamask-solana",
+    name: "MetaMask (Solana)",
+    category: "injected",
+    ecosystem: "solana",
+    logo: `${ASSETS_BASE_URL}/assets/wallets/metamask.svg`,
+    emoji: "🦊",
+    homepage: "https://metamask.io/",
   },
   {
     id: "solflare",

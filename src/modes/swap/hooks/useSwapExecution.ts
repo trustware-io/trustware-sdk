@@ -271,6 +271,30 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         Number.isFinite(numericChainId);
 
       if (canUseSA) {
+        // Switch to the required chain before SA attempt — SA path does a strict
+        // chain check and won't switch itself; skipping this causes WRONG_CHAIN →
+        // 30s SA cooldown → EOA fallback even when the paymaster is available.
+        if (numericChainId && wallet) {
+          try {
+            const currentChainId = await wallet.getChainId();
+            if (currentChainId !== numericChainId) {
+              await wallet.switchChain(numericChainId);
+            }
+          } catch (switchErr) {
+            if (isUserRejection(switchErr)) {
+              const msg = mapTxError(switchErr);
+              setState((p) => ({
+                ...p,
+                isSubmitting: false,
+                txStatus: "error",
+                errorMessage: msg,
+              }));
+              onError(msg);
+              return;
+            }
+            // Non-rejection switch failure — SA path will validate and fall through naturally
+          }
+        }
         try {
           const mod = await import("src/smart-account");
           const result = await mod.sendRouteAsUserOperation({

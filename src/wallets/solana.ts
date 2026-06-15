@@ -20,6 +20,216 @@ const SOLANA_WALLET_IDS: WalletId[] = [
   "backpack",
 ];
 
+// CAIP-2 chain ID for Solana mainnet — used by the Wallet Standard
+const SOLANA_MAINNET_CHAIN = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+
+// Minimal base58 encoder for Solana transaction signatures (64 bytes → ~88 chars)
+const BASE58_ALPHABET =
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function encodeBase58(bytes: Uint8Array): string {
+  const digits = [0];
+  for (const byte of bytes) {
+    let carry = byte;
+    for (let i = 0; i < digits.length; i++) {
+      carry += digits[i] << 8;
+      digits[i] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
+  let result = "";
+  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
+    result += "1";
+  }
+  for (let i = digits.length - 1; i >= 0; i--) {
+    result += BASE58_ALPHABET[digits[i]];
+  }
+  return result;
+}
+
+// ── Wallet Standard types (subset we need — no npm dependency required) ──────
+
+type WalletStandardAccount = {
+  address: string;
+  publicKey: Uint8Array;
+  chains: readonly string[];
+  features: readonly string[];
+};
+
+type WalletStandardWallet = {
+  name: string;
+  icon: string;
+  chains: readonly string[];
+  features: Record<
+    string,
+    {
+      version?: string;
+      connect?: (opts?: { silent?: boolean }) => Promise<{ accounts: WalletStandardAccount[] }>;
+      disconnect?: () => Promise<void>;
+      signTransaction?: (params: {
+        account: WalletStandardAccount;
+        transaction: Uint8Array;
+        chain?: string;
+      }) => Promise<{ signedTransaction: Uint8Array }[]>;
+      signAndSendTransaction?: (params: {
+        account: WalletStandardAccount;
+        transaction: Uint8Array;
+        chain?: string;
+        options?: Record<string, unknown>;
+      }) => Promise<{ signature: Uint8Array }[]>;
+    }
+  >;
+  accounts: readonly WalletStandardAccount[];
+};
+
+/**
+ * Synchronously collect all wallets currently registered in the Wallet Standard
+ * registry, and prompt any that haven't announced yet.
+ */
+type WalletStandardRegisterAPI = {
+  register(...wallets: WalletStandardWallet[]): () => void;
+};
+
+function collectWalletStandardWallets(): WalletStandardWallet[] {
+  if (typeof window === "undefined") return [];
+
+  const collected: WalletStandardWallet[] = [];
+
+  const api: WalletStandardRegisterAPI = {
+    register(...wallets) {
+      collected.push(...wallets);
+      return () => {};
+    },
+  };
+
+  // Tell wallets the app is ready — those already registered respond synchronously
+  try {
+    window.dispatchEvent(
+      Object.assign(new Event("wallet-standard:app-ready", { bubbles: false }), {
+        detail: api,
+      })
+    );
+  } catch {
+    // non-fatal
+  }
+
+  // Also pick up wallets that fire register-wallet independently
+  const handler = (e: Event) => {
+    const cb = (e as CustomEvent<(a: WalletStandardRegisterAPI) => void>).detail;
+    if (typeof cb === "function") cb(api);
+  };
+  window.addEventListener("wallet-standard:register-wallet", handler);
+  window.removeEventListener("wallet-standard:register-wallet", handler);
+
+  return collected;
+}
+
+/**
+ * Wrap a Wallet Standard wallet into the SolanaProviderLike shape our
+ * existing toSolanaWalletInterface() adapter expects.
+ */
+function walletStandardToSolanaProvider(
+  wallet: WalletStandardWallet
+): SolanaProviderLike {
+  let currentAccount: WalletStandardAccount | null =
+    wallet.accounts[0] ?? null;
+
+  const provider: SolanaProviderLike = {
+    get isConnected() {
+      return !!currentAccount;
+    },
+    get publicKey() {
+      if (!currentAccount) return undefined;
+      const addr = currentAccount.address;
+      return { toString: () => addr };
+    },
+
+    async connect() {
+      const feature = wallet.features["standard:connect"];
+      if (!feature?.connect) throw new Error("Wallet Standard connect not available");
+      const result = await feature.connect({ silent: false });
+      currentAccount = result.accounts[0] ?? null;
+      if (!currentAccount) throw new Error("No Solana account returned from MetaMask");
+      return { publicKey: { toString: () => currentAccount!.address } };
+    },
+
+    async disconnect() {
+      const feature = wallet.features["standard:disconnect"];
+      await feature?.disconnect?.();
+      currentAccount = null;
+    },
+
+    async signAndSendTransaction(transaction, options) {
+      const feature = wallet.features["solana:signAndSendTransaction"];
+      if (!feature?.signAndSendTransaction || !currentAccount) {
+        throw new Error("signAndSendTransaction not available");
+      }
+      const txBytes = (
+        transaction as { serialize(): Uint8Array }
+      ).serialize();
+      const results = await feature.signAndSendTransaction({
+        account: currentAccount,
+        transaction: txBytes,
+        chain: SOLANA_MAINNET_CHAIN,
+        options: options as Record<string, unknown> | undefined,
+      });
+      const sig = results[0]?.signature;
+      if (!sig) throw new Error("No signature returned");
+      // Wallet Standard returns raw bytes; Solana expects base58
+      return typeof sig === "string" ? sig : encodeBase58(sig);
+    },
+
+    async signTransaction(transaction) {
+      const feature = wallet.features["solana:signTransaction"];
+      if (!feature?.signTransaction || !currentAccount) {
+        throw new Error("signTransaction not available");
+      }
+      const txBytes = (
+        transaction as { serialize(): Uint8Array }
+      ).serialize();
+      const results = await feature.signTransaction({
+        account: currentAccount,
+        transaction: txBytes,
+        chain: SOLANA_MAINNET_CHAIN,
+      });
+      const signed = results[0]?.signedTransaction;
+      if (!signed) throw new Error("No signed transaction returned");
+      return { serialize: () => signed };
+    },
+
+    on() {},
+    off() {},
+    removeListener() {},
+  };
+
+  return provider;
+}
+
+/** Detect MetaMask's native Solana wallet via the Wallet Standard registry. */
+function detectMetaMaskSolanaWallet(wallets: WalletMeta[]): DetectedWallet[] {
+  const meta = wallets.find((w) => w.id === "metamask-solana");
+  if (!meta) return [];
+
+  const standardWallets = collectWalletStandardWallets();
+  const mmWallet = standardWallets.find(
+    (w) =>
+      w.name.toLowerCase().includes("metamask") &&
+      w.chains.some((c) => c.startsWith("solana:"))
+  );
+  if (!mmWallet) return [];
+
+  return [
+    {
+      meta,
+      provider: walletStandardToSolanaProvider(mmWallet),
+      via: "solana-window" as const,
+    },
+  ];
+}
+
 function getPublicKeyString(provider?: SolanaProviderLike | null) {
   const publicKey = provider?.publicKey;
   if (!publicKey) return null;
@@ -104,12 +314,14 @@ export function getSolanaProviders(): Partial<
 
 export function detectSolanaWallets(wallets: WalletMeta[]): DetectedWallet[] {
   const providers = getSolanaProviders();
-  return SOLANA_WALLET_IDS.flatMap((walletId) => {
+  const windowDetected = SOLANA_WALLET_IDS.flatMap((walletId) => {
     const provider = providers[walletId];
     const meta = wallets.find((item) => item.id === walletId);
     if (!provider || !meta) return [];
     return [{ meta, provider, via: "solana-window" as const }];
   });
+
+  return [...windowDetected, ...detectMetaMaskSolanaWallet(wallets)];
 }
 
 export function bindSolanaProviderEvents(
