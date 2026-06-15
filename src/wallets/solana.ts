@@ -121,15 +121,6 @@ function collectWalletStandardWallets(): WalletStandardWallet[] {
     // non-fatal
   }
 
-  // Also pick up wallets that fire register-wallet independently
-  const handler = (e: Event) => {
-    const cb = (e as CustomEvent<(a: WalletStandardRegisterAPI) => void>)
-      .detail;
-    if (typeof cb === "function") cb(api);
-  };
-  window.addEventListener("wallet-standard:register-wallet", handler);
-  window.removeEventListener("wallet-standard:register-wallet", handler);
-
   return collected;
 }
 

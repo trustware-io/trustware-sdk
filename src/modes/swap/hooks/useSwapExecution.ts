@@ -53,7 +53,8 @@ function sleep(ms: number) {
 
 function isUserRejection(err: unknown): boolean {
   if (!err) return false;
-  const code = (err as { code?: number })?.code;
+  const e = err as Record<string, unknown>;
+  const code = e?.code ?? (e?.data as Record<string, unknown>)?.code;
   if (code === 4001) return true;
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return (
