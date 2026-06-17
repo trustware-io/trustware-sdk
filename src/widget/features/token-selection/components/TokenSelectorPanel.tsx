@@ -2,13 +2,7 @@ import React from "react";
 
 import type { ChainDef } from "../../../../types";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
-import {
-  colors,
-  fontSize,
-  fontWeight,
-  spacing,
-  borderRadius,
-} from "../../../styles";
+import { colors, fontWeight, spacing, borderRadius } from "../../../styles";
 import { AvailableTokenListItem } from "./AvailableTokenListItem";
 import { TokenSearchInput } from "./TokenSearchInput";
 import { TokenSelectorStateView } from "./TokenSelectorStateView";
