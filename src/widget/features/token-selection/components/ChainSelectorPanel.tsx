@@ -164,7 +164,12 @@ function SectionLabel({
     >
       {icon === "spark" ? (
         <svg
-          style={{ width: "0.75rem", height: "0.75rem", color: colors.primary, flexShrink: 0 }}
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -178,7 +183,12 @@ function SectionLabel({
         </svg>
       ) : (
         <svg
-          style={{ width: "0.75rem", height: "0.75rem", color: colors.primary, flexShrink: 0 }}
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

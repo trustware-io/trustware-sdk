@@ -53,7 +53,12 @@ function TokenSectionLabel({
     >
       {icon === "wallet" ? (
         <svg
-          style={{ width: "0.75rem", height: "0.75rem", color: colors.primary, flexShrink: 0 }}
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -67,7 +72,12 @@ function TokenSectionLabel({
         </svg>
       ) : (
         <svg
-          style={{ width: "0.75rem", height: "0.75rem", color: colors.primary, flexShrink: 0 }}
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -191,7 +201,9 @@ export function TokenSelectorPanel({
               />
             ) : hasPopularTokens ? (
               <>
-                <TokenSectionLabel icon="spark">Popular tokens</TokenSectionLabel>
+                <TokenSectionLabel icon="spark">
+                  Popular tokens
+                </TokenSectionLabel>
                 {filteredTokens.map((token, i) => (
                   <AvailableTokenListItem
                     key={`${token.address}-${i}`}
@@ -202,7 +214,9 @@ export function TokenSelectorPanel({
                 {hasNextPage ? (
                   <button
                     type="button"
-                    onClick={() => { void loadMore(); }}
+                    onClick={() => {
+                      void loadMore();
+                    }}
                     disabled={isLoadingMore}
                     style={{
                       marginTop: spacing[2],

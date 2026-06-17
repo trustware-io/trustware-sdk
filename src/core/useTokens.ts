@@ -229,7 +229,13 @@ export function useTokens(
       nativeSymbols,
       featuredAddresses,
     });
-  }, [tokens, searchQuery, tokensPaginationEnabled, nativeSymbols, featuredAddresses]);
+  }, [
+    tokens,
+    searchQuery,
+    tokensPaginationEnabled,
+    nativeSymbols,
+    featuredAddresses,
+  ]);
 
   return {
     tokens,

@@ -229,7 +229,9 @@ export function SwapMode({
     | "light"
     | "dark"
     | "system";
-  const { resolvedTheme, toggleTheme } = useThemePreference(effectiveThemeSetting);
+  const { resolvedTheme, toggleTheme } = useThemePreference(
+    effectiveThemeSetting
+  );
   const defaultDestRef = features.swapDefaultDestToken;
   const lockDestToken = features.swapLockDestToken && !!defaultDestRef;
   const allowedDestTokens = features.swapAllowedDestTokens;
@@ -1567,13 +1569,23 @@ export function SwapMode({
                   fontSize: fontSize.sm,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: spacing[2] }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: spacing[2],
+                  }}
+                >
                   {fromToken?.iconUrl && (
                     <div style={{ position: "relative", flexShrink: 0 }}>
                       <img
                         src={fromToken.iconUrl}
                         alt=""
-                        style={{ width: "1.375rem", height: "1.375rem", borderRadius: "9999px" }}
+                        style={{
+                          width: "1.375rem",
+                          height: "1.375rem",
+                          borderRadius: "9999px",
+                        }}
                       />
                       {fromChain?.chainIconURI && (
                         <img
@@ -1593,7 +1605,9 @@ export function SwapMode({
                       )}
                     </div>
                   )}
-                  <span style={{ color: colors.mutedForeground }}>You sold</span>
+                  <span style={{ color: colors.mutedForeground }}>
+                    You sold
+                  </span>
                 </div>
                 <span
                   style={{
@@ -1613,13 +1627,23 @@ export function SwapMode({
                   marginTop: spacing[3],
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: spacing[2] }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: spacing[2],
+                  }}
+                >
                   {toToken?.iconUrl && (
                     <div style={{ position: "relative", flexShrink: 0 }}>
                       <img
                         src={toToken.iconUrl}
                         alt=""
-                        style={{ width: "1.375rem", height: "1.375rem", borderRadius: "9999px" }}
+                        style={{
+                          width: "1.375rem",
+                          height: "1.375rem",
+                          borderRadius: "9999px",
+                        }}
                       />
                       {toChain?.chainIconURI && (
                         <img
@@ -1639,7 +1663,9 @@ export function SwapMode({
                       )}
                     </div>
                   )}
-                  <span style={{ color: colors.mutedForeground }}>Received</span>
+                  <span style={{ color: colors.mutedForeground }}>
+                    Received
+                  </span>
                 </div>
                 <span
                   style={{
@@ -2351,7 +2377,9 @@ export function SwapMode({
               <ReviewDetailRow
                 label="Fee"
                 tooltip="Protocol fee charged by the bridge or DEX"
-                value={protocolFeeUsd !== null ? fmtLocal(protocolFeeUsd) : "Free"}
+                value={
+                  protocolFeeUsd !== null ? fmtLocal(protocolFeeUsd) : "Free"
+                }
               />
               <ReviewDetailRow
                 label="Network cost"
@@ -2597,7 +2625,9 @@ export function SwapMode({
                           marginTop: "2px",
                         }}
                       >
-                        {resolvedTheme === "dark" ? "Dark theme active" : "Light theme active"}
+                        {resolvedTheme === "dark"
+                          ? "Dark theme active"
+                          : "Light theme active"}
                       </p>
                     </div>
                     <button
@@ -2609,7 +2639,9 @@ export function SwapMode({
                         height: "1.375rem",
                         borderRadius: "9999px",
                         backgroundColor:
-                          resolvedTheme === "dark" ? colors.primary : colors.muted,
+                          resolvedTheme === "dark"
+                            ? colors.primary
+                            : colors.muted,
                         border: 0,
                         cursor: "pointer",
                         position: "relative",
@@ -4052,9 +4084,12 @@ function ReviewDetailRow({
           </svg>
         </span>
       </span>
-      <span style={{ color: colors.foreground, fontWeight: fontWeight.medium }}>{value}</span>
+      <span style={{ color: colors.foreground, fontWeight: fontWeight.medium }}>
+        {value}
+      </span>
 
-      {tooltip && tipPos &&
+      {tooltip &&
+        tipPos &&
         typeof document !== "undefined" &&
         ReactDOM.createPortal(
           <span
