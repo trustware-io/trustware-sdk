@@ -120,14 +120,52 @@ function compareChainPopularity(
   return 0;
 }
 
+export interface TokenSortOptions {
+  /** Lowercase addresses that are the chain's native token — always sorted first. */
+  nativeAddresses?: Set<string>;
+  /**
+   * Uppercase symbols of the chain's native currency (e.g. "ETH", "HYPE").
+   * Used as a fallback when the registry uses a non-standard native address.
+   */
+  nativeSymbols?: Set<string>;
+  /**
+   * Lowercase address → order index for featured tokens on this chain
+   * (stables first, then top assets from featuredAssets.json).
+   * These appear as a block immediately after the native token.
+   */
+  featuredAddresses?: Map<string, number>;
+}
+
 export function sortTokensByPopularity<T extends TokenPopularitySortable>(
-  tokens: T[]
+  tokens: T[],
+  options?: TokenSortOptions
 ): T[] {
+  const nativeSet = options?.nativeAddresses ?? new Set<string>();
+  const nativeSymbolSet = options?.nativeSymbols ?? new Set<string>();
+  const featuredMap = options?.featuredAddresses ?? new Map<string, number>();
+
+  const getMajorRank = (token: TokenPopularitySortable): number => {
+    const addr = normalizeAddress(token.address);
+    if (nativeSet.has(addr)) return 0;
+    if (nativeSymbolSet.has(normalizeSymbol(token.symbol))) return 0;
+    if (featuredMap.has(addr)) return 1;
+    // Shift the existing groups (A/B/C/D = 0-3) up by 2
+    return getGroupRank(token) + 2;
+  };
+
   return tokens
     .map((token, index) => ({ token, index }))
     .sort((a, b) => {
-      const rankDiff = getGroupRank(a.token) - getGroupRank(b.token);
-      if (rankDiff !== 0) return rankDiff;
+      const majorA = getMajorRank(a.token);
+      const majorB = getMajorRank(b.token);
+      if (majorA !== majorB) return majorA - majorB;
+
+      // Within the featured block, preserve the JSON ordering
+      if (majorA === 1) {
+        const orderA = featuredMap.get(normalizeAddress(a.token.address)) ?? 0;
+        const orderB = featuredMap.get(normalizeAddress(b.token.address)) ?? 0;
+        return orderA - orderB;
+      }
 
       const chainPopularityDiff = compareChainPopularity(a.token, b.token);
       if (chainPopularityDiff !== 0) return chainPopularityDiff;
@@ -141,7 +179,6 @@ export function sortTokensByPopularity<T extends TokenPopularitySortable>(
       const addressDiff = compareText(a.token.address, b.token.address);
       if (addressDiff !== 0) return addressDiff;
 
-      // Stable deterministic tiebreaker for complete duplicates.
       return a.index - b.index;
     })
     .map(({ token }) => token);

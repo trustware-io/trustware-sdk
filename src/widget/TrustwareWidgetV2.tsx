@@ -151,7 +151,7 @@ export interface TrustwareWidgetV2Props {
  * Inner widget component with access to context
  */
 interface WidgetInnerProps {
-  theme: Theme;
+  theme?: Theme;
   style?: React.CSSProperties;
   onClose?: () => void;
   onStateChange?: (state: PersistedState) => void;
@@ -279,7 +279,7 @@ export const TrustwareWidgetV2 = forwardRef<
   TrustwareWidgetV2Props
 >(function TrustwareWidgetV2(
   {
-    theme = "system",
+    theme,
     style,
     initialStep = "home",
     defaultOpen = true,

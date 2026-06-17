@@ -6,6 +6,19 @@ import { Token } from "../widget/state/deposit/types";
 import { useChains } from "./useChains";
 import { sortTokensByPopularity } from "../widget/helpers/tokenPopularity";
 import { TrustwareConfigStore } from "../config/store";
+import { NATIVE_EVM, NATIVE_SOLANA } from "../widget/helpers/chainHelpers";
+import featuredAssetsData from "../widget/data/featuredAssets.json";
+
+type FeaturedEntry = { symbol: string; address: string };
+type FeaturedChain = { top: FeaturedEntry[]; stables: FeaturedEntry[] };
+const FEATURED = featuredAssetsData as Record<string, FeaturedChain>;
+
+const NATIVE_ADDRESSES = new Set([
+  NATIVE_EVM.toLowerCase(),
+  NATIVE_SOLANA.toLowerCase(),
+  // Some EVM chains (e.g. ZKsync, HyperEVM) use the zero address for the native token
+  "0x0000000000000000000000000000000000000000",
+]);
 
 const DEFAULT_PAGE_LIMIT = 100;
 
@@ -180,6 +193,25 @@ export function useTokens(
     }
   };
 
+  const featuredAddresses = useMemo(() => {
+    const key = chainId?.toString() ?? "";
+    const chain = FEATURED[key];
+    if (!chain) return new Map<string, number>();
+    const map = new Map<string, number>();
+    let order = 0;
+    for (const s of chain.stables) map.set(s.address.toLowerCase(), order++);
+    for (const t of chain.top) map.set(t.address.toLowerCase(), order++);
+    return map;
+  }, [chainId]);
+
+  const nativeSymbols = useMemo(() => {
+    if (!chainId) return new Set<string>();
+    const chain = chainMap.get(chainId.toString());
+    const sym = chain?.nativeCurrency?.symbol;
+    if (!sym) return new Set<string>();
+    return new Set([sym.toUpperCase()]);
+  }, [chainId, chainMap]);
+
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const source =
@@ -192,8 +224,12 @@ export function useTokens(
               token.address.toLowerCase().includes(query)
           );
 
-    return sortTokensByPopularity(source);
-  }, [tokens, searchQuery, tokensPaginationEnabled]);
+    return sortTokensByPopularity(source, {
+      nativeAddresses: NATIVE_ADDRESSES,
+      nativeSymbols,
+      featuredAddresses,
+    });
+  }, [tokens, searchQuery, tokensPaginationEnabled, nativeSymbols, featuredAddresses]);
 
   return {
     tokens,

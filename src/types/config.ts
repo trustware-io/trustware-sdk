@@ -1,5 +1,5 @@
 import { TrustwareError } from "src/errors/TrustwareError";
-import { TrustwareWidgetTheme, TrustwareWidgetMessages } from "./theme";
+import { TrustwareTheme, TrustwareWidgetMessages } from "./theme";
 import { TrustwareEvent } from "src/events/events";
 import { Transaction } from "./routes";
 
@@ -60,7 +60,7 @@ export type TrustwareConfigOptions = {
     };
   };
   autoDetectProvider?: boolean; // Whether to auto-detect wallet provider (optional, default: false.)
-  theme?: TrustwareWidgetTheme; // Optional theme customization
+  theme?: TrustwareTheme; // "light" | "dark" | "system" (default: "system")
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
   retry?: RetryConfig; // Optional retry configuration for rate-limited requests
   walletConnect?: WalletConnectConfig; // Optional WalletConnect configuration
@@ -89,7 +89,7 @@ export type ResolvedTrustwareConfig = {
     };
   };
   autoDetectProvider: boolean;
-  theme: TrustwareWidgetTheme;
+  theme: TrustwareTheme;
   messages: TrustwareWidgetMessages;
   retry: ResolvedRetryConfig;
   walletConnect?: ResolvedWalletConnectConfig | WalletConnectConfig | undefined;

@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import ReactDOM from "react-dom";
 import {
   colors,
   spacing,
@@ -17,6 +18,7 @@ import {
 import { mergeStyles } from "src/widget/lib/utils";
 import { WidgetContainer, WidgetSecurityFooter } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
+import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
 import { useChains } from "src/widget/hooks";
@@ -164,7 +166,7 @@ function RateRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function SwapMode({
-  theme = "system",
+  theme: themeProp,
   style,
 }: SwapModeProps): React.ReactElement {
   const [stage, setStage] = useState<SwapStage>("home");
@@ -182,6 +184,7 @@ export function SwapMode({
   const [hoverSell, setHoverSell] = useState(false);
   const [showRateDetails, setShowRateDetails] = useState(false);
   const [showReviewDetails, setShowReviewDetails] = useState(false);
+
   const [showSettings, setShowSettings] = useState(false);
   const [maxApproval, setMaxApproval] = useState(false);
   const [slippage, setSlippage] = useState(0.5);
@@ -220,8 +223,13 @@ export function SwapMode({
 
   const { emitEvent } = useTrustware();
 
-  // Read feature flags from config
-  const { features } = useTrustwareConfig();
+  // Read feature flags and theme from config
+  const { features, theme: configTheme } = useTrustwareConfig();
+  const effectiveThemeSetting = (themeProp ?? configTheme ?? "system") as
+    | "light"
+    | "dark"
+    | "system";
+  const { resolvedTheme, toggleTheme } = useThemePreference(effectiveThemeSetting);
   const defaultDestRef = features.swapDefaultDestToken;
   const lockDestToken = features.swapLockDestToken && !!defaultDestRef;
   const allowedDestTokens = features.swapAllowedDestTokens;
@@ -998,7 +1006,7 @@ export function SwapMode({
 
   if (stage === "select-from") {
     return (
-      <WidgetContainer theme={theme} style={style}>
+      <WidgetContainer theme={resolvedTheme} style={style}>
         <SwapTokenSelect
           side="from"
           selectedChain={fromChain}
@@ -1018,7 +1026,7 @@ export function SwapMode({
 
   if (stage === "select-to" && !lockDestToken) {
     return (
-      <WidgetContainer theme={theme} style={style}>
+      <WidgetContainer theme={resolvedTheme} style={style}>
         <SwapTokenSelect
           side="to"
           selectedChain={toChain}
@@ -1039,7 +1047,7 @@ export function SwapMode({
 
   if (stage === "connect-wallet") {
     return (
-      <WidgetContainer theme={theme} style={style}>
+      <WidgetContainer theme={resolvedTheme} style={style}>
         <SwapWalletSelector
           walletStatus={walletStatus}
           walletAddress={walletAddress}
@@ -1089,7 +1097,7 @@ export function SwapMode({
     const title = isApproving ? "Approving..." : "Order Submitted";
 
     return (
-      <WidgetContainer theme={theme} style={style}>
+      <WidgetContainer theme={resolvedTheme} style={style}>
         <div style={{ padding: `${spacing[5]} ${spacing[6]} ${spacing[6]}` }}>
           {/* Header */}
           <div
@@ -1486,7 +1494,7 @@ export function SwapMode({
       }) ?? null;
 
     return (
-      <WidgetContainer theme={theme} style={style}>
+      <WidgetContainer theme={resolvedTheme} style={style}>
         <div style={{ position: "relative", overflow: "hidden" }}>
           <Suspense fallback={null}>
             <ConfettiEffect isActive pieceCount={60} clearDelay={4000} />
@@ -1559,27 +1567,40 @@ export function SwapMode({
                   fontSize: fontSize.sm,
                 }}
               >
-                <span style={{ color: colors.mutedForeground }}>You sold</span>
+                <div style={{ display: "flex", alignItems: "center", gap: spacing[2] }}>
+                  {fromToken?.iconUrl && (
+                    <div style={{ position: "relative", flexShrink: 0 }}>
+                      <img
+                        src={fromToken.iconUrl}
+                        alt=""
+                        style={{ width: "1.375rem", height: "1.375rem", borderRadius: "9999px" }}
+                      />
+                      {fromChain?.chainIconURI && (
+                        <img
+                          src={fromChain.chainIconURI}
+                          alt=""
+                          style={{
+                            position: "absolute",
+                            bottom: -2,
+                            right: -2,
+                            width: "0.625rem",
+                            height: "0.625rem",
+                            borderRadius: "9999px",
+                            border: `1.5px solid ${colors.background}`,
+                            objectFit: "cover",
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                  <span style={{ color: colors.mutedForeground }}>You sold</span>
+                </div>
                 <span
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: spacing[2],
                     fontWeight: fontWeight.semibold,
                     color: colors.foreground,
                   }}
                 >
-                  {fromToken?.iconUrl && (
-                    <img
-                      src={fromToken.iconUrl}
-                      style={{
-                        width: "1.25rem",
-                        height: "1.25rem",
-                        borderRadius: "9999px",
-                      }}
-                      alt=""
-                    />
-                  )}
                   {fmtAmount(tokenSellNum, 4)} {fromToken?.symbol}
                 </span>
               </div>
@@ -1592,27 +1613,40 @@ export function SwapMode({
                   marginTop: spacing[3],
                 }}
               >
-                <span style={{ color: colors.mutedForeground }}>Received</span>
+                <div style={{ display: "flex", alignItems: "center", gap: spacing[2] }}>
+                  {toToken?.iconUrl && (
+                    <div style={{ position: "relative", flexShrink: 0 }}>
+                      <img
+                        src={toToken.iconUrl}
+                        alt=""
+                        style={{ width: "1.375rem", height: "1.375rem", borderRadius: "9999px" }}
+                      />
+                      {toChain?.chainIconURI && (
+                        <img
+                          src={toChain.chainIconURI}
+                          alt=""
+                          style={{
+                            position: "absolute",
+                            bottom: -2,
+                            right: -2,
+                            width: "0.625rem",
+                            height: "0.625rem",
+                            borderRadius: "9999px",
+                            border: `1.5px solid ${colors.background}`,
+                            objectFit: "cover",
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                  <span style={{ color: colors.mutedForeground }}>Received</span>
+                </div>
                 <span
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: spacing[2],
                     fontWeight: fontWeight.semibold,
                     color: colors.foreground,
                   }}
                 >
-                  {toToken?.iconUrl && (
-                    <img
-                      src={toToken.iconUrl}
-                      style={{
-                        width: "1.25rem",
-                        height: "1.25rem",
-                        borderRadius: "9999px",
-                      }}
-                      alt=""
-                    />
-                  )}
                   {finalToAmount !== null ? fmtAmount(finalToAmount, 4) : "—"}{" "}
                   {toToken?.symbol}
                 </span>
@@ -1653,14 +1687,7 @@ export function SwapMode({
                     value={effectiveRate}
                   />
                 )}
-                {(fromChain?.networkName ?? fromChain?.axelarChainName) && (
-                  <SuccessReceiptRow
-                    label="Network"
-                    value={
-                      (fromChain?.networkName ?? fromChain?.axelarChainName)!
-                    }
-                  />
-                )}
+
                 {completedStr && (
                   <SuccessReceiptRow label="Completed" value={completedStr} />
                 )}
@@ -1935,7 +1962,7 @@ export function SwapMode({
 
   if (stage === "error") {
     return (
-      <WidgetContainer theme={theme} style={style}>
+      <WidgetContainer theme={resolvedTheme} style={style}>
         <div
           style={{
             display: "flex",
@@ -2052,8 +2079,14 @@ export function SwapMode({
     const reviewToUsd = toUsd > 0 ? toUsd : displayToUsd;
 
     return (
-      <WidgetContainer theme={theme} style={style}>
-        <div style={{ padding: `${spacing[5]} ${spacing[6]} ${spacing[6]}` }}>
+      <WidgetContainer theme={resolvedTheme} style={style}>
+        <div
+          style={{
+            padding: `${spacing[5]} ${spacing[6]} ${spacing[6]}`,
+            maxHeight: "85vh",
+            overflowY: "auto",
+          }}
+        >
           {/* Header */}
           <div
             style={{
@@ -2206,7 +2239,7 @@ export function SwapMode({
             )}
           </div>
 
-          {/* Show more / Show less toggle */}
+          {/* Collapsible details toggle */}
           <button
             onClick={() => setShowReviewDetails((v) => !v)}
             style={{
@@ -2218,9 +2251,10 @@ export function SwapMode({
               background: "none",
               border: 0,
               cursor: "pointer",
-              color: colors.foreground,
+              color: colors.mutedForeground,
               fontSize: fontSize.sm,
               fontWeight: fontWeight.medium,
+              padding: 0,
             }}
           >
             <div
@@ -2235,7 +2269,7 @@ export function SwapMode({
                 whiteSpace: "nowrap",
               }}
             >
-              {showReviewDetails ? "Show less" : "Show more"}
+              {showReviewDetails ? "Hide details" : "View details"}
               <svg
                 style={{
                   width: "0.875rem",
@@ -2296,103 +2330,79 @@ export function SwapMode({
             />
           </button>
 
-          {/* Detail rows */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: spacing[3],
-              fontSize: fontSize.sm,
-            }}
-          >
-            {showReviewDetails && exchangeRate !== null && (
-              <ReviewDetailRow
-                label="Rate"
-                tooltip="Current exchange rate between the two tokens"
-                value={`1 ${fromToken?.symbol} = ${fmtAmount(1 / (exchangeRate ?? 1), 4)} ${toToken?.symbol} ($${fmtAmount(fromTokenPriceUSD, 2)})`}
-              />
-            )}
-            <ReviewDetailRow
-              label="Fee"
-              tooltip="Protocol fee charged by the bridge or DEX"
-              value={
-                <span
-                  style={{
-                    color: colors.foreground,
-                    fontWeight: fontWeight.medium,
-                  }}
-                >
-                  {protocolFeeUsd !== null ? fmtLocal(protocolFeeUsd) : "Free"}
-                </span>
-              }
-            />
-            <ReviewDetailRow
-              label="Network cost"
-              tooltip="Estimated gas fee paid to the blockchain network"
-              value={
-                isGasSponsored ? (
-                  <SponsoredBadge />
-                ) : networkCostUsd !== null ? (
-                  <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                      color: colors.mutedForeground,
-                    }}
-                  >
-                    <GasIcon size="0.875rem" />
-                    {fmtLocal(networkCostUsd)}
-                  </span>
-                ) : (
-                  <span style={{ color: colors.mutedForeground }}>—</span>
-                )
-              }
-            />
-            {showReviewDetails && (
-              <>
+          {/* Detail rows — collapsible */}
+          {showReviewDetails && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: spacing[3],
+                fontSize: fontSize.sm,
+                marginBottom: spacing[2],
+              }}
+            >
+              {exchangeRate !== null && (
                 <ReviewDetailRow
-                  label="Max slippage"
-                  tooltip="Max price movement allowed before the swap automatically reverts"
-                  value={
+                  label="Rate"
+                  tooltip="Current exchange rate between the two tokens"
+                  value={`1 ${fromToken?.symbol} = ${fmtAmount(1 / (exchangeRate ?? 1), 4)} ${toToken?.symbol} ($${fmtAmount(fromTokenPriceUSD, 2)})`}
+                />
+              )}
+              <ReviewDetailRow
+                label="Fee"
+                tooltip="Protocol fee charged by the bridge or DEX"
+                value={protocolFeeUsd !== null ? fmtLocal(protocolFeeUsd) : "Free"}
+              />
+              <ReviewDetailRow
+                label="Network cost"
+                tooltip="Estimated gas fee paid to the blockchain network"
+                value={
+                  isGasSponsored ? (
+                    <SponsoredBadge />
+                  ) : networkCostUsd !== null ? (
                     <span
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: spacing[1.5],
+                        gap: "0.25rem",
                       }}
                     >
-                      <span style={{ color: colors.mutedForeground }}>
-                        {slippage}%
-                      </span>
+                      <GasIcon size="0.875rem" />
+                      {fmtLocal(networkCostUsd)}
+                    </span>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
+              <ReviewDetailRow
+                label="Max slippage"
+                tooltip="Max price movement allowed before the swap automatically reverts"
+                value={`${slippage}%`}
+              />
+              {(routePath || route.data?.route?.provider) && (
+                <ReviewDetailRow
+                  label="Route"
+                  tooltip="Protocol or bridge used to execute your swap"
+                  value={
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "200px",
+                        display: "inline-block",
+                        verticalAlign: "bottom",
+                      }}
+                      title={routePath ?? route.data?.route?.provider}
+                    >
+                      {routePath ?? route.data?.route?.provider}
                     </span>
                   }
                 />
-                {(routePath || route.data?.route?.provider) && (
-                  <ReviewDetailRow
-                    label="Route"
-                    tooltip="Protocol or bridge used to execute your swap"
-                    value={
-                      <span
-                        style={{
-                          color: colors.foreground,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          maxWidth: "200px",
-                          display: "inline-block",
-                          verticalAlign: "bottom",
-                        }}
-                        title={routePath ?? route.data?.route?.provider}
-                      >
-                        {routePath ?? route.data?.route?.provider}
-                      </span>
-                    }
-                  />
-                )}
-              </>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* ── Action area — structured for future additions ── */}
           <SwapActionArea
@@ -2433,7 +2443,7 @@ export function SwapMode({
   const showRateRow = hasTokens && exchangeRate !== null;
 
   return (
-    <WidgetContainer theme={theme} style={style}>
+    <WidgetContainer theme={resolvedTheme} style={style}>
       <div
         style={{ display: "flex", flexDirection: "column", minHeight: "500px" }}
       >
@@ -2549,6 +2559,84 @@ export function SwapMode({
                   zIndex: 100,
                 }}
               >
+                {/* Appearance */}
+                <p
+                  style={{
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.semibold,
+                    color: colors.mutedForeground,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    marginBottom: spacing[3],
+                  }}
+                >
+                  Appearance
+                </p>
+                <div style={{ marginBottom: spacing[4] }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div>
+                      <p
+                        style={{
+                          fontSize: fontSize.sm,
+                          fontWeight: fontWeight.medium,
+                          color: colors.foreground,
+                        }}
+                      >
+                        Dark mode
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "0.625rem",
+                          color: colors.mutedForeground,
+                          marginTop: "2px",
+                        }}
+                      >
+                        {resolvedTheme === "dark" ? "Dark theme active" : "Light theme active"}
+                      </p>
+                    </div>
+                    <button
+                      role="switch"
+                      aria-checked={resolvedTheme === "dark"}
+                      onClick={toggleTheme}
+                      style={{
+                        width: "2.5rem",
+                        height: "1.375rem",
+                        borderRadius: "9999px",
+                        backgroundColor:
+                          resolvedTheme === "dark" ? colors.primary : colors.muted,
+                        border: 0,
+                        cursor: "pointer",
+                        position: "relative",
+                        transition: "background-color 0.2s",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "0.1875rem",
+                          left:
+                            resolvedTheme === "dark"
+                              ? "calc(100% - 1rem - 0.1875rem)"
+                              : "0.1875rem",
+                          width: "1rem",
+                          height: "1rem",
+                          borderRadius: "9999px",
+                          backgroundColor: colors.primaryForeground,
+                          transition: "left 0.2s",
+                          display: "block",
+                        }}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 <p
                   style={{
                     fontSize: fontSize.xs,
@@ -3374,6 +3462,7 @@ export function SwapMode({
                 fontWeight: fontWeight.semibold,
                 border: 0,
                 transition: "all 0.2s",
+                marginBottom: spacing[3],
               },
               !ctaDisabled
                 ? {
@@ -3690,10 +3779,12 @@ function SwapActionArea({
             color: colors.mutedForeground,
             textAlign: "center",
             marginTop: spacing[2],
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
-          You&apos;ll approve {fromTokenSymbol} spend, then confirm the swap — 2
-          wallet steps.
+          Approve {fromTokenSymbol} access, then confirm swap — 2 steps.
         </p>
       )}
     </div>
@@ -3908,7 +3999,17 @@ function ReviewDetailRow({
   value: React.ReactNode;
   tooltip?: string;
 }): React.ReactElement {
-  const [tipVisible, setTipVisible] = useState(false);
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const [tipPos, setTipPos] = useState<{ x: number; y: number } | null>(null);
+
+  const handleMouseEnter = () => {
+    if (!tooltip || !iconRef.current) return;
+    const r = iconRef.current.getBoundingClientRect();
+    setTipPos({ x: r.left + r.width / 2, y: r.top - 8 });
+  };
+
+  const handleMouseLeave = () => setTipPos(null);
+
   return (
     <div
       style={{
@@ -3927,13 +4028,10 @@ function ReviewDetailRow({
       >
         {label}
         <span
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            alignItems: "center",
-          }}
-          onMouseEnter={() => setTipVisible(true)}
-          onMouseLeave={() => setTipVisible(false)}
+          ref={iconRef}
+          style={{ display: "inline-flex", alignItems: "center" }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
           <svg
             style={{
@@ -3952,30 +4050,35 @@ function ReviewDetailRow({
             <circle cx="12" cy="12" r="10" />
             <path d="M12 16v-4M12 8h.01" />
           </svg>
-          {tooltip && tipVisible && (
-            <span
-              style={{
-                position: "absolute",
-                bottom: "calc(100% + 6px)",
-                left: "50%",
-                transform: "translateX(-50%)",
-                backgroundColor: "hsl(var(--tw-foreground))",
-                color: "hsl(var(--tw-background))",
-                fontSize: "0.6875rem",
-                lineHeight: 1.4,
-                padding: "0.25rem 0.5rem",
-                borderRadius: "0.375rem",
-                whiteSpace: "nowrap",
-                pointerEvents: "none",
-                zIndex: 50,
-              }}
-            >
-              {tooltip}
-            </span>
-          )}
         </span>
       </span>
-      <span style={{ color: colors.mutedForeground }}>{value}</span>
+      <span style={{ color: colors.foreground, fontWeight: fontWeight.medium }}>{value}</span>
+
+      {tooltip && tipPos &&
+        typeof document !== "undefined" &&
+        ReactDOM.createPortal(
+          <span
+            style={{
+              position: "fixed",
+              left: tipPos.x,
+              top: tipPos.y,
+              transform: "translate(-50%, -100%)",
+              backgroundColor: "hsl(220 15% 15%)",
+              color: "#fff",
+              fontSize: "0.6875rem",
+              lineHeight: 1.4,
+              padding: "0.3rem 0.6rem",
+              borderRadius: "0.375rem",
+              whiteSpace: "nowrap",
+              pointerEvents: "none",
+              zIndex: 99999,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+            }}
+          >
+            {tooltip}
+          </span>,
+          document.body
+        )}
     </div>
   );
 }

@@ -21,14 +21,7 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           options: {},
         },
         autoDetectProvider: false,
-        theme: {
-          primaryColor: "#4F46E5",
-          secondaryColor: "#6366F1",
-          backgroundColor: "#FFFFFF",
-          textColor: "#111827",
-          borderColor: "#E5E7EB",
-          radius: 8,
-        },
+        theme: "system",
         messages: {
           title: "Trustware SDK",
           description: "Seamlessly bridge assets across chains with Trustware.",
