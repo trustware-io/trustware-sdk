@@ -274,43 +274,21 @@ export function SwapTokenSelect({
           otherChains={otherChains}
           popularChains={popularChains}
         />
-        {localChain === null ? (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: spacing[4],
-            }}
-          >
-            <p
-              style={{
-                fontSize: fontSize.sm,
-                color: colors.mutedForeground,
-                textAlign: "center",
-              }}
-            >
-              Select a chain to see tokens
-            </p>
-          </div>
-        ) : (
-          <TokenSelectorPanel
-            filteredTokens={visibleTokens}
-            filteredWalletTokens={visibleWalletTokens}
-            hasNextPage={hasAllowlist ? false : hasNextPage}
-            isLoadingTokens={isLoadingTokens}
-            isLoadingMore={hasAllowlist ? false : isLoadingMore}
-            loadMore={loadMore}
-            onSelectToken={handleTokenSelect}
-            onSelectWalletToken={handleYourTokenSelect}
-            searchQuery={searchQuery}
-            selectedChain={localChain}
-            setSearchQuery={setSearchQuery}
-            tokensError={tokensError}
-            walletAddress={walletAddress}
-          />
-        )}
+        <TokenSelectorPanel
+          filteredTokens={visibleTokens}
+          filteredWalletTokens={visibleWalletTokens}
+          hasNextPage={hasAllowlist ? false : hasNextPage}
+          isLoadingTokens={isLoadingTokens}
+          isLoadingMore={hasAllowlist ? false : isLoadingMore}
+          loadMore={loadMore}
+          onSelectToken={handleTokenSelect}
+          onSelectWalletToken={handleYourTokenSelect}
+          searchQuery={searchQuery}
+          selectedChain={localChain}
+          setSearchQuery={setSearchQuery}
+          tokensError={tokensError}
+          walletAddress={walletAddress}
+        />
       </div>
 
       <WidgetSecurityFooter />

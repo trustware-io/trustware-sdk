@@ -1,39 +1,59 @@
-import { useCallback, useState } from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { ResolvedTheme } from "./types";
 
 const THEME_STORAGE_KEY = "trustware-widget-theme";
 
-function getInitialTheme(): ResolvedTheme {
-  if (typeof window === "undefined") {
-    return "light";
-  }
+function resolveConfigTheme(
+  configTheme: "light" | "dark" | "system"
+): ResolvedTheme {
+  if (typeof window === "undefined") return "light";
+
+  // Explicit config value always wins — only fall back to localStorage/OS for "system"
+  if (configTheme !== "system") return configTheme;
 
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark") {
-      return stored;
-    }
+    if (stored === "light" || stored === "dark") return stored;
   } catch {
     // localStorage unavailable
   }
 
-  if (typeof window !== "undefined" && window.matchMedia) {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
-  }
-
-  return "light";
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
-export function useThemePreference() {
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
+export function useThemePreference(
+  configTheme: "light" | "dark" | "system" = "system"
+) {
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
+    resolveConfigTheme(configTheme)
+  );
 
   useEffect(() => {
-    setResolvedTheme(getInitialTheme());
-  }, []);
+    setResolvedTheme(resolveConfigTheme(configTheme));
+  }, [configTheme]);
+
+  // Track system preference changes when mode is "system" and no localStorage override
+  useEffect(() => {
+    if (configTheme !== "system") return;
+    if (typeof window === "undefined" || !window.matchMedia) return;
+
+    try {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      if (stored === "light" || stored === "dark") return; // user has overridden
+    } catch {
+      // localStorage unavailable
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => {
+      setResolvedTheme(e.matches ? "dark" : "light");
+    };
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }, [configTheme]);
 
   const toggleTheme = useCallback(() => {
     setResolvedTheme((current) => {

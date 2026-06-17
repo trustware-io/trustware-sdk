@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 
 import type { ChainDef } from "../../../../types";
 import { resolveChainLabel } from "../../../../utils";
@@ -61,8 +61,8 @@ function ChainItem({
           src={chain.chainIconURI}
           alt={label}
           style={{
-            width: "2rem",
-            height: "2rem",
+            width: "1.5rem",
+            height: "1.5rem",
             borderRadius: "9999px",
             objectFit: "cover",
             flexShrink: 0,
@@ -71,8 +71,8 @@ function ChainItem({
       ) : (
         <div
           style={{
-            width: "2rem",
-            height: "2rem",
+            width: "1.5rem",
+            height: "1.5rem",
             borderRadius: "9999px",
             backgroundColor: colors.muted,
             display: "flex",
@@ -145,6 +145,75 @@ function ChainItem({
   );
 }
 
+function SectionLabel({
+  children,
+  icon,
+}: {
+  children: React.ReactNode;
+  icon: "spark" | "sort";
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.25rem",
+        padding: `${spacing[1.5]} ${spacing[3]}`,
+        marginTop: spacing[2],
+      }}
+    >
+      {icon === "spark" ? (
+        <svg
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"
+          />
+        </svg>
+      ) : (
+        <svg
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"
+          />
+        </svg>
+      )}
+      <span
+        style={{
+          fontSize: "10px",
+          fontWeight: fontWeight.medium,
+          color: colors.primary,
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
+
 export function ChainSelectorPanel({
   error,
   isChainSelected,
@@ -153,6 +222,24 @@ export function ChainSelectorPanel({
   otherChains,
   popularChains,
 }: ChainSelectorPanelProps): React.ReactElement {
+  const [chainSearch, setChainSearch] = useState("");
+
+  const filteredPopular = useMemo(() => {
+    if (!chainSearch) return popularChains;
+    const q = chainSearch.toLowerCase();
+    return popularChains.filter((c) =>
+      resolveChainLabel(c).toLowerCase().includes(q)
+    );
+  }, [popularChains, chainSearch]);
+
+  const filteredOther = useMemo(() => {
+    if (!chainSearch) return otherChains;
+    const q = chainSearch.toLowerCase();
+    return otherChains.filter((c) =>
+      resolveChainLabel(c).toLowerCase().includes(q)
+    );
+  }, [otherChains, chainSearch]);
+
   return (
     <div
       style={{
@@ -163,25 +250,58 @@ export function ChainSelectorPanel({
         overflow: "hidden",
       }}
     >
+      {/* Chain search */}
       <div
         style={{
-          padding: `${spacing[2]} ${spacing[3]}`,
-          borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
+          padding: `${spacing[2]} ${spacing[2]}`,
+          borderBottom: `1px solid ${colors.border}`,
         }}
       >
-        <span
-          style={{
-            fontSize: fontSize.xs,
-            fontWeight: fontWeight.medium,
-            color: colors.mutedForeground,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          Chain
-        </span>
+        <div style={{ position: "relative" }}>
+          <svg
+            style={{
+              position: "absolute",
+              left: spacing[2.5],
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "1rem",
+              height: "1rem",
+              color: colors.mutedForeground,
+              pointerEvents: "none",
+            }}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path strokeLinecap="round" d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Chain"
+            value={chainSearch}
+            onChange={(e) => setChainSearch(e.target.value)}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              paddingLeft: spacing[8],
+              paddingRight: spacing[3],
+              paddingTop: spacing[2],
+              paddingBottom: spacing[2],
+              fontSize: fontSize.sm,
+              backgroundColor: colors.muted,
+              border: `1px solid ${colors.border}`,
+              borderRadius: borderRadius.lg,
+              color: colors.foreground,
+              outline: "none",
+              transition: "all 0.2s",
+            }}
+          />
+        </div>
       </div>
 
+      {/* Chain list */}
       <div
         style={{
           flex: 1,
@@ -257,22 +377,10 @@ export function ChainSelectorPanel({
           </div>
         ) : (
           <>
-            {popularChains.length > 0 && (
-              <div style={{ marginBottom: spacing[2] }}>
-                <div style={{ padding: `${spacing[1.5]} ${spacing[3]}` }}>
-                  <span
-                    style={{
-                      fontSize: "10px",
-                      fontWeight: fontWeight.medium,
-                      color: "rgba(161, 161, 170, 0.7)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    Popular
-                  </span>
-                </div>
-                {popularChains.map((chain, idx) => (
+            {filteredPopular.length > 0 && (
+              <div>
+                <SectionLabel icon="spark">Popular chains</SectionLabel>
+                {filteredPopular.map((chain, idx) => (
                   <ChainItem
                     key={String(
                       chain.id ??
@@ -289,29 +397,10 @@ export function ChainSelectorPanel({
               </div>
             )}
 
-            {otherChains.length > 0 && (
+            {filteredOther.length > 0 && (
               <div>
-                {popularChains.length > 0 && (
-                  <div
-                    style={{
-                      padding: `${spacing[1.5]} ${spacing[3]}`,
-                      marginTop: spacing[2],
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: fontWeight.medium,
-                        color: "rgba(161, 161, 170, 0.7)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      All Chains
-                    </span>
-                  </div>
-                )}
-                {otherChains.map((chain, idx) => (
+                <SectionLabel icon="sort">Chains A-Z</SectionLabel>
+                {filteredOther.map((chain, idx) => (
                   <ChainItem
                     key={String(
                       chain.id ??
@@ -328,20 +417,20 @@ export function ChainSelectorPanel({
               </div>
             )}
 
-            {popularChains.length === 0 && otherChains.length === 0 && (
+            {filteredPopular.length === 0 && filteredOther.length === 0 && (
               <div
                 style={{
-                  padding: `${spacing[3]} ${spacing[4]}`,
+                  padding: `${spacing[3]} ${spacing[2]}`,
                   textAlign: "center",
                 }}
               >
                 <p
                   style={{
-                    fontSize: fontSize.sm,
+                    fontSize: fontSize.xs,
                     color: colors.mutedForeground,
                   }}
                 >
-                  No chains available
+                  No chains found
                 </p>
               </div>
             )}

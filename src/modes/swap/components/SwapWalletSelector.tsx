@@ -200,54 +200,43 @@ export function SwapWalletSelector({
           Connect Wallet
         </h1>
 
-        {/* EVM / Solana pill tabs */}
+        {/* EVM / Solana segmented control */}
         <div
           style={{
-            position: "relative",
             display: "flex",
             alignItems: "center",
-            borderRadius: "9999px",
-            background: colors.background,
-            border: `1px solid ${colors.mutedForeground}`,
+            borderRadius: borderRadius.lg,
+            backgroundColor: colors.muted,
             padding: "3px",
+            gap: "2px",
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              top: 3,
-              bottom: 3,
-              width: "calc(50% - 3px)",
-              borderRadius: "9999px",
-              background: `linear-gradient(to bottom, ${colors.zinc[100]}, ${colors.zinc[200]})`,
-              border: `1px solid ${colors.mutedForeground}`,
-              transition: "transform 300ms ease-out",
-              transform:
-                selectedNamespace === "evm"
-                  ? "translateX(0)"
-                  : "translateX(100%)",
-            }}
-          />
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setSelectedNamespace(t.id)}
               style={{
-                position: "relative",
-                zIndex: 10,
-                padding: "4px 11px",
-                fontSize: "10px",
-                outline: "none",
-                fontWeight: 600,
-                borderRadius: "9999px",
-                background: "transparent",
-                border: "none",
+                padding: `${spacing[1]} ${spacing[3]}`,
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.medium,
+                borderRadius: borderRadius.md,
+                background:
+                  selectedNamespace === t.id ? colors.card : "transparent",
+                border:
+                  selectedNamespace === t.id
+                    ? `1px solid ${colors.border}`
+                    : "1px solid transparent",
                 cursor: "pointer",
-                transition: "color 200ms",
+                transition: "all 0.15s",
                 color:
                   selectedNamespace === t.id
-                    ? colors.black
+                    ? colors.foreground
                     : colors.mutedForeground,
+                boxShadow:
+                  selectedNamespace === t.id
+                    ? "0 1px 3px rgba(0,0,0,0.08)"
+                    : "none",
+                outline: "none",
               }}
             >
               {t.label}

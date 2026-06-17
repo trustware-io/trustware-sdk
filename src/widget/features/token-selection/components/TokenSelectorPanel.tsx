@@ -2,13 +2,7 @@ import React from "react";
 
 import type { ChainDef } from "../../../../types";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
-import {
-  borderRadius,
-  colors,
-  fontSize,
-  fontWeight,
-  spacing,
-} from "../../../styles";
+import { colors, fontWeight, spacing, borderRadius } from "../../../styles";
 import { AvailableTokenListItem } from "./AvailableTokenListItem";
 import { TokenSearchInput } from "./TokenSearchInput";
 import { TokenSelectorStateView } from "./TokenSelectorStateView";
@@ -30,6 +24,80 @@ export interface TokenSelectorPanelProps {
   walletAddress: string | null;
 }
 
+function TokenSectionLabel({
+  children,
+  icon,
+}: {
+  children: React.ReactNode;
+  icon: "wallet" | "spark";
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.375rem",
+        paddingLeft: spacing[3],
+        paddingRight: spacing[3],
+        paddingTop: spacing[1],
+        paddingBottom: spacing[1],
+        marginTop: spacing[1],
+        marginBottom: spacing[1],
+      }}
+    >
+      {icon === "wallet" ? (
+        <svg
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18-3H3m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6"
+          />
+        </svg>
+      ) : (
+        <svg
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"
+          />
+        </svg>
+      )}
+      <span
+        style={{
+          fontSize: "0.75rem",
+          lineHeight: "1rem",
+          fontWeight: fontWeight.medium,
+          color: colors.primary,
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
+
 export function TokenSelectorPanel({
   filteredTokens,
   filteredWalletTokens,
@@ -43,8 +111,10 @@ export function TokenSelectorPanel({
   selectedChain,
   setSearchQuery,
   tokensError,
-  walletAddress,
 }: TokenSelectorPanelProps): React.ReactElement {
+  const hasWalletTokens = filteredWalletTokens.length > 0;
+  const hasPopularTokens = filteredTokens.length > 0;
+
   return (
     <div
       style={{
@@ -54,162 +124,118 @@ export function TokenSelectorPanel({
         overflow: "hidden",
       }}
     >
+      {/* Search - always visible */}
       <div
         style={{
-          padding: `${spacing[2]} ${spacing[3]}`,
-          borderBottom: `1px solid rgba(63, 63, 70, 0.5)`,
+          padding: `${spacing[2]} ${spacing[2]}`,
+          borderBottom: `1px solid ${colors.border}`,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: spacing[2],
-            marginBottom: spacing[2],
-          }}
-        >
-          <span
-            style={{
-              fontSize: fontSize.xs,
-              fontWeight: fontWeight.medium,
-              color: colors.mutedForeground,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-            }}
-          >
-            Token
-          </span>
-          {walletAddress && (
-            <span
-              style={{
-                fontSize: "10px",
-                color: colors.primary,
-                backgroundColor: "rgba(59, 130, 246, 0.1)",
-                padding: `${spacing[0.5]} ${spacing[1.5]}`,
-                borderRadius: borderRadius.md,
-              }}
-            >
-              Wallet Connected
-            </span>
-          )}
-        </div>
-        {selectedChain ? (
-          <TokenSearchInput
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-          />
-        ) : null}
+        <TokenSearchInput
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
       </div>
 
       <div
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: `${spacing[2]} ${spacing[1]}`,
+          padding: `${spacing[1]} ${spacing[1]}`,
         }}
       >
-        {!selectedChain ||
-        isLoadingTokens ||
-        tokensError ||
-        filteredTokens.length === 0 ? (
+        {!selectedChain ? (
           <TokenSelectorStateView
             isLoadingTokens={isLoadingTokens}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            state={
-              !selectedChain ? "no-chain" : tokensError ? "error" : "empty"
-            }
+            state="no-chain"
+            tokensError={null}
+          />
+        ) : isLoadingTokens && !hasWalletTokens ? (
+          <TokenSelectorStateView
+            isLoadingTokens={true}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            state="empty"
+            tokensError={null}
+          />
+        ) : tokensError && !hasWalletTokens ? (
+          <TokenSelectorStateView
+            isLoadingTokens={false}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            state="error"
             tokensError={tokensError}
           />
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: spacing[0.5],
-            }}
-          >
-            {filteredWalletTokens.length > 0 ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.375rem",
-                  paddingLeft: "0.5rem",
-                  paddingRight: "0.5rem",
-                  marginBottom: spacing[2],
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "0.75rem",
-                    lineHeight: "1rem",
-                    color: colors.primary,
-                  }}
-                >
-                  Your tokens
-                </span>
-              </div>
-            ) : null}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {/* Your tokens */}
+            {hasWalletTokens && (
+              <>
+                <TokenSectionLabel icon="wallet">Your tokens</TokenSectionLabel>
+                {filteredWalletTokens.map((token, i) => (
+                  <WalletTokenListItem
+                    key={`${token.address}-${i}`}
+                    token={token}
+                    onSelect={onSelectWalletToken}
+                  />
+                ))}
+              </>
+            )}
 
-            {filteredWalletTokens.map((token, i) => (
-              <WalletTokenListItem
-                key={`${token.address}-${i}`}
-                token={token}
-                onSelect={onSelectWalletToken}
+            {/* Popular tokens */}
+            {isLoadingTokens ? (
+              <TokenSelectorStateView
+                isLoadingTokens={true}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                state="empty"
+                tokensError={null}
               />
-            ))}
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.375rem",
-                paddingLeft: "0.5rem",
-                paddingRight: "0.5rem",
-                marginBottom: spacing[2],
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  lineHeight: "1rem",
-                  color: colors.primary,
-                }}
-              >
-                Popular tokens
-              </span>
-            </div>
-
-            {filteredTokens.map((token, i) => (
-              <AvailableTokenListItem
-                key={`${token.address}-${i}`}
-                token={token}
-                onSelect={onSelectToken}
+            ) : hasPopularTokens ? (
+              <>
+                <TokenSectionLabel icon="spark">
+                  Popular tokens
+                </TokenSectionLabel>
+                {filteredTokens.map((token, i) => (
+                  <AvailableTokenListItem
+                    key={`${token.address}-${i}`}
+                    token={token}
+                    onSelect={onSelectToken}
+                  />
+                ))}
+                {hasNextPage ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void loadMore();
+                    }}
+                    disabled={isLoadingMore}
+                    style={{
+                      marginTop: spacing[2],
+                      marginLeft: spacing[2],
+                      marginRight: spacing[2],
+                      padding: `${spacing[2]} ${spacing[3]}`,
+                      borderRadius: borderRadius.lg,
+                      border: `1px solid ${colors.border}`,
+                      backgroundColor: colors.card,
+                      color: colors.foreground,
+                      cursor: isLoadingMore ? "wait" : "pointer",
+                    }}
+                  >
+                    {isLoadingMore ? "Loading more..." : "Load more"}
+                  </button>
+                ) : null}
+              </>
+            ) : !hasWalletTokens ? (
+              <TokenSelectorStateView
+                isLoadingTokens={false}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                state="empty"
+                tokensError={null}
               />
-            ))}
-
-            {hasNextPage ? (
-              <button
-                type="button"
-                onClick={() => {
-                  void loadMore();
-                }}
-                disabled={isLoadingMore}
-                style={{
-                  marginTop: spacing[2],
-                  marginLeft: spacing[2],
-                  marginRight: spacing[2],
-                  padding: `${spacing[2]} ${spacing[3]}`,
-                  borderRadius: borderRadius.lg,
-                  border: `1px solid ${colors.border}`,
-                  backgroundColor: colors.card,
-                  color: colors.foreground,
-                  cursor: isLoadingMore ? "wait" : "pointer",
-                }}
-              >
-                {isLoadingMore ? "Loading more..." : "Load more"}
-              </button>
             ) : null}
           </div>
         )}

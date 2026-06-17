@@ -6,7 +6,6 @@ import type {
 import {
   DEFAULT_AUTO_DETECT_PROVIDER,
   DEFAULT_SLIPPAGE,
-  DEFAULT_THEME,
   DEFAULT_MESSAGES,
 } from "./defaults";
 import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
@@ -125,7 +124,7 @@ export function resolveConfig(
     },
   };
 
-  const theme = deepMerge(DEFAULT_THEME, input.theme);
+  const theme = input.theme ?? "system";
   const messages = deepMerge(DEFAULT_MESSAGES, input.messages);
 
   // Merge retry config with defaults

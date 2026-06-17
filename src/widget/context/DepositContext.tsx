@@ -18,6 +18,7 @@ import { useWalletSessionState } from "../state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "../state/deposit/useWalletTokenState";
 import { useWalletConnect } from "../state/deposit/useWalletConnect";
 import { useWalletInfo } from "src/wallets";
+import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 
 export type {
   Chain,
@@ -128,7 +129,8 @@ export function DepositProvider({
     setCurrentStepInternal,
   } = useDepositNavigationState(initialStep);
 
-  const { resolvedTheme, toggleTheme } = useThemePreference();
+  const config = useTrustwareConfig();
+  const { resolvedTheme, toggleTheme } = useThemePreference(config.theme);
 
   const {
     selectedWallet,
