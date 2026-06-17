@@ -31,7 +31,7 @@ class ConfigStore {
       ...this._cfg,
       ...patch,
       routes: { ...this._cfg.routes, ...(patch.routes ?? {}) },
-      theme: (patch.theme ?? this._cfg.theme),
+      theme: patch.theme ?? this._cfg.theme,
       messages: {
         ...this._cfg.messages,
         ...(patch.messages ?? {}),
