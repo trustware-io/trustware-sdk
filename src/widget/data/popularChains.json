@@ -1,0 +1,113 @@
+{
+  "byTvl": [
+    {
+      "name": "Ethereum",
+      "chainId": 1
+    },
+    {
+      "name": "BSC",
+      "chainId": 56
+    },
+    {
+      "name": "Solana"
+    },
+    {
+      "name": "Tron"
+    },
+    {
+      "name": "Bitcoin"
+    },
+    {
+      "name": "Base",
+      "chainId": 8453
+    },
+    {
+      "name": "Hyperliquid L1"
+    },
+    {
+      "name": "Provenance"
+    },
+    {
+      "name": "Arbitrum",
+      "chainId": 42161
+    },
+    {
+      "name": "Polygon",
+      "chainId": 137
+    },
+    {
+      "name": "Plasma",
+      "chainId": 9745
+    },
+    {
+      "name": "Avalanche",
+      "chainId": 43114
+    },
+    {
+      "name": "Sui"
+    },
+    {
+      "name": "Monad",
+      "chainId": 143
+    },
+    {
+      "name": "OP Mainnet",
+      "chainId": 10
+    },
+    {
+      "name": "Cronos",
+      "chainId": 25
+    },
+    {
+      "name": "Stellar"
+    },
+    {
+      "name": "Starknet"
+    },
+    {
+      "name": "Mantle",
+      "chainId": 5000
+    },
+    {
+      "name": "Movement",
+      "chainId": 3073
+    },
+    {
+      "name": "Flare"
+    },
+    {
+      "name": "Ink",
+      "chainId": 57073
+    },
+    {
+      "name": "Aptos"
+    },
+    {
+      "name": "Near"
+    },
+    {
+      "name": "MegaETH",
+      "chainId": 4326
+    },
+    {
+      "name": "Rootstock",
+      "chainId": 30
+    },
+    {
+      "name": "dYdX"
+    },
+    {
+      "name": "Stacks"
+    },
+    {
+      "name": "Katana",
+      "chainId": 747474
+    },
+    {
+      "name": "X Layer"
+    }
+  ],
+  "popularLimit": 8,
+  "updatedAt": "2026-06-18",
+  "source": "https://api.llama.fi/v2/chains — sorted by TVL"
+}

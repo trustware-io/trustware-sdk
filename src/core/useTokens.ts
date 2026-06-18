@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, startTransition } from "react";
 import { getSharedRegistry } from "./registryClient";
 import type { TokenDef } from "../types";
 // import type { Token } from "../widget/context/DepositContext";
@@ -10,13 +10,18 @@ import { NATIVE_EVM, NATIVE_SOLANA } from "../widget/helpers/chainHelpers";
 import featuredAssetsData from "../widget/data/featuredAssets.json";
 
 type FeaturedEntry = { symbol: string; address: string };
-type FeaturedChain = { top: FeaturedEntry[]; stables: FeaturedEntry[] };
+type FeaturedChain = {
+  nativeAsset?: FeaturedEntry;
+  top: FeaturedEntry[];
+  stables: FeaturedEntry[];
+};
 const FEATURED = featuredAssetsData as Record<string, FeaturedChain>;
 
-const NATIVE_ADDRESSES = new Set([
+// Well-known native token addresses that always sort first
+const BASE_NATIVE_ADDRESSES = new Set([
   NATIVE_EVM.toLowerCase(),
   NATIVE_SOLANA.toLowerCase(),
-  // Some EVM chains (e.g. ZKsync, HyperEVM) use the zero address for the native token
+  // Some EVM chains (e.g. ZKsync) use the zero address for the native token
   "0x0000000000000000000000000000000000000000",
 ]);
 
@@ -118,12 +123,33 @@ export function useTokens(
           const filtered = tokenDefs.filter((item) =>
             chainMap.has(item.chainId.toString())
           );
-          setTokens(filtered.map(mapTokenDefToToken));
+          const mapped = filtered.map(mapTokenDefToToken);
+          startTransition(() => {
+            setTokens(mapped);
+          });
           return;
         }
 
+        // No search query — use the full cached token list so featuredAssets.json
+        // ordering works correctly. Pagination is only useful for search results.
+        if (!queryDependency) {
+          await registry.ensureLoaded();
+          if (cancelled) return;
+          const tokenDefs = registry.tokens(chainId);
+          const filtered = tokenDefs.filter((item) =>
+            chainMap.has(item.chainId.toString())
+          );
+          const mapped = filtered.map(mapTokenDefToToken);
+          startTransition(() => {
+            setTokens(mapped);
+            setHasNextPage(false);
+          });
+          return;
+        }
+
+        // User is searching — use the paginated endpoint for fast filtered results.
         const page = await registry.tokensPage(chainId, {
-          q: queryDependency || undefined,
+          q: queryDependency,
           limit: DEFAULT_PAGE_LIMIT,
         });
 
@@ -132,9 +158,12 @@ export function useTokens(
         const filtered = page.data.filter((item) =>
           chainMap.has(item.chainId.toString())
         );
-        setTokens(filtered.map(mapTokenDefToToken));
-        setNextCursor(page.pageInfo.nextCursor);
-        setHasNextPage(page.pageInfo.hasNextPage);
+        const mapped = filtered.map(mapTokenDefToToken);
+        startTransition(() => {
+          setTokens(mapped);
+          setNextCursor(page.pageInfo.nextCursor);
+          setHasNextPage(page.pageInfo.hasNextPage);
+        });
       } catch (err) {
         if (!cancelled) {
           const message =
@@ -193,24 +222,56 @@ export function useTokens(
     }
   };
 
-  const featuredAddresses = useMemo(() => {
+  const chainFeatured = useMemo(() => {
     const key = chainId?.toString() ?? "";
-    const chain = FEATURED[key];
-    if (!chain) return new Map<string, number>();
-    const map = new Map<string, number>();
-    let order = 0;
-    for (const s of chain.stables) map.set(s.address.toLowerCase(), order++);
-    for (const t of chain.top) map.set(t.address.toLowerCase(), order++);
-    return map;
+    return FEATURED[key] ?? null;
   }, [chainId]);
 
+  const nativeAddresses = useMemo(() => {
+    const set = new Set(BASE_NATIVE_ADDRESSES);
+    // Add the explicit native address from the JSON for this chain
+    if (chainFeatured?.nativeAsset?.address) {
+      set.add(chainFeatured.nativeAsset.address.toLowerCase());
+    }
+    return set;
+  }, [chainFeatured]);
+
   const nativeSymbols = useMemo(() => {
-    if (!chainId) return new Set<string>();
-    const chain = chainMap.get(chainId.toString());
-    const sym = chain?.nativeCurrency?.symbol;
-    if (!sym) return new Set<string>();
-    return new Set([sym.toUpperCase()]);
-  }, [chainId, chainMap]);
+    // Symbol fallback: covers chains not in the JSON or chains where the
+    // registry uses an unexpected address for the native token
+    const symbols = new Set<string>();
+    if (chainFeatured?.nativeAsset?.symbol) {
+      symbols.add(chainFeatured.nativeAsset.symbol.toUpperCase());
+    }
+    // Also use the chain definition's native currency as a fallback
+    if (chainId) {
+      const chainDef = chainMap.get(chainId.toString());
+      const sym = chainDef?.nativeCurrency?.symbol;
+      if (sym) symbols.add(sym.toUpperCase());
+    }
+    return symbols;
+  }, [chainId, chainMap, chainFeatured]);
+
+  const featuredAddresses = useMemo(() => {
+    if (!chainFeatured) return new Map<string, number>();
+    const map = new Map<string, number>();
+    let order = 0;
+    for (const s of chainFeatured.stables)
+      map.set(s.address.toLowerCase(), order++);
+    for (const t of chainFeatured.top)
+      map.set(t.address.toLowerCase(), order++);
+    return map;
+  }, [chainFeatured]);
+
+  const featuredSymbols = useMemo(() => {
+    if (!chainFeatured) return new Map<string, number>();
+    const map = new Map<string, number>();
+    let order = 0;
+    for (const s of chainFeatured.stables)
+      map.set(s.symbol.toUpperCase(), order++);
+    for (const t of chainFeatured.top) map.set(t.symbol.toUpperCase(), order++);
+    return map;
+  }, [chainFeatured]);
 
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -225,16 +286,19 @@ export function useTokens(
           );
 
     return sortTokensByPopularity(source, {
-      nativeAddresses: NATIVE_ADDRESSES,
+      nativeAddresses,
       nativeSymbols,
       featuredAddresses,
+      featuredSymbols,
     });
   }, [
     tokens,
     searchQuery,
     tokensPaginationEnabled,
+    nativeAddresses,
     nativeSymbols,
     featuredAddresses,
+    featuredSymbols,
   ]);
 
   return {

@@ -70,7 +70,8 @@
     "test:widget-smoke": "npm run build && node --test scripts/widget-flow-smoke.test.mjs",
     "validate": "npm run typecheck && npm run lint:strict && npm run format:check",
     "size": "size-limit",
-    "size:check": "size-limit --limit"
+    "size:check": "size-limit --limit",
+    "update:popular-chains": "node scripts/update-popular-chains.mjs"
   },
   "size-limit": [
     {

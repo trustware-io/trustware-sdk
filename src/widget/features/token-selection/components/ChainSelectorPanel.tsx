@@ -60,6 +60,7 @@ function ChainItem({
         <img
           src={chain.chainIconURI}
           alt={label}
+          loading="lazy"
           style={{
             width: "1.5rem",
             height: "1.5rem",
@@ -318,7 +319,7 @@ export function ChainSelectorPanel({
               padding: `0 ${spacing[2]}`,
             }}
           >
-            {[1, 2, 3, 4, 5].map((i) => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
                 style={{
