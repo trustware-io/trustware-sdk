@@ -65,6 +65,9 @@
       "name": "Starknet"
     },
     {
+      "name": "Near"
+    },
+    {
       "name": "Mantle",
       "chainId": 5000
     },
@@ -73,17 +76,14 @@
       "chainId": 3073
     },
     {
-      "name": "Flare"
-    },
-    {
       "name": "Ink",
       "chainId": 57073
     },
     {
-      "name": "Aptos"
+      "name": "Flare"
     },
     {
-      "name": "Near"
+      "name": "Aptos"
     },
     {
       "name": "MegaETH",
@@ -97,17 +97,16 @@
       "name": "dYdX"
     },
     {
-      "name": "Stacks"
+      "name": "Cardano"
     },
     {
-      "name": "Katana",
-      "chainId": 747474
+      "name": "Stacks"
     },
     {
       "name": "X Layer"
     }
   ],
   "popularLimit": 8,
-  "updatedAt": "2026-06-18",
+  "updatedAt": "2026-06-19",
   "source": "https://api.llama.fi/v2/chains — sorted by TVL"
 }

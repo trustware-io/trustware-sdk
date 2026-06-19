@@ -956,6 +956,7 @@ export function SwapMode({
   }, [route.data]);
 
   // Rotate loading messages while fetching a route
+  const msgTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!route.loading) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset message state when loading clears
@@ -965,13 +966,15 @@ export function SwapMode({
     }
     const id = setInterval(() => {
       setQuoteLoadingMsgVisible(false);
-      const t = setTimeout(() => {
+      msgTimeoutRef.current = setTimeout(() => {
         setQuoteLoadingMsgIdx((i) => (i + 1) % QUOTE_LOADING_MESSAGES.length);
         setQuoteLoadingMsgVisible(true);
       }, 280);
-      return () => clearTimeout(t);
     }, 2200);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      if (msgTimeoutRef.current !== null) clearTimeout(msgTimeoutRef.current);
+    };
   }, [route.loading]);
 
   // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval

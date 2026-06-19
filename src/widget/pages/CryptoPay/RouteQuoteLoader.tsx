@@ -23,15 +23,18 @@ export function RouteQuoteLoader({ selectedToken }: RouteQuoteLoaderProps) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
     const interval = setInterval(() => {
       setVisible(false);
-      const t = setTimeout(() => {
+      t = setTimeout(() => {
         setMessageIndex((i) => (i + 1) % QUOTE_MESSAGES.length);
         setVisible(true);
       }, 300);
-      return () => clearTimeout(t);
     }, 2500);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (t !== null) clearTimeout(t);
+    };
   }, []);
 
   return (
