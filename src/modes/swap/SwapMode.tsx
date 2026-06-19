@@ -16,7 +16,12 @@ import {
   borderRadius,
 } from "src/widget/styles";
 import { mergeStyles } from "src/widget/lib/utils";
-import { WidgetContainer, WidgetSecurityFooter } from "src/widget/components";
+import { mapError } from "src/widget/lib/mapError";
+import {
+  WidgetContainer,
+  WidgetSecurityFooter,
+  ErrorPage,
+} from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
@@ -51,6 +56,16 @@ interface SwapModeProps {
 }
 
 const QUOTE_TTL = 60; // seconds before a quote auto-refreshes
+
+const QUOTE_LOADING_MESSAGES = [
+  "Finding your best route...",
+  "Scanning liquidity pools...",
+  "Calculating bridge fees...",
+  "Checking exchange rates...",
+  "Optimizing for lowest fees...",
+  "Getting live pricing...",
+  "Almost ready...",
+];
 
 const PERCENT_OPTIONS = [
   { label: "25%", value: 0.25 },
@@ -198,6 +213,8 @@ export function SwapMode({
   const [destAddress, setDestAddress] = useState("");
   const [quoteAge, setQuoteAge] = useState(0);
   const quoteTimestampRef = useRef<number | null>(null);
+  const [quoteLoadingMsgIdx, setQuoteLoadingMsgIdx] = useState(0);
+  const [quoteLoadingMsgVisible, setQuoteLoadingMsgVisible] = useState(true);
   const latestFetchParamsRef = useRef<
     Parameters<ReturnType<typeof useSwapRoute>["fetch"]>[0] | null
   >(null);
@@ -498,10 +515,8 @@ export function SwapMode({
       return;
     }
 
-    // Auto-fetch already in flight — navigate now, review will show estimate
-    // and update live when the fetch resolves (route state is shared)
+    // Still fetching — button should be disabled, but guard just in case
     if (route.loading) {
-      setStage("review");
       return;
     }
 
@@ -939,6 +954,28 @@ export function SwapMode({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset countdown to 0 when a new quote arrives from the route query
     setQuoteAge(0);
   }, [route.data]);
+
+  // Rotate loading messages while fetching a route
+  const msgTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!route.loading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset message state when loading clears
+      setQuoteLoadingMsgIdx(0);
+      setQuoteLoadingMsgVisible(true);
+      return;
+    }
+    const id = setInterval(() => {
+      setQuoteLoadingMsgVisible(false);
+      msgTimeoutRef.current = setTimeout(() => {
+        setQuoteLoadingMsgIdx((i) => (i + 1) % QUOTE_LOADING_MESSAGES.length);
+        setQuoteLoadingMsgVisible(true);
+      }, 280);
+    }, 2200);
+    return () => {
+      clearInterval(id);
+      if (msgTimeoutRef.current !== null) clearTimeout(msgTimeoutRef.current);
+    };
+  }, [route.loading]);
 
   // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval
   useEffect(() => {
@@ -1989,113 +2026,11 @@ export function SwapMode({
   if (stage === "error") {
     return (
       <WidgetContainer theme={resolvedTheme} style={style}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            minHeight: "500px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: `${spacing[4]}`,
-              borderBottom: `1px solid ${colors.border}`,
-            }}
-          >
-            <h1
-              style={{
-                fontSize: fontSize.lg,
-                fontWeight: fontWeight.semibold,
-                color: colors.foreground,
-              }}
-            >
-              Swap Failed
-            </h1>
-          </div>
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: `${spacing[8]} ${spacing[6]}`,
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{
-                width: "4rem",
-                height: "4rem",
-                borderRadius: "9999px",
-                backgroundColor: "rgba(239,68,68,0.1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: spacing[4],
-              }}
-            >
-              <svg
-                style={{
-                  width: "2rem",
-                  height: "2rem",
-                  color: colors.destructive,
-                }}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </div>
-            <p
-              style={{
-                fontSize: fontSize.lg,
-                fontWeight: fontWeight.medium,
-                color: colors.foreground,
-                marginBottom: spacing[2],
-              }}
-            >
-              Transaction Failed
-            </p>
-            {execution.errorMessage && (
-              <p
-                style={{
-                  fontSize: fontSize.sm,
-                  color: colors.mutedForeground,
-                  marginBottom: spacing[6],
-                  maxWidth: "18rem",
-                }}
-              >
-                {execution.errorMessage}
-              </p>
-            )}
-            <button
-              onClick={handleReset}
-              style={{
-                padding: `${spacing[3]} ${spacing[6]}`,
-                borderRadius: borderRadius["2xl"],
-                backgroundColor: colors.primary,
-                color: colors.primaryForeground,
-                fontSize: fontSize.sm,
-                fontWeight: fontWeight.medium,
-                border: 0,
-                cursor: "pointer",
-              }}
-            >
-              Try Again
-            </button>
-          </div>
-          <WidgetSecurityFooter />
-        </div>
+        <ErrorPage
+          error={mapError(execution.errorMessage)}
+          onTryAgain={() => setStage("review")}
+          onStartOver={handleReset}
+        />
       </WidgetContainer>
     );
   }
@@ -2457,13 +2392,16 @@ export function SwapMode({
           ? "Connect Wallet"
           : needsDestAddress && !isValidDestAddress
             ? `Enter ${toChain?.networkName ?? "destination"} address`
-            : "Review";
+            : route.loading
+              ? "Getting quote..."
+              : "Review";
 
   const ctaDisabled =
     !hasTokens ||
     !hasAmount ||
     insufficient ||
-    (isConnected && needsDestAddress && !isValidDestAddress);
+    (isConnected && needsDestAddress && !isValidDestAddress) ||
+    route.loading;
   const ctaAction = !isConnected
     ? handleConnectAndReview
     : () => void handleReview();
@@ -3466,7 +3404,7 @@ export function SwapMode({
           </div>
         </div>
 
-        {route.error && (
+        {route.error && !route.loading && (
           <p
             style={{
               fontSize: fontSize.xs,
@@ -3476,8 +3414,49 @@ export function SwapMode({
               padding: `0 ${spacing[3]}`,
             }}
           >
-            {route.error}
+            {mapError(route.error).message}
           </p>
+        )}
+
+        {/* Quote loading indicator */}
+        {route.loading && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: spacing[2],
+              marginTop: spacing[3],
+              padding: `0 ${spacing[3]}`,
+            }}
+          >
+            <svg
+              className="tw-animate-spin"
+              style={{ width: "0.875rem", height: "0.875rem", flexShrink: 0 }}
+              viewBox="0 0 88 88"
+            >
+              <circle
+                cx="44"
+                cy="44"
+                r="40"
+                fill="none"
+                stroke="hsl(var(--tw-primary))"
+                strokeWidth="10"
+                strokeDasharray="80 172"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span
+              style={{
+                fontSize: fontSize.sm,
+                color: colors.mutedForeground,
+                transition: "opacity 0.25s ease",
+                opacity: quoteLoadingMsgVisible ? 1 : 0,
+              }}
+            >
+              {QUOTE_LOADING_MESSAGES[quoteLoadingMsgIdx]}
+            </span>
+          </div>
         )}
 
         {/* CTA */}

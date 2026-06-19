@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 import type { ChainDef } from "../../../../types";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
@@ -98,6 +98,8 @@ function TokenSectionLabel({
   );
 }
 
+const INITIAL_TOKEN_LIMIT = 50;
+
 export function TokenSelectorPanel({
   filteredTokens,
   filteredWalletTokens,
@@ -112,8 +114,19 @@ export function TokenSelectorPanel({
   setSearchQuery,
   tokensError,
 }: TokenSelectorPanelProps): React.ReactElement {
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination when chain or search changes
+    setShowAll(false);
+  }, [selectedChain, searchQuery]);
+
   const hasWalletTokens = filteredWalletTokens.length > 0;
   const hasPopularTokens = filteredTokens.length > 0;
+  const visibleTokens =
+    showAll || filteredTokens.length <= INITIAL_TOKEN_LIMIT
+      ? filteredTokens
+      : filteredTokens.slice(0, INITIAL_TOKEN_LIMIT);
 
   return (
     <div
@@ -198,14 +211,33 @@ export function TokenSelectorPanel({
                 <TokenSectionLabel icon="spark">
                   Popular tokens
                 </TokenSectionLabel>
-                {filteredTokens.map((token, i) => (
+                {visibleTokens.map((token, i) => (
                   <AvailableTokenListItem
                     key={`${token.address}-${i}`}
                     token={token}
                     onSelect={onSelectToken}
                   />
                 ))}
-                {hasNextPage ? (
+                {!showAll && filteredTokens.length > INITIAL_TOKEN_LIMIT ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAll(true)}
+                    style={{
+                      marginTop: spacing[2],
+                      marginLeft: spacing[2],
+                      marginRight: spacing[2],
+                      padding: `${spacing[2]} ${spacing[3]}`,
+                      borderRadius: borderRadius.lg,
+                      border: `1px solid ${colors.border}`,
+                      backgroundColor: colors.card,
+                      color: colors.foreground,
+                      cursor: "pointer",
+                      fontSize: "0.8125rem",
+                    }}
+                  >
+                    Show all {filteredTokens.length} tokens
+                  </button>
+                ) : hasNextPage ? (
                   <button
                     type="button"
                     onClick={() => {

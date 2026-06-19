@@ -1,6 +1,6 @@
 {
   "name": "@trustware/sdk",
-  "version": "1.1.8-staging.7",
+  "version": "1.1.8-staging.8",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
   "license": "Apache-2.0",
   "author": "Trustware",
@@ -70,7 +70,8 @@
     "test:widget-smoke": "npm run build && node --test scripts/widget-flow-smoke.test.mjs",
     "validate": "npm run typecheck && npm run lint:strict && npm run format:check",
     "size": "size-limit",
-    "size:check": "size-limit --limit"
+    "size:check": "size-limit --limit",
+    "update:popular-chains": "node scripts/update-popular-chains.mjs"
   },
   "size-limit": [
     {

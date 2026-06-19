@@ -134,6 +134,12 @@ export interface TokenSortOptions {
    * These appear as a block immediately after the native token.
    */
   featuredAddresses?: Map<string, number>;
+  /**
+   * Uppercase symbol → order index for featured tokens.
+   * Symbol-based fallback for when the registry uses different addresses
+   * than those recorded in featuredAssets.json.
+   */
+  featuredSymbols?: Map<string, number>;
 }
 
 export function sortTokensByPopularity<T extends TokenPopularitySortable>(
@@ -143,14 +149,23 @@ export function sortTokensByPopularity<T extends TokenPopularitySortable>(
   const nativeSet = options?.nativeAddresses ?? new Set<string>();
   const nativeSymbolSet = options?.nativeSymbols ?? new Set<string>();
   const featuredMap = options?.featuredAddresses ?? new Map<string, number>();
+  const featuredSymMap = options?.featuredSymbols ?? new Map<string, number>();
 
   const getMajorRank = (token: TokenPopularitySortable): number => {
     const addr = normalizeAddress(token.address);
+    const sym = normalizeSymbol(token.symbol);
     if (nativeSet.has(addr)) return 0;
-    if (nativeSymbolSet.has(normalizeSymbol(token.symbol))) return 0;
+    if (nativeSymbolSet.has(sym)) return 0;
     if (featuredMap.has(addr)) return 1;
+    if (featuredSymMap.has(sym)) return 1;
     // Shift the existing groups (A/B/C/D = 0-3) up by 2
     return getGroupRank(token) + 2;
+  };
+
+  const getFeaturedOrder = (token: TokenPopularitySortable): number => {
+    const byAddr = featuredMap.get(normalizeAddress(token.address));
+    if (byAddr !== undefined) return byAddr;
+    return featuredSymMap.get(normalizeSymbol(token.symbol)) ?? 0;
   };
 
   return tokens
@@ -162,9 +177,7 @@ export function sortTokensByPopularity<T extends TokenPopularitySortable>(
 
       // Within the featured block, preserve the JSON ordering
       if (majorA === 1) {
-        const orderA = featuredMap.get(normalizeAddress(a.token.address)) ?? 0;
-        const orderB = featuredMap.get(normalizeAddress(b.token.address)) ?? 0;
-        return orderA - orderB;
+        return getFeaturedOrder(a.token) - getFeaturedOrder(b.token);
       }
 
       const chainPopularityDiff = compareChainPopularity(a.token, b.token);

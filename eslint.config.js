@@ -11,6 +11,7 @@ export default tseslint.config(
       "node_modules/**",
       "ui-ideas/**",
       ".venv/**",
+      "scripts/**",
       "*.cjs",
       "*.mjs",
       "*.config.ts",

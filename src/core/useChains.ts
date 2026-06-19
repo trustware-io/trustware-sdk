@@ -6,11 +6,12 @@ import {
   canonicalSeiChainKey,
   normalizeChainType,
 } from "src/widget/helpers/chainHelpers";
+import { resolveChainLabel } from "src/utils";
 
 export interface UseChainsResult {
   /** All available chains */
   chains: ChainDef[];
-  /** Popular/featured chains (Ethereum, Polygon, Base) */
+  /** Popular/featured chains ranked by TVL */
   popularChains: ChainDef[];
   /** Other chains (not in popular list) */
   otherChains: ChainDef[];
@@ -22,12 +23,11 @@ export interface UseChainsResult {
   chainMap: Map<string, ChainDef>;
 }
 
-/** Chain IDs for popular chains */
-const POPULAR_CHAIN_IDS = new Set([
-  1, // Ethereum Mainnet
-  137, // Polygon
-  8453, // Base
-]);
+import popularChainsData from "src/widget/data/popularChains.json";
+
+type PopularEntry = { name: string; chainId?: number };
+const POPULAR_CHAINS_BY_TVL: PopularEntry[] = popularChainsData.byTvl;
+const POPULAR_LIMIT: number = popularChainsData.popularLimit;
 
 function filterSupportedChains(chains: ChainDef[]): ChainDef[] {
   const supportedChainTypes = new Set(["evm", "solana", "cosmos", "bitcoin"]);
@@ -74,7 +74,6 @@ export function useChains(): UseChainsResult {
   const [chainMap, setChainMap] = useState<Map<string, ChainDef>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const registry = getSharedRegistry();
 
   useEffect(() => {
@@ -136,27 +135,63 @@ export function useChains(): UseChainsResult {
     };
   }, [registry, chains.length]);
 
-  // Split chains into popular and other
+  // Split chains into popular (TVL order from static JSON) and other (A-Z)
   const { popularChains, otherChains } = useMemo(() => {
     const popular: ChainDef[] = [];
     const other: ChainDef[] = [];
 
+    const registryEvmIds = new Set(
+      chains.map((c) => Number(c.chainId ?? c.id))
+    );
+    const hasSolana = chains.some((c) => normalizeChainType(c) === "solana");
+
+    // Walk the TVL-ranked list, pick the first POPULAR_LIMIT that exist in registry
+    const popularEvmIds: number[] = [];
+    let solanaIsPopular = false;
+    for (const entry of POPULAR_CHAINS_BY_TVL) {
+      if (popularEvmIds.length + (solanaIsPopular ? 1 : 0) >= POPULAR_LIMIT)
+        break;
+      if (
+        typeof entry.chainId === "number" &&
+        registryEvmIds.has(entry.chainId)
+      ) {
+        popularEvmIds.push(entry.chainId);
+      } else if (
+        !solanaIsPopular &&
+        hasSolana &&
+        entry.name.toLowerCase() === "solana"
+      ) {
+        solanaIsPopular = true;
+      }
+    }
+
+    const popularIdSet = new Set(popularEvmIds);
+
     for (const chain of chains) {
       const chainId = Number(chain.chainId ?? chain.id);
-      if (POPULAR_CHAIN_IDS.has(chainId)) {
+      if (
+        popularIdSet.has(chainId) ||
+        (solanaIsPopular && normalizeChainType(chain) === "solana")
+      ) {
         popular.push(chain);
       } else {
         other.push(chain);
       }
     }
 
-    // Sort popular chains by the order in POPULAR_CHAIN_IDS
-    const popularOrder = [1, 137, 8453];
+    // Preserve TVL order within popular
     popular.sort((a, b) => {
       const aId = Number(a.chainId ?? a.id);
       const bId = Number(b.chainId ?? b.id);
-      return popularOrder.indexOf(aId) - popularOrder.indexOf(bId);
+      const aRank = popularEvmIds.indexOf(aId);
+      const bRank = popularEvmIds.indexOf(bId);
+      return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
     });
+
+    // Sort other chains A-Z by display name
+    other.sort((a, b) =>
+      resolveChainLabel(a).localeCompare(resolveChainLabel(b))
+    );
 
     return { popularChains: popular, otherChains: other };
   }, [chains]);

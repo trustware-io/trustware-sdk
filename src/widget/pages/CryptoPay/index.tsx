@@ -33,6 +33,7 @@ import {
   CryptoPaySwipeSection,
 } from "src/widget/features/transaction";
 import DefaultCryptoPay from "./DefaultCryptoPay";
+import { RouteQuoteLoader } from "./RouteQuoteLoader";
 
 export interface CryptoPayProps {
   /** Additional inline styles */
@@ -323,58 +324,67 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
         <>
           {isReady && (
             <>
-              <CryptoPayAmountSection
-                amount={amount}
-                amountComputation={amountComputation}
-                amountInputMode={amountInputMode}
-                estimatedReceive={estimatedReceive}
-                effectiveSliderMax={adjustedSliderMax}
-                effectiveSliderMin={effectiveSliderMin}
-                gasReservationWei={gasReservationWei}
-                handleAmountChange={handleAmountChange}
-                handleExpandTokens={handleExpandTokens}
-                handleSliderChange={handleSliderChange}
-                handleTokenChange={handleTokenChange}
-                hasUsdPrice={hasUsdPrice}
-                isFixedAmount={isFixedAmount}
-                isGasSponsored={!!routeResult?.sponsorship && !isNativeSelected}
-                isLoadingRoute={isLoadingRoute}
-                normalizedTokenBalance={normalizedTokenBalance}
-                orderedTokens={orderedTokens}
-                parsedAmount={parsedAmount}
-                relayFeeUsd={relayFeeUsd > 0 ? relayFeeUsd : undefined}
-                selectedChain={selectedChain}
-                selectedToken={readySelectedToken}
-                setAmountInputMode={setAmountInputMode}
-                showFeeSummary={
-                  SHOW_FEE_SUMMARY ||
-                  (!!routeResult?.sponsorship && !isNativeSelected)
-                }
-                tokenPriceUSD={tokenPriceUSD}
-                walletAddress={walletAddress}
-                yourWalletTokensLength={yourWalletTokens.length}
-              />
-              <CryptoPaySwipeSection
-                actionErrorMessage={actionErrorMessage}
-                canSwipe={canSwipe}
-                destinationConfig={destinationConfig}
-                fromChainName={selectedChain?.networkName}
-                handleSwipeConfirm={handleSwipeConfirm}
-                isApproving={isApproving}
-                isLoadingRoute={isLoadingRoute}
-                isReadingAllowance={isReadingAllowance}
-                isWalletConnected={
-                  isWalletConnected
-                    ? isWalletConnected
-                    : walletAddress !== null && walletType == "walletconnect"
-                      ? true
-                      : false
-                }
-                needsApproval={needsApproval}
-                selectedToken={readySelectedToken}
-                swipeResetKey={swipeResetKey}
-              />
-              <WidgetSecurityFooter />
+              {isLoadingRoute && !routeResult ? (
+                <RouteQuoteLoader selectedToken={readySelectedToken} />
+              ) : (
+                <>
+                  <CryptoPayAmountSection
+                    amount={amount}
+                    amountComputation={amountComputation}
+                    amountInputMode={amountInputMode}
+                    estimatedReceive={estimatedReceive}
+                    effectiveSliderMax={adjustedSliderMax}
+                    effectiveSliderMin={effectiveSliderMin}
+                    gasReservationWei={gasReservationWei}
+                    handleAmountChange={handleAmountChange}
+                    handleExpandTokens={handleExpandTokens}
+                    handleSliderChange={handleSliderChange}
+                    handleTokenChange={handleTokenChange}
+                    hasUsdPrice={hasUsdPrice}
+                    isFixedAmount={isFixedAmount}
+                    isGasSponsored={
+                      !!routeResult?.sponsorship && !isNativeSelected
+                    }
+                    isLoadingRoute={isLoadingRoute}
+                    normalizedTokenBalance={normalizedTokenBalance}
+                    orderedTokens={orderedTokens}
+                    parsedAmount={parsedAmount}
+                    relayFeeUsd={relayFeeUsd > 0 ? relayFeeUsd : undefined}
+                    selectedChain={selectedChain}
+                    selectedToken={readySelectedToken}
+                    setAmountInputMode={setAmountInputMode}
+                    showFeeSummary={
+                      SHOW_FEE_SUMMARY ||
+                      (!!routeResult?.sponsorship && !isNativeSelected)
+                    }
+                    tokenPriceUSD={tokenPriceUSD}
+                    walletAddress={walletAddress}
+                    yourWalletTokensLength={yourWalletTokens.length}
+                  />
+                  <CryptoPaySwipeSection
+                    actionErrorMessage={actionErrorMessage}
+                    canSwipe={canSwipe}
+                    destinationConfig={destinationConfig}
+                    fromChainName={selectedChain?.networkName}
+                    handleSwipeConfirm={handleSwipeConfirm}
+                    isApproving={isApproving}
+                    isLoadingRoute={isLoadingRoute}
+                    isReadingAllowance={isReadingAllowance}
+                    isWalletConnected={
+                      isWalletConnected
+                        ? isWalletConnected
+                        : walletAddress !== null &&
+                            walletType == "walletconnect"
+                          ? true
+                          : false
+                    }
+                    needsApproval={needsApproval}
+                    selectedToken={readySelectedToken}
+                    swipeResetKey={swipeResetKey}
+                  />
+                  <WidgetSecurityFooter />
+                </>
+              )}
             </>
           )}
           {showDefaultCryptoPay && <DefaultCryptoPay />}
