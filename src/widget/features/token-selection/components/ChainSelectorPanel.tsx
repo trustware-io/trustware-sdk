@@ -291,7 +291,7 @@ export function ChainSelectorPanel({
               paddingTop: spacing[2],
               paddingBottom: spacing[2],
               fontSize: fontSize.sm,
-              backgroundColor: colors.muted,
+              backgroundColor: colors.background,
               border: `1px solid ${colors.border}`,
               borderRadius: borderRadius.lg,
               color: colors.foreground,
