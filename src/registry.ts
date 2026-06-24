@@ -204,6 +204,29 @@ export class Registry {
     this._chainsLoaded = true;
   }
 
+  private batchStoreTokens(tokensArr: TokenDef[]) {
+    for (const token of tokensArr) {
+      const chainRef = token?.chainId;
+      if (chainRef == null) continue;
+      const normalized = normalizeToken(token);
+      const resolvedChain = this.chain(chainRef);
+      const aliases = resolvedChain
+        ? getChainAliases(resolvedChain)
+        : [normalizeChainKey(chainRef)];
+      const key = tokenKey(normalized);
+      for (const alias of aliases) {
+        const existingByKey =
+          this._tokensByChainKey.get(alias) ?? new Map<string, TokenDef>();
+        existingByKey.set(key, normalized);
+        this._tokensByChainKey.set(alias, existingByKey);
+      }
+    }
+    // Rebuild per-chain arrays once after all tokens are stored (avoids O(n²))
+    for (const [chainKey, byKey] of this._tokensByChainKey.entries()) {
+      this._tokensByChain.set(chainKey, Array.from(byKey.values()));
+    }
+  }
+
   private async loadAllTokens() {
     await this.ensureChainsLoaded();
 
@@ -216,9 +239,7 @@ export class Registry {
     const tokensArr: TokenDef[] = Array.isArray(tokens)
       ? tokens
       : (tokens.data ?? []);
-    for (const token of tokensArr) {
-      this.storeToken(token);
-    }
+    this.batchStoreTokens(tokensArr);
 
     this._loaded = true;
   }

@@ -2,8 +2,7 @@ import type React from "react";
 
 import { colors, fontSize, fontWeight, spacing } from "../../../styles";
 import { balanceRowStyle, maxButtonStyle } from "./cryptoPayAmountStyles";
-
-type AmountInputMode = "usd" | "token";
+import type { AmountInputMode } from "../types";
 
 export interface AmountBalanceRowProps {
   amountInputMode: AmountInputMode;

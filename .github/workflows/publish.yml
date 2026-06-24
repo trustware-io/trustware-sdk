@@ -34,9 +34,11 @@ jobs:
     environment: npm-staging
     permissions:
       id-token: write   # Required for npm trusted publishing (OIDC)
-      contents: read
+      contents: write   # Required to create the GitHub Release
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # git-cliff needs full history to walk tags
 
       - uses: actions/setup-node@v5
         with:
@@ -79,15 +81,38 @@ jobs:
       - name: Publish to npm (staging)
         run: npx npm@latest publish --access public --tag staging --provenance
 
+      # Staging release notes show every commit since the last production tag
+      # (cliff.toml ignores staging tags as boundaries), giving a running
+      # preview of what's heading to prod next. Do NOT pass --tag here: the
+      # staging tag matches cliff.toml's skip_tags, so git-cliff would skip the
+      # release and emit an empty body. Omitting --tag renders the unreleased
+      # commits under an "[Unreleased]" heading instead.
+      - name: Generate release notes
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --unreleased --strip all
+
+      - name: Create GitHub Release (staging)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.content }}
+          prerelease: true
+
   publish-production:
     if: ${{ !contains(github.ref_name, '-staging.') }}
     runs-on: ubuntu-latest
     environment: npm-production
     permissions:
       id-token: write
-      contents: read
+      contents: write   # Required to create the GitHub Release
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # git-cliff needs full history to walk tags
 
       - name: Verify tag matches package.json version
         run: |
@@ -122,3 +147,17 @@ jobs:
 
       - name: Publish to npm
         run: npx npm@latest publish --access public --provenance
+
+      - name: Generate release notes
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }} --unreleased --strip all
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.content }}

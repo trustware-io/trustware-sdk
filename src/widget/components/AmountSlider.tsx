@@ -271,11 +271,12 @@ export function AmountSlider({
               left: 0,
               height: "0.625rem",
               borderRadius: "9999px",
-              background: `linear-gradient(90deg, ${colors.emerald[500]}, ${colors.emerald[400]})`,
+              background: disabled
+                ? "rgba(4, 120, 87, 0.5)"
+                : `linear-gradient(90deg, ${colors.emerald[500]}, ${colors.emerald[400]})`,
               boxShadow: `0 0 8px ${colors.emerald[500]}40`,
               transition: "all 75ms",
               width: `${percentage}%`,
-              ...(disabled && { backgroundColor: "rgba(4, 120, 87, 0.5)" }),
             }}
           />
 

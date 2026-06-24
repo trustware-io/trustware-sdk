@@ -6,7 +6,6 @@ import type {
 import {
   DEFAULT_AUTO_DETECT_PROVIDER,
   DEFAULT_SLIPPAGE,
-  DEFAULT_THEME,
   DEFAULT_MESSAGES,
 } from "./defaults";
 import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
@@ -125,7 +124,7 @@ export function resolveConfig(
     },
   };
 
-  const theme = deepMerge(DEFAULT_THEME, input.theme);
+  const theme = input.theme ?? "system";
   const messages = deepMerge(DEFAULT_MESSAGES, input.messages);
 
   // Merge retry config with defaults
@@ -153,6 +152,16 @@ export function resolveConfig(
       DEFAULT_FEATURE_FLAGS.balanceStreaming,
     shouldAllowGA4:
       input.features?.shouldAllowGA4 ?? DEFAULT_FEATURE_FLAGS.shouldAllowGA4,
+    swapMode: input.features?.swapMode ?? DEFAULT_FEATURE_FLAGS.swapMode,
+    swapDefaultDestToken:
+      input.features?.swapDefaultDestToken ??
+      DEFAULT_FEATURE_FLAGS.swapDefaultDestToken,
+    swapLockDestToken:
+      input.features?.swapLockDestToken ??
+      DEFAULT_FEATURE_FLAGS.swapLockDestToken,
+    swapAllowedDestTokens:
+      input.features?.swapAllowedDestTokens ??
+      DEFAULT_FEATURE_FLAGS.swapAllowedDestTokens,
   };
 
   return {

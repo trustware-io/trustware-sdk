@@ -40,9 +40,10 @@ export function AvailableTokenListItem({
         <img
           src={token.iconUrl}
           alt={token.symbol}
+          loading="lazy"
           style={{
-            width: "2.25rem",
-            height: "2.25rem",
+            width: "2rem",
+            height: "2rem",
             borderRadius: "9999px",
             objectFit: "cover",
             flexShrink: 0,
@@ -52,6 +53,12 @@ export function AvailableTokenListItem({
             target.style.display = "none";
             if (target.nextElementSibling) {
               (target.nextElementSibling as HTMLElement).style.display = "flex";
+              (target.nextElementSibling as HTMLElement).textContent =
+                token.symbol.slice(0, 2).toUpperCase();
+              (target.nextElementSibling as HTMLElement).style.color =
+                colors.primary;
+              (target.nextElementSibling as HTMLElement).style.fontSize =
+                fontSize.sm;
             }
           }}
         />

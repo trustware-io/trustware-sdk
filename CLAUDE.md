@@ -26,10 +26,36 @@ Publishing is **tag-driven**. Branch pushes never publish — pushing a version 
 | `v1.2.3`           | `@trustware/sdk`         | `latest`  | `npm-production` |
 | `v1.2.3-staging.5` | `@trustware/sdk-staging` | `staging` | `npm-staging`    |
 
+### Automated release (recommended)
+
+Use the **Release** workflow (`.github/workflows/release.yml`) — GitHub Actions → Release → Run workflow → enter version (e.g. `1.1.8` or `1.1.8-staging.1`). It picks the branch from the version pattern, runs `npm version`, commits, pushes the branch, and pushes the tag. The tag push triggers `publish.yml`.
+
+It does **not** merge staging → main. For a production release: merge staging → main yourself, then run the workflow with the production version — `CHANGELOG.md` is regenerated automatically (see below).
+
+### Changelog automation
+
+`cliff.toml` configures [git-cliff](https://git-cliff.org) to generate Keep-a-Changelog entries from Conventional Commits. On production releases (`X.Y.Z`), the Release workflow runs git-cliff and commits the updated `CHANGELOG.md` alongside the version bump. Staging tags are skipped (`skip_tags` in `cliff.toml`), so their commits roll into the next production release section. `publish.yml` also creates a GitHub Release for every published tag with git-cliff-generated notes (staging releases marked as prereleases).
+
+Preview locally before cutting: `git-cliff --tag v1.2.3 --unreleased`.
+
+### Bumping the version
+
+**ALWAYS use `npm version` — never hand-edit `package.json`.** `npm version` updates both `package.json` and `package-lock.json` atomically. Hand-editing leaves `package-lock.json` stale, which makes `npm ci` (used in both CI and publish workflows) fail, and silently ships a lockfile whose top-level `version` lies about the release.
+
+```bash
+npm version 1.2.3 --no-git-tag-version          # production
+npm version 1.2.3-staging.5 --no-git-tag-version # staging
+```
+
+If you've already hand-edited `package.json`, recover with:
+```bash
+npm install --package-lock-only --ignore-scripts
+```
+
 ### Cutting a production release
 
 ```bash
-# Bump version in package.json (must match the tag exactly)
+# Bump version (updates package.json AND package-lock.json)
 npm version 1.2.3 --no-git-tag-version
 git commit -am "chore(release): v1.2.3"
 git push origin main
@@ -44,7 +70,11 @@ The publish workflow runs `publish-production`, verifies the tag matches `packag
 ### Cutting a staging release
 
 ```bash
-# From the staging branch
+# From the staging branch — bump first so package.json matches the tag
+npm version 1.2.3-staging.5 --no-git-tag-version
+git commit -am "chore(release): v1.2.3-staging.5"
+git push origin staging
+
 git tag v1.2.3-staging.5
 git push origin v1.2.3-staging.5
 ```
@@ -141,34 +171,58 @@ If you run `npm run build` without the env var, the SDK will call production API
 
 ## Architecture
 
-### Entry Points
-- `src/index.ts` - Main exports (provider, widget, hooks, types)
+> The widget formerly lived under `src/widget-v2/`; it is now `src/widget/`. There is no `widget-v2` directory anymore (the exported component is still internally named `TrustwareWidgetV2` and aliased to `TrustwareWidget` in `src/widget/index.tsx`).
 
-### Key Directories
-- `src/widget-v2/` - TrustwareWidget component and state machine
-- `src/widget-v2/components/` - UI components (barrel: `index.ts`)
-- `src/widget-v2/hooks/` - Widget-specific hooks (barrel: `index.ts`)
-- `src/widget-v2/styles/` - Design tokens, theme, animations, utilities (barrel: `index.ts`)
-- `src/wallets/` - Wallet detection, connection adapters, WalletConnect (barrel: `index.ts`)
-- `src/config/` - Configuration store and defaults (barrel: `index.ts`)
-- `src/hooks/` - React hooks for quotes, transactions, etc. (barrel: `index.ts`)
-- `src/types/` - TypeScript type definitions (barrel: `index.ts`)
+### Entry Point
+- `src/index.ts` — single barrel. Re-exports: `Trustware`/`TrustwareCore` (core facade), `TrustwareProvider`/`useTrustware`, `TrustwareWidget`, `TrustwareError`, wallet helpers (`walletManager`, `useWalletDetection`, `WagmiBridge`, …), `RateLimitError`, plus `./identity`, `./validation/address`, `./types`, `./constants`.
 
-### Widget State Machine
-The TrustwareWidget uses an 8-state flow:
+### Core Facade (`src/core/`)
+`Trustware` (type alias `TrustwareCore`) is a plain object facade — the headless API. Key surface (`src/core/index.ts`):
+- **Lifecycle**: `init(config)` (loads config into `TrustwareConfigStore` + validates the API key once via `validateSdkAccess`), `getConfig()`, `useWallet(w)`, `autoDetect(timeoutMs)`.
+- **Config setters**: `setDestinationAddress/Chain/Token`, `addIdentityAddress`, `resolveAddressForChain`, `getWallet`, `getIdentity`, `getAddress`.
+- **REST** (`core/routes.ts`, `core/balances.ts`): `buildRoute`, `buildDepositAddress`, `submitReceipt`, `getStatus`, `pollStatus`, `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
+- **Data hooks** (`core/useChains.ts`, `core/useTokens.ts`): `useChains`, `useTokens`.
+- **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`.
+- Other core modules: `http.ts` (fetch wrapper + retry/rate-limit, exports `RateLimitError`), `forex.ts`, `registryClient.ts`, `sdkRpc.ts`.
+
+### Provider (`src/provider.tsx`)
+`TrustwareProvider` props: `config: TrustwareConfigOptions` (required), `wallet?`, `autoDetect = true`. On mount it runs `Trustware.init(config)`, attaches a passed wallet or `autoDetect`s one, and tracks `status: "idle" | "initializing" | "ready" | "error"`. `useTrustware()` returns `{ status, errors, core, emitError, emitSuccess, emitEvent, revalidate }`. The provider bridges `config.onError` / `onSuccess` / `onEvent` callbacks to the emit helpers.
+
+`TrustwareConfigOptions` (`src/types/config.ts`): `apiKey`, `routes { toChain, toToken, fromToken?, fromChain?, toAddress?, defaultSlippage?, routeType?, options? }`, `theme` (`light|dark|system`), `messages?`, `retry?`, `walletConnect?`, `features?` (feature flags incl. `swapMode`, `balanceStreaming`, `tokensPagination`, swap-dest-token controls), `onError/onSuccess/onEvent`.
+
+### Widget (`src/widget/`)
+- `index.tsx` — exports `TrustwareWidget` (= internal `TrustwareWidgetV2`).
+- `pages/` — `Home`, `SelectToken`, `CryptoPay/` (deposit/amount flow + `RouteQuoteLoader.tsx`), `Processing`, `Success`, `Error`.
+- `state/deposit/` — navigation + wallet/token state hooks (`useDepositNavigationState`, `useWalletTokenState`, `useWalletConnect`, `useWalletSessionState`, `useThemePreference`, `types.ts`).
+- `features/` — feature folders (`amount`, `route-preview`, `token-selection`, `transaction`, `wallet`).
+- `components/`, `hooks/`, `context/`, `data/` (`popularChains.json`, `featuredAssets.json`), `helpers/`, `lib/` (`mapError.ts` — maps backend/route errors → user-facing messages for the Error page; `utils.ts`), `styles/`, `utils/`, `__tests__/`.
+
+### Widget Navigation (real flow)
+`src/widget/state/deposit/useDepositNavigationState.ts` is a history-stack navigator, **not** the old 8-state machine. Steps (`NavigationStep`):
 ```
-Welcome → ChainTokenSelection → AmountEntry → Quoting →
-WalletConnection → PaymentProcessing → Success/Failure
+home → select-token → crypto-pay → processing → success | error
 ```
+`goBack()` pops the history stack; `resetNavigation()` returns to `home`.
+
+### Other Subsystems
+- `src/modes/swap/` — swap mode (gated by `features.swapMode`): `SwapMode.tsx`, `currency.ts`, hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
+- `src/smart-account/` — ERC-4337 path: `createTrustwareSmartAccountClient`, `sendRouteAsUserOperation`, `permit2.ts` (`PERMIT2`, `randomPermit2Nonce`), `uniswap.ts`, `fee-utils.ts`.
+- `src/identity/` — multi-chain wallet identity resolution (address ↔ chain normalization, used by `Trustware.getIdentity()`/`resolveAddressForChain`).
+- `src/wallets/` — detection + connection (`detect.ts`, `connect.ts`, `manager.ts` (`walletManager`), `adapters.ts`, `bridges.ts` (wagmi bridge), `eipWallets.ts`, `solana.ts`, `deepLink.ts`, `metadata.ts`).
+- `src/config/` — `store.ts` (`TrustwareConfigStore`), `defaults.ts`, `merge.ts`, `walletconnect.ts`.
+- `src/errors/` — `TrustwareError.ts` + `errorCodes.ts` (`INVALID_CONFIG`, `INVALID_API_KEY`, `WALLET_NOT_CONNECTED`, `BRIDGE_FAILED`, `NETWORK_ERROR`, `INPUT_ERROR`, `UNKNOWN_ERROR`).
+- `src/events/events.ts` — `TrustwareEvent` union (`error`, `transaction_started`, `transaction_success`, `wallet_connected`, `token_page_loaded/error`, `balance_stream_chunk/fallback`, `swap_route_changed`), surfaced via `config.onEvent`.
+- `src/validation/address.ts` — `validateAddressForChain`, `validateRouteAddresses`.
+- `src/utils/chains.ts` — chain key/type normalization. `src/logos/` — bundled logo asset.
 
 ### WalletConnect Integration
-WalletConnect uses `@reown/appkit-universal-connector`. The legacy `src/wallets/walletconnect.ts` and `src/widget-v2/components/WalletConnectModal.tsx` are fully commented out — WalletConnect is now handled via the Universal Connector in `src/config/walletconnect.ts`, used by `Home.tsx` and `widget/walletSelection.tsx`.
+WalletConnect uses `@reown/appkit-universal-connector` (`@reown/appkit*` ^1.8.x), configured in `src/config/walletconnect.ts` (defines the Solana CAIP network + Universal Connector). A built-in project ID ships in `src/constants`; override via `config.walletConnect.projectId`.
 
 ## Build Configuration
 
 - **Bundler**: tsup (esbuild-based)
 - **Output**: ESM + CJS + TypeScript declarations
-- **External deps**: react, react-dom, wagmi, @rainbow-me/rainbowkit, @walletconnect/ethereum-provider, qrcode
+- **External deps**: react, react-dom, wagmi, @rainbow-me/rainbowkit, @walletconnect/ethereum-provider, qrcode, radix-ui (viem stays external too — peer dep)
 
 ## Code Style
 
@@ -203,7 +257,7 @@ The widget uses **inline styles only** to ensure it works when embedded in any h
 ### Style System Structure
 
 ```
-src/widget-v2/styles/
+src/widget/styles/
   index.ts           # Barrel export
   tokens.ts          # Design tokens (colors, spacing, typography, shadows)
   theme.ts           # CSS variable injection via <style> tag
@@ -349,67 +403,6 @@ The widget follows this user flow:
 | `AmountSlider` | Range slider with snap-to-tick behavior |
 | `SwipeToConfirmTokens` | Swipe gesture for secure confirmation |
 
-## Recent Bug Fixes (2026-01-21)
+## Changelog
 
-### 1. Transaction Receipt Not Submitted to Backend
-**File**: `src/widget-v2/hooks/useTransactionSubmit.ts`
-
-**Problem**: After `sendRouteTransaction()` returned a transaction hash, the SDK was not calling `submitReceipt(intentId, hash)` to notify the backend. This meant the backend never knew the transaction was sent and couldn't track its status.
-
-**Fix**: Added `submitReceipt()` call after successful transaction submission:
-```typescript
-// After getting the hash from wallet
-await submitReceipt(routeResult.intentId, hash);
-```
-
-### 2. Route Amount Not Converted to Smallest Unit
-**File**: `src/widget-v2/hooks/useRouteBuilder.ts`
-
-**Problem**: The `fromAmount` was being sent as a decimal string (e.g., "0.1") but the backend expects it in the token's smallest unit (e.g., wei).
-
-**Fix**: Convert amount using token decimals before sending:
-```typescript
-const decimals = selectedToken.decimals || 18;
-const [whole, fraction = ""] = amount.split(".");
-const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
-const fromAmountWei = (whole + paddedFraction).replace(/^0+/, "") || "0";
-```
-
-### 3. UI Migration to Inline Styles (2026-01-29)
-**Files**: All `src/widget-v2/**/*.tsx` files
-
-**Changes**:
-- Converted from Tailwind CSS to inline styles for full host-app compatibility
-- Created design tokens system in `src/widget-v2/styles/`
-- Theme/animation CSS injected via `<style>` tag in WidgetContainer
-- Removed tailwind.config.js, postcss.config.js, styles.css
-- Removed Tailwind dependencies from package.json
-
-### 4. Token Picker/Slider Visual Improvements (2026-02-01)
-**Files**: `src/widget-v2/components/AmountSlider.tsx`, `src/widget-v2/components/TokenSwipePill.tsx`
-
-**AmountSlider improvements**:
-- Thicker track (0.625rem) with gradient and glow effect
-- Larger thumb (1.75rem) with prominent border and shadow
-- More visible tick marks with glow when active
-- Better-styled value display with border
-- Improved spacing and font weights
-
-**TokenSwipePill improvements**:
-- Limited pagination dots to max 5 visible (prevents cluttered UI with many tokens)
-- Smart dot display: shows first, current, surrounding, and last dots
-- Gap indicators for skipped tokens
-- Cleaner visual hierarchy
-
-### 5. Code Cleanup (2026-03-16)
-**Scope**: All `src/` files
-
-**Changes**:
-- Removed 45 debug console.log/warn/error statements across 14 files
-- Created barrel `index.ts` files for `widget-v2/components/` and `widget-v2/components/Skeletons/`
-- Consolidated imports across all pages/components to use barrel re-exports
-- Removed unused `direction` field from `UseRouteBuilderOptions`
-- Fixed `explorerUrl` → `blockExplorerUrls[0]` on Error page
-- Fixed `BuildRouteResult` type access (`txReq` instead of `route.transactionRequest`)
-- Fixed `fromAmountUSD`/`toAmountUSD` casing to match `RouteEstimate` type
-- Removed dead WalletConnect imports from WalletSelector (underlying modules commented out)
+Per-release history is auto-generated by git-cliff in `CHANGELOG.md` (see Release Process). Do not hand-maintain a changelog here.

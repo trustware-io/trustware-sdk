@@ -1,4 +1,4 @@
-import type { BuildRouteResult } from "../types";
+import type { BuildRouteResult, RouteSponsorship } from "../types";
 import type { ChainDef } from "../types";
 import { walletManager } from "../wallets/";
 import {
@@ -8,6 +8,7 @@ import {
   isEvmTxRequest,
   isSerializedSolanaTxRequest,
 } from "./routes";
+import { keccak256 } from "viem";
 
 function backendChainId(chain?: ChainDef, fallback?: number | string): string {
   const preferred = chain?.networkIdentifier ?? chain?.chainId ?? chain?.id;
@@ -41,6 +42,17 @@ export async function sendRouteTransaction(
     const value = txReq.value ? BigInt(txReq.value) : 0n;
     const target = Number(txReq.chainId ?? fallbackChainId);
 
+    // Validate sponsorship calldata hash. The backend signs
+    // keccak256(route.execution.transaction.data) — if wrapping occurs the
+    // paymaster contract will revert on-chain, so we never skip this check.
+    let validatedSponsorship: RouteSponsorship | undefined;
+    if (b.sponsorship) {
+      if (keccak256(data) === b.sponsorship.callDataHash) {
+        validatedSponsorship = b.sponsorship;
+      }
+      // Mismatch: validatedSponsorship stays undefined; tx proceeds without paymaster.
+    }
+
     if (Number.isFinite(target)) {
       const current = await w.getChainId();
       if (current !== target) {
@@ -53,7 +65,8 @@ export async function sendRouteTransaction(
     }
 
     if (w.type === "eip1193") {
-      const from = await w.getAddress();
+      const from = (await w.getAddress()) as `0x${string}`;
+
       const hexValue = value ? `0x${value.toString(16)}` : "0x0";
       const params: Record<string, unknown> = {
         from,
@@ -64,7 +77,6 @@ export async function sendRouteTransaction(
       if (Number.isFinite(target)) {
         params.chainId = `0x${target.toString(16)}`;
       }
-
       const hash = await w.request({
         method: "eth_sendTransaction",
         params: [params],
@@ -72,11 +84,18 @@ export async function sendRouteTransaction(
       return hash as string;
     }
 
+    // wagmi path — Account Kit wallets pick up paymasterAndData on sendTransaction
     const response = await w.sendTransaction({
       to,
       data,
       value,
       chainId: Number.isFinite(target) ? target : undefined,
+      ...(validatedSponsorship
+        ? {
+            paymasterAndData:
+              validatedSponsorship.paymasterAndData as `0x${string}`,
+          }
+        : {}),
     });
     return response.hash as string;
   }

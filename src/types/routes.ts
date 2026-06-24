@@ -82,6 +82,35 @@ export type Transaction = {
 //   };
 // };
 
+export type SponsorshipApproval = {
+  client_id: string;
+  program_id: string;
+  sdk_key_id: string;
+  sender: string;
+  call_data_hash: string;
+  chain_id: string;
+  max_cost: string;
+  valid_after?: string | null;
+  valid_until?: string | null;
+  nonce: string;
+  entry_point: string;
+  paymaster: string;
+};
+
+export type RouteSponsorship = {
+  requestId: string;
+  paymaster: string;
+  entryPoint: string;
+  chainId: string;
+  callDataHash: string;
+  maxCost: string;
+  paymasterAndData: string;
+  signature: string;
+  signer: string;
+  typedDataHash: string;
+  approval: SponsorshipApproval;
+};
+
 export type RouteEstimate = {
   fromAmount?: string;
   toAmount?: string;
@@ -101,6 +130,7 @@ export type RoutePlan = {
   requestId?: string;
   reliabilityScore?: number;
   diagnostics?: { rawPayload?: unknown };
+  sponsorship?: RouteSponsorship;
 };
 
 export type BuildRouteResult = {
@@ -112,4 +142,5 @@ export type BuildRouteResult = {
     toAmountMinUSD?: string;
   };
   route: RoutePlan | undefined;
+  sponsorship?: RouteSponsorship;
 };

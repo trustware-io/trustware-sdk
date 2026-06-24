@@ -6,6 +6,7 @@ export type WalletId =
   | "rainbow"
   | "phantom-evm"
   | "phantom-solana"
+  | "metamask-solana"
   | "solflare"
   | "backpack"
   | "rabby"
@@ -123,6 +124,7 @@ export type EvmWalletInterface = BaseWalletInterface & {
           data: `0x${string}`;
           value?: bigint;
           chainId?: number;
+          paymasterAndData?: `0x${string}`;
         }): Promise<{ hash: `0x${string}` }>;
       }
   );

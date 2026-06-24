@@ -44,6 +44,7 @@ export function WalletTokenListItem({
           <img
             src={logoUrl}
             alt={token.symbol}
+            loading="lazy"
             style={{
               width: "2.25rem",
               height: "2.25rem",
@@ -94,6 +95,7 @@ export function WalletTokenListItem({
           <img
             src={token.chainIconURI}
             alt={token.chainId?.toString()}
+            loading="lazy"
             style={{
               width: "0.875rem",
               height: "0.875rem",

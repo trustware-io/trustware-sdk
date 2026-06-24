@@ -19,11 +19,6 @@ export interface SelectTokenProps {
   style?: React.CSSProperties;
 }
 
-/**
- * SelectToken page with two-column layout.
- * Left column displays available chains for selection.
- * Right column displays tokens for the selected chain with search functionality.
- */
 export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   const { selectedChain, setSelectedChain, setSelectedToken } =
     useDepositForm();

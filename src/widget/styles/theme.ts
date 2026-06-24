@@ -25,8 +25,8 @@ export const THEME_STYLES = `
   --tw-accent-foreground: 0 0% 100%;
   --tw-destructive: 0 84% 60%;
   --tw-destructive-foreground: 0 0% 100%;
-  --tw-border: 220 13% 91%;
-  --tw-input: 220 13% 91%;
+  --tw-border: 220 13% 94%;
+  --tw-input: 220 13% 94%;
   --tw-ring: 217 91% 60%;
   --tw-radius: 1rem;
 

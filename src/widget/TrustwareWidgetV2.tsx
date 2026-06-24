@@ -15,8 +15,9 @@ import {
   useDepositNavigation,
   useDepositTransaction,
   useDepositUi,
-  type NavigationStep,
+  // type NavigationStep,
 } from "./context/DepositContext";
+import { NavigationStep } from "../widget/state/deposit/types";
 import { ThemeToggle, WidgetContainer, type Theme } from "./components";
 import {
   clearPersistedState,
@@ -31,6 +32,8 @@ import { WidgetRouter } from "./app/WidgetRouter";
 import { ACTIVE_TRANSACTION_STATUSES } from "./app/widgetSteps";
 import { useTrustware } from "../provider";
 import { useWalletExternalDisconnect } from "src/wallets/manager";
+import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
+import { SwapMode } from "src/modes/swap";
 
 // Styles for WidgetContent
 const widgetContentContainerStyle: React.CSSProperties = {
@@ -148,7 +151,7 @@ export interface TrustwareWidgetV2Props {
  * Inner widget component with access to context
  */
 interface WidgetInnerProps {
-  theme: Theme;
+  theme?: Theme;
   style?: React.CSSProperties;
   onClose?: () => void;
   onStateChange?: (state: PersistedState) => void;
@@ -276,7 +279,7 @@ export const TrustwareWidgetV2 = forwardRef<
   TrustwareWidgetV2Props
 >(function TrustwareWidgetV2(
   {
-    theme = "system",
+    theme,
     style,
     initialStep = "home",
     defaultOpen = true,
@@ -288,6 +291,7 @@ export const TrustwareWidgetV2 = forwardRef<
 ): React.ReactElement | null {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const closeRequestRef = useRef<(() => void) | null>(null);
+  const config = useTrustwareConfig();
 
   // Always start at initialStep on mount (refresh returns to home)
   // Persisting step caused issues: wallet disconnects, intentId lost, polling stops
@@ -335,6 +339,11 @@ export const TrustwareWidgetV2 = forwardRef<
   // Don't render if closed
   if (!isOpen) {
     return null;
+  }
+
+  // Swap Mode bypasses DepositProvider — fully standalone
+  if (config.features.swapMode) {
+    return <SwapMode theme={theme} style={style} />;
   }
 
   return (

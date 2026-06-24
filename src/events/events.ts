@@ -30,4 +30,12 @@ export type TrustwareEvent =
       type: "balance_stream_fallback";
       address: string;
       message: string;
+    }
+  | {
+      type: "swap_route_changed";
+      fromChain: string;
+      fromToken: string;
+      toChain: string;
+      toToken: string;
+      amount?: string;
     };
