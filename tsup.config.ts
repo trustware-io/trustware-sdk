@@ -67,9 +67,6 @@ export default defineConfig([
     // Account Kit is bundled in (devDep, not installed by consumers) so the bundle
     // is self-contained and Next.js never traces into the SDK's node_modules for it.
     // viem remains external — it is a peer dep that all consumers already have.
-    external: [
-      ...baseConfig.external!,
-      "viem",
-    ],
+    external: [...baseConfig.external!, "viem"],
   },
 ]);
