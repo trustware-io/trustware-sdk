@@ -76,6 +76,7 @@ export function useHomeWalletActions({
         const { error } = await connectWallet(wallet);
         if (error) {
           // setCurrentStepInternal("home");
+          console.error("Wallet connection error:", error);
           resetNavigation();
           return;
         }
