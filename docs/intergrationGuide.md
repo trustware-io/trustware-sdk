@@ -40,7 +40,6 @@ const trustwareConfig = {
     fromAddress: undefined,
     toAddress: undefined,
     defaultSlippage: 1,
-    routeType: "swap",
     options: {
       routeRefreshMs: 15000,
       fixedFromAmount: undefined,

@@ -83,7 +83,6 @@ Current config fields that matter most for headless integrations:
 - `routes.fromAddress`
 - `routes.toAddress`
 - `routes.defaultSlippage`
-- `routes.routeType`
 - `routes.options.routeRefreshMs`
 - `routes.options.fixedFromAmount`
 - `routes.options.minAmountOut`

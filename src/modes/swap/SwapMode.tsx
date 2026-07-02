@@ -23,6 +23,7 @@ import {
   ErrorPage,
 } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
+import { isSerializedSolanaTxRequest } from "src/core/routes";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
@@ -560,8 +561,22 @@ export function SwapMode({
     const fromTokenAddress =
       fromToken?.address ?? (fromToken as { address?: string })?.address;
     const fromTokenDecimals = fromToken?.decimals ?? undefined;
+
+    // Solana blockhashes expire in ~60-90s and a quote can sit on the review
+    // screen for nearly the full QUOTE_TTL window before the user confirms —
+    // rebuild right before signing so the wallet gets a transaction with a
+    // fresh blockhash instead of one that may already be expired.
+    let routeToSend = route.data;
+    if (
+      isSerializedSolanaTxRequest(routeToSend.txReq) &&
+      latestFetchParamsRef.current
+    ) {
+      const fresh = await route.fetch(latestFetchParamsRef.current);
+      if (fresh) routeToSend = fresh;
+    }
+
     await execution.execute(
-      route.data,
+      routeToSend,
       fromTokenAddress,
       fromTokenDecimals,
       walletAddress ?? undefined,
@@ -572,7 +587,7 @@ export function SwapMode({
       },
       () => setStage("error")
     );
-  }, [route.data, execution, fromToken, walletAddress, maxApproval]);
+  }, [route, execution, fromToken, walletAddress, maxApproval]);
 
   const handleReset = useCallback(() => {
     execution.reset();
