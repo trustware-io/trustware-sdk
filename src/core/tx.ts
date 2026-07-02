@@ -105,10 +105,12 @@ export async function sendRouteTransaction(
       throw new Error("A Solana wallet is required for this route");
     }
 
-    const { Registry } = await import("../registry");
-    const { apiBase } = await import("./http");
-    const registry = new Registry(apiBase());
-    await registry.ensureLoaded();
+    // Only a chain lookup is needed here, so reuse the shared registry (already
+    // warmed by useChains/useTokens) and load chains only — a fresh Registry +
+    // ensureLoaded() would refetch the full cross-chain token list on every send.
+    const { getSharedRegistry } = await import("./registryClient");
+    const registry = getSharedRegistry();
+    await registry.ensureChainsLoaded();
 
     const chain = registry.chain(
       String(fallbackChainId ?? txReq.chainId ?? "")
@@ -133,10 +135,9 @@ export async function runTopUp(params: {
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
 
-  const { Registry } = await import("../registry");
-  const { apiBase } = await import("./http");
+  const { getSharedRegistry } = await import("./registryClient");
 
-  const reg = new Registry(apiBase());
+  const reg = getSharedRegistry();
   await reg.ensureLoaded();
 
   const fromAddress = await w.getAddress();
