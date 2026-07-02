@@ -179,7 +179,7 @@ If you run `npm run build` without the env var, the SDK will call production API
 ### Core Facade (`src/core/`)
 `Trustware` (type alias `TrustwareCore`) is a plain object facade — the headless API. Key surface (`src/core/index.ts`):
 - **Lifecycle**: `init(config)` (loads config into `TrustwareConfigStore` + validates the API key once via `validateSdkAccess`), `getConfig()`, `useWallet(w)`, `autoDetect(timeoutMs)`.
-- **Config setters**: `setDestinationAddress/Chain/Token`, `addIdentityAddress`, `resolveAddressForChain`, `getWallet`, `getIdentity`, `getAddress`.
+- **Config setters**: `setDestinationAddress/Chain/Token`, `setTheme`/`getTheme` (toggle the widget's light/dark/system mode at runtime, e.g. from a host app's own theme toggle), `addIdentityAddress`, `resolveAddressForChain`, `getWallet`, `getIdentity`, `getAddress`.
 - **REST** (`core/routes.ts`, `core/balances.ts`): `buildRoute`, `buildDepositAddress`, `submitReceipt`, `getStatus`, `pollStatus`, `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
 - **Data hooks** (`core/useChains.ts`, `core/useTokens.ts`): `useChains`, `useTokens`.
 - **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`.
