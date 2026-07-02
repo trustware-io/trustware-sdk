@@ -6,14 +6,27 @@ export function formatDeepLink(
   const enc = encodeURIComponent(currentUrl);
 
   switch (id) {
+    // EVM
     case "metamask":
-      // app schema works on iOS + Android; fallback to site detection
       return `metamask://dapp/${currentUrl}`;
     case "coinbase":
-      // opens Coinbase Wallet and loads the dapp
       return `coinbase://wallet/dapp?url=${enc}`;
     case "rainbow":
       return `rainbow://connect?uri=${enc}`;
+    case "trust":
+      return `https://link.trustwallet.com/open_url?coin_id=60&url=${enc}`;
+    case "okx":
+      return `okx://wallet/dapp/url?dappUrl=${enc}`;
+
+    // Solana
+    case "phantom-solana":
+      return `phantom://browse/${enc}`;
+    case "solflare":
+      return `solflare://ul/v1/browse/${enc}`;
+    case "backpack":
+      return `https://backpack.app/ul/v1/browse/${enc}?ref=${enc}`;
+
+    // No confirmed deep link scheme
     default:
       return undefined;
   }
