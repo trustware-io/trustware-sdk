@@ -105,7 +105,6 @@ type TrustwareConfigOptions = {
     fromAddress?: string;
     toAddress?: string;
     defaultSlippage?: number;
-    routeType?: string;
     options?: {
       routeRefreshMs?: number;
       fixedFromAmount?: string | number;
@@ -132,7 +131,6 @@ type TrustwareConfigOptions = {
 - `routes.fromAddress`: optional source wallet override.
 - `routes.toAddress`: optional destination address override.
 - `routes.defaultSlippage`: optional slippage percentage. Defaults to `1`.
-- `routes.routeType`: optional route flavor. Defaults to `"swap"`.
 
 ### Route Options
 

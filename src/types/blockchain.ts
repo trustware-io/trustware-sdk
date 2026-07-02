@@ -56,6 +56,11 @@ export type BalanceStreamOptions = {
   strict?: boolean;
 };
 
+export type GetBalancesOptions = {
+  /** Bypass the in-memory balance cache and re-fetch fresh data from the network. */
+  forceRefresh?: boolean;
+};
+
 export type ChainType = "evm" | "cosmos" | "solana" | "btc" | string;
 
 export interface NativeCurrency {

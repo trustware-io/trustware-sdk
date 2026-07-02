@@ -118,7 +118,6 @@ export function resolveConfig(
     defaultSlippage: normalizeSlippage(
       input.routes.defaultSlippage ?? DEFAULT_SLIPPAGE
     ),
-    routeType: input.routes.routeType ?? "swap",
     options: {
       ...input.routes.options,
     },
