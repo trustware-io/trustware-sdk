@@ -51,7 +51,6 @@ export type TrustwareConfigOptions = {
     fromAddress?: string; // Default source address (optional)
     toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
     defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
-    routeType?: string; // Route type: "swap" | "deposit" | "withdraw" | "cross" (default: "swap")
     options?: {
       routeRefreshMs?: number; // Route refresh interval in milliseconds (optional)
       fixedFromAmount?: string | number;
@@ -80,7 +79,6 @@ export type ResolvedTrustwareConfig = {
     fromAddress?: string;
     toAddress?: string;
     defaultSlippage: number; // resolved
-    routeType: string; // resolved
     options: {
       routeRefreshMs?: number;
       fixedFromAmount?: string | number;

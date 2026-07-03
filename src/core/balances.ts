@@ -1,6 +1,7 @@
 import type {
   BalanceRow,
   BalanceStreamOptions,
+  GetBalancesOptions,
   WalletAddressBalanceWrapper,
   ChainDef,
 } from "../types/";
@@ -269,7 +270,8 @@ async function parseStreamingBalances(
 /** Map chain reference -> backend chain_key and return enriched balances */
 export async function getBalances(
   chainRef: string | number,
-  address: string
+  address: string,
+  opts?: GetBalancesOptions
 ): Promise<BalanceRow[]> {
   const reg = await ensureRegistry();
   const chain = reg.chain(chainRef);
@@ -287,8 +289,10 @@ export async function getBalances(
     chain.nativeCurrency?.decimals ?? "",
     normalizeChainType(chain) ?? "",
   ].join(":");
-  const cached = balanceCache.get(cacheKey);
-  if (cached) return cached;
+  if (!opts?.forceRefresh) {
+    const cached = balanceCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   const url = `${apiBase()}/v1/data/wallets/${encodeURIComponent(chainKey)}/${trimmedAddress}/balances`;
   const response = await fetch(url, {

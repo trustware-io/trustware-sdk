@@ -372,12 +372,51 @@ export function toSolanaWalletInterface(
       );
 
       if (provider.signAndSendTransaction) {
-        const result = await provider.signAndSendTransaction(transaction, {
-          preflightCommitment: "confirmed",
-        });
+        // skipPreflight: the wallet's own preflight simulation runs against
+        // whatever RPC it happens to be pointed at, which frequently lags the
+        // aggregator's RPC for freshly-built multi-hop routes (new/updated
+        // address lookup tables, just-minted blockhash). A failed preflight
+        // aborts the send locally with no broadcast and no on-chain trace —
+        // exactly the intermittent "nothing broadcasted" failures seen here.
+        // Skipping it defers validity checking to actual execution, which we
+        // already verify via status polling after send.
+        const MAX_INTERNAL_ERROR_ATTEMPTS = 3;
+        const INTERNAL_ERROR_RETRY_DELAY_MS = 500;
 
-        if (typeof result === "string") return result;
-        if (result?.signature) return result.signature;
+        for (
+          let attempt = 1;
+          attempt <= MAX_INTERNAL_ERROR_ATTEMPTS;
+          attempt++
+        ) {
+          try {
+            const result = await provider.signAndSendTransaction(transaction, {
+              skipPreflight: true,
+            });
+
+            if (typeof result === "string") return result;
+            if (result?.signature) return result.signature;
+            break;
+          } catch (err) {
+            // Solflare and Phantom both surface a generic -32603 "Internal
+            // error" from their own extension-internal message dispatch —
+            // confirmed (via stack trace) to originate inside the wallet's
+            // own inpage script, not from Solana or our transaction content
+            // (which simulates cleanly independently). This is a long-
+            // standing, unresolved fault reported across wallets with no
+            // known root cause; treated by the community as transient and
+            // retry-worthy. Scoped narrowly to this exact code so unrelated
+            // failures (user rejection, real simulation errors) still
+            // surface immediately.
+            const code = (err as { code?: number } | null | undefined)?.code;
+            if (code === -32603 && attempt < MAX_INTERNAL_ERROR_ATTEMPTS) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, INTERNAL_ERROR_RETRY_DELAY_MS * attempt)
+              );
+              continue;
+            }
+            throw err;
+          }
+        }
       }
 
       if (!provider.signTransaction) {
