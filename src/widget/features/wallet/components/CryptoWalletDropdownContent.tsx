@@ -107,14 +107,7 @@ function DesktopWalletDropdownContent({
 function MobileWalletDropdownContent() {
   const { setCurrentStep } = useDepositNavigation();
 
-  const {
-    walletMetaId,
-    // address,
-    isConnected,
-    // connectedVia,
-    // walletType,
-    status,
-  } = useWalletInfo();
+  const { walletMetaId, isConnected, status } = useWalletInfo();
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -184,8 +177,6 @@ function MobileWalletDropdownContent() {
           scrollbarColor: `${colors.muted} transparent`,
         }}
       >
-        {/* {isConnected && <button onClick={handleContinue}>continue</button>} */}
-
         {mobileWallets.map((wallet) => {
           const isConnectedWallet = wallet.id === connectedWalletId;
           const isDisabled = isConnected && !isConnectedWallet;
