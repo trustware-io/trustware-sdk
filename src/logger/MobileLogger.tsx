@@ -26,34 +26,29 @@ function MobileLogger() {
     const logs: string[] = [];
     let isOpen = true;
 
-    // wrapper
     const wrapper = document.createElement("div");
     wrapper.style.cssText =
       "position:fixed;bottom:0;left:0;right:0;z-index:9999;font-family:monospace;";
     document.body.appendChild(wrapper);
 
-    // toolbar
     const toolbar = document.createElement("div");
     toolbar.style.cssText =
       "background:#1a1a1a;color:lime;font-size:11px;padding:4px 8px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #333;";
     toolbar.innerHTML = `<span>🪲 Console</span>`;
     wrapper.appendChild(toolbar);
 
-    // toggle button
     const toggleBtn = document.createElement("button");
     toggleBtn.textContent = "−";
     toggleBtn.style.cssText =
       "background:transparent;border:1px solid #444;color:lime;cursor:pointer;padding:0 6px;border-radius:4px;font-size:12px;line-height:1.4;";
     toolbar.appendChild(toggleBtn);
 
-    // clear button
     const clearBtn = document.createElement("button");
     clearBtn.textContent = "clear";
     clearBtn.style.cssText =
       "background:transparent;border:1px solid #444;color:#aaa;cursor:pointer;padding:0 6px;border-radius:4px;font-size:12px;line-height:1.4;margin-right:auto;margin-left:8px;";
     toolbar.insertBefore(clearBtn, toggleBtn);
 
-    // log panel
     const panel = document.createElement("div");
     panel.style.cssText =
       "background:black;color:lime;font-size:10px;max-height:500px;overflow:auto;padding:8px;";
