@@ -9,6 +9,7 @@ export function formatDeepLink(
     // EVM
     case "metamask":
       return `metamask://dapp/${currentUrl}`;
+
     case "coinbase":
       return `coinbase://wallet/dapp?url=${enc}`;
     case "rainbow":
