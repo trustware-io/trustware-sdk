@@ -55,13 +55,14 @@ function MobileLogger() {
     wrapper.appendChild(panel);
 
     const render = () => {
-      panel.innerHTML = logs
-        .slice(-20)
-        .map(
-          (l) =>
-            `<pre style="margin:0;white-space:pre-wrap;border-bottom:1px solid #222;padding-bottom:4px;">${l}</pre>`
-        )
-        .join("");
+      panel.replaceChildren();
+      logs.slice(-20).forEach((l) => {
+        const pre = document.createElement("pre");
+        pre.style.cssText =
+          "margin:0;white-space:pre-wrap;border-bottom:1px solid #222;padding-bottom:4px;";
+        pre.textContent = l;
+        panel.appendChild(pre);
+      });
       panel.scrollTop = panel.scrollHeight;
     };
 
