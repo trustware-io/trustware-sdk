@@ -121,10 +121,6 @@ function MobileWalletDropdownContent({
 
   const currentUrl = window.location.href;
 
-  // const mobileWallets = WALLETS.filter(
-  //   (w) => w.deepLink || w.ios || w.android || w.id === "walletconnect"
-  // );
-
   const mobileWallets = useMemo(
     () =>
       WALLETS.filter((w) => {
