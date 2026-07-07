@@ -104,8 +104,14 @@ function DesktopWalletDropdownContent({
   );
 }
 
-function MobileWalletDropdownContent() {
+function MobileWalletDropdownContent({
+  handleWalletConnect,
+}: {
+  handleWalletConnect: () => void;
+}) {
   const { setCurrentStep } = useDepositNavigation();
+
+  const { selectedNamespace } = useDepositWallet();
 
   const { walletMetaId, isConnected, status } = useWalletInfo();
 
@@ -115,9 +121,33 @@ function MobileWalletDropdownContent() {
 
   const currentUrl = window.location.href;
 
-  const mobileWallets = WALLETS.filter((w) => w.deepLink || w.ios || w.android);
+  // const mobileWallets = WALLETS.filter(
+  //   (w) => w.deepLink || w.ios || w.android || w.id === "walletconnect"
+  // );
+
+  const mobileWallets = useMemo(
+    () =>
+      WALLETS.filter((w) => {
+        if (w.id === "walletconnect") return true;
+
+        const hasMobileLink = Boolean(w.deepLink || w.ios || w.android);
+        if (!hasMobileLink) return false;
+
+        return (
+          w.ecosystem.trim().toLowerCase() === "multi" ||
+          w.ecosystem.trim().toLowerCase() ===
+            selectedNamespace.trim().toLowerCase()
+        );
+      }),
+    [selectedNamespace]
+  );
 
   const handleWalletSelect = (wallet: WalletMeta) => {
+    if (wallet.id === "walletconnect") {
+      handleWalletConnect();
+      return;
+    }
+
     if (wallet.deepLink) {
       const deepLinkUrl = wallet.deepLink(currentUrl);
       if (deepLinkUrl) {
@@ -167,6 +197,16 @@ function MobileWalletDropdownContent() {
         flexDirection: "column",
       }}
     >
+      <div
+        style={{
+          width: "100%",
+          padding: spacing[2],
+        }}
+      >
+        <div style={{ display: "flex", gap: spacing[2] }}>
+          <WalletNamespaceTabs showBitcoin={false} />
+        </div>
+      </div>
       {/* scrollable wallet list */}
       <div
         style={{
@@ -183,8 +223,9 @@ function MobileWalletDropdownContent() {
           const isHovered = hoveredId === wallet.id;
 
           return (
-            <div
+            <button
               key={wallet.id}
+              type="button"
               onClick={() => !isDisabled && handleWalletSelect(wallet)}
               onMouseEnter={() => !isDisabled && setHoveredId(wallet.id)}
               onMouseLeave={() => setHoveredId(null)}
@@ -257,11 +298,10 @@ function MobileWalletDropdownContent() {
                   </span>
                 </div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
-
       {/* sticky continue button at bottom */}
       {showContinueButton && (
         <div
@@ -313,7 +353,11 @@ export function CryptoWalletDropdownContent({
         />
       )}
 
-      {isMobile && <MobileWalletDropdownContent />}
+      {isMobile && (
+        <MobileWalletDropdownContent
+          handleWalletConnect={handleWalletConnect}
+        />
+      )}
     </>
   );
 }
