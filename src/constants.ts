@@ -13,6 +13,7 @@ export const WALLETCONNECT_PROJECT_ID = __WALLETCONNECT_PROJECT_ID__;
 
 // Assets base URL for wallet logos and other static assets
 export const ASSETS_BASE_URL = "https://app.trustware.io";
+// export const ASSETS_BASE_URL = "https://bv.trustware.io";
 
 // WalletConnect Cloud project ID - built into the SDK for seamless wallet connections
 // This is a public identifier (not a secret) registered with WalletConnect Cloud

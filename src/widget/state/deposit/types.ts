@@ -27,29 +27,15 @@ export interface YourTokenData {
 }
 
 export type NavigationStep =
-  | "home"
-  | "select-token"
-  | "crypto-pay"
-  | "processing"
-  | "success"
-  | "error";
+  "home" | "select-token" | "crypto-pay" | "processing" | "success" | "error";
 
 export type NavigationDirection = "forward" | "backward";
 
 export type WalletStatus =
-  | "idle"
-  | "detecting"
-  | "connecting"
-  | "connected"
-  | "error";
+  "idle" | "detecting" | "connecting" | "connected" | "error";
 
 export type TransactionStatus =
-  | "idle"
-  | "confirming"
-  | "processing"
-  | "bridging"
-  | "success"
-  | "error";
+  "idle" | "confirming" | "processing" | "bridging" | "success" | "error";
 
 export type PaymentMethodType = "crypto" | "fiat";
 

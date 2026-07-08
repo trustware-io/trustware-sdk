@@ -19,8 +19,7 @@ export type { BalanceRow };
 
 type RawBalanceRow = Record<string, unknown>;
 type RawBalanceChunk =
-  | WalletAddressBalanceWrapper
-  | WalletAddressBalanceWrapper[];
+  WalletAddressBalanceWrapper | WalletAddressBalanceWrapper[];
 
 const balanceCache = new Map<string, BalanceRow[]>();
 
