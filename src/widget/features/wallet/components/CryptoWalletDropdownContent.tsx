@@ -22,7 +22,7 @@ import {
   useDepositWallet,
 } from "src/widget/context/DepositContext";
 import { useIsMobile, useWalletInfo, WALLETS } from "src/wallets";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export interface CryptoWalletDropdownContentProps {
   browserWallets: DetectedWallet[];
@@ -117,6 +117,18 @@ function MobileWalletDropdownContent({
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+  const storeFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  useEffect(() => {
+    return () => {
+      if (storeFallbackTimeoutRef.current !== null) {
+        clearTimeout(storeFallbackTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const connectedWalletId = isConnected ? walletMetaId : null;
 
   const currentUrl = window.location.href;
@@ -149,7 +161,11 @@ function MobileWalletDropdownContent({
       if (deepLinkUrl) {
         window.location.assign(deepLinkUrl);
 
-        setTimeout(() => {
+        if (storeFallbackTimeoutRef.current !== null) {
+          clearTimeout(storeFallbackTimeoutRef.current);
+        }
+        storeFallbackTimeoutRef.current = setTimeout(() => {
+          storeFallbackTimeoutRef.current = null;
           const isIos = /iPhone|iPad/i.test(navigator.userAgent);
           const storeUrl = isIos ? wallet.ios : wallet.android;
           if (storeUrl) window.location.assign(storeUrl); // ✅
