@@ -47,8 +47,7 @@ export function SwapWalletSelector({
   } = useWalletInfo();
 
   const walletConnectCfg = TrustwareConfigStore.peek()?.walletConnect as
-    | WalletConnectConfig
-    | undefined;
+    WalletConnectConfig | undefined;
   const connectWC = useWalletConnectConnect(walletConnectCfg);
   const [wcConnecting, setWcConnecting] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);

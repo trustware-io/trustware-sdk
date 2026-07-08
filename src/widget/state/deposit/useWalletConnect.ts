@@ -14,8 +14,7 @@ export function useWalletConnect({
   setCurrentStep: (step: NavigationStep) => void;
 }) {
   const walletConnectCfg = TrustwareConfigStore.peek()?.walletConnect as
-    | WalletConnectConfig
-    | undefined;
+    WalletConnectConfig | undefined;
 
   const connectWC = useWalletConnectConnect(walletConnectCfg);
 

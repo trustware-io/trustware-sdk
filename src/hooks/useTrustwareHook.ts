@@ -171,8 +171,7 @@ export function useTrustwareRoute({
 
         const routeRecord = build?.route as Record<string, unknown> | undefined;
         const estimateRecord = routeRecord?.estimate as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const actionsRaw =
           (estimateRecord?.route as Record<string, unknown>)?.actions ??
           estimateRecord?.actions ??
@@ -182,8 +181,7 @@ export function useTrustwareRoute({
 
         const estimate = build?.route?.estimate ?? {};
         const fees = (estimate as Record<string, unknown>)?.fees as
-          | Record<string, string | undefined>
-          | undefined;
+          Record<string, string | undefined> | undefined;
         const finalExchangeRate: ExchangeRate = {
           fromAmount: estimate?.fromAmount,
           toAmount: estimate?.toAmount,
