@@ -138,7 +138,7 @@ function MobileWalletDropdownContent({
       WALLETS.filter((w) => {
         if (w.id === "walletconnect") return true;
 
-        const hasMobileLink = Boolean(w.deepLink || w.ios || w.android);
+        const hasMobileLink = Boolean(w.deepLink);
         if (!hasMobileLink) return false;
 
         return (
