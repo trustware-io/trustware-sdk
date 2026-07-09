@@ -65,8 +65,7 @@ function SwapWalletSelectorMobile({
   //   const { setCurrentStep } = useDepositNavigation();
 
   const walletConnectCfg = TrustwareConfigStore.peek()?.walletConnect as
-    | WalletConnectConfig
-    | undefined;
+    WalletConnectConfig | undefined;
   const connectWC = useWalletConnectConnect(walletConnectCfg);
 
   const [wcConnecting, setWcConnecting] = useState(false);
@@ -109,7 +108,7 @@ function SwapWalletSelectorMobile({
     return WALLETS.filter((w) => {
       if (w.id === "walletconnect") return false;
 
-      const hasMobileLink = Boolean(w.deepLink || w.ios || w.android);
+      const hasMobileLink = Boolean(w.deepLink);
       if (!hasMobileLink) return false;
 
       const ecosystem = w.ecosystem.trim().toLowerCase();
