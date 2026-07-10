@@ -245,9 +245,7 @@ export function SwapMode({
   // Read feature flags and theme from config
   const { features, theme: configTheme } = useTrustwareConfig();
   const effectiveThemeSetting = (themeProp ?? configTheme ?? "system") as
-    | "light"
-    | "dark"
-    | "system";
+    "light" | "dark" | "system";
   const { resolvedTheme, toggleTheme } = useThemePreference(
     effectiveThemeSetting
   );
@@ -795,8 +793,7 @@ export function SwapMode({
         const via = ((s.provider ?? s.tool ?? s.name ?? "") as string).trim();
         const mid = (
           (s.toToken as Record<string, unknown> | undefined)?.symbol as
-            | string
-            | undefined
+            string | undefined
         )?.trim();
         if (via) parts.push(via);
         if (mid && mid !== last && mid !== toSym) {
@@ -817,8 +814,7 @@ export function SwapMode({
   // Gas fees only (network cost) — extracted from fees array by type keyword
   const networkCostUsd = useMemo((): number | null => {
     const fees = route.data?.route?.estimate?.fees as
-      | { type?: string; amountUsd?: string | number }[]
-      | undefined;
+      { type?: string; amountUsd?: string | number }[] | undefined;
     if (!fees?.length) return null;
     const gasTotal = fees
       .filter((f) => f.type?.toLowerCase().includes("gas"))
@@ -829,8 +825,7 @@ export function SwapMode({
   // Protocol/service fees (everything that isn't gas)
   const protocolFeeUsd = useMemo((): number | null => {
     const fees = route.data?.route?.estimate?.fees as
-      | { type?: string; amountUsd?: string | number }[]
-      | undefined;
+      { type?: string; amountUsd?: string | number }[] | undefined;
     if (!fees?.length) return null;
     const total = fees
       .filter((f) => !f.type?.toLowerCase().includes("gas"))
