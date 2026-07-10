@@ -104,11 +104,19 @@ function DesktopWalletDropdownContent({
   );
 }
 
+// A row to render: static wallet metadata, plus the live DetectedWallet if an
+// injected provider for it happens to be present right now (e.g. the user is
+// browsing inside that wallet's own in-app browser).
+interface MobileWalletEntry {
+  meta: WalletMeta;
+  detectedWallet: DetectedWallet | null;
+}
+
 function MobileWalletDropdownContent({
+  browserWallets,
   handleWalletConnect,
-}: {
-  handleWalletConnect: () => void;
-}) {
+  handleWalletSelect: connectDetectedWallet,
+}: CryptoWalletDropdownContentProps) {
   const { setCurrentStep } = useDepositNavigation();
 
   const { selectedNamespace } = useDepositWallet();
@@ -133,26 +141,51 @@ function MobileWalletDropdownContent({
 
   const currentUrl = window.location.href;
 
-  const mobileWallets = useMemo(
-    () =>
-      WALLETS.filter((w) => {
-        if (w.id === "walletconnect") return true;
+  // Merge the static deep-linkable registry with whatever is actually
+  // detected (injected) right now, and include detected wallets even when
+  // they have no deep link — inside a wallet's in-app browser the injected
+  // provider is the only way to connect.
+  const mobileWallets = useMemo<MobileWalletEntry[]>(() => {
+    const entries: MobileWalletEntry[] = WALLETS.filter((w) => {
+      if (w.id === "walletconnect") return true;
 
-        const hasMobileLink = Boolean(w.deepLink);
-        if (!hasMobileLink) return false;
+      const isDetected = browserWallets.some((d) => d.meta.id === w.id);
+      const hasMobileLink = Boolean(w.deepLink);
+      if (!hasMobileLink && !isDetected) return false;
 
-        return (
-          w.ecosystem.trim().toLowerCase() === "multi" ||
-          w.ecosystem.trim().toLowerCase() ===
-            selectedNamespace.trim().toLowerCase()
-        );
-      }),
-    [selectedNamespace]
-  );
+      return (
+        w.ecosystem.trim().toLowerCase() === "multi" ||
+        w.ecosystem.trim().toLowerCase() ===
+          selectedNamespace.trim().toLowerCase()
+      );
+    }).map((meta) => ({
+      meta,
+      detectedWallet: browserWallets.find((d) => d.meta.id === meta.id) ?? null,
+    }));
 
-  const handleWalletSelect = (wallet: WalletMeta) => {
+    // Detected wallets whose id isn't in the static registry list at all
+    const listedIds = new Set(entries.map((e) => e.meta.id));
+    for (const detected of browserWallets) {
+      if (!listedIds.has(detected.meta.id)) {
+        entries.push({ meta: detected.meta, detectedWallet: detected });
+      }
+    }
+    return entries;
+  }, [browserWallets, selectedNamespace]);
+
+  const handleWalletSelect = (entry: MobileWalletEntry) => {
+    const { meta: wallet, detectedWallet } = entry;
+
     if (wallet.id === "walletconnect") {
       handleWalletConnect();
+      return;
+    }
+
+    // An injected provider for this wallet is present right now (e.g. we're
+    // inside that wallet's own in-app browser) — connect directly instead of
+    // deep-linking, which is a no-op inside the wallet's browser.
+    if (detectedWallet) {
+      void connectDetectedWallet(detectedWallet);
       return;
     }
 
@@ -229,16 +262,20 @@ function MobileWalletDropdownContent({
           scrollbarColor: `${colors.muted} transparent`,
         }}
       >
-        {mobileWallets.map((wallet) => {
+        {mobileWallets.map((entry) => {
+          const wallet = entry.meta;
           const isConnectedWallet = wallet.id === connectedWalletId;
-          const isDisabled = isConnected && !isConnectedWallet;
+          // Rows with a live injected provider stay tappable even while
+          // another wallet is connected — selecting one switches wallets.
+          const isDisabled =
+            isConnected && !isConnectedWallet && !entry.detectedWallet;
           const isHovered = hoveredId === wallet.id;
 
           return (
             <button
               key={wallet.id}
               type="button"
-              onClick={() => !isDisabled && handleWalletSelect(wallet)}
+              onClick={() => !isDisabled && handleWalletSelect(entry)}
               onMouseEnter={() => !isDisabled && setHoveredId(wallet.id)}
               onMouseLeave={() => setHoveredId(null)}
               style={{
@@ -367,7 +404,9 @@ export function CryptoWalletDropdownContent({
 
       {isMobile && (
         <MobileWalletDropdownContent
+          browserWallets={browserWallets}
           handleWalletConnect={handleWalletConnect}
+          handleWalletSelect={handleWalletSelect}
         />
       )}
     </>
