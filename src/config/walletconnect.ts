@@ -11,7 +11,7 @@ import { WALLETCONNECT_PROJECT_ID } from "src/constants";
 export const solanaMainnet: CustomCaipNetwork<"solana"> = {
   id: 900,
   chainNamespace: "solana",
-  caipNetworkId: "solana:5eykt4UsFv8P8NJdTREpY1vzqAQ3H1FQ",
+  caipNetworkId: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
   name: "Solana Mainnet",
   nativeCurrency: {
     name: "Solana",

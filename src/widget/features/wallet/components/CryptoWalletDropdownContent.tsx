@@ -20,9 +20,23 @@ import { WalletNamespaceTabs } from "./WalletNamespaceTabs";
 import {
   useDepositNavigation,
   useDepositWallet,
+  WalletNamespace,
 } from "src/widget/context/DepositContext";
 import { useIsMobile, useWalletInfo, WALLETS } from "src/wallets";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+function ecosystemToNamespace(ecosystem: string): WalletNamespace | null {
+  switch (ecosystem.trim().toLowerCase()) {
+    case "evm":
+      return "evm";
+    case "solana":
+      return "Solana";
+    case "bitcoin":
+      return "bitcoin";
+    default:
+      return null;
+  }
+}
 
 export interface CryptoWalletDropdownContentProps {
   browserWallets: DetectedWallet[];
@@ -35,7 +49,6 @@ function DesktopWalletDropdownContent({
   handleWalletConnect,
   handleWalletSelect,
 }: CryptoWalletDropdownContentProps) {
-  const { selectedNamespace } = useDepositWallet();
   return (
     <div
       style={{
@@ -96,9 +109,7 @@ function DesktopWalletDropdownContent({
       <div style={dividerBorderStyle} />
 
       <div style={{ padding: spacing[3] }}>
-        {selectedNamespace === "evm" && (
-          <WalletConnectRow onClick={handleWalletConnect} />
-        )}
+        <WalletConnectRow onClick={handleWalletConnect} />
       </div>
     </div>
   );
@@ -119,9 +130,9 @@ function MobileWalletDropdownContent({
 }: CryptoWalletDropdownContentProps) {
   const { setCurrentStep } = useDepositNavigation();
 
-  const { selectedNamespace } = useDepositWallet();
+  const { selectedNamespace, setSelectedNamespace } = useDepositWallet();
 
-  const { walletMetaId, isConnected, status } = useWalletInfo();
+  const { walletMetaId, isConnected, status, detected } = useWalletInfo();
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -136,6 +147,33 @@ function MobileWalletDropdownContent({
       }
     };
   }, []);
+
+  // A deep link round-trip lands here as a fresh page load inside the
+  // target wallet's own in-app browser, where `selectedNamespace` has reset
+  // to its default ("evm"). If that wallet's provider is for a different
+  // ecosystem (e.g. Phantom's Solana provider), `browserWallets` — already
+  // filtered to the current namespace upstream — is empty and its row never
+  // appears, so the user has no way to connect without knowing to tap the
+  // other tab first. Auto-switch to whatever ecosystem was actually
+  // detected when the current tab has nothing to show.
+  useEffect(() => {
+    if (browserWallets.length > 0) return;
+
+    const otherEcosystemWallet = detected.find((d) => {
+      if (d.meta.id === "walletconnect") return false;
+      const ecosystem = d.meta.ecosystem.trim().toLowerCase();
+      return (
+        ecosystem !== "multi" &&
+        ecosystem !== selectedNamespace.trim().toLowerCase()
+      );
+    });
+    if (!otherEcosystemWallet) return;
+
+    const nextNamespace = ecosystemToNamespace(
+      otherEcosystemWallet.meta.ecosystem
+    );
+    if (nextNamespace) setSelectedNamespace(nextNamespace);
+  }, [browserWallets, detected, selectedNamespace, setSelectedNamespace]);
 
   const connectedWalletId = isConnected ? walletMetaId : null;
 

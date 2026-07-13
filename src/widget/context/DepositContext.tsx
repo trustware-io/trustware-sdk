@@ -148,10 +148,15 @@ export function DepositProvider({
     "other"
   );
 
+  const [selectedNamespace, setSelectedNamespace] =
+    useState<WalletNamespace>("evm");
+
   const { walletConnectAddress, WalletConnect, disconnectWalletConnect } =
     useWalletConnect({
       setWalletType,
       setCurrentStep,
+      selectedNamespace,
+      setSelectedNamespace,
     });
 
   // Token and chain state
@@ -160,9 +165,6 @@ export function DepositProvider({
   >(null);
   const [selectedChain, setSelectedChain] = useState<ChainDef | null>(null);
   const [amount, setAmount] = useState<string>("");
-
-  const [selectedNamespace, setSelectedNamespace] =
-    useState<WalletNamespace>("evm");
 
   const walletAddress = useMemo(
     () =>
