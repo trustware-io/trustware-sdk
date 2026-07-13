@@ -21,9 +21,9 @@ export function formatDeepLink(
 
     // Solana
     case "phantom-solana":
-      return `phantom://browse/${enc}`;
+      return `https://phantom.app/ul/browse/${enc}?ref=${enc}`;
     case "solflare":
-      return `solflare://ul/v1/browse/${enc}`;
+      return `https://solflare.com/ul/v1/browse/${enc}?ref=${enc}`;
     case "backpack":
       return `https://backpack.app/ul/v1/browse/${enc}?ref=${enc}`;
 
