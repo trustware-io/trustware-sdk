@@ -49,6 +49,7 @@ function DesktopWalletDropdownContent({
   handleWalletConnect,
   handleWalletSelect,
 }: CryptoWalletDropdownContentProps) {
+  const { selectedNamespace } = useDepositWallet();
   return (
     <div
       style={{
@@ -109,7 +110,9 @@ function DesktopWalletDropdownContent({
       <div style={dividerBorderStyle} />
 
       <div style={{ padding: spacing[3] }}>
-        <WalletConnectRow onClick={handleWalletConnect} />
+        {selectedNamespace === "evm" && (
+          <WalletConnectRow onClick={handleWalletConnect} />
+        )}
       </div>
     </div>
   );
@@ -185,7 +188,9 @@ function MobileWalletDropdownContent({
   // provider is the only way to connect.
   const mobileWallets = useMemo<MobileWalletEntry[]>(() => {
     const entries: MobileWalletEntry[] = WALLETS.filter((w) => {
-      if (w.id === "walletconnect") return true;
+      if (w.id === "walletconnect") {
+        return selectedNamespace.trim().toLowerCase() === "evm";
+      }
 
       const isDetected = browserWallets.some((d) => d.meta.id === w.id);
       const hasMobileLink = Boolean(w.deepLink);
@@ -381,7 +386,8 @@ function MobileWalletDropdownContent({
                     }}
                   />
                   <span style={{ fontSize: fontSize.xs, color: "#22c55e" }}>
-                    Connected
+                    {/* Connected */}
+                    Continue
                   </span>
                 </div>
               )}
