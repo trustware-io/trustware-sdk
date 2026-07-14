@@ -331,7 +331,7 @@ export function SwapMode({
   }, [defaultDestRef, allChains]);
 
   // Single wallet state instance — shared across all stages
-  const { walletAddress, walletStatus, connectWallet, disconnectWallet } =
+  const { walletAddress, walletStatus, connectWallet } =
     useWalletSessionState();
 
   // Stable setters so useWalletTokenState's load effect deps don't change on every render
@@ -2459,7 +2459,7 @@ export function SwapMode({
           >
             {walletAddress ? (
               <button
-                onClick={() => void disconnectWallet()}
+                onClick={handleConnectAndReview}
                 style={{
                   fontSize: fontSize.xs,
                   color: colors.mutedForeground,
@@ -2468,7 +2468,7 @@ export function SwapMode({
                   cursor: "pointer",
                 }}
               >
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)} ×
+                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </button>
             ) : (
               <button

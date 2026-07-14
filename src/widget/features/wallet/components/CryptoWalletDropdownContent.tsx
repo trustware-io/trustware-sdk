@@ -20,9 +20,23 @@ import { WalletNamespaceTabs } from "./WalletNamespaceTabs";
 import {
   useDepositNavigation,
   useDepositWallet,
+  WalletNamespace,
 } from "src/widget/context/DepositContext";
 import { useIsMobile, useWalletInfo, WALLETS } from "src/wallets";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+function ecosystemToNamespace(ecosystem: string): WalletNamespace | null {
+  switch (ecosystem.trim().toLowerCase()) {
+    case "evm":
+      return "evm";
+    case "solana":
+      return "Solana";
+    case "bitcoin":
+      return "bitcoin";
+    default:
+      return null;
+  }
+}
 
 export interface CryptoWalletDropdownContentProps {
   browserWallets: DetectedWallet[];
@@ -104,9 +118,6 @@ function DesktopWalletDropdownContent({
   );
 }
 
-// A row to render: static wallet metadata, plus the live DetectedWallet if an
-// injected provider for it happens to be present right now (e.g. the user is
-// browsing inside that wallet's own in-app browser).
 interface MobileWalletEntry {
   meta: WalletMeta;
   detectedWallet: DetectedWallet | null;
@@ -119,9 +130,9 @@ function MobileWalletDropdownContent({
 }: CryptoWalletDropdownContentProps) {
   const { setCurrentStep } = useDepositNavigation();
 
-  const { selectedNamespace } = useDepositWallet();
+  const { selectedNamespace, setSelectedNamespace } = useDepositWallet();
 
-  const { walletMetaId, isConnected, status } = useWalletInfo();
+  const { walletMetaId, isConnected, status, detected } = useWalletInfo();
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -137,17 +148,34 @@ function MobileWalletDropdownContent({
     };
   }, []);
 
+  useEffect(() => {
+    if (browserWallets.length > 0) return;
+
+    const otherEcosystemWallet = detected.find((d) => {
+      if (d.meta.id === "walletconnect") return false;
+      const ecosystem = d.meta.ecosystem.trim().toLowerCase();
+      return (
+        ecosystem !== "multi" &&
+        ecosystem !== selectedNamespace.trim().toLowerCase()
+      );
+    });
+    if (!otherEcosystemWallet) return;
+
+    const nextNamespace = ecosystemToNamespace(
+      otherEcosystemWallet.meta.ecosystem
+    );
+    if (nextNamespace) setSelectedNamespace(nextNamespace);
+  }, [browserWallets, detected, selectedNamespace, setSelectedNamespace]);
+
   const connectedWalletId = isConnected ? walletMetaId : null;
 
   const currentUrl = window.location.href;
 
-  // Merge the static deep-linkable registry with whatever is actually
-  // detected (injected) right now, and include detected wallets even when
-  // they have no deep link — inside a wallet's in-app browser the injected
-  // provider is the only way to connect.
   const mobileWallets = useMemo<MobileWalletEntry[]>(() => {
     const entries: MobileWalletEntry[] = WALLETS.filter((w) => {
-      if (w.id === "walletconnect") return true;
+      if (w.id === "walletconnect") {
+        return selectedNamespace.trim().toLowerCase() === "evm";
+      }
 
       const isDetected = browserWallets.some((d) => d.meta.id === w.id);
       const hasMobileLink = Boolean(w.deepLink);
@@ -181,9 +209,6 @@ function MobileWalletDropdownContent({
       return;
     }
 
-    // An injected provider for this wallet is present right now (e.g. we're
-    // inside that wallet's own in-app browser) — connect directly instead of
-    // deep-linking, which is a no-op inside the wallet's browser.
     if (detectedWallet) {
       void connectDetectedWallet(detectedWallet);
       return;
@@ -343,7 +368,8 @@ function MobileWalletDropdownContent({
                     }}
                   />
                   <span style={{ fontSize: fontSize.xs, color: "#22c55e" }}>
-                    Connected
+                    {/* Connected */}
+                    Continue
                   </span>
                 </div>
               )}
