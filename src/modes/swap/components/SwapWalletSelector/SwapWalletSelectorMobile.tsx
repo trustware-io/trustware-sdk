@@ -387,6 +387,13 @@ function SwapWalletSelectorMobile({
                 managerConnected && walletMetaId === meta.id;
               const isConnecting =
                 connectingId === meta.id && walletStatus === "connecting";
+              // Rows with a live injected provider stay tappable even while
+              // another wallet is connected — selecting one switches wallets.
+              // Rows that would require deep-linking away get disabled
+              // instead, so an already-connected session isn't accidentally
+              // abandoned by a stray tap.
+              const isRowDisabled =
+                managerConnected && !isWalletConnected && !entry.detectedWallet;
 
               return (
                 <div
@@ -405,7 +412,8 @@ function SwapWalletSelectorMobile({
                     isWalletConnected && {
                       boxShadow: `0 0 0 2px ${colors.primary}`,
                       border: `1px solid ${colors.primary}`,
-                    }
+                    },
+                    isRowDisabled && { opacity: 0.4 }
                   )}
                 >
                   <div
@@ -491,7 +499,7 @@ function SwapWalletSelectorMobile({
                   ) : (
                     <button
                       onClick={() => void handleClick(entry)}
-                      disabled={walletStatus === "connecting"}
+                      disabled={walletStatus === "connecting" || isRowDisabled}
                       style={mergeStyles(
                         {
                           padding: `${spacing[1.5]} ${spacing[3]}`,
@@ -504,7 +512,7 @@ function SwapWalletSelectorMobile({
                           cursor: "pointer",
                           flexShrink: 0,
                         },
-                        walletStatus === "connecting" && {
+                        (walletStatus === "connecting" || isRowDisabled) && {
                           opacity: 0.5,
                           cursor: "not-allowed",
                         }
@@ -532,6 +540,11 @@ function SwapWalletSelectorMobile({
             {(() => {
               const wcConnected =
                 managerConnected && connectedVia === "walletconnect";
+              // Same reasoning as the wallet rows above — WalletConnect has
+              // no "live" state to switch into instantly, so disable it
+              // whenever a different wallet is already connected instead of
+              // letting a stray tap abandon that session.
+              const wcRowDisabled = managerConnected && !wcConnected;
               return (
                 <div
                   style={mergeStyles(
@@ -549,10 +562,13 @@ function SwapWalletSelectorMobile({
                     wcConnected && {
                       boxShadow: `0 0 0 2px ${colors.primary}`,
                       border: `1px solid ${colors.primary}`,
-                    }
+                    },
+                    wcRowDisabled && { opacity: 0.4, cursor: "not-allowed" }
                   )}
                   onClick={
-                    !wcConnected ? () => void handleWalletConnect() : undefined
+                    !wcConnected && !wcRowDisabled
+                      ? () => void handleWalletConnect()
+                      : undefined
                   }
                 >
                   <div
@@ -639,18 +655,24 @@ function SwapWalletSelectorMobile({
                         e.stopPropagation();
                         void handleWalletConnect();
                       }}
-                      disabled={wcConnecting}
-                      style={{
-                        padding: `${spacing[1.5]} ${spacing[3]}`,
-                        borderRadius: "9999px",
-                        backgroundColor: "rgba(59,130,246,0.1)",
-                        color: colors.primary,
-                        fontSize: fontSize.xs,
-                        fontWeight: fontWeight.medium,
-                        border: 0,
-                        cursor: "pointer",
-                        flexShrink: 0,
-                      }}
+                      disabled={wcConnecting || wcRowDisabled}
+                      style={mergeStyles(
+                        {
+                          padding: `${spacing[1.5]} ${spacing[3]}`,
+                          borderRadius: "9999px",
+                          backgroundColor: "rgba(59,130,246,0.1)",
+                          color: colors.primary,
+                          fontSize: fontSize.xs,
+                          fontWeight: fontWeight.medium,
+                          border: 0,
+                          cursor: "pointer",
+                          flexShrink: 0,
+                        },
+                        (wcConnecting || wcRowDisabled) && {
+                          opacity: 0.5,
+                          cursor: "not-allowed",
+                        }
+                      )}
                     >
                       Connect
                     </button>
