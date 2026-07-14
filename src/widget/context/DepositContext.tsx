@@ -65,6 +65,10 @@ const DepositWalletContext = createContext<
       | "walletType"
       | "selectedNamespace"
       | "setSelectedNamespace"
+      | "wcStatus"
+      | "wcErrorMessage"
+      | "retryWalletConnect"
+      | "dismissWcStatus"
     >
   | undefined
 >(undefined);
@@ -151,13 +155,20 @@ export function DepositProvider({
   const [selectedNamespace, setSelectedNamespace] =
     useState<WalletNamespace>("evm");
 
-  const { walletConnectAddress, WalletConnect, disconnectWalletConnect } =
-    useWalletConnect({
-      setWalletType,
-      setCurrentStep,
-      selectedNamespace,
-      setSelectedNamespace,
-    });
+  const {
+    walletConnectAddress,
+    WalletConnect,
+    disconnectWalletConnect,
+    wcStatus,
+    wcErrorMessage,
+    retryWalletConnect,
+    dismissWcStatus,
+  } = useWalletConnect({
+    setWalletType,
+    setCurrentStep,
+    selectedNamespace,
+    setSelectedNamespace,
+  });
 
   // Token and chain state
   const [selectedToken, setSelectedToken] = useState<
@@ -255,6 +266,10 @@ export function DepositProvider({
       walletType,
       selectedNamespace,
       setSelectedNamespace,
+      wcStatus,
+      wcErrorMessage,
+      retryWalletConnect,
+      dismissWcStatus,
     }),
     [
       WalletConnect,
@@ -271,6 +286,10 @@ export function DepositProvider({
       yourWalletTokensLoading,
       selectedNamespace,
       setSelectedNamespace,
+      wcStatus,
+      wcErrorMessage,
+      retryWalletConnect,
+      dismissWcStatus,
     ]
   );
 

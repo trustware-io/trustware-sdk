@@ -579,6 +579,29 @@ class WalletManager {
     }
   }
 
+  // Forcibly abandon an in-progress connect() call the caller has decided is
+  // stuck (e.g. the UI's own connect timeout elapsed with no response).
+  // There's no clean way to cancel a pending WalletConnect pairing proposal
+  // from this side, so this tears down the whole connector — the next
+  // connect attempt starts against a brand new SignClient/pairing instead of
+  // racing the abandoned one, which would otherwise risk reproducing the
+  // "No matching key. proposal" class of error a real retry needs to avoid.
+  cancelWalletConnectAttempt() {
+    if (
+      this._connectedVia === "walletconnect" &&
+      this._status === "connected"
+    ) {
+      return; // already connected — nothing to cancel
+    }
+    resetUniversalConnector();
+    if (this._status === "connecting") {
+      this.clearConnectedState();
+      this._status = "idle";
+      this._error = null;
+      this.emit();
+    }
+  }
+
   async disconnect(wagmi?: WagmiBridge) {
     if (wagmi && this._connectedVia === "extension") {
       await wagmi.disconnect().catch(() => {});

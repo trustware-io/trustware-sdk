@@ -7,6 +7,8 @@ import type {
 } from "../../../types";
 import { WalletNamespace } from "src/widget/context/DepositContext";
 
+export type WalletConnectStatus = "idle" | "connecting" | "timedOut" | "failed";
+
 export type ResolvedTheme = "light" | "dark";
 
 export interface YourTokenData {
@@ -108,4 +110,12 @@ export interface DepositContextValue {
   walletType: "walletconnect" | "other";
   selectedNamespace: WalletNamespace;
   setSelectedNamespace: React.Dispatch<SetStateAction<WalletNamespace>>;
+  /** Only driven by the WalletConnect-specific connect paths — never by injected-wallet connects. */
+  wcStatus: WalletConnectStatus;
+  /** Set when wcStatus is "failed"; the reason the last attempt failed. */
+  wcErrorMessage: string | null;
+  /** Abandons a stuck/failed WalletConnect attempt and starts a fresh one. */
+  retryWalletConnect: () => void;
+  /** Dismisses the status banner without retrying. */
+  dismissWcStatus: () => void;
 }
