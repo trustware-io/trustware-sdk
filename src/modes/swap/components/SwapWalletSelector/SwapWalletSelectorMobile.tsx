@@ -387,11 +387,7 @@ function SwapWalletSelectorMobile({
                 managerConnected && walletMetaId === meta.id;
               const isConnecting =
                 connectingId === meta.id && walletStatus === "connecting";
-              // Rows with a live injected provider stay tappable even while
-              // another wallet is connected — selecting one switches wallets.
-              // Rows that would require deep-linking away get disabled
-              // instead, so an already-connected session isn't accidentally
-              // abandoned by a stray tap.
+
               const isRowDisabled =
                 managerConnected && !isWalletConnected && !entry.detectedWallet;
 
@@ -540,10 +536,7 @@ function SwapWalletSelectorMobile({
             {(() => {
               const wcConnected =
                 managerConnected && connectedVia === "walletconnect";
-              // Same reasoning as the wallet rows above — WalletConnect has
-              // no "live" state to switch into instantly, so disable it
-              // whenever a different wallet is already connected instead of
-              // letting a stray tap abandon that session.
+
               const wcRowDisabled = managerConnected && !wcConnected;
               return (
                 <div

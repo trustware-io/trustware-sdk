@@ -118,9 +118,6 @@ function DesktopWalletDropdownContent({
   );
 }
 
-// A row to render: static wallet metadata, plus the live DetectedWallet if an
-// injected provider for it happens to be present right now (e.g. the user is
-// browsing inside that wallet's own in-app browser).
 interface MobileWalletEntry {
   meta: WalletMeta;
   detectedWallet: DetectedWallet | null;
@@ -151,14 +148,6 @@ function MobileWalletDropdownContent({
     };
   }, []);
 
-  // A deep link round-trip lands here as a fresh page load inside the
-  // target wallet's own in-app browser, where `selectedNamespace` has reset
-  // to its default ("evm"). If that wallet's provider is for a different
-  // ecosystem (e.g. Phantom's Solana provider), `browserWallets` — already
-  // filtered to the current namespace upstream — is empty and its row never
-  // appears, so the user has no way to connect without knowing to tap the
-  // other tab first. Auto-switch to whatever ecosystem was actually
-  // detected when the current tab has nothing to show.
   useEffect(() => {
     if (browserWallets.length > 0) return;
 
@@ -182,10 +171,6 @@ function MobileWalletDropdownContent({
 
   const currentUrl = window.location.href;
 
-  // Merge the static deep-linkable registry with whatever is actually
-  // detected (injected) right now, and include detected wallets even when
-  // they have no deep link — inside a wallet's in-app browser the injected
-  // provider is the only way to connect.
   const mobileWallets = useMemo<MobileWalletEntry[]>(() => {
     const entries: MobileWalletEntry[] = WALLETS.filter((w) => {
       if (w.id === "walletconnect") {
@@ -224,9 +209,6 @@ function MobileWalletDropdownContent({
       return;
     }
 
-    // An injected provider for this wallet is present right now (e.g. we're
-    // inside that wallet's own in-app browser) — connect directly instead of
-    // deep-linking, which is a no-op inside the wallet's browser.
     if (detectedWallet) {
       void connectDetectedWallet(detectedWallet);
       return;

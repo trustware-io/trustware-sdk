@@ -42,10 +42,6 @@ const wcBannerCopy: Record<
   },
 };
 
-// WalletConnect-only: an injected-wallet connect is a single synchronous
-// request/approve step, but WalletConnect hands off to a separate wallet app
-// and waits on a human there, so it's the one path worth a persistent status
-// indicator instead of just a spinner on the row that was tapped.
 function WalletConnectStatusBanner({
   status,
   errorMessage,
