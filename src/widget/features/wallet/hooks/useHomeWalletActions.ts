@@ -106,12 +106,14 @@ export function useHomeWalletActions({
   const browserWallets = useMemo(() => {
     if (!detectedWallets?.length) return [];
 
-    return detectedWallets.filter(
-      (wallet) =>
-        wallet?.meta?.id !== "walletconnect" &&
-        wallet?.meta?.ecosystem.trim().toLowerCase() ===
-          selectedNamespace.trim().toLowerCase()
-    );
+    return detectedWallets.filter((wallet) => {
+      if (wallet?.meta?.id === "walletconnect") return false;
+      const ecosystem = wallet?.meta?.ecosystem.trim().toLowerCase();
+      return (
+        ecosystem === "multi" ||
+        ecosystem === selectedNamespace.trim().toLowerCase()
+      );
+    });
   }, [detectedWallets, selectedNamespace]);
 
   return {

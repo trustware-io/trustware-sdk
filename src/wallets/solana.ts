@@ -231,7 +231,7 @@ function getPublicKeyString(provider?: SolanaProviderLike | null) {
   return text || null;
 }
 
-function decodeBase64(serializedTransaction: string) {
+export function decodeBase64(serializedTransaction: string) {
   const trimmed = serializedTransaction.trim();
   if (typeof Buffer !== "undefined") {
     return Uint8Array.from(Buffer.from(trimmed, "base64"));
@@ -250,7 +250,7 @@ async function decodeBase64Transaction(serializedTransaction: string) {
   }
 }
 
-function encodeBase64(bytes: Uint8Array) {
+export function encodeBase64(bytes: Uint8Array) {
   if (typeof Buffer !== "undefined") {
     return Buffer.from(bytes).toString("base64");
   }

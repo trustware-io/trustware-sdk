@@ -20,9 +20,23 @@ import { WalletNamespaceTabs } from "./WalletNamespaceTabs";
 import {
   useDepositNavigation,
   useDepositWallet,
+  WalletNamespace,
 } from "src/widget/context/DepositContext";
 import { useIsMobile, useWalletInfo, WALLETS } from "src/wallets";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+function ecosystemToNamespace(ecosystem: string): WalletNamespace | null {
+  switch (ecosystem.trim().toLowerCase()) {
+    case "evm":
+      return "evm";
+    case "solana":
+      return "Solana";
+    case "bitcoin":
+      return "bitcoin";
+    default:
+      return null;
+  }
+}
 
 export interface CryptoWalletDropdownContentProps {
   browserWallets: DetectedWallet[];
@@ -104,16 +118,21 @@ function DesktopWalletDropdownContent({
   );
 }
 
+interface MobileWalletEntry {
+  meta: WalletMeta;
+  detectedWallet: DetectedWallet | null;
+}
+
 function MobileWalletDropdownContent({
+  browserWallets,
   handleWalletConnect,
-}: {
-  handleWalletConnect: () => void;
-}) {
+  handleWalletSelect: connectDetectedWallet,
+}: CryptoWalletDropdownContentProps) {
   const { setCurrentStep } = useDepositNavigation();
 
-  const { selectedNamespace } = useDepositWallet();
+  const { selectedNamespace, setSelectedNamespace } = useDepositWallet();
 
-  const { walletMetaId, isConnected, status } = useWalletInfo();
+  const { walletMetaId, isConnected, status, detected } = useWalletInfo();
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -129,30 +148,69 @@ function MobileWalletDropdownContent({
     };
   }, []);
 
+  useEffect(() => {
+    if (browserWallets.length > 0) return;
+
+    const otherEcosystemWallet = detected.find((d) => {
+      if (d.meta.id === "walletconnect") return false;
+      const ecosystem = d.meta.ecosystem.trim().toLowerCase();
+      return (
+        ecosystem !== "multi" &&
+        ecosystem !== selectedNamespace.trim().toLowerCase()
+      );
+    });
+    if (!otherEcosystemWallet) return;
+
+    const nextNamespace = ecosystemToNamespace(
+      otherEcosystemWallet.meta.ecosystem
+    );
+    if (nextNamespace) setSelectedNamespace(nextNamespace);
+  }, [browserWallets, detected, selectedNamespace, setSelectedNamespace]);
+
   const connectedWalletId = isConnected ? walletMetaId : null;
 
   const currentUrl = window.location.href;
 
-  const mobileWallets = useMemo(
-    () =>
-      WALLETS.filter((w) => {
-        if (w.id === "walletconnect") return true;
+  const mobileWallets = useMemo<MobileWalletEntry[]>(() => {
+    const entries: MobileWalletEntry[] = WALLETS.filter((w) => {
+      if (w.id === "walletconnect") {
+        return selectedNamespace.trim().toLowerCase() === "evm";
+      }
 
-        const hasMobileLink = Boolean(w.deepLink);
-        if (!hasMobileLink) return false;
+      const isDetected = browserWallets.some((d) => d.meta.id === w.id);
+      const hasMobileLink = Boolean(w.deepLink);
+      if (!hasMobileLink && !isDetected) return false;
 
-        return (
-          w.ecosystem.trim().toLowerCase() === "multi" ||
-          w.ecosystem.trim().toLowerCase() ===
-            selectedNamespace.trim().toLowerCase()
-        );
-      }),
-    [selectedNamespace]
-  );
+      return (
+        w.ecosystem.trim().toLowerCase() === "multi" ||
+        w.ecosystem.trim().toLowerCase() ===
+          selectedNamespace.trim().toLowerCase()
+      );
+    }).map((meta) => ({
+      meta,
+      detectedWallet: browserWallets.find((d) => d.meta.id === meta.id) ?? null,
+    }));
 
-  const handleWalletSelect = (wallet: WalletMeta) => {
+    // Detected wallets whose id isn't in the static registry list at all
+    const listedIds = new Set(entries.map((e) => e.meta.id));
+    for (const detected of browserWallets) {
+      if (!listedIds.has(detected.meta.id)) {
+        entries.push({ meta: detected.meta, detectedWallet: detected });
+      }
+    }
+    return entries;
+  }, [browserWallets, selectedNamespace]);
+
+  const handleWalletSelect = (entry: MobileWalletEntry) => {
+    const { meta: wallet, detectedWallet } = entry;
+
     if (wallet.id === "walletconnect") {
       handleWalletConnect();
+      return;
+    }
+
+    if (detectedWallet) {
+      void connectDetectedWallet(detectedWallet);
       return;
     }
 
@@ -229,16 +287,20 @@ function MobileWalletDropdownContent({
           scrollbarColor: `${colors.muted} transparent`,
         }}
       >
-        {mobileWallets.map((wallet) => {
+        {mobileWallets.map((entry) => {
+          const wallet = entry.meta;
           const isConnectedWallet = wallet.id === connectedWalletId;
-          const isDisabled = isConnected && !isConnectedWallet;
+          // Rows with a live injected provider stay tappable even while
+          // another wallet is connected — selecting one switches wallets.
+          const isDisabled =
+            isConnected && !isConnectedWallet && !entry.detectedWallet;
           const isHovered = hoveredId === wallet.id;
 
           return (
             <button
               key={wallet.id}
               type="button"
-              onClick={() => !isDisabled && handleWalletSelect(wallet)}
+              onClick={() => !isDisabled && handleWalletSelect(entry)}
               onMouseEnter={() => !isDisabled && setHoveredId(wallet.id)}
               onMouseLeave={() => setHoveredId(null)}
               style={{
@@ -306,7 +368,8 @@ function MobileWalletDropdownContent({
                     }}
                   />
                   <span style={{ fontSize: fontSize.xs, color: "#22c55e" }}>
-                    Connected
+                    {/* Connected */}
+                    Continue
                   </span>
                 </div>
               )}
@@ -367,7 +430,9 @@ export function CryptoWalletDropdownContent({
 
       {isMobile && (
         <MobileWalletDropdownContent
+          browserWallets={browserWallets}
           handleWalletConnect={handleWalletConnect}
+          handleWalletSelect={handleWalletSelect}
         />
       )}
     </>

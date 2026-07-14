@@ -114,7 +114,9 @@ export const WALLETS: WalletMeta[] = [
     ios: "https://apps.apple.com/app/phantom-crypto-wallet/id1598432977",
     android: "https://play.google.com/store/apps/details?id=app.phantom",
     detectFlags: ["isPhantom"],
-    // No EVM dapp browser deep link — falls back to app store
+    // Same app/in-app browser as "phantom-solana" — browsing there injects
+    // window.ethereum too.
+    deepLink: (url) => formatDeepLink("phantom-evm", url) ?? "",
   },
   {
     id: "phantom-solana",
@@ -164,7 +166,9 @@ export const WALLETS: WalletMeta[] = [
     homepage: "https://metamask.io/",
     ios: "https://apps.apple.com/app/metamask/id1438144202",
     android: "https://play.google.com/store/apps/details?id=io.metamask",
-    // No Solana-specific deep link for MetaMask
+    // Same app/in-app browser as "metamask" — its Wallet Standard Solana
+    // provider is exposed in that same browse session.
+    deepLink: (url) => formatDeepLink("metamask-solana", url) ?? "",
   },
 
   // ── Extension/desktop only — hidden on mobile ─────────────────────────────
