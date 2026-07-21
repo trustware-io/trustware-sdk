@@ -225,7 +225,11 @@ export async function buildDepositAddress(
 export async function submitReceipt(
   intentId: string,
   txHash: string,
-  sponsorshipRequestId?: string
+  sponsorshipRequestId?: string,
+  /** Connected wallet (EOA) that originated the payment. Pass when the route
+   *  executes from a smart account, so the backend records the tx against the
+   *  address the user actually connects with. */
+  eoaAddress?: string
 ) {
   const r = await rateLimitedFetch(
     `${apiBase()}/v1/route-intent/${intentId}/receipt`,
@@ -235,6 +239,7 @@ export async function submitReceipt(
       body: JSON.stringify({
         txHash,
         ...(sponsorshipRequestId ? { sponsorshipRequestId } : {}),
+        ...(eoaAddress ? { eoaAddress } : {}),
       }),
     }
   );
