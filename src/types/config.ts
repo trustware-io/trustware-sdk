@@ -41,23 +41,26 @@ export type ResolvedWalletConnectConfig = {
   showQrModal: boolean;
 };
 
-export type TrustwareConfigOptions = {
-  apiKey: string; // Required API key for authentication
-  routes: {
-    toChain: string; // Default destination chain
-    toToken: string; // Default destination token
-    fromToken?: string; // Default source token (optional)
-    fromChain?: string; // Default source chain (optional)
-    fromAddress?: string; // Default source address (optional)
-    toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
-    defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
-    options?: {
-      routeRefreshMs?: number; // Route refresh interval in milliseconds (optional)
-      fixedFromAmount?: string | number;
-      minAmountOut?: string | number;
-      maxAmountOut?: string | number;
-    };
+/** Destination/source route defaults. Required in "deposit" mode; optional (and only
+ * partially meaningful) in "swap" mode, where chains/tokens are chosen entirely in-widget. */
+export type RoutesConfig = {
+  toChain: string; // Default destination chain
+  toToken: string; // Default destination token
+  fromToken?: string; // Default source token (optional)
+  fromChain?: string; // Default source chain (optional)
+  fromAddress?: string; // Default source address (optional)
+  toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
+  defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
+  options?: {
+    routeRefreshMs?: number; // Route refresh interval in milliseconds (optional)
+    fixedFromAmount?: string | number;
+    minAmountOut?: string | number;
+    maxAmountOut?: string | number;
   };
+};
+
+type CommonConfigOptions = {
+  apiKey: string; // Required API key for authentication
   autoDetectProvider?: boolean; // Whether to auto-detect wallet provider (optional, default: false.)
   theme?: TrustwareTheme; // "light" | "dark" | "system" (default: "system")
   messages?: Partial<TrustwareWidgetMessages>; // Optional message customization
@@ -70,8 +73,23 @@ export type TrustwareConfigOptions = {
   onEvent?: (event: TrustwareEvent) => void;
 };
 
+export type TrustwareConfigOptions = CommonConfigOptions &
+  (
+    | {
+        /** Default mode: bridge/top-up to a preconfigured destination chain+token. */
+        mode?: "deposit";
+        routes: RoutesConfig;
+      }
+    | {
+        /** Swap mode: from/to chain+token are chosen entirely in-widget; `routes` is not required. */
+        mode: "swap";
+        routes?: Partial<RoutesConfig>;
+      }
+  );
+
 export type ResolvedTrustwareConfig = {
   apiKey: string;
+  mode: "deposit" | "swap";
   routes: {
     toChain: string;
     toToken: string;
@@ -109,6 +127,10 @@ export type FeatureFlags = {
   tokensPagination?: boolean;
   balanceStreaming?: boolean;
   shouldAllowGA4?: boolean;
+  /**
+   * @deprecated Use top-level `mode: "swap"` on `TrustwareConfigOptions` instead. Still
+   * supported for backward compatibility and treated as equivalent to `mode: "swap"`.
+   */
   swapMode?: boolean;
   /**
    * Pre-selects the destination token in swap mode. When set, the widget opens

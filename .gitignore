@@ -3,6 +3,7 @@ dist/
 .env
 .DS_Store
 coverage/
+.tw-unit-tests-*/
 .idea/
 .vscode/
 *.log
