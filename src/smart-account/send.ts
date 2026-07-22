@@ -573,7 +573,7 @@ export async function sendRouteAsUserOperation(
   }
   console.debug("[send] UserOp included", { userOpHash, txHash });
 
-  await submitReceipt(intentId, txHash!, getSponsorshipRequestId());
+  await submitReceipt(intentId, txHash!, getSponsorshipRequestId(), eoaAddress);
 
   return { userOpHash, txHash: txHash!, intentId };
 }
