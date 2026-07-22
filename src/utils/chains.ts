@@ -8,6 +8,8 @@ const CHAIN_TYPE_ALIASES: Record<string, ChainType> = {
   bitcoin: "bitcoin",
   sei: "cosmos",
   "pacific-1": "cosmos",
+  nibiru: "cosmos",
+  "cataclysm-1": "cosmos",
 };
 
 function inferChainTypeFromValue(normalized: string): ChainType | undefined {

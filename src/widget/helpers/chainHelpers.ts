@@ -48,6 +48,8 @@ const CHAIN_TYPE_ALIASES: Record<string, SquidChainType> = {
   bitcoin: "bitcoin",
   sei: "cosmos",
   "pacific-1": "cosmos",
+  nibiru: "cosmos",
+  "cataclysm-1": "cosmos",
 };
 
 function inferChainTypeFromValue(
