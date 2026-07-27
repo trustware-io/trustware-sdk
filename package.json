@@ -1,6 +1,6 @@
 {
   "name": "@trustware/sdk",
-  "version": "1.1.8",
+  "version": "1.1.9-staging.7",
   "description": "Trustware partner SDK: quote → send → receipt → status, plus drop-in React widget.",
   "license": "Apache-2.0",
   "author": "Trustware",
@@ -52,7 +52,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "build": "tsup --config tsup.config.ts",

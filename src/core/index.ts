@@ -3,6 +3,7 @@ import type {
   TrustwareConfigOptions,
   ResolvedTrustwareConfig,
   WalletInterFaceAPI,
+  TrustwareTheme,
 } from "../types";
 import { TrustwareConfigStore } from "../config/store";
 import { walletManager } from "../wallets";
@@ -76,6 +77,41 @@ export const Trustware = {
   /** Read resolved config */
   getConfig(): ResolvedTrustwareConfig {
     return TrustwareConfigStore.get();
+  },
+
+  /**
+   * Read the SDK's currently configured theme mode.
+   *
+   * Returns the raw setting — `"light" | "dark" | "system"` — i.e. whatever
+   * was last passed to `init()` or `setTheme()`. When the mode is `"system"`,
+   * the widget resolves the actual light/dark appearance itself (from the OS
+   * `prefers-color-scheme`, or a saved preference if the user has used the
+   * widget's built-in theme toggle), so this getter still reports `"system"`
+   * rather than the resolved value.
+   */
+  getTheme(): TrustwareTheme {
+    return TrustwareConfigStore.get().theme;
+  },
+
+  /**
+   * Set the widget's theme at runtime.
+   *
+   * Call this from your own app's theme toggle to keep an embedded
+   * `TrustwareWidget` in sync with your UI — no remount required, any
+   * mounted widget picks up the change immediately.
+   *
+   * Passing `"light"` or `"dark"` pins the widget to that mode. Passing
+   * `"system"` makes it follow the OS preference again — unless the user
+   * previously used the widget's own in-widget theme toggle, in which case
+   * their saved choice takes precedence until they toggle it again.
+   *
+   * @example
+   * // In your app's own dark-mode toggle handler:
+   * Trustware.setTheme(isDark ? "dark" : "light");
+   */
+  setTheme(theme: TrustwareTheme) {
+    TrustwareConfigStore.update({ theme });
+    return Trustware;
   },
 
   setDestinationAddress(address?: string | null) {

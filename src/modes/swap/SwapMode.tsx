@@ -23,6 +23,7 @@ import {
   ErrorPage,
 } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
+import { isSerializedSolanaTxRequest } from "src/core/routes";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
@@ -39,12 +40,13 @@ import { useSwapRoute } from "./hooks/useSwapRoute";
 import { useSwapExecution } from "./hooks/useSwapExecution";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
-import { SwapWalletSelector } from "./components/SwapWalletSelector";
+// import { SwapWalletSelector } from "./components/SwapWalletSelector";
 import { SUPPORTED_CURRENCIES, getCurrencyMeta, fmtCurrency } from "./currency";
 import type { SwapStage, SwapTxStatus } from "./types";
 import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import type { Theme } from "src/widget/components";
+import { SwapWalletSelector } from "./components";
 
 const ConfettiEffect = lazy(
   () => import("src/widget/components/ConfettiEffect")
@@ -243,9 +245,7 @@ export function SwapMode({
   // Read feature flags and theme from config
   const { features, theme: configTheme } = useTrustwareConfig();
   const effectiveThemeSetting = (themeProp ?? configTheme ?? "system") as
-    | "light"
-    | "dark"
-    | "system";
+    "light" | "dark" | "system";
   const { resolvedTheme, toggleTheme } = useThemePreference(
     effectiveThemeSetting
   );
@@ -331,7 +331,7 @@ export function SwapMode({
   }, [defaultDestRef, allChains]);
 
   // Single wallet state instance — shared across all stages
-  const { walletAddress, walletStatus, connectWallet, disconnectWallet } =
+  const { walletAddress, walletStatus, connectWallet } =
     useWalletSessionState();
 
   // Stable setters so useWalletTokenState's load effect deps don't change on every render
@@ -560,8 +560,22 @@ export function SwapMode({
     const fromTokenAddress =
       fromToken?.address ?? (fromToken as { address?: string })?.address;
     const fromTokenDecimals = fromToken?.decimals ?? undefined;
+
+    // Solana blockhashes expire in ~60-90s and a quote can sit on the review
+    // screen for nearly the full QUOTE_TTL window before the user confirms —
+    // rebuild right before signing so the wallet gets a transaction with a
+    // fresh blockhash instead of one that may already be expired.
+    let routeToSend = route.data;
+    if (
+      isSerializedSolanaTxRequest(routeToSend.txReq) &&
+      latestFetchParamsRef.current
+    ) {
+      const fresh = await route.fetch(latestFetchParamsRef.current);
+      if (fresh) routeToSend = fresh;
+    }
+
     await execution.execute(
-      route.data,
+      routeToSend,
       fromTokenAddress,
       fromTokenDecimals,
       walletAddress ?? undefined,
@@ -572,7 +586,7 @@ export function SwapMode({
       },
       () => setStage("error")
     );
-  }, [route.data, execution, fromToken, walletAddress, maxApproval]);
+  }, [route, execution, fromToken, walletAddress, maxApproval]);
 
   const handleReset = useCallback(() => {
     execution.reset();
@@ -779,8 +793,7 @@ export function SwapMode({
         const via = ((s.provider ?? s.tool ?? s.name ?? "") as string).trim();
         const mid = (
           (s.toToken as Record<string, unknown> | undefined)?.symbol as
-            | string
-            | undefined
+            string | undefined
         )?.trim();
         if (via) parts.push(via);
         if (mid && mid !== last && mid !== toSym) {
@@ -801,8 +814,7 @@ export function SwapMode({
   // Gas fees only (network cost) — extracted from fees array by type keyword
   const networkCostUsd = useMemo((): number | null => {
     const fees = route.data?.route?.estimate?.fees as
-      | { type?: string; amountUsd?: string | number }[]
-      | undefined;
+      { type?: string; amountUsd?: string | number }[] | undefined;
     if (!fees?.length) return null;
     const gasTotal = fees
       .filter((f) => f.type?.toLowerCase().includes("gas"))
@@ -813,8 +825,7 @@ export function SwapMode({
   // Protocol/service fees (everything that isn't gas)
   const protocolFeeUsd = useMemo((): number | null => {
     const fees = route.data?.route?.estimate?.fees as
-      | { type?: string; amountUsd?: string | number }[]
-      | undefined;
+      { type?: string; amountUsd?: string | number }[] | undefined;
     if (!fees?.length) return null;
     const total = fees
       .filter((f) => !f.type?.toLowerCase().includes("gas"))
@@ -2448,7 +2459,7 @@ export function SwapMode({
           >
             {walletAddress ? (
               <button
-                onClick={() => void disconnectWallet()}
+                onClick={handleConnectAndReview}
                 style={{
                   fontSize: fontSize.xs,
                   color: colors.mutedForeground,
@@ -2457,7 +2468,7 @@ export function SwapMode({
                   cursor: "pointer",
                 }}
               >
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)} ×
+                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </button>
             ) : (
               <button

@@ -12,12 +12,12 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
       // but this will be replaced on subscribe() fire
       return {
         apiKey: "",
+        mode: "deposit",
         routes: {
           toChain: "",
           toToken: "",
           toAddress: undefined,
           defaultSlippage: 1,
-          routeType: "swap",
           options: {},
         },
         autoDetectProvider: false,

@@ -342,7 +342,7 @@ export const TrustwareWidgetV2 = forwardRef<
   }
 
   // Swap Mode bypasses DepositProvider — fully standalone
-  if (config.features.swapMode) {
+  if (config.mode === "swap") {
     return <SwapMode theme={theme} style={style} />;
   }
 

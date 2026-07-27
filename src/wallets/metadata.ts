@@ -35,6 +35,8 @@ export const WALLETS: WalletMeta[] = [
     homepage: "https://metamask.io/",
     chromeWebStore:
       "https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn",
+    ios: "https://apps.apple.com/app/metamask/id1438144202",
+    android: "https://play.google.com/store/apps/details?id=io.metamask",
     detectFlags: ["isMetaMask"],
     deepLink: (url) => formatDeepLink("metamask", url) ?? "",
   },
@@ -46,6 +48,8 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/coinbase.svg`,
     emoji: "🟦",
     homepage: "https://www.coinbase.com/wallet",
+    ios: "https://apps.apple.com/app/coinbase-wallet/id1278383455",
+    android: "https://play.google.com/store/apps/details?id=org.toshi",
     detectFlags: ["isCoinbaseWallet"],
     deepLink: (url) => formatDeepLink("coinbase", url) ?? "",
   },
@@ -57,6 +61,7 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/walletconnect.svg`,
     emoji: "🪝",
     homepage: "https://walletconnect.com/",
+    // No deep link — opens its own modal
   },
   {
     id: "rainbow",
@@ -66,8 +71,37 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/rainbow.svg`,
     emoji: "🌈",
     homepage: "https://rainbow.me/",
-    deepLink: (url) => formatDeepLink("rainbow", url) ?? "",
+    ios: "https://apps.apple.com/app/rainbow-ethereum-wallet/id1457119021",
+    android: "https://play.google.com/store/apps/details?id=me.rainbow",
     detectFlags: ["isRainbow"],
+    deepLink: (url) => formatDeepLink("rainbow", url) ?? "",
+  },
+  {
+    id: "trust",
+    name: "Trust Wallet",
+    category: "app",
+    ecosystem: "multi",
+    logo: `${ASSETS_BASE_URL}/assets/wallets/trust.svg`,
+    emoji: "🛡️",
+    homepage: "https://trustwallet.com/",
+    ios: "https://apps.apple.com/app/trust-crypto-bitcoin-wallet/id1288339409",
+    android:
+      "https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp",
+    detectFlags: ["isTrustWallet"],
+    deepLink: (url) => formatDeepLink("trust", url) ?? "", // ✅ Added
+  },
+  {
+    id: "okx",
+    name: "OKX",
+    category: "injected",
+    ecosystem: "evm",
+    logo: `${ASSETS_BASE_URL}/assets/wallets/okx.svg`,
+    emoji: "⬛",
+    homepage: "https://www.okx.com/web3",
+    ios: "https://apps.apple.com/app/okx-buy-bitcoin-eth-crypto/id1327268470",
+    android: "https://play.google.com/store/apps/details?id=com.okinc.okex.gp",
+    detectFlags: ["isOkxWallet"],
+    deepLink: (url) => formatDeepLink("okx", url) ?? "", // ✅ Added
   },
   {
     id: "phantom-evm",
@@ -77,7 +111,12 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/phantom.svg`,
     emoji: "👻",
     homepage: "https://phantom.app/",
+    ios: "https://apps.apple.com/app/phantom-crypto-wallet/id1598432977",
+    android: "https://play.google.com/store/apps/details?id=app.phantom",
     detectFlags: ["isPhantom"],
+    // Same app/in-app browser as "phantom-solana" — browsing there injects
+    // window.ethereum too.
+    deepLink: (url) => formatDeepLink("phantom-evm", url) ?? "",
   },
   {
     id: "phantom-solana",
@@ -87,18 +126,9 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/phantom.svg`,
     emoji: "👻",
     homepage: "https://phantom.app/",
-    android: "https://play.google.com/store/apps/details?id=app.phantom",
     ios: "https://apps.apple.com/app/phantom-crypto-wallet/id1598432977",
-    deepLink: (url) => `phantom://browse/${encodeURIComponent(url)}`,
-  },
-  {
-    id: "metamask-solana",
-    name: "MetaMask (Solana)",
-    category: "injected",
-    ecosystem: "solana",
-    logo: `${ASSETS_BASE_URL}/assets/wallets/metamask.svg`,
-    emoji: "🦊",
-    homepage: "https://metamask.io/",
+    android: "https://play.google.com/store/apps/details?id=app.phantom",
+    deepLink: (url) => formatDeepLink("phantom-solana", url) ?? "",
   },
   {
     id: "solflare",
@@ -108,7 +138,10 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/solflare-logo.svg`,
     emoji: "☀️",
     homepage: "https://solflare.com/",
-    deepLink: (url) => `solflare://ul/v1/browse/${encodeURIComponent(url)}`,
+    ios: "https://apps.apple.com/app/solflare-solana-wallet/id1580902717",
+    android:
+      "https://play.google.com/store/apps/details?id=com.solflare.mobile",
+    deepLink: (url) => formatDeepLink("solflare", url) ?? "",
   },
   {
     id: "backpack",
@@ -118,7 +151,27 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/backpack-logo.svg`,
     emoji: "🎒",
     homepage: "https://backpack.app/",
+    ios: "https://apps.apple.com/app/backpack-crypto-wallet/id6445964121",
+    android:
+      "https://play.google.com/store/apps/details?id=app.backpack.mobile",
+    deepLink: (url) => formatDeepLink("backpack", url) ?? "", // ✅ Added
   },
+  {
+    id: "metamask-solana",
+    name: "MetaMask (Solana)",
+    category: "injected",
+    ecosystem: "solana",
+    logo: `${ASSETS_BASE_URL}/assets/wallets/metamask.svg`,
+    emoji: "🦊",
+    homepage: "https://metamask.io/",
+    ios: "https://apps.apple.com/app/metamask/id1438144202",
+    android: "https://play.google.com/store/apps/details?id=io.metamask",
+    // Same app/in-app browser as "metamask" — its Wallet Standard Solana
+    // provider is exposed in that same browse session.
+    deepLink: (url) => formatDeepLink("metamask-solana", url) ?? "",
+  },
+
+  // ── Extension/desktop only — hidden on mobile ─────────────────────────────
   {
     id: "rabby",
     name: "Rabby",
@@ -130,6 +183,7 @@ export const WALLETS: WalletMeta[] = [
     chromeWebStore:
       "https://chromewebstore.google.com/detail/rabby/acmacodkjbdgmoleebolmdjonilkdbch",
     detectFlags: ["isRabby"],
+    // Extension only — no mobile app or deep link
   },
   {
     id: "brave",
@@ -140,25 +194,7 @@ export const WALLETS: WalletMeta[] = [
     emoji: "🦁",
     homepage: "https://brave.com/wallet/",
     detectFlags: ["isBraveWallet"],
-  },
-  {
-    id: "okx",
-    name: "OKX",
-    category: "injected",
-    ecosystem: "evm",
-    logo: `${ASSETS_BASE_URL}/assets/wallets/okx.svg`,
-    emoji: "⬛",
-    homepage: "https://www.okx.com/web3",
-    detectFlags: ["isOkxWallet"],
-  },
-  {
-    id: "zerion",
-    name: "Zerion",
-    category: "app",
-    ecosystem: "evm",
-    logo: `${ASSETS_BASE_URL}/assets/wallets/zerion.png`,
-    emoji: "🧿",
-    homepage: "https://zerion.io/wallet/",
+    // Built into Brave browser — no standalone deep link
   },
   {
     id: "taho",
@@ -169,16 +205,7 @@ export const WALLETS: WalletMeta[] = [
     emoji: "🟪",
     homepage: "https://taho.xyz/",
     detectFlags: ["isTally", "isTallyWallet", "isTahoWallet"],
-  },
-  {
-    id: "trust",
-    name: "Trust Wallet",
-    category: "app",
-    ecosystem: "multi",
-    logo: `${ASSETS_BASE_URL}/assets/wallets/trust.svg`,
-    emoji: "🛡️",
-    homepage: "https://trustwallet.com/",
-    detectFlags: ["isTrustWallet"],
+    // Extension only — no mobile app
   },
   {
     id: "bitget",
@@ -188,7 +215,22 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/bitget.svg`,
     emoji: "🟩",
     homepage: "https://web3.bitget.com/",
+    ios: "https://apps.apple.com/app/bitget-wallet-ex-bitkeep/id1395301115",
+    android: "https://play.google.com/store/apps/details?id=com.bitkeep.wallet",
     detectFlags: ["isBitGetWallet"],
+    // No public deep link scheme documented
+  },
+  {
+    id: "zerion",
+    name: "Zerion",
+    category: "app",
+    ecosystem: "evm",
+    logo: `${ASSETS_BASE_URL}/assets/wallets/zerion.png`,
+    emoji: "🧿",
+    homepage: "https://zerion.io/wallet/",
+    ios: "https://apps.apple.com/app/zerion-crypto-defi-wallet/id1456732565",
+    android: "https://play.google.com/store/apps/details?id=io.zerion.android",
+    // Uses WalletConnect URI — not a simple page URL deep link
   },
   {
     id: "safe",
@@ -198,6 +240,9 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/safe.svg`,
     emoji: "🟩",
     homepage: "https://safe.global/",
+    ios: "https://apps.apple.com/app/safe-gnosis-safe/id1515759131",
+    android: "https://play.google.com/store/apps/details?id=io.gnosis.safe",
+    // Uses WalletConnect — no dapp browser deep link
   },
   {
     id: "kucoin",
@@ -207,5 +252,8 @@ export const WALLETS: WalletMeta[] = [
     logo: `${ASSETS_BASE_URL}/assets/wallets/kucoin.svg`,
     emoji: "🟦",
     homepage: "https://www.kucoin.com/",
+    ios: "https://apps.apple.com/app/kucoin-buy-bitcoin-crypto/id1378956601",
+    android: "https://play.google.com/store/apps/details?id=com.kubi.kucoin",
+    // No public deep link scheme documented
   },
 ];

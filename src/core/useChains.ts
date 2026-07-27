@@ -4,6 +4,7 @@ import type { ChainDef } from "../types";
 import {
   canonicalChainKeyForLink,
   canonicalSeiChainKey,
+  normalizeChainKey,
   normalizeChainType,
 } from "src/widget/helpers/chainHelpers";
 import { resolveChainLabel } from "src/utils";
@@ -29,6 +30,8 @@ type PopularEntry = { name: string; chainId?: number };
 const POPULAR_CHAINS_BY_TVL: PopularEntry[] = popularChainsData.byTvl;
 const POPULAR_LIMIT: number = popularChainsData.popularLimit;
 
+const NIBIRU_COSMOS_CHAIN_ID = "cataclysm-1";
+
 function filterSupportedChains(chains: ChainDef[]): ChainDef[] {
   const supportedChainTypes = new Set(["evm", "solana", "cosmos", "bitcoin"]);
   return chains.filter((chain) => {
@@ -53,7 +56,9 @@ function filterSupportedChains(chains: ChainDef[]): ChainDef[] {
     }
     if (chainType === "cosmos") {
       const seiKey = canonicalSeiChainKey(chain.chainId ?? chain.id);
-      if (seiKey !== "sei" && seiKey !== "pacific-1") {
+      const isNibiru =
+        normalizeChainKey(chain.chainId ?? chain.id) === NIBIRU_COSMOS_CHAIN_ID;
+      if (seiKey !== "sei" && !isNibiru) {
         return false;
       }
     }

@@ -93,11 +93,13 @@ export function App() {
 
 ## Config Reference
 
-`TrustwareConfigOptions` is the single source of truth. The current supported shape is:
+`TrustwareConfigOptions` is the single source of truth. The shape is a discriminated union
+keyed on `mode` — `routes` is only required in the default `"deposit"` mode:
 
 ```ts
 type TrustwareConfigOptions = {
   apiKey: string;
+  mode?: "deposit"; // default, omit this field entirely for a normal deposit/top-up widget
   routes: {
     toChain: string;
     toToken: string;
@@ -105,7 +107,6 @@ type TrustwareConfigOptions = {
     fromAddress?: string;
     toAddress?: string;
     defaultSlippage?: number;
-    routeType?: string;
     options?: {
       routeRefreshMs?: number;
       fixedFromAmount?: string | number;
@@ -118,11 +119,39 @@ type TrustwareConfigOptions = {
   messages?: Partial<TrustwareWidgetMessages>;
   retry?: RetryConfig;
   walletConnect?: WalletConnectConfig;
+  features?: FeatureFlags;
   onError?: (error: TrustwareError) => void;
   onSuccess?: (transaction: Transaction) => void;
   onEvent?: (event: TrustwareEvent) => void;
+} | {
+  apiKey: string;
+  mode: "swap"; // swap widget — from/to chain+token are chosen entirely in-widget
+  routes?: Partial<TrustwareConfigOptions["routes"]>; // optional, not required
+  // ...same common fields as above
 };
 ```
+
+### Modes
+
+- **`"deposit"`** (default — `mode` can be omitted): the standard bridge/top-up widget.
+  `routes.toChain` and `routes.toToken` are required.
+- **`"swap"`**: an in-widget token swap UI where the user picks both sides themselves.
+  `routes` is not required at all:
+
+  ```ts
+  const trustwareConfig = {
+    apiKey: process.env.NEXT_PUBLIC_TRUSTWARE_API_KEY!,
+    mode: "swap",
+  } satisfies TrustwareConfigOptions;
+  ```
+
+  Use `features.swapDefaultDestToken` / `features.swapLockDestToken` /
+  `features.swapAllowedDestTokens` to steer the destination token selection (see
+  `FeatureFlags` in `src/types/config.ts`).
+
+  > The older `features: { swapMode: true }` flag (combined with a `routes` object) still
+  > works and is treated as equivalent to `mode: "swap"`, but is deprecated in favor of the
+  > `mode` field above.
 
 ### Route Fields
 
@@ -132,7 +161,6 @@ type TrustwareConfigOptions = {
 - `routes.fromAddress`: optional source wallet override.
 - `routes.toAddress`: optional destination address override.
 - `routes.defaultSlippage`: optional slippage percentage. Defaults to `1`.
-- `routes.routeType`: optional route flavor. Defaults to `"swap"`.
 
 ### Route Options
 
@@ -148,6 +176,7 @@ type TrustwareConfigOptions = {
 - `messages`: top-level copy overrides.
 - `retry`: API retry and rate-limit behavior.
 - `walletConnect`: WalletConnect overrides.
+- `features`: feature rollout controls, including swap-mode token selection constraints.
 - `onError`, `onSuccess`, `onEvent`: lifecycle callbacks.
 
 ## Widget Usage Patterns

@@ -34,6 +34,9 @@ export type Transaction = {
   intentId: string;
   fromAddress: string;
   toAddress: string;
+  /** Connected wallet (EOA) that originated the payment when the sender is a
+   *  smart account. Wire field: `origin_eoa`. */
+  origin_eoa?: string;
   fromChainId: string | number;
   toChainId: string | number;
   sourceTxHash: string;

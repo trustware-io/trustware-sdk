@@ -79,7 +79,11 @@ jobs:
           TRUSTWARE_WALLETCONNECT_PROJECT_ID: ${{ secrets.TRUSTWARE_WALLETCONNECT_PROJECT_ID }}
 
       - name: Publish to npm (staging)
-        run: npx npm@latest publish --access public --tag staging --provenance
+        # sigstore is co-installed because npm 12.0.0's tarball omits it even
+        # though libnpmpublish depends on it (^5.0.0), which breaks
+        # `publish --provenance` with MODULE_NOT_FOUND. Drop the extra -p once
+        # npm bundles it again.
+        run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --tag staging --provenance
 
       # Staging release notes show every commit since the last production tag
       # (cliff.toml ignores staging tags as boundaries), giving a running
@@ -146,7 +150,11 @@ jobs:
           TRUSTWARE_WALLETCONNECT_PROJECT_ID: ${{ secrets.TRUSTWARE_WALLETCONNECT_PROJECT_ID }}
 
       - name: Publish to npm
-        run: npx npm@latest publish --access public --provenance
+        # sigstore is co-installed because npm 12.0.0's tarball omits it even
+        # though libnpmpublish depends on it (^5.0.0), which breaks
+        # `publish --provenance` with MODULE_NOT_FOUND. Drop the extra -p once
+        # npm bundles it again.
+        run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --provenance
 
       - name: Generate release notes
         id: changelog

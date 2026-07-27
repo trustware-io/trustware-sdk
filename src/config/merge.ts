@@ -10,6 +10,8 @@ import {
 } from "./defaults";
 import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
 import { validateAddressForChain } from "src";
+import { TrustwareError } from "src/errors/TrustwareError";
+import { TrustwareErrorCode } from "src/errors/errorCodes";
 // import { getUniversalConnector } from "./walletconnect";
 
 /**
@@ -69,37 +71,82 @@ function normalizeSlippage(v: unknown): number {
   return n;
 }
 
+let hasWarnedDeprecatedSwapModeFlag = false;
+function warnDeprecatedSwapModeFlag() {
+  if (hasWarnedDeprecatedSwapModeFlag) return;
+  hasWarnedDeprecatedSwapModeFlag = true;
+  console.warn(
+    '[Trustware SDK] `features.swapMode` is deprecated — use `mode: "swap"` on the top-level config instead.'
+  );
+}
+
+function resolveMode(input: TrustwareConfigOptions): "deposit" | "swap" {
+  if (input.mode === "swap") return "swap";
+  if (input.mode === "deposit") return "deposit";
+  if (input.features?.swapMode) {
+    warnDeprecatedSwapModeFlag();
+    return "swap";
+  }
+  return "deposit";
+}
+
 export function resolveConfig(
   input: TrustwareConfigOptions
 ): ResolvedTrustwareConfig {
   if (!input?.apiKey) {
-    throw new Error("TrustwareConfig: 'apiKey' is required.");
-  }
-  if (!input.routes?.toChain || !input.routes?.toToken) {
-    throw new Error(
-      "TrustwareConfig: 'routes.toChain' and 'routes.toToken' are required."
-    );
+    throw new TrustwareError({
+      code: TrustwareErrorCode.INVALID_CONFIG,
+      message: "TrustwareConfig: 'apiKey' is required.",
+      userMessage: "Missing required API key configuration.",
+    });
   }
 
-  // ── Address validation
-  const toChain = input.routes.toChain;
+  const mode = resolveMode(input);
 
-  if (input.routes.toAddress) {
+  if (
+    mode === "deposit" &&
+    (!input.routes?.toChain || !input.routes?.toToken)
+  ) {
+    throw new TrustwareError({
+      code: TrustwareErrorCode.INVALID_CONFIG,
+      message:
+        "TrustwareConfig: 'routes.toChain' and 'routes.toToken' are required in deposit mode.",
+      userMessage: "Missing required destination chain/token configuration.",
+    });
+  }
+
+  // ── Address validation (only meaningful when both an address and a chain to
+  // validate it against are present — in swap mode with no `routes` at all,
+  // there's nothing to validate here).
+  const toChain = input.routes?.toChain;
+
+  if (input.routes?.toAddress && toChain) {
     const result = validateAddressForChain(input.routes.toAddress, toChain);
     if (!result.isValid) {
       console.error(`[Trustware SDK] Invalid toAddress: ${result.error}`);
-      throw new Error(`Invalid toAddress: ${result.error}`);
+      throw new TrustwareError({
+        code: TrustwareErrorCode.INVALID_CONFIG,
+        message: `Invalid toAddress: ${result.error}`,
+        userMessage: "The configured destination address is invalid.",
+      });
     }
   }
 
-  if (input.routes.fromAddress) {
-    const result = validateAddressForChain(
-      input.routes.fromAddress,
-      input.routes.fromChain ?? toChain
-    );
-    if (!result.isValid) {
-      console.error(`[Trustware SDK] Invalid fromAddress: ${result.error}`);
-      throw new Error(`Invalid fromAddress: ${result.error}`);
+  if (input.routes?.fromAddress) {
+    const fromChain = input.routes.fromChain ?? toChain;
+    if (fromChain) {
+      const result = validateAddressForChain(
+        input.routes.fromAddress,
+        fromChain
+      );
+      if (!result.isValid) {
+        console.error(`[Trustware SDK] Invalid fromAddress: ${result.error}`);
+        throw new TrustwareError({
+          code: TrustwareErrorCode.INVALID_CONFIG,
+          message: `Invalid fromAddress: ${result.error}`,
+          userMessage: "The configured source address is invalid.",
+        });
+      }
     }
   }
 
@@ -109,18 +156,17 @@ export function resolveConfig(
       : DEFAULT_AUTO_DETECT_PROVIDER;
 
   const routes = {
-    toChain: input.routes.toChain,
-    toToken: input.routes.toToken,
-    fromToken: input.routes.fromToken,
-    fromAddress: input.routes.fromAddress,
-    fromChain: input.routes.fromChain,
-    toAddress: input.routes.toAddress,
+    toChain: input.routes?.toChain ?? "",
+    toToken: input.routes?.toToken ?? "",
+    fromToken: input.routes?.fromToken,
+    fromAddress: input.routes?.fromAddress,
+    fromChain: input.routes?.fromChain,
+    toAddress: input.routes?.toAddress,
     defaultSlippage: normalizeSlippage(
-      input.routes.defaultSlippage ?? DEFAULT_SLIPPAGE
+      input.routes?.defaultSlippage ?? DEFAULT_SLIPPAGE
     ),
-    routeType: input.routes.routeType ?? "swap",
     options: {
-      ...input.routes.options,
+      ...input.routes?.options,
     },
   };
 
@@ -152,7 +198,9 @@ export function resolveConfig(
       DEFAULT_FEATURE_FLAGS.balanceStreaming,
     shouldAllowGA4:
       input.features?.shouldAllowGA4 ?? DEFAULT_FEATURE_FLAGS.shouldAllowGA4,
-    swapMode: input.features?.swapMode ?? DEFAULT_FEATURE_FLAGS.swapMode,
+    // Always mirrors the canonical `mode`, however the caller set it (new `mode` field
+    // or the deprecated `features.swapMode` flag).
+    swapMode: mode === "swap",
     swapDefaultDestToken:
       input.features?.swapDefaultDestToken ??
       DEFAULT_FEATURE_FLAGS.swapDefaultDestToken,
@@ -166,6 +214,7 @@ export function resolveConfig(
 
   return {
     apiKey: input.apiKey,
+    mode,
     routes,
     autoDetectProvider,
     theme,

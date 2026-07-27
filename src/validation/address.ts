@@ -67,6 +67,50 @@ export function validateSeiAddress(address: string): AddressValidationResult {
   };
 }
 
+// Sei is dual EVM+Cosmos, so its addresses may also be 0x-prefixed. Other
+// Cosmos chains (e.g. Nibiru) only accept their own native bech32 prefix.
+const COSMOS_BECH32_PREFIX_BY_CHAIN_ID: Record<string, string> = {
+  "pacific-1": "sei",
+  sei: "sei",
+  "cataclysm-1": "nibi",
+  nibiru: "nibi",
+};
+
+function resolveCosmosBech32Prefix(
+  chain?: ChainDef | ChainType | string | null
+): string {
+  const chainDef = typeof chain === "object" && chain ? chain : undefined;
+  const identifier =
+    chainDef?.networkIdentifier ??
+    chainDef?.chainId ??
+    chainDef?.id ??
+    (typeof chain === "string" ? chain : undefined);
+  const normalized = String(identifier ?? "")
+    .trim()
+    .toLowerCase();
+  return COSMOS_BECH32_PREFIX_BY_CHAIN_ID[normalized] ?? "sei";
+}
+
+export function validateCosmosAddress(
+  address: string,
+  chain?: ChainDef | ChainType | string | null
+): AddressValidationResult {
+  const trimmed = address.trim();
+  const prefix = resolveCosmosBech32Prefix(chain);
+  if (prefix === "sei" && isEvmAddress(trimmed)) {
+    return { isValid: true };
+  }
+  const result = validateBech32LikeAddress(trimmed, prefix);
+  if (result.isValid) return result;
+  return {
+    isValid: false,
+    error:
+      prefix === "sei"
+        ? "SEI addresses must be 0x-prefixed EVM or sei1 bech32 strings."
+        : `Address must be a valid ${prefix}1 bech32 string.`,
+  };
+}
+
 export function validateSolanaAddress(
   address: string
 ): AddressValidationResult {
@@ -125,16 +169,17 @@ export function validateAddressForChain(
     case "bitcoin":
       return validateBtcAddress(trimmed);
     case "cosmos":
-      if (chainDef?.networkIdentifier?.toLowerCase() === "sei") {
-        return validateSeiAddress(trimmed);
-      }
-      return validateBech32LikeAddress(trimmed, "sei");
+      return validateCosmosAddress(trimmed, chainDef ?? chain);
     default:
       return { isValid: false, error: "Unsupported or unknown chain type." };
   }
 }
 
-function validateAddressForRouteChain(address: string, chainType: ChainType) {
+function validateAddressForRouteChain(
+  address: string,
+  chainType: ChainType,
+  chainRef?: ChainDef | ChainType | string | null
+) {
   switch (normalizeChainType(chainType)) {
     case "evm":
       return validateEvmAddress(address);
@@ -143,7 +188,7 @@ function validateAddressForRouteChain(address: string, chainType: ChainType) {
     case "bitcoin":
       return validateBtcAddress(address);
     case "cosmos":
-      return validateSeiAddress(address);
+      return validateCosmosAddress(address, chainRef ?? chainType);
     default:
       return { isValid: false, error: "Unsupported chain type." };
   }
@@ -180,7 +225,11 @@ export function validateRouteAddresses(params: {
       (fromType === "bitcoin" || fromType === "solana"));
 
   if (isDepositFlow) {
-    const fromResult = validateAddressForRouteChain(fromAddress, fromType);
+    const fromResult = validateAddressForRouteChain(
+      fromAddress,
+      fromType,
+      params.fromChain
+    );
     if (!fromResult.isValid) {
       return {
         isValid: false,
@@ -189,7 +238,7 @@ export function validateRouteAddresses(params: {
     }
     const toResult =
       toType === "cosmos"
-        ? validateSeiAddress(toAddress)
+        ? validateCosmosAddress(toAddress, params.toChain)
         : validateEvmAddress(toAddress);
     if (!toResult.isValid) {
       return {
@@ -216,7 +265,11 @@ export function validateRouteAddresses(params: {
     return { isValid: true };
   }
 
-  const fromResult = validateAddressForRouteChain(fromAddress, fromType);
+  const fromResult = validateAddressForRouteChain(
+    fromAddress,
+    fromType,
+    params.fromChain
+  );
   if (!fromResult.isValid) {
     return {
       isValid: false,
@@ -224,7 +277,11 @@ export function validateRouteAddresses(params: {
     };
   }
 
-  const toResult = validateAddressForRouteChain(toAddress, toType);
+  const toResult = validateAddressForRouteChain(
+    toAddress,
+    toType,
+    params.toChain
+  );
   if (!toResult.isValid) {
     return {
       isValid: false,

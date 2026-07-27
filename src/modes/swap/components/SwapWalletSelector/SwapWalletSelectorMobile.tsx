@@ -12,55 +12,70 @@ import {
   useWalletInfo,
   useWalletConnectConnect,
 } from "src/wallets";
+// Assumption: WALLETS is re-exported from the same "src/wallets" barrel as the
+// hooks above — adjust the import path if it actually lives elsewhere.
+import { WALLETS } from "src/wallets";
 import { TrustwareConfigStore } from "src/config";
 import { toast } from "src/widget/components/Toast";
 import type {
   DetectedWallet,
   WalletInterFaceAPI,
   WalletConnectConfig,
+  WalletMeta,
 } from "src/types";
 import type { WalletStatus } from "src/widget/state/deposit/types";
+// import { useDepositNavigation } from "src/widget/context/DepositContext";
 
 type SwapNamespace = "evm" | "solana";
 
-interface SwapWalletSelectorProps {
+interface SwapWalletSelectorMobileProps {
   walletStatus: WalletStatus;
   walletAddress: string | null;
   connectWallet: (
     wallet: DetectedWallet
   ) => Promise<{ error: string | null; api: WalletInterFaceAPI | null }>;
   onBack: () => void;
+  /** Called when the user taps "Continue" after a wallet is connected. */
+  onContinue?: () => void;
 }
 
-export function SwapWalletSelector({
+// A row to render: static wallet metadata, plus the live DetectedWallet if an
+// injected provider for it happens to be present right now (e.g. the user is
+// browsing inside that wallet's own in-app browser).
+interface MobileWalletEntry {
+  meta: WalletMeta;
+  detectedWallet: DetectedWallet | null;
+}
+
+function SwapWalletSelectorMobile({
   walletStatus,
   walletAddress,
   connectWallet,
   onBack,
-}: SwapWalletSelectorProps): React.ReactElement {
+}: SwapWalletSelectorMobileProps): React.ReactElement {
   const { detected } = useWalletDetection();
   const {
     isConnected: managerConnected,
     walletMetaId,
     connectedVia,
     disconnect,
+    // status,
   } = useWalletInfo();
 
+  //   const { setCurrentStep } = useDepositNavigation();
+
   const walletConnectCfg = TrustwareConfigStore.peek()?.walletConnect as
-    | WalletConnectConfig
-    | undefined;
+    WalletConnectConfig | undefined;
   const connectWC = useWalletConnectConnect(walletConnectCfg);
+
   const [wcConnecting, setWcConnecting] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
-  const [timerExpired, setTimerExpired] = useState(false);
   const [selectedNamespace, setSelectedNamespace] =
     useState<SwapNamespace>("evm");
   const prevStatusRef = useRef(walletStatus);
-
-  useEffect(() => {
-    const t = setTimeout(() => setTimerExpired(true), 450);
-    return () => clearTimeout(t);
-  }, []);
+  const storeFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   useEffect(() => {
     const prev = prevStatusRef.current;
@@ -75,16 +90,34 @@ export function SwapWalletSelector({
     }
   }, [walletStatus]);
 
-  // Filter by namespace — matches deposit mode's ecosystem comparison
-  const filteredWallets = useMemo(
-    () =>
-      detected.filter(
-        (w) => (w.meta?.ecosystem ?? "").toLowerCase() === selectedNamespace
-      ),
-    [detected, selectedNamespace]
-  );
+  // Clear any pending app-store fallback redirect on unmount
+  useEffect(() => {
+    return () => {
+      if (storeFallbackTimeoutRef.current !== null) {
+        clearTimeout(storeFallbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  const isDetecting = detected.length === 0 && !timerExpired;
+  const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+
+  // Merge the static wallet registry with whatever is actually detected
+  // (injected) right now. WalletConnect is excluded here — it gets its own
+  // dedicated row below, matching desktop.
+  const mobileWalletEntries: MobileWalletEntry[] = useMemo(() => {
+    return WALLETS.filter((w) => {
+      if (w.id === "walletconnect") return false;
+
+      const hasMobileLink = Boolean(w.deepLink);
+      if (!hasMobileLink) return false;
+
+      const ecosystem = w.ecosystem.trim().toLowerCase();
+      return ecosystem === "multi" || ecosystem === selectedNamespace;
+    }).map((meta) => ({
+      meta,
+      detectedWallet: detected.find((d) => d.meta.id === meta.id) ?? null,
+    }));
+  }, [detected, selectedNamespace]);
 
   const handleDisconnect = () => {
     void disconnect();
@@ -93,7 +126,6 @@ export function SwapWalletSelector({
   const handleWalletConnect = async () => {
     if (wcConnecting) return;
     if (connectedVia === "walletconnect" && managerConnected) {
-      onBack();
       return;
     }
     setWcConnecting(true);
@@ -110,37 +142,70 @@ export function SwapWalletSelector({
     }
   };
 
-  const handleClick = async (wallet: DetectedWallet) => {
+  // No injected provider for this wallet — send the user out to its app,
+  // falling back to the store if it doesn't come back to the foreground.
+  const goToAppStore = (meta: WalletMeta) => {
+    const isIos = /iPhone|iPad/i.test(navigator.userAgent);
+    const storeUrl = isIos ? meta.ios : meta.android;
+    if (storeUrl) window.location.assign(storeUrl);
+  };
+
+  const handleClick = async (entry: MobileWalletEntry) => {
+    const { meta, detectedWallet } = entry;
+
     if (walletStatus === "connecting") return;
-    if (wallet.meta.id === "walletconnect" || wallet.via === "walletconnect") {
-      toast.error("Not Available", "WalletConnect is not currently available.");
-      return;
-    }
+
     // Already connected to this exact wallet — no need to reconnect
-    if (managerConnected && walletMetaId === wallet.meta.id) {
-      onBack();
+    if (managerConnected && walletMetaId === meta.id) {
       return;
     }
-    setConnectingId(wallet.meta.id);
-    try {
-      await connectWallet(wallet);
-    } catch (err) {
-      setConnectingId(null);
-      const msg =
-        err instanceof Error ? err.message : "Failed to connect wallet";
-      if (
-        msg.toLowerCase().includes("rejected") ||
-        msg.toLowerCase().includes("denied")
-      ) {
-        toast.error(
-          "Connection Declined",
-          "You declined the connection request."
-        );
-      } else {
-        toast.error("Connection Failed", msg);
+
+    // An injected provider for this wallet is present right now (e.g. we're
+    // inside that wallet's own in-app browser) — connect directly, same as desktop.
+    if (detectedWallet) {
+      setConnectingId(meta.id);
+      try {
+        await connectWallet(detectedWallet);
+      } catch (err) {
+        setConnectingId(null);
+        const msg =
+          err instanceof Error ? err.message : "Failed to connect wallet";
+        if (
+          msg.toLowerCase().includes("rejected") ||
+          msg.toLowerCase().includes("denied")
+        ) {
+          toast.error(
+            "Connection Declined",
+            "You declined the connection request."
+          );
+        } else {
+          toast.error("Connection Failed", msg);
+        }
+      }
+      return;
+    }
+
+    // No injected provider — deep link out to the wallet's app
+    if (meta.deepLink) {
+      const deepLinkUrl = meta.deepLink(currentUrl);
+      if (deepLinkUrl) {
+        window.location.assign(deepLinkUrl);
+        if (storeFallbackTimeoutRef.current !== null) {
+          clearTimeout(storeFallbackTimeoutRef.current);
+        }
+        storeFallbackTimeoutRef.current = setTimeout(() => {
+          storeFallbackTimeoutRef.current = null;
+          goToAppStore(meta);
+        }, 1500);
+        return;
       }
     }
+
+    // No deep link scheme at all — go straight to the store
+    goToAppStore(meta);
   };
+
+  //   const isFullyConnected = managerConnected && walletStatus === "connected";
 
   const tabs: { id: SwapNamespace; label: string }[] = [
     { id: "evm", label: "EVM" },
@@ -148,7 +213,13 @@ export function SwapWalletSelector({
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+      }}
+    >
       {/* Header */}
       <div
         style={{
@@ -199,8 +270,12 @@ export function SwapWalletSelector({
         >
           Connect Wallet
         </h1>
+        {/* spacer so the title stays visually centered against the back button */}
+        <div style={{ width: "1.25rem", marginLeft: spacing[2] }} aria-hidden />
+      </div>
 
-        {/* EVM / Solana segmented control */}
+      {/* EVM / Solana segmented control */}
+      <div style={{ padding: `${spacing[3]} ${spacing[4]} 0` }}>
         <div
           style={{
             display: "flex",
@@ -216,7 +291,8 @@ export function SwapWalletSelector({
               key={t.id}
               onClick={() => setSelectedNamespace(t.id)}
               style={{
-                padding: `${spacing[1]} ${spacing[3]}`,
+                flex: 1,
+                padding: `${spacing[1.5]} ${spacing[3]}`,
                 fontSize: fontSize.sm,
                 fontWeight: fontWeight.medium,
                 borderRadius: borderRadius.md,
@@ -245,59 +321,15 @@ export function SwapWalletSelector({
         </div>
       </div>
 
-      <div style={{ padding: spacing[4] }}>
-        {isDetecting ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: spacing[3],
-            }}
-          >
-            {[1, 2].map((i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: spacing[4],
-                  padding: spacing[4],
-                  borderRadius: borderRadius["2xl"],
-                  backgroundColor: colors.muted,
-                  animation:
-                    "tw-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                }}
-              >
-                <div
-                  style={{
-                    width: "3rem",
-                    height: "3rem",
-                    borderRadius: borderRadius.xl,
-                    backgroundColor: "rgba(161,161,170,0.2)",
-                  }}
-                />
-                <div
-                  style={{
-                    height: "1rem",
-                    width: "6rem",
-                    borderRadius: borderRadius.md,
-                    backgroundColor: "rgba(161,161,170,0.2)",
-                  }}
-                />
-              </div>
-            ))}
-            <p
-              style={{
-                textAlign: "center",
-                fontSize: fontSize.sm,
-                color: colors.mutedForeground,
-                marginTop: spacing[4],
-              }}
-            >
-              Detecting wallets...
-            </p>
-          </div>
-        ) : filteredWallets.length === 0 ? (
+      {/* Scrollable wallet list */}
+      <div
+        style={{
+          overflowY: "auto",
+          padding: spacing[4],
+          maxHeight: "31.25rem",
+        }}
+      >
+        {mobileWalletEntries.length === 0 ? (
           <div style={{ textAlign: "center", padding: `${spacing[8]} 0` }}>
             <div style={{ fontSize: "2.5rem", marginBottom: spacing[4] }}>
               👛
@@ -349,17 +381,19 @@ export function SwapWalletSelector({
               gap: spacing[3],
             }}
           >
-            {filteredWallets.map((wallet) => {
-              // Read connected state from the manager directly — no local shadow state
+            {mobileWalletEntries.map((entry) => {
+              const { meta } = entry;
               const isWalletConnected =
-                managerConnected && walletMetaId === wallet.meta.id;
+                managerConnected && walletMetaId === meta.id;
               const isConnecting =
-                connectingId === wallet.meta.id &&
-                walletStatus === "connecting";
+                connectingId === meta.id && walletStatus === "connecting";
+
+              const isRowDisabled =
+                managerConnected && !isWalletConnected && !entry.detectedWallet;
 
               return (
                 <div
-                  key={wallet.meta.id}
+                  key={meta.id}
                   style={mergeStyles(
                     {
                       width: "100%",
@@ -374,7 +408,8 @@ export function SwapWalletSelector({
                     isWalletConnected && {
                       boxShadow: `0 0 0 2px ${colors.primary}`,
                       border: `1px solid ${colors.primary}`,
-                    }
+                    },
+                    isRowDisabled && { opacity: 0.4 }
                   )}
                 >
                   <div
@@ -390,20 +425,10 @@ export function SwapWalletSelector({
                       flexShrink: 0,
                     }}
                   >
-                    {wallet.meta.logo ? (
+                    {meta.logo ? (
                       <img
-                        src={wallet.meta.logo}
-                        alt={wallet.meta.name}
-                        style={{
-                          width: "2rem",
-                          height: "2rem",
-                          objectFit: "contain",
-                        }}
-                      />
-                    ) : wallet.detail?.info?.icon ? (
-                      <img
-                        src={wallet.detail.info.icon}
-                        alt={wallet.meta.name}
+                        src={meta.logo}
+                        alt={meta.name}
                         style={{
                           width: "2rem",
                           height: "2rem",
@@ -412,7 +437,7 @@ export function SwapWalletSelector({
                       />
                     ) : (
                       <span style={{ fontSize: "1.5rem" }}>
-                        {wallet.meta.emoji || "👛"}
+                        {meta.emoji || "👛"}
                       </span>
                     )}
                   </div>
@@ -424,7 +449,7 @@ export function SwapWalletSelector({
                         color: colors.foreground,
                       }}
                     >
-                      {wallet.meta.name}
+                      {meta.name}
                     </p>
                     {isWalletConnected && walletAddress && (
                       <p
@@ -469,8 +494,8 @@ export function SwapWalletSelector({
                     </button>
                   ) : (
                     <button
-                      onClick={() => void handleClick(wallet)}
-                      disabled={walletStatus === "connecting"}
+                      onClick={() => void handleClick(entry)}
+                      disabled={walletStatus === "connecting" || isRowDisabled}
                       style={mergeStyles(
                         {
                           padding: `${spacing[1.5]} ${spacing[3]}`,
@@ -483,7 +508,7 @@ export function SwapWalletSelector({
                           cursor: "pointer",
                           flexShrink: 0,
                         },
-                        walletStatus === "connecting" && {
+                        (walletStatus === "connecting" || isRowDisabled) && {
                           opacity: 0.5,
                           cursor: "not-allowed",
                         }
@@ -498,7 +523,7 @@ export function SwapWalletSelector({
           </div>
         )}
 
-        {/* WalletConnect — EVM only, matches deposit mode behavior */}
+        {/* WalletConnect — EVM only, matches desktop behavior */}
         {selectedNamespace === "evm" && (
           <>
             <div
@@ -511,6 +536,8 @@ export function SwapWalletSelector({
             {(() => {
               const wcConnected =
                 managerConnected && connectedVia === "walletconnect";
+
+              const wcRowDisabled = managerConnected && !wcConnected;
               return (
                 <div
                   style={mergeStyles(
@@ -528,13 +555,15 @@ export function SwapWalletSelector({
                     wcConnected && {
                       boxShadow: `0 0 0 2px ${colors.primary}`,
                       border: `1px solid ${colors.primary}`,
-                    }
+                    },
+                    wcRowDisabled && { opacity: 0.4, cursor: "not-allowed" }
                   )}
                   onClick={
-                    !wcConnected ? () => void handleWalletConnect() : undefined
+                    !wcConnected && !wcRowDisabled
+                      ? () => void handleWalletConnect()
+                      : undefined
                   }
                 >
-                  {/* WalletConnect logo box */}
                   <div
                     style={{
                       width: "3rem",
@@ -619,18 +648,24 @@ export function SwapWalletSelector({
                         e.stopPropagation();
                         void handleWalletConnect();
                       }}
-                      disabled={wcConnecting}
-                      style={{
-                        padding: `${spacing[1.5]} ${spacing[3]}`,
-                        borderRadius: "9999px",
-                        backgroundColor: "rgba(59,130,246,0.1)",
-                        color: colors.primary,
-                        fontSize: fontSize.xs,
-                        fontWeight: fontWeight.medium,
-                        border: 0,
-                        cursor: "pointer",
-                        flexShrink: 0,
-                      }}
+                      disabled={wcConnecting || wcRowDisabled}
+                      style={mergeStyles(
+                        {
+                          padding: `${spacing[1.5]} ${spacing[3]}`,
+                          borderRadius: "9999px",
+                          backgroundColor: "rgba(59,130,246,0.1)",
+                          color: colors.primary,
+                          fontSize: fontSize.xs,
+                          fontWeight: fontWeight.medium,
+                          border: 0,
+                          cursor: "pointer",
+                          flexShrink: 0,
+                        },
+                        (wcConnecting || wcRowDisabled) && {
+                          opacity: 0.5,
+                          cursor: "not-allowed",
+                        }
+                      )}
                     >
                       Connect
                     </button>
@@ -641,6 +676,40 @@ export function SwapWalletSelector({
           </>
         )}
       </div>
+
+      {/* Sticky continue button */}
+      {/* {isFullyConnected && (
+        <div
+          style={{
+            padding: spacing[3],
+            borderTop: `1px solid ${colors.border}`,
+            backgroundColor: colors.card,
+          }}
+        >
+          <button
+            onClick={() => void handleContinue()}
+            style={{
+              width: "100%",
+              padding: `${spacing[2]} ${spacing[3]}`,
+              borderRadius: borderRadius.lg,
+              border: "none",
+              backgroundColor: colors.primary,
+              color: colors.primaryForeground,
+              fontFamily: "inherit",
+              fontSize: fontSize.sm,
+              fontWeight: fontWeight.medium,
+              cursor: "pointer",
+              transition: "opacity 0.2s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            Continue →
+          </button>
+        </div>
+      )} */}
     </div>
   );
 }
+
+export default SwapWalletSelectorMobile;

@@ -6,14 +6,35 @@ export function formatDeepLink(
   const enc = encodeURIComponent(currentUrl);
 
   switch (id) {
+    // EVM
+    // MetaMask's dapp browser also exposes its Wallet Standard Solana
+    // provider in the same session, so "metamask-solana" reuses this link.
     case "metamask":
-      // app schema works on iOS + Android; fallback to site detection
+    case "metamask-solana":
       return `metamask://dapp/${currentUrl}`;
+
     case "coinbase":
-      // opens Coinbase Wallet and loads the dapp
       return `coinbase://wallet/dapp?url=${enc}`;
     case "rainbow":
-      return `rainbow://connect?uri=${enc}`;
+      return `https://rainbow.me/dapp?url=${enc}`;
+    case "trust":
+      return `https://link.trustwallet.com/open_url?coin_id=60&url=${enc}`;
+    case "okx":
+      return `okx://wallet/dapp/url?dappUrl=${enc}`;
+
+    // Solana
+    // Phantom is one app with one in-app browser — browsing there injects
+    // both window.ethereum and window.phantom.solana, so "phantom-evm"
+    // reuses the same browse link as "phantom-solana".
+    case "phantom-solana":
+    case "phantom-evm":
+      return `https://phantom.app/ul/browse/${enc}?ref=${enc}`;
+    case "solflare":
+      return `https://solflare.com/ul/v1/browse/${enc}?ref=${enc}`;
+    case "backpack":
+      return `https://backpack.app/ul/v1/browse/${enc}?ref=${enc}`;
+
+    // No confirmed deep link scheme
     default:
       return undefined;
   }

@@ -7,6 +7,8 @@ import type {
 } from "../../../types";
 import { WalletNamespace } from "src/widget/context/DepositContext";
 
+export type WalletConnectStatus = "idle" | "connecting" | "timedOut" | "failed";
+
 export type ResolvedTheme = "light" | "dark";
 
 export interface YourTokenData {
@@ -27,29 +29,15 @@ export interface YourTokenData {
 }
 
 export type NavigationStep =
-  | "home"
-  | "select-token"
-  | "crypto-pay"
-  | "processing"
-  | "success"
-  | "error";
+  "home" | "select-token" | "crypto-pay" | "processing" | "success" | "error";
 
 export type NavigationDirection = "forward" | "backward";
 
 export type WalletStatus =
-  | "idle"
-  | "detecting"
-  | "connecting"
-  | "connected"
-  | "error";
+  "idle" | "detecting" | "connecting" | "connected" | "error";
 
 export type TransactionStatus =
-  | "idle"
-  | "confirming"
-  | "processing"
-  | "bridging"
-  | "success"
-  | "error";
+  "idle" | "confirming" | "processing" | "bridging" | "success" | "error";
 
 export type PaymentMethodType = "crypto" | "fiat";
 
@@ -122,4 +110,12 @@ export interface DepositContextValue {
   walletType: "walletconnect" | "other";
   selectedNamespace: WalletNamespace;
   setSelectedNamespace: React.Dispatch<SetStateAction<WalletNamespace>>;
+  /** Only driven by the WalletConnect-specific connect paths — never by injected-wallet connects. */
+  wcStatus: WalletConnectStatus;
+  /** Set when wcStatus is "failed"; the reason the last attempt failed. */
+  wcErrorMessage: string | null;
+  /** Abandons a stuck/failed WalletConnect attempt and starts a fresh one. */
+  retryWalletConnect: () => void;
+  /** Dismisses the status banner without retrying. */
+  dismissWcStatus: () => void;
 }

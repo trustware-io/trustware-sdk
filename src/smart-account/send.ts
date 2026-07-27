@@ -251,8 +251,7 @@ export async function sendRouteAsUserOperation(
           callerFromDecimals ??
           (
             route.route?.steps?.[0] as
-              | { action?: { fromToken?: { decimals?: number } } }
-              | undefined
+              { action?: { fromToken?: { decimals?: number } } } | undefined
           )?.action?.fromToken?.decimals ??
           (() => {
             throw Object.assign(
@@ -463,8 +462,7 @@ export async function sendRouteAsUserOperation(
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       let feeOverrides:
-        | { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }
-        | undefined;
+        { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined;
       if (nextFee !== null) {
         // Fee error on last attempt — use the calculated required fee directly.
         feeOverrides = {
@@ -575,7 +573,7 @@ export async function sendRouteAsUserOperation(
   }
   console.debug("[send] UserOp included", { userOpHash, txHash });
 
-  await submitReceipt(intentId, txHash!, getSponsorshipRequestId());
+  await submitReceipt(intentId, txHash!, getSponsorshipRequestId(), eoaAddress);
 
   return { userOpHash, txHash: txHash!, intentId };
 }
