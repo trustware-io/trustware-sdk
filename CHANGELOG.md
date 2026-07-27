@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.9] - 2026-07-27
+
+
+### Added
+
+- Report connected EOA in receipt payload (#89) (#89)
+
+
+### Fixed
+
+- Clean up app-store fallback timeout in mobile wallet deep link
+- Connect injected wallet in deposit mobile dropdown (#86) (#86)
+
+
+### Internal
+
+- Pin npm to v11 for publish — npm 12.0.0 breaks --provenance
+- Publish with npm 12 + co-installed sigstore
+- Update LICENSE contact to contact@trustware.io
+- Restore canonical Apache 2.0 text, add third-party notices
+
 ## [1.1.7] - 2026-05-20
 
 ### Fixed
