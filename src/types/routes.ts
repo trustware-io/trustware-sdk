@@ -47,7 +47,18 @@ export type Transaction = {
   statusRaw?: unknown;
   routePath?: unknown;
   routeStatus?: unknown;
+  /**
+   * Exact once landed_amount_verified is true; otherwise a pre-trade quote
+   * estimate copied in when the transaction was submitted — neither Squid's
+   * nor LiFi's status API carries a real landed-amount field, so the
+   * backend confirms it by reading the destination chain directly instead
+   * (see BVT-246). Check `landed_amount_verified` before auto-continuing
+   * on this value.
+   */
   toAmountWei?: string | number;
+  /** True once toAmountWei has been confirmed on-chain rather than being the
+   *  pre-trade quote estimate. Wire field: `landed_amount_verified`. */
+  landed_amount_verified?: boolean;
   fromChainBlock: number;
   toChainBlock: number;
   fromChainTxUrl?: string;
