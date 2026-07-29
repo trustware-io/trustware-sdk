@@ -1,4 +1,8 @@
-import type { BuildRouteResult, RouteApproval, RouteSponsorship } from "../types";
+import type {
+  BuildRouteResult,
+  RouteApproval,
+  RouteSponsorship,
+} from "../types";
 import type { ChainDef, EvmWalletInterface } from "../types";
 import { walletManager } from "../wallets/";
 import {
@@ -26,7 +30,12 @@ const erc20ApproveAbi = parseAbi([
 
 async function sendEvmTx(
   w: EvmWalletInterface,
-  tx: { to: `0x${string}`; data: `0x${string}`; value: bigint; chainId?: number }
+  tx: {
+    to: `0x${string}`;
+    data: `0x${string}`;
+    value: bigint;
+    chainId?: number;
+  }
 ): Promise<string> {
   if (w.type === "eip1193") {
     const from = (await w.getAddress()) as `0x${string}`;
