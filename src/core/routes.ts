@@ -1,6 +1,7 @@
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import type {
   BuildRouteResult,
+  PostHookRequest,
   RouteParams,
   RoutePlan,
   RouteSponsorship,
@@ -25,7 +26,42 @@ export type BuildRouteBody = {
   slippageBps?: number;
   linkId?: string;
   memo?: string;
+  /**
+   * Optional bridge-and-call: execute a contract call on the destination
+   * chain right after funds land, instead of a plain wallet transfer (e.g.
+   * depositing into a vault in the same flow). Fully optional and backward
+   * compatible — omit `hooks` entirely and nothing changes.
+   */
+  hooks?: { postHook?: PostHookRequest };
 };
+
+/**
+ * Validates a `BuildRouteBody.hooks` value before it's sent, so a malformed
+ * postHook fails fast client-side instead of round-tripping to the backend.
+ * A no-op when `hooks`/`hooks.postHook` is omitted. Exported so callers can
+ * validate a postHook ahead of time (e.g. in their own form validation).
+ */
+export function assertValidPostHook(hooks: BuildRouteBody["hooks"]) {
+  const postHook = hooks?.postHook;
+  if (!postHook) return;
+  if (!postHook.target?.trim()) {
+    throw new Error("hooks.postHook.target is required.");
+  }
+  if (!postHook.callData?.trim()) {
+    throw new Error("hooks.postHook.callData is required.");
+  }
+  if (postHook.fullAmount) {
+    if (postHook.amountInputPos === undefined) {
+      throw new Error(
+        "hooks.postHook.amountInputPos is required when fullAmount is true."
+      );
+    }
+  } else if (!postHook.fundAmount?.trim()) {
+    throw new Error(
+      "hooks.postHook.fundAmount is required unless fullAmount is set."
+    );
+  }
+}
 
 export type TxRequest = {
   to?: string;
@@ -106,6 +142,7 @@ export async function buildRoute(
   if (!addressValidation.isValid) {
     throw new Error(addressValidation.error || "Invalid route addresses.");
   }
+  assertValidPostHook(body.hooks);
 
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/v1/routes/route`;
@@ -169,6 +206,7 @@ export async function buildDepositAddress(
   };
   route: RoutePlan | undefined;
 }> {
+  assertValidPostHook(body.hooks);
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/v1/routes/deposit-address`;
   const payload = {
