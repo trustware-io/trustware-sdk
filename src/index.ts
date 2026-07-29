@@ -1,6 +1,7 @@
 // src/index.ts
 export { Trustware, TrustwareCore } from "./core";
 export { RateLimitError } from "./core/http";
+export type { BuildRouteBody, BuildRouteResponse } from "./core/routes";
 export { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
 export type { YourTokenData } from "src/widget/state/deposit/types";
 export {
@@ -15,6 +16,8 @@ export {
   useWalletInfo,
   useWalletExternalDisconnect,
   walletManager,
+  WALLETS,
+  POPULAR_ORDER,
 } from "./wallets/";
 export { TrustwareWidget } from "./widget/";
 export { TrustwareProvider, useTrustware } from "./provider";
