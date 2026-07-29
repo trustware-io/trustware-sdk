@@ -13,6 +13,20 @@ const CHAIN_PARAMS: Record<
     blockExplorerUrls?: string[];
   }
 > = {
+  1: {
+    chainIdHex: "0x1",
+    chainName: "Ethereum",
+    rpcUrls: ["https://eth.llamarpc.com"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    blockExplorerUrls: ["https://etherscan.io"],
+  },
+  137: {
+    chainIdHex: "0x89",
+    chainName: "Polygon",
+    rpcUrls: ["https://polygon-rpc.com"],
+    nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+    blockExplorerUrls: ["https://polygonscan.com"],
+  },
   8453: {
     chainIdHex: "0x2105",
     chainName: "Base",
