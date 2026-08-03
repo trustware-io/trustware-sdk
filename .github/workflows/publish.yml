@@ -98,10 +98,15 @@ jobs:
       # Do NOT pass --tag here: the staging tag matches cliff.toml's skip_tags,
       # so git-cliff would skip the release and emit an empty body. Without
       # --tag the commits render under an "[Unreleased]" heading.
+      # The pattern is anchored to exactly vMAJOR.MINOR.PATCH — the same shape as
+      # cliff.toml's `tag_pattern` — so every prerelease is excluded, not just
+      # `-staging.N`. A looser glob would let a `v1.2.0-rc.1` sort above the real
+      # newest release and truncate the range. `tail` always exits 0, so a repo
+      # with no production tag yet still falls back to an empty prefix (HEAD).
       - name: Resolve last production tag
         id: lasttag
         run: |
-          LAST=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -v -- '-staging\.' | sort -V | tail -1)
+          LAST=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           echo "Last production tag: ${LAST:-<none>}"
           echo "range=${LAST:+$LAST..}HEAD" >> "$GITHUB_OUTPUT"
 
