@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.10] - 2026-08-03
+
+
+### Added
+
+- Bridge and Call: optional `hooks.postHook` on `buildRoute`/`buildDepositAddress` executes a destination-chain contract call as soon as bridged funds land (e.g. depositing straight into a vault). New `PostHookRequest` type, plus an exported `assertValidPostHook` that fails fast client-side on a malformed hook. Fully backward compatible — omit `hooks` and nothing changes (#91)
+- Automatic ERC20 approvals in `sendRouteTransaction`: reads `route.execution.approvals`, checks the current allowance, sends `approve()` only when it's insufficient, and waits for confirmation before sending the route transaction. Sponsored (Account Kit) routes are skipped — they grant allowance internally via Permit2. New `RouteApproval` type
+- Exact landed-amount verification: `Transaction.landed_amount_verified` marks when `toAmountWei` is confirmed on-chain rather than a pre-trade quote estimate (#92)
+- Ethereum and Polygon chain parameters for wallet network switching, expanding sponsorship chain coverage
+- Exported `BuildRouteBody` and `BuildRouteResponse` types, and the `WALLETS` / `POPULAR_ORDER` wallet constants, from the package root
+
+
+### Internal
+
+- Bump action-gh-release to v3 for node24 runtime
+
 ## [1.1.9] - 2026-07-27
 
 
