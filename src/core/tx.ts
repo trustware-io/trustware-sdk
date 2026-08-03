@@ -1,5 +1,9 @@
-import type { BuildRouteResult, RouteSponsorship } from "../types";
-import type { ChainDef } from "../types";
+import type {
+  BuildRouteResult,
+  RouteApproval,
+  RouteSponsorship,
+} from "../types";
+import type { ChainDef, EvmWalletInterface } from "../types";
 import { walletManager } from "../wallets/";
 import {
   buildRoute,
@@ -8,11 +12,128 @@ import {
   isEvmTxRequest,
   isSerializedSolanaTxRequest,
 } from "./routes";
-import { keccak256 } from "viem";
+import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
+import { keccak256, encodeFunctionData, parseAbi } from "viem";
 
 function backendChainId(chain?: ChainDef, fallback?: number | string): string {
   const preferred = chain?.networkIdentifier ?? chain?.chainId ?? chain?.id;
   return String(preferred ?? fallback ?? "");
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const erc20ApproveAbi = parseAbi([
+  "function approve(address spender, uint256 amount) returns (bool)",
+]);
+
+async function sendEvmTx(
+  w: EvmWalletInterface,
+  tx: {
+    to: `0x${string}`;
+    data: `0x${string}`;
+    value: bigint;
+    chainId?: number;
+  }
+): Promise<string> {
+  if (w.type === "eip1193") {
+    const from = (await w.getAddress()) as `0x${string}`;
+    const params: Record<string, unknown> = {
+      from,
+      to: tx.to,
+      data: tx.data,
+      value: tx.value ? `0x${tx.value.toString(16)}` : "0x0",
+    };
+    if (tx.chainId !== undefined) {
+      params.chainId = `0x${tx.chainId.toString(16)}`;
+    }
+    const hash = await w.request({
+      method: "eth_sendTransaction",
+      params: [params],
+    });
+    return hash as string;
+  }
+  const response = await w.sendTransaction({
+    to: tx.to,
+    data: tx.data,
+    value: tx.value,
+    chainId: tx.chainId,
+  });
+  return response.hash as string;
+}
+
+async function waitForTxConfirmation(chainId: string, txHash: string) {
+  const timeoutMs = 120_000;
+  const intervalMs = 2_000;
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const status = await getEVMTxStatus({ chainId, txHash });
+    if (status.status === "success") return;
+    if (status.status === "reverted") {
+      throw new Error("Approval transaction reverted");
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error("Timed out waiting for approval confirmation");
+}
+
+/**
+ * Grants any ERC20 allowance `route.execution.approvals` says is needed
+ * before the route's own transaction can succeed (e.g. bridging from USDC
+ * instead of a native asset) — checks current allowance first, only sends
+ * approve() when it's actually insufficient, and waits for confirmation
+ * before returning so the caller's next transaction doesn't race it.
+ * Mirrors the widget's own internal approval flow
+ * (src/modes/swap/hooks/useSwapExecution.ts), now available to any direct
+ * `sendRouteTransaction` caller too.
+ */
+async function ensureApprovals(
+  w: EvmWalletInterface,
+  approvals: RouteApproval[] | undefined,
+  fallbackChainId?: number
+) {
+  if (!approvals || approvals.length === 0) return;
+  const owner = await w.getAddress();
+  for (const approval of approvals) {
+    const spender = approval.spender;
+    const tokenAddress = approval.tokenAddress;
+    const amount = approval.amount;
+    if (!spender || !tokenAddress || !amount) continue;
+    const chainId = approval.chainId || String(fallbackChainId ?? "");
+    if (!chainId) continue;
+    const amountWei = BigInt(amount);
+    if (amountWei === 0n) continue;
+
+    let currentAllowance = 0n;
+    try {
+      const { allowance } = await getEVMAllowance({
+        chainId,
+        tokenAddress,
+        ownerAddress: owner,
+        spenderAddress: spender,
+      });
+      currentAllowance = BigInt(allowance || "0");
+    } catch {
+      // Allowance check failed (e.g. an RPC hiccup) — fall through and
+      // approve anyway rather than risk sending a transaction we already
+      // know would revert.
+    }
+    if (currentAllowance >= amountWei) continue;
+
+    const data = encodeFunctionData({
+      abi: erc20ApproveAbi,
+      functionName: "approve",
+      args: [spender as `0x${string}`, amountWei],
+    });
+    const hash = await sendEvmTx(w, {
+      to: tokenAddress as `0x${string}`,
+      data,
+      value: 0n,
+      chainId: Number.isFinite(Number(chainId)) ? Number(chainId) : undefined,
+    });
+    await waitForTxConfirmation(chainId, hash);
+  }
 }
 
 function isUserRejected(e: unknown): boolean {
@@ -62,6 +183,16 @@ export async function sendRouteTransaction(
           // switchChain failed/skipped — non-fatal
         }
       }
+    }
+
+    // A sponsored (Account Kit) route grants its allowance internally via
+    // Permit2 — skip the separate approve step entirely in that case.
+    if (!validatedSponsorship) {
+      await ensureApprovals(
+        w,
+        b.route?.execution?.approvals,
+        Number.isFinite(target) ? target : undefined
+      );
     }
 
     if (w.type === "eip1193") {
