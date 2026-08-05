@@ -180,8 +180,9 @@ function WidgetInner({
   // this, everything upstream of the transaction step — impressions, chain and
   // token selection, quoting — is invisible to GA4, which makes active-user and
   // mobile-traffic metrics count only users who reached checkout.
-  // Still gated by features.shouldAllowGA4; the transaction hooks call useGTM
-  // too and no-op on the already-loaded script, keeping a single injection.
+  // This is the sole useGTM caller: it owns loading the container and removing
+  // it on unmount. Event-only consumers use useGTMTracker instead. Collection
+  // remains gated on features.shouldAllowGA4.
   useGTM(GTM_ID);
 
   /**

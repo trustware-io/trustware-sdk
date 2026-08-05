@@ -9,8 +9,7 @@ import {
 import { useTrustware } from "../../provider";
 import type { Transaction } from "../../types";
 import { Trustware } from "../../core";
-import { GTM_ID } from "../../constants";
-import { useGTM } from "../../hooks";
+import { useGTMTracker } from "../../hooks";
 
 /**
  * Polling interval in milliseconds - faster for better UX
@@ -58,7 +57,7 @@ export function useTransactionPolling() {
       return undefined;
     }
   })();
-  const { trackEvent } = useGTM(GTM_ID);
+  const { trackEvent } = useGTMTracker();
 
   const [state, setState] = useState<TransactionPollingState>({
     isPolling: false,
