@@ -33,7 +33,7 @@ import { ACTIVE_TRANSACTION_STATUSES } from "./app/widgetSteps";
 import { useTrustware } from "../provider";
 import { useWalletExternalDisconnect } from "src/wallets/manager";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
-import { useGTM } from "src/hooks/useGTM";
+import { useGTM } from "src/hooks";
 import { GTM_ID } from "src/constants";
 import { SwapMode } from "src/modes/swap";
 
