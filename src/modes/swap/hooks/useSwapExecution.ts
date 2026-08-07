@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
 import { submitReceipt, getStatus } from "src/core/routes";
+import { isNotFoundError } from "src/core/http";
 import { getEVMAllowance, getEVMTxStatus } from "src/core/sdkRpc";
 import {
   isNativeTokenAddress,
@@ -148,8 +149,18 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           if (tx.status === "bridging") {
             setState((p) => ({ ...p, txStatus: "bridging" }));
           }
-        } catch {
-          /* keep retrying */
+        } catch (err) {
+          if (abortRef.current) return;
+          // 404 = intent doesn't exist; retrying can never succeed. The
+          // pre-receipt window is a 200 {"status":"pending"}, not a 404.
+          if (isNotFoundError(err)) {
+            clearPolling();
+            const msg = "Transaction session expired. Please try again.";
+            setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
+            onError(msg);
+            return;
+          }
+          /* transient error — keep retrying */
         }
 
         if (abortRef.current) return;

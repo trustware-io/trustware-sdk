@@ -286,6 +286,19 @@ export async function submitReceipt(
   return j.data;
 }
 
+/**
+ * Fetches the current status for a route intent.
+ *
+ * Response contract:
+ * - 404 (throws)              → intent doesn't exist. Stop polling.
+ * - 200 status: "pending"     → intent exists, no receipt yet. Keep polling.
+ * - 200 status: "submitted"   → receipt in, tx in flight. Keep polling.
+ * - 200 status: "bridging"    → cross-chain leg in progress. Keep polling.
+ * - 200 status: "success"/"failed" → terminal. Stop polling.
+ *
+ * A "pending" payload is a stub ({intent_id, status, intent_status,
+ * create_date}) — the full Transaction fields appear once a receipt lands.
+ */
 export async function getStatus(intentId: string): Promise<Transaction> {
   const r = await rateLimitedFetch(
     `${apiBase()}/v1/route-intent/${intentId}/status`,
@@ -298,6 +311,11 @@ export async function getStatus(intentId: string): Promise<Transaction> {
   return j.data as Transaction;
 }
 
+/**
+ * Polls intent status until terminal ("success"/"failed") or timeout.
+ * Non-terminal statuses ("pending", "submitted", "bridging") keep the loop
+ * going; a 404 (unknown intent) throws out of the loop — don't retry it.
+ */
 export async function pollStatus(
   intentId: string,
   { intervalMs = 2000, timeoutMs = 5 * 60_000 } = {}

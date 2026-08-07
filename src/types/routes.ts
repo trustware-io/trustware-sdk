@@ -43,7 +43,15 @@ export type Transaction = {
   destTxHash: string;
   requestId: string;
   transactionRequest: unknown;
-  status: "submitted" | "bridging" | "success" | "failed";
+  /**
+   * "pending" means the intent exists but no receipt has been submitted yet —
+   * the backend returns it (HTTP 200) instead of the old 404 so pollers can
+   * tell "not ready yet, keep polling" apart from "unknown intent" (a real
+   * 404, which means stop polling). A pending response carries only
+   * `intent_id`, `status`, `intent_status`, and `create_date`; the other
+   * Transaction fields are absent until a receipt lands.
+   */
+  status: "pending" | "submitted" | "bridging" | "success" | "failed";
   statusRaw?: unknown;
   routePath?: unknown;
   routeStatus?: unknown;

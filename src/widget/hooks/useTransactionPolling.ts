@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus } from "../../core/routes";
+import { isNotFoundError } from "../../core/http";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -204,8 +205,26 @@ export function useTransactionPolling() {
                 ? FAST_POLL_INTERVAL_MS
                 : NORMAL_POLL_INTERVAL_MS;
             pollingRef.current = setTimeout(poll, pollInterval);
-          } catch {
+          } catch (err) {
             if (abortRef.current) return;
+
+            // A 404 means the intent doesn't exist — retrying can never
+            // succeed, so stop now instead of burning the full timeout.
+            // (Pre-receipt intents are 200 {"status":"pending"}, not 404.)
+            if (isNotFoundError(err)) {
+              clearPolling();
+              const notFoundError =
+                "Transaction session expired. Please try again.";
+              setState((prev) => ({
+                ...prev,
+                isPolling: false,
+                error: notFoundError,
+              }));
+              setErrorMessage(notFoundError);
+              setTransactionStatus("error");
+              setCurrentStep("error");
+              return;
+            }
 
             // Check if we've been polling for too long (soft timeout check)
             const elapsed = Date.now() - startTimeRef.current;
