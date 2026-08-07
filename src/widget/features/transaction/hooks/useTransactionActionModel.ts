@@ -23,8 +23,7 @@ import {
 } from "../../../helpers/chainHelpers";
 import { divRoundDown } from "../../../../utils";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
-import { useGTM } from "../../../../hooks";
-import { GTM_ID } from "../../../../constants";
+import { useGTMTracker } from "../../../../hooks";
 
 type UseTransactionActionModelArgs = {
   actionErrorMessage: string | null;
@@ -76,7 +75,7 @@ export function useTransactionActionModel({
   }>({});
 
   const { isSubmitting, submitTransaction } = useTransactionSubmit();
-  const { trackEvent } = useGTM(GTM_ID);
+  const { trackEvent } = useGTMTracker();
 
   const destinationConfig = (() => {
     try {
