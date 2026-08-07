@@ -8,6 +8,7 @@ import { walletManager } from "../wallets/";
 import {
   buildRoute,
   submitReceipt,
+  submitStepReceipt,
   pollStatus,
   isEvmTxRequest,
   isSerializedSolanaTxRequest,
@@ -91,11 +92,15 @@ async function waitForTxConfirmation(chainId: string, txHash: string) {
 async function ensureApprovals(
   w: EvmWalletInterface,
   approvals: RouteApproval[] | undefined,
-  fallbackChainId?: number
+  fallbackChainId?: number,
+  /** Intent to report approve step receipts against (BVT-299). The step
+   *  index is the approval's position in the plan's approvals array —
+   *  the backend seeds its step plan in the same order. */
+  intentId?: string
 ) {
   if (!approvals || approvals.length === 0) return;
   const owner = await w.getAddress();
-  for (const approval of approvals) {
+  for (const [stepIndex, approval] of approvals.entries()) {
     const spender = approval.spender;
     const tokenAddress = approval.tokenAddress;
     const amount = approval.amount;
@@ -132,6 +137,11 @@ async function ensureApprovals(
       value: 0n,
       chainId: Number.isFinite(Number(chainId)) ? Number(chainId) : undefined,
     });
+    if (intentId) {
+      // Fire-and-forget: the report must never block or fail the payment
+      // flow; the backend's reaper self-heals a missed one.
+      void submitStepReceipt(intentId, stepIndex, hash).catch(() => {});
+    }
     await waitForTxConfirmation(chainId, hash);
   }
 }
@@ -191,7 +201,8 @@ export async function sendRouteTransaction(
       await ensureApprovals(
         w,
         b.route?.execution?.approvals,
-        Number.isFinite(target) ? target : undefined
+        Number.isFinite(target) ? target : undefined,
+        b.intentId
       );
     }
 

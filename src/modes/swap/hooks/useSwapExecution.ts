@@ -2,7 +2,7 @@
 import { useCallback, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
-import { submitReceipt, getStatus } from "src/core/routes";
+import { submitReceipt, submitStepReceipt, getStatus } from "src/core/routes";
 import { getEVMAllowance, getEVMTxStatus } from "src/core/sdkRpc";
 import {
   isNativeTokenAddress,
@@ -447,6 +447,14 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               });
               approvalHash = response.hash as `0x${string}`;
             }
+
+            // Report the approve step (index 0 — swap routes carry at most
+            // one approval) so the backend can tell "approve landed, main
+            // never followed" apart from a pre-signature abandon (BVT-299).
+            // Fire-and-forget: must never block or fail the swap.
+            void submitStepReceipt(routeResult.intentId, 0, approvalHash).catch(
+              () => {}
+            );
 
             await waitForApprovalConfirmation(chainIdStr, approvalHash);
 
