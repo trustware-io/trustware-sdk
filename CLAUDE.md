@@ -36,7 +36,9 @@ It does **not** merge staging → main. For a production release: merge staging 
 
 `cliff.toml` configures [git-cliff](https://git-cliff.org) to generate Keep-a-Changelog entries from Conventional Commits. On production releases (`X.Y.Z`), the Release workflow runs git-cliff and commits the updated `CHANGELOG.md` alongside the version bump. Staging tags are skipped (`skip_tags` in `cliff.toml`), so their commits roll into the next production release section. `publish.yml` also creates a GitHub Release for every published tag with git-cliff-generated notes (staging releases marked as prereleases).
 
-Preview locally before cutting: `git-cliff --tag v1.2.3 --unreleased`.
+Commits that aren't Conventional Commits are **not** dropped — they land under an `### Other` heading. Prefix with `feat:`/`fix:`/`chore:` to get a properly grouped entry instead; merge and `chore(release):` commits are skipped entirely.
+
+Preview locally before cutting: `git-cliff --tag v1.2.3 --unreleased` (for a version not yet tagged) or `git-cliff --latest` (for the newest existing tag). Note the distinction — `--unreleased` matches nothing once the tag exists, which is why `publish.yml` uses `--latest`.
 
 ### Bumping the version
 
