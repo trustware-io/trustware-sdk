@@ -15,7 +15,7 @@ type DataLayerObject = Record<string, unknown>;
 /** Params passed alongside a custom event. Generic <key, value> */
 type EventParams = Record<string, unknown>;
 
-export interface UseGTMReturn {
+export interface UseGTMTrackerReturn {
   /** Push a custom event to the GTM dataLayer */
   trackEvent: (eventName: string, eventParams?: EventParams) => void;
   /** Push a page_view event to the GTM dataLayer */
@@ -24,122 +24,48 @@ export interface UseGTMReturn {
   setUserProperty: (propertyName: string, value: unknown) => void;
   /** Call gtag() directly, bypassing GTM (use sparingly) */
   directGtag: (command: GtagCommand, ...args: unknown[]) => void;
+}
+
+export interface UseGTMReturn extends UseGTMTrackerReturn {
   /** Manually inject the GTM noscript <iframe> into <body> */
   addNoscriptIframe: () => void;
 }
 
+function isGA4Allowed(): boolean {
+  try {
+    return Trustware.getConfig().features.shouldAllowGA4;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * useGTM — React hook for Google Tag Manager (GA4 via GTM)
+ * GTM is a page-level singleton, so initialization state belongs to the page
+ * rather than to any one hook instance. `useGTM` owns this flag; `useGTMTracker`
+ * only reads it, which lets consumers push events without each of them
+ * re-running (and appearing to own) initialization.
+ */
+let isContainerInitialized = false;
+
+/**
+ * useGTMTracker — push events to an already-initialized GTM container.
  *
- * Initializes GTM once per `gtmId` and exposes methods for pushing events
- * to the dataLayer. All methods are stable references (safe in dependency arrays).
- *
- * @param gtmId - GTM Container ID (format: GTM-XXXXX)
+ * Use this anywhere you only need to record events. Something higher in the
+ * tree must call {@link useGTM} to load the container; in this SDK that is the
+ * widget root.
  *
  * @example
- * const { trackEvent, trackPageView } = useGTM('GTM-XXXXX');
- *
- * trackPageView('/home');
- * trackEvent('purchase', { value: 29.99, currency: 'USD' });
+ * const { trackEvent } = useGTMTracker();
+ * trackEvent('payment_initiated', { from_chain: 'arbitrum' });
  */
-export function useGTM(gtmId: string): UseGTMReturn {
-  const isInitialized = useRef<boolean>(false);
-  // Keep a ref to the injected <script> so we can clean it up on unmount
-  const scriptRef = useRef<HTMLScriptElement | null>(null);
-
-  // ── Initialization ─────────────
-
-  const isGA4Allowed = useCallback((): boolean => {
-    try {
-      return Trustware.getConfig().features.shouldAllowGA4;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  useEffect(() => {
-    // Kill-switch: skip initialization entirely when GA4 is not allowed
-    if (!isGA4Allowed()) {
-      console.warn(
-        "useGTM: GA4 tracking is disabled or Trustware config not initialized."
-      );
-      return;
-    }
-
-    if (!gtmId || typeof gtmId !== "string") {
-      console.error(
-        "useGTM: A valid GTM Container ID is required (format: GTM-XXXXX)."
-      );
-      return;
-    }
-
-    if (isInitialized.current) return;
-
-    // Bail out if the GTM script is already on the page (e.g. server-side injection)
-    const alreadyLoaded = document.querySelector(
-      `script[src*="googletagmanager.com/gtm.js?id=${gtmId}"]`
-    );
-    if (alreadyLoaded) {
-      window.dataLayer = window.dataLayer || [];
-      isInitialized.current = true;
-      return;
-    }
-
-    // Initialize dataLayer before the script loads so early pushes are queued
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({
-      "gtm.start": new Date().getTime(),
-      event: "gtm.js",
-    });
-
-    // Inject the GTM loader script (standard GTM snippet — Method 1)
-    const firstScript = document.getElementsByTagName("script")[0];
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtm.js?id=${gtmId}`;
-    firstScript.parentNode?.insertBefore(script, firstScript);
-    scriptRef.current = script;
-
-    isInitialized.current = true;
-
-    return () => {
-      if (scriptRef.current) {
-        scriptRef.current.parentNode?.removeChild(scriptRef.current);
-        scriptRef.current = null;
-      }
-      isInitialized.current = false;
-    };
-  }, [gtmId, isGA4Allowed]);
-
-  // ── Methods ────────────
-
-  /**
-   * Inject the GTM noscript <iframe> at the top of <body>.
-   * Call this once in your app root for users with JS disabled.
-   */
-  const addNoscriptIframe = useCallback((): void => {
-    if (!isGA4Allowed()) return;
-    if (document.querySelector('iframe[src*="googletagmanager.com/ns.html"]'))
-      return;
-
-    const noscript = document.createElement("noscript");
-    const iframe = document.createElement("iframe");
-    iframe.src = `https://www.googletagmanager.com/ns.html?id=${gtmId}`;
-    iframe.height = "0";
-    iframe.width = "0";
-    iframe.style.display = "none";
-    iframe.style.visibility = "hidden";
-    noscript.appendChild(iframe);
-    document.body.insertBefore(noscript, document.body.firstChild);
-  }, [gtmId, isGA4Allowed]);
-
+export function useGTMTracker(): UseGTMTrackerReturn {
   /**
    * Push a custom event to the GTM dataLayer.
    * GTM will pick this up and fire any matching tags (e.g. GA4 event tags).
    */
   const trackEvent = useCallback(
     (eventName: string, eventParams: EventParams = {}): void => {
-      if (!isInitialized.current) {
+      if (!isContainerInitialized) {
         console.warn(
           "useGTM: Not initialized. Ensure a valid GTM Container ID was provided."
         );
@@ -178,7 +104,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
    */
   const setUserProperty = useCallback(
     (propertyName: string, value: unknown): void => {
-      if (!isInitialized.current) {
+      if (!isContainerInitialized) {
         console.warn(
           "useGTM: Not initialized. Ensure a valid GTM Container ID was provided."
         );
@@ -210,14 +136,111 @@ export function useGTM(gtmId: string): UseGTMReturn {
       }
       window.gtag(command, ...args);
     },
-    [isGA4Allowed]
+    []
   );
 
-  return {
-    trackEvent,
-    trackPageView,
-    setUserProperty,
-    directGtag,
-    addNoscriptIframe,
-  };
+  return { trackEvent, trackPageView, setUserProperty, directGtag };
+}
+
+/**
+ * useGTM — React hook for Google Tag Manager (GA4 via GTM)
+ *
+ * Loads the GTM container once per page and exposes methods for pushing events
+ * to the dataLayer. All methods are stable references (safe in dependency arrays).
+ *
+ * Call this at exactly one place in the tree — the first caller injects the
+ * script and owns its cleanup. Everywhere else, use {@link useGTMTracker}.
+ *
+ * @param gtmId - GTM Container ID (format: GTM-XXXXX)
+ *
+ * @example
+ * const { trackEvent, trackPageView } = useGTM('GTM-XXXXX');
+ *
+ * trackPageView('/home');
+ * trackEvent('purchase', { value: 29.99, currency: 'USD' });
+ */
+export function useGTM(gtmId: string): UseGTMReturn {
+  // Keep a ref to the injected <script> so we can clean it up on unmount
+  const scriptRef = useRef<HTMLScriptElement | null>(null);
+  const tracker = useGTMTracker();
+
+  // ── Initialization ─────────────
+
+  useEffect(() => {
+    // Kill-switch: skip initialization entirely when GA4 is not allowed
+    if (!isGA4Allowed()) {
+      console.warn(
+        "useGTM: GA4 tracking is disabled or Trustware config not initialized."
+      );
+      return;
+    }
+
+    if (!gtmId || typeof gtmId !== "string") {
+      console.error(
+        "useGTM: A valid GTM Container ID is required (format: GTM-XXXXX)."
+      );
+      return;
+    }
+
+    if (isContainerInitialized) return;
+
+    // Bail out if the GTM script is already on the page (e.g. server-side injection)
+    const alreadyLoaded = document.querySelector(
+      `script[src*="googletagmanager.com/gtm.js?id=${gtmId}"]`
+    );
+    if (alreadyLoaded) {
+      window.dataLayer = window.dataLayer || [];
+      isContainerInitialized = true;
+      return;
+    }
+
+    // Initialize dataLayer before the script loads so early pushes are queued
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      "gtm.start": new Date().getTime(),
+      event: "gtm.js",
+    });
+
+    // Inject the GTM loader script (standard GTM snippet — Method 1)
+    const firstScript = document.getElementsByTagName("script")[0];
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtm.js?id=${gtmId}`;
+    firstScript.parentNode?.insertBefore(script, firstScript);
+    scriptRef.current = script;
+
+    isContainerInitialized = true;
+
+    return () => {
+      if (scriptRef.current) {
+        scriptRef.current.parentNode?.removeChild(scriptRef.current);
+        scriptRef.current = null;
+      }
+      isContainerInitialized = false;
+    };
+  }, [gtmId]);
+
+  // ── Methods ────────────
+
+  /**
+   * Inject the GTM noscript <iframe> at the top of <body>.
+   * Call this once in your app root for users with JS disabled.
+   */
+  const addNoscriptIframe = useCallback((): void => {
+    if (!isGA4Allowed()) return;
+    if (document.querySelector('iframe[src*="googletagmanager.com/ns.html"]'))
+      return;
+
+    const noscript = document.createElement("noscript");
+    const iframe = document.createElement("iframe");
+    iframe.src = `https://www.googletagmanager.com/ns.html?id=${gtmId}`;
+    iframe.height = "0";
+    iframe.width = "0";
+    iframe.style.display = "none";
+    iframe.style.visibility = "hidden";
+    noscript.appendChild(iframe);
+    document.body.insertBefore(noscript, document.body.firstChild);
+  }, [gtmId]);
+
+  return { ...tracker, addNoscriptIframe };
 }

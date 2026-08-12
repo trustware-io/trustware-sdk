@@ -287,6 +287,34 @@ export async function submitReceipt(
 }
 
 /**
+ * Reports the submitted tx hash for one execution step of a multi-step
+ * route — approve steps only; the main tx keeps going through
+ * `submitReceipt`. `stepIndex` is the step's position in
+ * `route.execution.approvals` (the backend seeds its step plan in the same
+ * order). Best-effort telemetry: callers fire-and-forget so a failed report
+ * never blocks the payment flow, but a successful one lets the backend tell
+ * "approve landed, main never followed" apart from an intent the user
+ * abandoned before signing anything.
+ */
+export async function submitStepReceipt(
+  intentId: string,
+  stepIndex: number,
+  txHash: string
+) {
+  const r = await rateLimitedFetch(
+    `${apiBase()}/v1/route-intent/${intentId}/steps/${stepIndex}/receipt`,
+    {
+      method: "POST",
+      headers: jsonHeaders({ "Idempotency-Key": txHash }),
+      body: JSON.stringify({ txHash }),
+    }
+  );
+  await assertOK(r);
+  const j = await r.json();
+  return j.data;
+}
+
+/**
  * Fetches the current status for a route intent.
  *
  * Response contract:

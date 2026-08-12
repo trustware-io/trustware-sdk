@@ -33,6 +33,8 @@ import { ACTIVE_TRANSACTION_STATUSES } from "./app/widgetSteps";
 import { useTrustware } from "../provider";
 import { useWalletExternalDisconnect } from "src/wallets/manager";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
+import { useGTM } from "src/hooks";
+import { GTM_ID } from "src/constants";
 import { SwapMode } from "src/modes/swap";
 
 // Styles for WidgetContent
@@ -172,6 +174,16 @@ function WidgetInner({
   const { resolvedTheme } = useDepositUi();
   const { status, revalidate, errors } = useTrustware();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Initialize GTM at the widget root so gtm.init (and its page_view) fires on
+  // widget render rather than only once the transaction hooks mount. Without
+  // this, everything upstream of the transaction step — impressions, chain and
+  // token selection, quoting — is invisible to GA4, which makes active-user and
+  // mobile-traffic metrics count only users who reached checkout.
+  // This is the sole useGTM caller: it owns loading the container and removing
+  // it on unmount. Event-only consumers use useGTMTracker instead. Collection
+  // remains gated on features.shouldAllowGA4.
+  useGTM(GTM_ID);
 
   /**
    * Handle close request - shows confirmation if transaction is active
