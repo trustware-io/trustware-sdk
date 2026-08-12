@@ -2,7 +2,8 @@
 import { useCallback, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
-import { submitReceipt, getStatus } from "src/core/routes";
+import { submitReceipt, submitStepReceipt, getStatus } from "src/core/routes";
+import { approvalSatisfied, requiredApprovalAmount } from "src/core/tx";
 import { getEVMAllowance, getEVMTxStatus } from "src/core/sdkRpc";
 import {
   isNativeTokenAddress,
@@ -192,26 +193,65 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       const txReq = routeResult.txReq;
       const chainIdStr = String(txReq?.chainId ?? fromChain?.chainId ?? "");
-      const spender = (txReq?.to ?? txReq?.target) as string | undefined;
       const amountWei = BigInt(routeResult.route?.estimate?.fromAmount ?? "0");
 
-      if (!spender || !chainIdStr || amountWei === 0n) {
+      // Check what the plan says must be approved, against the spender it
+      // names. Inferring the spender from the main transaction's `to` is a
+      // guess that mislabels the button whenever the route pulls through a
+      // different contract — and every allowance in the plan has to be
+      // covered, not just the first.
+      const plannedApprovals = routeResult.route?.execution?.approvals ?? [];
+      const toCheck = plannedApprovals.length
+        ? plannedApprovals.flatMap((a) => {
+            const token = a.tokenAddress ?? fromTokenAddress;
+            const required = requiredApprovalAmount(
+              BigInt(a.amount || "0"),
+              amountWei
+            );
+            if (!token || !a.spender) return [];
+            return [
+              {
+                chainId: a.chainId || chainIdStr,
+                token,
+                spender: a.spender,
+                required,
+              },
+            ];
+          })
+        : (() => {
+            const spender = (txReq?.to ?? txReq?.target) as string | undefined;
+            if (!spender) return [];
+            return [
+              {
+                chainId: chainIdStr,
+                token: fromTokenAddress,
+                spender,
+                required: amountWei,
+              },
+            ];
+          })();
+
+      if (toCheck.length === 0 || !chainIdStr || amountWei === 0n) {
         setState((p) => ({ ...p, allowanceStatus: "unknown" }));
         return;
       }
 
       setState((p) => ({ ...p, allowanceStatus: "checking" }));
       try {
-        const { allowance } = await getEVMAllowance({
-          chainId: chainIdStr,
-          tokenAddress: fromTokenAddress,
-          ownerAddress: walletAddress,
-          spenderAddress: spender,
-        });
-        const allowanceWei = BigInt(allowance || "0");
+        const results = await Promise.all(
+          toCheck.map(async (c) => {
+            const { allowance } = await getEVMAllowance({
+              chainId: c.chainId,
+              tokenAddress: c.token,
+              ownerAddress: walletAddress,
+              spenderAddress: c.spender,
+            });
+            return approvalSatisfied(BigInt(allowance || "0"), c.required);
+          })
+        );
         setState((p) => ({
           ...p,
-          allowanceStatus: allowanceWei >= amountWei ? "sufficient" : "needed",
+          allowanceStatus: results.every(Boolean) ? "sufficient" : "needed",
         }));
       } catch {
         setState((p) => ({ ...p, allowanceStatus: "needed" }));
@@ -366,27 +406,74 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       // ── EOA path (no sponsorship, or SA fallback) ─────────────────────────────
       try {
-        if (
-          !isNative &&
-          walletAddress &&
-          spender &&
-          chainIdStr &&
-          fromTokenAddress
-        ) {
+        // Every allowance this route needs, in the plan's own order. The
+        // plan is authoritative: its entries carry the spender the route
+        // will actually pull from, and their positions are the step
+        // indices the backend seeded (approvals first, main last), so a
+        // receipt can only be attributed correctly by reporting the
+        // approval's own index. Falling back to a spender inferred from
+        // the main transaction's `to` is a guess — kept only for routes
+        // whose plan carries no approvals array, and never reported,
+        // because index 0 there is the main step, not an approve.
+        const plannedApprovals = routeResult.route?.execution?.approvals ?? [];
+        const requiredApprovals: {
+          stepIndex: number | null;
+          token: `0x${string}`;
+          spender: `0x${string}`;
+          amountWei: bigint;
+          chainId: string;
+        }[] = plannedApprovals.length
+          ? plannedApprovals.flatMap((a, index) => {
+              const token = (a.tokenAddress ?? fromTokenAddress) as
+                `0x${string}` | undefined;
+              const approvalSpender = a.spender as `0x${string}` | undefined;
+              if (!token || !approvalSpender) return [];
+              // A planned approval of 0 is the reset-to-zero step USDT-style
+              // tokens require before an existing allowance can change —
+              // dropping it makes the approve that follows revert.
+              const amountWei = requiredApprovalAmount(
+                BigInt(a.amount || "0"),
+                fromAmountWei
+              );
+              return [
+                {
+                  stepIndex: index,
+                  token,
+                  spender: approvalSpender,
+                  amountWei,
+                  chainId: a.chainId || chainIdStr,
+                },
+              ];
+            })
+          : spender && fromTokenAddress
+            ? [
+                {
+                  stepIndex: null,
+                  token: fromTokenAddress as `0x${string}`,
+                  spender,
+                  amountWei: fromAmountWei,
+                  chainId: chainIdStr,
+                },
+              ]
+            : [];
+
+        for (const required of requiredApprovals) {
+          if (!(!isNative && walletAddress && chainIdStr)) break;
+
           let allowanceWei = 0n;
           try {
             const { allowance } = await getEVMAllowance({
-              chainId: chainIdStr,
-              tokenAddress: fromTokenAddress,
+              chainId: required.chainId,
+              tokenAddress: required.token,
               ownerAddress: walletAddress,
-              spenderAddress: spender,
+              spenderAddress: required.spender,
             });
             allowanceWei = BigInt(allowance || "0");
           } catch {
             /* treat as 0 */
           }
 
-          if (allowanceWei < fromAmountWei) {
+          if (!approvalSatisfied(allowanceWei, required.amountWei)) {
             setState((p) => ({ ...p, txStatus: "approving" }));
 
             if (!wallet || wallet.ecosystem !== "evm") {
@@ -398,7 +485,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             }
 
             // Switch to correct chain first
-            const targetChain = Number(txReq.chainId ?? fromChain?.chainId);
+            const targetChain = Number(required.chainId ?? txReq.chainId);
             if (Number.isFinite(targetChain)) {
               const current = await wallet.getChainId();
               if (current !== targetChain) {
@@ -410,16 +497,18 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               }
             }
 
+            // Never grant less than the plan asks for, or the route's own
+            // transaction reverts. maxApproval only widens.
             const approveAmount = maxApproval
               ? BigInt(
                   "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
                 )
-              : fromAmountWei;
+              : required.amountWei;
 
             const data = encodeFunctionData({
               abi: erc20Abi,
               functionName: "approve",
-              args: [spender, approveAmount],
+              args: [required.spender, approveAmount],
             });
 
             let approvalHash: `0x${string}`;
@@ -427,7 +516,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               const from = await wallet.getAddress();
               const params: Record<string, unknown> = {
                 from,
-                to: fromTokenAddress as `0x${string}`,
+                to: required.token,
                 data,
                 value: "0x0",
               };
@@ -440,7 +529,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               })) as `0x${string}`;
             } else {
               const response = await wallet.sendTransaction({
-                to: fromTokenAddress as `0x${string}`,
+                to: required.token,
                 data,
                 value: 0n,
                 chainId: Number.isFinite(targetChain) ? targetChain : undefined,
@@ -448,7 +537,21 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               approvalHash = response.hash as `0x${string}`;
             }
 
-            await waitForApprovalConfirmation(chainIdStr, approvalHash);
+            // Report against this approval's own step index so the backend
+            // can tell "approve landed, main never followed" apart from a
+            // pre-signature abandon (BVT-299). Skipped when the plan
+            // carried no approvals: index 0 is the main step there, and
+            // the endpoint rejects non-approve steps.
+            // Fire-and-forget: must never block or fail the swap.
+            if (required.stepIndex !== null) {
+              void submitStepReceipt(
+                routeResult.intentId,
+                required.stepIndex,
+                approvalHash
+              ).catch(() => {});
+            }
+
+            await waitForApprovalConfirmation(required.chainId, approvalHash);
 
             setState((p) => ({
               ...p,

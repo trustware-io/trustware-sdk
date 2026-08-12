@@ -11,6 +11,7 @@ import {
   buildRoute,
   buildDepositAddress,
   submitReceipt,
+  submitStepReceipt,
   getStatus,
   pollStatus,
 } from "./routes";
@@ -180,6 +181,7 @@ export const Trustware = {
   buildRoute,
   buildDepositAddress,
   submitReceipt,
+  submitStepReceipt,
   getStatus,
   pollStatus,
   getBalances,
