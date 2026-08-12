@@ -31,6 +31,16 @@ export async function assertOK(r: Response) {
   throw new Error(`HTTP ${r.status}: ${msg}`);
 }
 
+/**
+ * True when err is an assertOK rejection for an HTTP 404. Status pollers use
+ * this to stop immediately on "resource doesn't exist" — since the backend
+ * returns 200 {"status":"pending"} for a pre-receipt intent, a 404 can never
+ * resolve by retrying.
+ */
+export function isNotFoundError(err: unknown): boolean {
+  return err instanceof Error && err.message.startsWith("HTTP 404");
+}
+
 ///sdk/validate
 export async function validateSdkAccess() {
   const r = await fetch(`${apiBase()}/sdk/validate`, {
