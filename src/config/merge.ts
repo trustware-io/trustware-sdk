@@ -173,11 +173,9 @@ export function resolveConfig(
   const theme = input.theme ?? "system";
   const messages = deepMerge(DEFAULT_MESSAGES, input.messages);
 
-  // Merge retry config with defaults
+  // Rate limit callbacks only — the retry schedule itself is fixed in
+  // RETRY_POLICY because the backend, not the client, decides the limit.
   const retry = {
-    autoRetry: input.retry?.autoRetry ?? DEFAULT_RETRY_CONFIG.autoRetry,
-    maxRetries: input.retry?.maxRetries ?? DEFAULT_RETRY_CONFIG.maxRetries,
-    baseDelayMs: input.retry?.baseDelayMs ?? DEFAULT_RETRY_CONFIG.baseDelayMs,
     approachingThreshold:
       input.retry?.approachingThreshold ??
       DEFAULT_RETRY_CONFIG.approachingThreshold,

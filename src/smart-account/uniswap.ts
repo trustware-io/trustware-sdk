@@ -1,5 +1,5 @@
 import { encodeFunctionData } from "viem";
-import { apiBase, jsonHeaders } from "../core/http";
+import { apiBase, jsonHeaders, rateLimitedFetch } from "../core/http";
 
 // Canonical WETH9 address per chain. OP Stack chains share the same address.
 export const WETH_BY_CHAIN: Record<number, `0x${string}`> = {
@@ -109,7 +109,10 @@ export async function estimateRelayFeeInToken(
     tokenUnitsPerDollar = Number(fromAmountWei) / fromUSD;
   } else if (fromToken && fromDecimals !== undefined) {
     try {
-      const resp = await fetch(
+      // Rate limited per API key like the rest of the SDK surface; a 429
+      // here silently zeroes the relay fee reserve below, so it is worth
+      // retrying. The surrounding catch keeps that degradation soft.
+      const resp = await rateLimitedFetch(
         `${apiBase()}/v1/price/token?chainId=${cid}&address=${fromToken}`,
         { headers: jsonHeaders() }
       );
@@ -127,9 +130,10 @@ export async function estimateRelayFeeInToken(
   }
 
   try {
-    const resp = await fetch(`${apiBase()}/v1/price/native?chainId=${cid}`, {
-      headers: jsonHeaders(),
-    });
+    const resp = await rateLimitedFetch(
+      `${apiBase()}/v1/price/native?chainId=${cid}`,
+      { headers: jsonHeaders() }
+    );
     if (!resp.ok) throw new Error(`native price HTTP ${resp.status}`);
     const json = (await resp.json()) as { data?: { priceUSD?: string } };
     const ethPriceUSD = parseFloat(json.data?.priceUSD ?? "0");

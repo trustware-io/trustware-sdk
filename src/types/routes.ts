@@ -22,34 +22,64 @@ export type RouteIntent = {
   fromAmountWei: string | number;
   quoteToAmountWei: string | number;
   minToAmountWei: string | number;
+  /** Trustware's own request ID (a UUID) for the call that created this
+   *  intent — the same value the response carried in `X-Request-Id`, so it is
+   *  the ID to quote in a Trustware support request. Wire field:
+   *  `request_id`. Absent on intents created before it was split from
+   *  `providerRequestId`. */
   requestId?: string;
+  /** The routing provider's own correlation ID: Squid `requestId`, LiFi/Relay
+   *  route id, or Khalani's `{quoteId,routeId}` composite — the ID *that
+   *  provider's* status API and support recognise. Wire field:
+   *  `provider_request_id`. Absent when the winning provider returned none. */
+  providerRequestId?: string;
   routeRaw?: unknown;
   status: "created" | "submitted" | "bridging" | "success" | "failed";
   createdDate: Date | string;
   updatedDate: Date | string;
 };
 
+/**
+ * A status payload from `getStatus`/`pollStatus`.
+ *
+ * Every field except `status` is optional, because a `"pending"` payload is a
+ * stub — the intent exists but no receipt has landed, so there is no
+ * transaction row to describe yet. Check `status` before reading anything
+ * else.
+ *
+ * Note the wire uses snake_case (`source_tx_hash`, `intent_id`, ...) while
+ * this type is camelCase; see `normalizeTx` in modes/swap/hooks/useSwapExecution.ts.
+ * Read defensively if you consume the raw payload.
+ */
 export type Transaction = {
-  id: string;
-  intentId: string;
-  fromAddress: string;
-  toAddress: string;
+  id?: string;
+  intentId?: string;
+  fromAddress?: string;
+  toAddress?: string;
   /** Connected wallet (EOA) that originated the payment when the sender is a
    *  smart account. Wire field: `origin_eoa`. */
   origin_eoa?: string;
-  fromChainId: string | number;
-  toChainId: string | number;
-  sourceTxHash: string;
-  destTxHash: string;
-  requestId: string;
-  transactionRequest: unknown;
+  fromChainId?: string | number;
+  toChainId?: string | number;
+  sourceTxHash?: string;
+  destTxHash?: string;
+  /** Trustware's own request ID (a UUID), copied from the intent. Wire field:
+   *  `request_id`. Optional: absent on a "pending" payload, and on rows
+   *  created before it was split from `providerRequestId`. */
+  requestId?: string;
+  /** The routing provider's own correlation ID, copied from the intent — what
+   *  that provider's status API polls with. Wire field:
+   *  `provider_request_id`. See RouteIntent.providerRequestId. */
+  providerRequestId?: string;
+  transactionRequest?: unknown;
   /**
    * "pending" means the intent exists but no receipt has been submitted yet —
    * the backend returns it (HTTP 200) instead of the old 404 so pollers can
    * tell "not ready yet, keep polling" apart from "unknown intent" (a real
    * 404, which means stop polling). A pending response carries only
-   * `intent_id`, `status`, `intent_status`, and `create_date`; the other
-   * Transaction fields are absent until a receipt lands.
+   * `intent_id`, `status`, `intent_status`, `create_date` and — once the
+   * intent has an execution step plan — `steps`; every other field here is
+   * absent until a receipt lands.
    */
   status: "pending" | "submitted" | "bridging" | "success" | "failed";
   statusRaw?: unknown;
@@ -217,6 +247,11 @@ export type RoutePlan = {
   execution?: { transaction?: TxRequest; approvals?: RouteApproval[] };
   steps?: unknown[];
   provider?: string;
+  /** The winning provider's own correlation ID, not Trustware's — it is
+   *  absent when that provider issued none, and it is what lands on the
+   *  intent as `providerRequestId`. Trustware's request ID for the same call
+   *  comes back in the `X-Request-Id` response header (the provider's is also
+   *  mirrored there as `X-Provider-Request-Id`). */
   requestId?: string;
   reliabilityScore?: number;
   diagnostics?: { rawPayload?: unknown };

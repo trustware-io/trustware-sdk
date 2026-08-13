@@ -336,7 +336,36 @@ export async function getStatus(intentId: string): Promise<Transaction> {
   );
   await assertOK(r);
   const j = await r.json();
-  return j.data as Transaction;
+  return normalizeStatusIdentifiers(j.data);
+}
+
+/**
+ * Maps the two correlation IDs from their wire names.
+ *
+ * The payload is snake_case while Transaction is camelCase, so `requestId`
+ * (Trustware's, the one to quote at support) and `providerRequestId` (the
+ * routing provider's) would otherwise always read undefined.
+ *
+ * The raw keys are kept — anything already reading `request_id` off this
+ * object keeps working — and a missing ID stays missing rather than becoming a
+ * defined-but-undefined property, so `"requestId" in tx` still means what it
+ * says.
+ */
+function normalizeStatusIdentifiers(raw: unknown): Transaction {
+  if (!raw || typeof raw !== "object") return raw as Transaction;
+
+  const wire = raw as Record<string, unknown>;
+  const out = { ...wire } as Transaction & Record<string, unknown>;
+
+  const requestId = wire.requestId ?? wire.request_id;
+  if (typeof requestId === "string") out.requestId = requestId;
+
+  const providerRequestId = wire.providerRequestId ?? wire.provider_request_id;
+  if (typeof providerRequestId === "string") {
+    out.providerRequestId = providerRequestId;
+  }
+
+  return out;
 }
 
 /**

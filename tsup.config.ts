@@ -13,10 +13,17 @@ const baseConfig: Options = {
   clean: true,
   splitting: false,
 
-  // Don't bundle peer libs or optional heavy deps (WalletConnect lazy-loaded):
+  // Don't bundle peer libs or optional heavy deps (WalletConnect lazy-loaded).
+  //
+  // viem is a required, non-optional peer dependency, so every consumer already
+  // has it. Bundling it shipped a second copy — ~383 KB, 15% of the entry — and
+  // put a second viem instance in the app, which is its own class of bug for
+  // anything holding chain/client state. The smart-account entry already
+  // externalised it; the rest of the build now agrees.
   external: [
     "react",
     "react-dom",
+    "viem",
     "wagmi",
     "@rainbow-me/rainbowkit",
     "@walletconnect/ethereum-provider",
@@ -63,10 +70,9 @@ export default defineConfig([
   },
   {
     ...baseConfig,
-    entry: ["src/smart-account.ts"],
     // Account Kit is bundled in (devDep, not installed by consumers) so the bundle
     // is self-contained and Next.js never traces into the SDK's node_modules for it.
-    // viem remains external — it is a peer dep that all consumers already have.
-    external: [...baseConfig.external!, "viem"],
+    // viem is external via baseConfig, as everywhere else.
+    entry: ["src/smart-account.ts"],
   },
 ]);

@@ -347,21 +347,42 @@ Trustware.setDestinationAddress("0xDestination...");
 
 ## Rate Limiting
 
-Client retry behavior is configured through `retry`.
+The API is rate limited per API key, and that limit is shared by everyone using
+your key — not per end user. Your key's limit, its remaining requests and the
+window boundary come back on every response (`X-RateLimit-Limit`, `-Remaining`,
+`-Reset`, plus `Retry-After` on a 429).
+
+The SDK retries 429s on the schedule those headers state — it keeps no schedule
+of its own to disagree with them. It waits exactly as long as the server asks,
+for as long as the total stays under 10 seconds. Past that it stops and throws,
+because how long your app can afford to block is the one thing the server can't
+know. If a response carries no timing at all, the SDK stops rather than
+guessing: the limit is a fixed window, so an invented delay either lands inside
+the same closed window or overshoots one it could have read exactly.
+
+None of that is configurable — the limit is enforced server-side, so no client
+setting can widen it. If you need more headroom, ask us to raise the limit on
+your key. `retry` configures observability only:
 
 ```ts
 const config = {
   ...trustwareConfig,
   retry: {
-    autoRetry: true,
-    maxRetries: 3,
-    baseDelayMs: 1000,
+    onRateLimitInfo: (info) => console.debug(info.remaining, "requests left"),
+    onRateLimited: (info, attempt) => console.warn("429", attempt, info),
+    onRateLimitApproaching: (info) => showSoftWarning(info),
     approachingThreshold: 5,
   },
 } satisfies TrustwareConfigOptions;
 ```
 
-If retries are exhausted, the SDK throws `RateLimitError`.
+`RateLimitError` distinguishes the two ways the SDK gives up:
+
+- `retriesExhausted: false` — the wait is known and simply longer than the SDK
+  will block for. `rateLimitInfo.retryAfter` holds it, so show the user when to
+  come back instead of leaving them on a spinner.
+- `retriesExhausted: true` — the response carried no usable timing, so there was
+  nothing to retry against.
 
 ## Docs
 

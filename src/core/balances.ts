@@ -294,7 +294,10 @@ export async function getBalances(
   }
 
   const url = `${apiBase()}/v1/data/wallets/${encodeURIComponent(chainKey)}/${trimmedAddress}/balances`;
-  const response = await fetch(url, {
+  // The busiest SDK endpoint against a limit shared by every visitor of an
+  // integrator's site, so it is the likeliest to see a 429 — the sibling
+  // balance calls in this file already retry.
+  const response = await rateLimitedFetch(url, {
     method: "GET",
     credentials: "omit",
     headers: jsonHeaders(),

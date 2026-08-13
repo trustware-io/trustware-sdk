@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { ResolvedTrustwareConfig } from "../types";
+import { DEFAULT_RETRY_CONFIG } from "../types/config";
 import { TrustwareConfigStore } from "../config/store";
 
 export function useTrustwareConfig(): ResolvedTrustwareConfig {
@@ -26,12 +27,9 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           title: "Trustware SDK",
           description: "Seamlessly bridge assets across chains with Trustware.",
         },
-        retry: {
-          autoRetry: true,
-          maxRetries: 3,
-          baseDelayMs: 1000,
-          approachingThreshold: 5,
-        },
+        // Shared with the resolver rather than restated, so this placeholder
+        // can't drift from the real defaults.
+        retry: { ...DEFAULT_RETRY_CONFIG },
         features: {
           tokensPagination: true,
           balanceStreaming: false,

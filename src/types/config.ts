@@ -177,13 +177,14 @@ export type RateLimitInfo = {
   retryAfter?: number;
 };
 
+/**
+ * Rate limit *observability*. Retry timing itself is not configurable: the
+ * limit is enforced server-side per API key, so the only retry schedule that
+ * can actually succeed is the one the server dictates through Retry-After.
+ * Tuning it client-side could only make requests fail sooner or hammer a
+ * limit that is already closed — see RETRY_POLICY.
+ */
 export type RetryConfig = {
-  /** Enable automatic retry on 429 responses (default: true). Note: This does NOT disable backend rate limits, only client-side retry behavior. */
-  autoRetry?: boolean;
-  /** Maximum number of retries on 429 (default: 3) */
-  maxRetries?: number;
-  /** Base delay in ms for exponential backoff (default: 1000) */
-  baseDelayMs?: number;
   /** Callback when rate limit info is received from server */
   onRateLimitInfo?: (info: RateLimitInfo) => void;
   /** Callback when rate limit is hit (429 received) */
@@ -195,9 +196,6 @@ export type RetryConfig = {
 };
 
 export type ResolvedRetryConfig = {
-  autoRetry: boolean;
-  maxRetries: number;
-  baseDelayMs: number;
   approachingThreshold: number;
   onRateLimitInfo?: (info: RateLimitInfo) => void;
   onRateLimited?: (info: RateLimitInfo, retryCount: number) => void;
@@ -205,11 +203,26 @@ export type ResolvedRetryConfig = {
 };
 
 export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
-  autoRetry: true,
-  maxRetries: 3,
-  baseDelayMs: 1000,
   approachingThreshold: 5,
 };
+
+/**
+ * The one retry number the SDK chooses for itself: the total time it will
+ * spend waiting out rate limits before handing the caller a RateLimitError.
+ *
+ * Everything else — how long to wait, and so whether to retry at all — is read
+ * off the response. The limit is per API key and settable per key server-side
+ * (rate_limit_per_min), and the backend reports the state of *that* key on
+ * every response: X-RateLimit-Limit / -Remaining / -Reset, plus Retry-After on
+ * a 429. A schedule hardcoded here could only disagree with it.
+ *
+ * This budget stays client-side because the server cannot know it: it is a
+ * property of the caller, not of the key. A payment widget cannot sit on a
+ * spinner for the minute a fresh window might be away, so past the budget the
+ * SDK stops and reports the wait (retriesExhausted: false, retryAfter set) for
+ * the app to render.
+ */
+export const RATE_LIMIT_WAIT_BUDGET_MS = 10_000;
 
 export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   tokensPagination: true,
