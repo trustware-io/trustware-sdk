@@ -51,6 +51,9 @@ describe("normalizeStatusPayload", () => {
     assert.equal(tx.timeSpentMs, 42000);
   });
 
+  // The cast is the point of the test, not a workaround: the raw keys survive
+  // at runtime for back-compat but are deliberately absent from `Transaction`,
+  // so reading one is exactly what a legacy caller has to do.
   it("keeps the raw wire keys alongside the camelCase ones", () => {
     const tx = normalizeStatusPayload({
       source_tx_hash: "0xabc",

@@ -171,7 +171,7 @@ type TrustwareConfigOptions = {
 
 - `autoDetectProvider`: enables Trustware-managed wallet discovery.
 - `theme`: widget color mode — `"light" | "dark" | "system"` (default
-  `"system"`). Switch it at runtime with `Trustware.setTheme()`.
+  `"system"`). Switch it at runtime with `Trustware.setTheme("dark")`.
 - `messages`: top-level copy overrides.
 - `retry`: API retry and rate-limit behavior.
 - `walletConnect`: WalletConnect overrides.
@@ -232,8 +232,10 @@ export function DepositPanel() {
 ```
 
 `createWagmiWallet` was previously named `useWagmi`. The old name still works but
-is deprecated: it is a plain factory, not a React hook, and the `use` prefix
-makes `react-hooks/rules-of-hooks` flag the `useMemo` call site above.
+is deprecated: it is a plain factory, not a React hook, so calling it as
+`useWagmi(...)` inside the `useMemo` callback above makes
+`react-hooks/rules-of-hooks` report a hook called outside a component body. The
+`useMemo` itself is fine — only the `use`-prefixed callee is the problem.
 
 Use this mode when:
 
