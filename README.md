@@ -348,13 +348,21 @@ Trustware.setDestinationAddress("0xDestination...");
 ## Rate Limiting
 
 The API is rate limited per API key, and that limit is shared by everyone using
-your key — not per end user. The SDK retries 429s for you on a fixed schedule:
-it waits however long the server's `Retry-After` asks, up to 10s, for at most 3
-retries. This is not configurable, because the limit is enforced server-side —
-no client setting can widen it, and any schedule other than the server's own
-either gives up too early or hammers a window that is already closed.
+your key — not per end user. Your key's limit, its remaining requests and the
+window boundary come back on every response (`X-RateLimit-Limit`, `-Remaining`,
+`-Reset`, plus `Retry-After` on a 429).
 
-`retry` configures observability only:
+The SDK retries 429s on the schedule those headers state — it keeps no schedule
+of its own to disagree with them. It waits exactly as long as the server asks,
+for as long as the total stays under 10 seconds. Past that it stops and throws,
+because how long your app can afford to block is the one thing the server can't
+know. If a response carries no timing at all, the SDK stops rather than
+guessing: the limit is a fixed window, so an invented delay either lands inside
+the same closed window or overshoots one it could have read exactly.
+
+None of that is configurable — the limit is enforced server-side, so no client
+setting can widen it. If you need more headroom, ask us to raise the limit on
+your key. `retry` configures observability only:
 
 ```ts
 const config = {
@@ -368,14 +376,13 @@ const config = {
 } satisfies TrustwareConfigOptions;
 ```
 
-The SDK throws `RateLimitError` when retries are exhausted, and also when the
-server asks for a wait longer than 10s — the second case is not a failure so
-much as a schedule: `retriesExhausted` is `false` and `rateLimitInfo.retryAfter`
-holds the seconds to wait, so show the user when to come back rather than
-blocking them on a spinner.
+`RateLimitError` distinguishes the two ways the SDK gives up:
 
-If you're seeing 429s in normal traffic, the fix is a higher limit on your key,
-not client-side tuning — talk to us.
+- `retriesExhausted: false` — the wait is known and simply longer than the SDK
+  will block for. `rateLimitInfo.retryAfter` holds it, so show the user when to
+  come back instead of leaving them on a spinner.
+- `retriesExhausted: true` — the response carried no usable timing, so there was
+  nothing to retry against.
 
 ## Docs
 

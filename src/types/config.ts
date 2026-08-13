@@ -207,22 +207,22 @@ export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
 };
 
 /**
- * Fixed retry schedule for 429 responses. Not integrator-configurable — the
- * rate limit is enforced server-side per API key, so these are the values that
- * work against it and nothing a client sets can widen the limit.
+ * The one retry number the SDK chooses for itself: the total time it will
+ * spend waiting out rate limits before handing the caller a RateLimitError.
  *
- * The server limits on a fixed window and reports the remaining wait in
- * Retry-After, so that value is the only one that lands in the next window;
- * BASE_DELAY_MS is the blind fallback for when the header is unreadable.
- * MAX_DELAY_MS caps how long a call may block: past it the SDK stops early and
- * throws RateLimitError carrying retryAfter, so a payment UI can say "try
- * again in N seconds" instead of sitting on a spinner for a minute.
+ * Everything else — how long to wait, and so whether to retry at all — is read
+ * off the response. The limit is per API key and settable per key server-side
+ * (rate_limit_per_min), and the backend reports the state of *that* key on
+ * every response: X-RateLimit-Limit / -Remaining / -Reset, plus Retry-After on
+ * a 429. A schedule hardcoded here could only disagree with it.
+ *
+ * This budget stays client-side because the server cannot know it: it is a
+ * property of the caller, not of the key. A payment widget cannot sit on a
+ * spinner for the minute a fresh window might be away, so past the budget the
+ * SDK stops and reports the wait (retriesExhausted: false, retryAfter set) for
+ * the app to render.
  */
-export const RETRY_POLICY = {
-  MAX_RETRIES: 3,
-  BASE_DELAY_MS: 1000,
-  MAX_DELAY_MS: 10_000,
-} as const;
+export const RATE_LIMIT_WAIT_BUDGET_MS = 10_000;
 
 export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   tokensPagination: true,

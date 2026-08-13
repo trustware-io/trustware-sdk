@@ -1,7 +1,7 @@
 /* core/http.ts */
 import { SDK_NAME, SDK_VERSION, API_ROOT, API_PREFIX } from "../constants";
 import { TrustwareConfigStore } from "../config/";
-import { RETRY_POLICY, type RateLimitInfo } from "../types/config";
+import { RATE_LIMIT_WAIT_BUDGET_MS, type RateLimitInfo } from "../types/config";
 
 export function apiBase() {
   return `${API_ROOT}${API_PREFIX}`;
@@ -106,18 +106,33 @@ function notifyRateLimitCallbacks(
   }
 }
 
-/** Calculate delay for exponential backoff */
-function calculateBackoffDelay(
-  baseDelayMs: number,
-  retryCount: number,
-  retryAfter?: number
-): number {
-  // If server specified retry-after, use that (in seconds, convert to ms)
-  if (retryAfter && retryAfter > 0) {
-    return retryAfter * 1000;
+/**
+ * How long the server is telling us to wait, in ms, or null when it hasn't
+ * told us anything usable.
+ *
+ * Retry-After is the direct answer and comes back on every 429. X-RateLimit-Reset
+ * is the fallback: it is the end of the current window, present on every
+ * response, so it yields the same instant when a proxy drops Retry-After.
+ *
+ * There is deliberately no invented backoff behind these. The limit is a fixed
+ * window, so any delay we make up either lands in the same window and fails
+ * again, or overshoots one we could have read exactly. No guidance from the
+ * server means we don't know when the window turns, and the honest move is to
+ * hand the 429 to the caller rather than spend its requests guessing.
+ */
+function serverDirectedWaitMs(info: RateLimitInfo | null): number | null {
+  if (!info) return null;
+
+  if (typeof info.retryAfter === "number" && info.retryAfter > 0) {
+    return info.retryAfter * 1000;
   }
-  // Otherwise use exponential backoff: base * 2^retryCount
-  return baseDelayMs * Math.pow(2, retryCount);
+
+  if (typeof info.reset === "number" && info.reset > 0) {
+    const untilReset = info.reset * 1000 - Date.now();
+    if (untilReset > 0) return untilReset;
+  }
+
+  return null;
 }
 
 /** Sleep for specified milliseconds */
@@ -127,12 +142,24 @@ function sleep(ms: number): Promise<void> {
 
 export class RateLimitError extends Error {
   public readonly rateLimitInfo: RateLimitInfo;
+  /**
+   * true  — the response carried no usable Retry-After or X-RateLimit-Reset, so
+   *         there was no schedule to retry against and the SDK stopped.
+   * false — the wait is known and simply longer than the SDK will block for.
+   *         `rateLimitInfo.retryAfter` holds it; show the user when to return.
+   */
   public readonly retriesExhausted: boolean;
 
   constructor(info: RateLimitInfo, retriesExhausted: boolean) {
-    const message = retriesExhausted
-      ? `Rate limit exceeded after max retries. Try again in ${info.retryAfter ?? Math.ceil((info.reset * 1000 - Date.now()) / 1000)} seconds.`
-      : `Rate limit exceeded. Try again in ${info.retryAfter} seconds.`;
+    const seconds =
+      info.retryAfter ??
+      (info.reset > 0
+        ? Math.max(0, Math.ceil((info.reset * 1000 - Date.now()) / 1000))
+        : null);
+    const message =
+      seconds === null
+        ? "Rate limit exceeded. The server did not say when to retry."
+        : `Rate limit exceeded. Try again in ${seconds} seconds.`;
     super(message);
     this.name = "RateLimitError";
     this.rateLimitInfo = info;
@@ -146,79 +173,64 @@ type FetchOptions = RequestInit & {
 };
 
 /**
- * Runs `attempt` and retries it on 429 until it succeeds, retries run out, or
- * the wait the server is asking for is longer than we're willing to block.
+ * Runs `attempt`, waiting out 429s for as long as the server asks and the wait
+ * budget allows.
+ *
+ * The schedule is the server's, not ours: the limit is per API key (and
+ * settable per key), and every response reports that key's state, so the SDK
+ * reads the wait off Retry-After — or X-RateLimit-Reset — instead of keeping a
+ * second, guessed copy of the policy. The only number chosen here is
+ * RATE_LIMIT_WAIT_BUDGET_MS, the total time we will block before handing the
+ * wait back to the caller to display.
  *
  * The caller supplies the whole request as a thunk rather than a URL so each
  * attempt is genuinely fresh — `smart-account/client.ts` needs a new
  * AbortController timeout per try, which it could not get if this helper
  * reused one RequestInit (an aborted signal would poison every later attempt).
- *
- * The backend limits per SDK API key on a fixed 60s window, so once a key is
- * limited every request fails until the window rolls. Blind exponential
- * backoff (1s, 2s, 4s) lands all three retries inside that same window and
- * always fails; the server's Retry-After is the only value that actually
- * points at the next window, which is why it must reach us — see the backend's
- * Access-Control-Expose-Headers.
  */
 export async function withRateLimitRetry(
   attempt: () => Promise<Response>
 ): Promise<Response> {
-  const { MAX_RETRIES, BASE_DELAY_MS, MAX_DELAY_MS } = RETRY_POLICY;
+  let waitedMs = 0;
   let retryCount = 0;
 
   while (true) {
     const response = await attempt();
-
-    // Parse rate limit headers
     const rateLimitInfo = parseRateLimitHeaders(response);
 
-    if (response.status === 429) {
-      // Rate limited
+    if (response.status !== 429) {
       if (rateLimitInfo) {
-        notifyRateLimitCallbacks(rateLimitInfo, true, retryCount);
+        notifyRateLimitCallbacks(rateLimitInfo, false, 0);
       }
-
-      // Check if we should retry
-      if (retryCount >= MAX_RETRIES) {
-        // Max retries exhausted
-        throw new RateLimitError(
-          rateLimitInfo || { limit: 0, remaining: 0, reset: 0 },
-          true
-        );
-      }
-
-      // Calculate delay and retry
-      const delay = calculateBackoffDelay(
-        BASE_DELAY_MS,
-        retryCount,
-        rateLimitInfo?.retryAfter
-      );
-
-      // Honouring a long Retry-After would park a payment UI on a spinner for
-      // up to a minute per try. Past the ceiling, hand the caller the wait it
-      // has to sit out (retriesExhausted: false, so the error reads "try again
-      // in N seconds") and let it render that instead of hanging. Sleeping a
-      // capped-but-still-too-short delay would be worse than both: it burns a
-      // retry that is guaranteed to come back 429.
-      if (delay > MAX_DELAY_MS) {
-        throw new RateLimitError(
-          rateLimitInfo || { limit: 0, remaining: 0, reset: 0 },
-          false
-        );
-      }
-
-      await sleep(delay);
-      retryCount++;
-      continue;
+      return response;
     }
 
-    // Not rate limited - notify callbacks if we have info
     if (rateLimitInfo) {
-      notifyRateLimitCallbacks(rateLimitInfo, false, 0);
+      notifyRateLimitCallbacks(rateLimitInfo, true, retryCount);
     }
 
-    return response;
+    const waitMs = serverDirectedWaitMs(rateLimitInfo);
+    const info = rateLimitInfo || { limit: 0, remaining: 0, reset: 0 };
+
+    // No usable Retry-After or Reset — nothing to schedule against, so stop
+    // rather than guess. In a browser this means the rate limit headers aren't
+    // reaching us (see the backend's Access-Control-Expose-Headers); blind
+    // retries there burned the caller's remaining budget and always failed.
+    if (waitMs === null) {
+      throw new RateLimitError(info, true);
+    }
+
+    // Past the budget, report the wait instead of blocking on it. The caller
+    // gets retriesExhausted: false and retryAfter, so it can tell the user when
+    // to come back. Waiting a shorter, made-up delay would be worse than both:
+    // it spends a request that is guaranteed to come back 429.
+    if (waitedMs + waitMs > RATE_LIMIT_WAIT_BUDGET_MS) {
+      throw new RateLimitError(info, false);
+    }
+
+    await sleep(waitMs);
+    waitedMs += waitMs;
+    retryCount++;
   }
 }
 

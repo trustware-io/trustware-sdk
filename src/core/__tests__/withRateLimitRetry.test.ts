@@ -26,6 +26,21 @@ function limitedOpaque(): Response {
   });
 }
 
+/** A 429 with the window boundary but no Retry-After — e.g. a proxy that drops
+ *  the header, or a limiter that only publishes X-RateLimit-*. */
+function limitedResetOnly(secondsUntilReset: number): Response {
+  return new Response(JSON.stringify({ error: "rate limit exceeded" }), {
+    status: 429,
+    headers: {
+      "X-RateLimit-Limit": "100",
+      "X-RateLimit-Remaining": "0",
+      "X-RateLimit-Reset": String(
+        Math.floor(Date.now() / 1000) + secondsUntilReset
+      ),
+    },
+  });
+}
+
 /**
  * Replaces setTimeout so waits resolve immediately while recording what was
  * asked for. Asserting the requested delay is the point — "it slept 2000ms
@@ -129,44 +144,76 @@ describe("withRateLimitRetry", () => {
     assert.equal(r.calls, 1, "must not burn a retry it knows will 429");
   });
 
-  it("gives up after the fixed retry budget and reports exhaustion", async () => {
+  // Short waits are absorbed one after another until the budget is spent —
+  // no retry counter, just the time the server asked for versus the time we
+  // are willing to give it.
+  it("spends the wait budget across successive server-directed waits", async () => {
     const timers = captureDelays();
     try {
-      const r = responder([limited(1), limited(1), limited(1), limited(1)]);
+      const r = responder([limited(4), limited(4), limited(4)]);
+
+      await assert.rejects(
+        () => withRateLimitRetry(r.attempt),
+        (err: unknown) => {
+          assert.ok(err instanceof RateLimitError);
+          assert.equal(
+            err.retriesExhausted,
+            false,
+            "the wait is known, it just exceeded the budget"
+          );
+          return true;
+        }
+      );
+
+      // 4s + 4s fits in the 10s budget; the third would take it to 12s.
+      assert.deepEqual(timers.delays, [4000, 4000]);
+      assert.equal(r.calls, 3);
+      assert.equal(seen.length, 3, "every 429 should notify");
+    } finally {
+      timers.restore();
+    }
+  });
+
+  // Retry-After is the direct answer, but the window boundary says the same
+  // thing — so a proxy dropping one header doesn't cost us the retry.
+  it("falls back to X-RateLimit-Reset when Retry-After is absent", async () => {
+    const timers = captureDelays();
+    try {
+      const r = responder([limitedResetOnly(3), ok()]);
+      const res = await withRateLimitRetry(r.attempt);
+
+      assert.equal(res.status, 200);
+      assert.equal(r.calls, 2);
+      assert.equal(timers.delays.length, 1);
+      assert.ok(
+        timers.delays[0] > 2000 && timers.delays[0] <= 3000,
+        `expected ~3s until reset, got ${timers.delays[0]}ms`
+      );
+    } finally {
+      timers.restore();
+    }
+  });
+
+  // With no readable headers there is nothing to schedule against. Guessing
+  // spends the caller's remaining budget on requests that cannot succeed
+  // inside the window that is already closed, so stop and say so.
+  it("stops instead of guessing when the server gives no timing", async () => {
+    const timers = captureDelays();
+    try {
+      const r = responder([limitedOpaque()]);
 
       await assert.rejects(
         () => withRateLimitRetry(r.attempt),
         (err: unknown) => {
           assert.ok(err instanceof RateLimitError);
           assert.equal(err.retriesExhausted, true);
+          assert.match(err.message, /did not say when to retry/i);
           return true;
         }
       );
 
-      // 1 initial attempt + MAX_RETRIES retries.
-      assert.equal(r.calls, 4);
-      assert.deepEqual(timers.delays, [1000, 1000, 1000]);
-      assert.equal(seen.length, 4, "every 429 should notify");
-    } finally {
-      timers.restore();
-    }
-  });
-
-  // Without readable headers there is no Retry-After to follow, so the blind
-  // exponential fallback runs — and the callbacks stay silent, because there is
-  // nothing to report. This is the degraded path, not the intended one.
-  it("falls back to exponential backoff when headers are unreadable", async () => {
-    const timers = captureDelays();
-    try {
-      const r = responder([limitedOpaque(), limitedOpaque(), ok()]);
-      const res = await withRateLimitRetry(r.attempt);
-
-      assert.equal(res.status, 200);
-      assert.equal(r.calls, 3);
-      // base * 2^n, and every one of these lands inside the same 60s window
-      // the server is enforcing — which is exactly why the exposed
-      // Retry-After matters more than this fallback.
-      assert.deepEqual(timers.delays, [1000, 2000]);
+      assert.equal(r.calls, 1);
+      assert.deepEqual(timers.delays, [], "must not sleep on a guess");
       assert.equal(seen.length, 0, "no header, nothing to report");
     } finally {
       timers.restore();
