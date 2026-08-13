@@ -12,11 +12,11 @@ import {
   stringToHex,
   type Chain,
 } from "viem";
-import { apiBase, jsonHeaders } from "../core/http";
+import { apiBase, jsonHeaders, withRateLimitRetry } from "../core/http";
 
 const FETCH_TIMEOUT_MS = 30_000;
 
-async function fetchWithTimeout(
+async function fetchOnceWithTimeout(
   url: string,
   init: RequestInit
 ): Promise<Response> {
@@ -39,6 +39,29 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Both endpoints this file calls — /v1/paymaster/sponsor-calldata and
+ * /v1/bundler/send-user-operation — sit behind the backend's per-API-key rate
+ * limit, and that limit is shared by every visitor of an integrator's site. A
+ * plain fetch turned a 429 there into a hard failure in the middle of a
+ * payment, with none of the SDK's rate limit callbacks firing.
+ *
+ * Retrying is safe: the 429 is raised by rate limit middleware that aborts
+ * before the handler runs, so the user operation was never forwarded to the
+ * bundler and no sign request was ever published. There is nothing to
+ * double-submit.
+ *
+ * The timeout is applied per attempt, not around the retry loop — one
+ * AbortController shared across attempts would abort on its own earlier
+ * deadline and mask the rate limit as FETCH_TIMEOUT.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit
+): Promise<Response> {
+  return withRateLimitRetry(() => fetchOnceWithTimeout(url, init));
 }
 
 // Map 4-byte selector → human-readable name for ClientPaymasterUpgradeable custom errors.

@@ -177,13 +177,14 @@ export type RateLimitInfo = {
   retryAfter?: number;
 };
 
+/**
+ * Rate limit *observability*. Retry timing itself is not configurable: the
+ * limit is enforced server-side per API key, so the only retry schedule that
+ * can actually succeed is the one the server dictates through Retry-After.
+ * Tuning it client-side could only make requests fail sooner or hammer a
+ * limit that is already closed — see RETRY_POLICY.
+ */
 export type RetryConfig = {
-  /** Enable automatic retry on 429 responses (default: true). Note: This does NOT disable backend rate limits, only client-side retry behavior. */
-  autoRetry?: boolean;
-  /** Maximum number of retries on 429 (default: 3) */
-  maxRetries?: number;
-  /** Base delay in ms for exponential backoff (default: 1000) */
-  baseDelayMs?: number;
   /** Callback when rate limit info is received from server */
   onRateLimitInfo?: (info: RateLimitInfo) => void;
   /** Callback when rate limit is hit (429 received) */
@@ -195,9 +196,6 @@ export type RetryConfig = {
 };
 
 export type ResolvedRetryConfig = {
-  autoRetry: boolean;
-  maxRetries: number;
-  baseDelayMs: number;
   approachingThreshold: number;
   onRateLimitInfo?: (info: RateLimitInfo) => void;
   onRateLimited?: (info: RateLimitInfo, retryCount: number) => void;
@@ -205,11 +203,26 @@ export type ResolvedRetryConfig = {
 };
 
 export const DEFAULT_RETRY_CONFIG: ResolvedRetryConfig = {
-  autoRetry: true,
-  maxRetries: 3,
-  baseDelayMs: 1000,
   approachingThreshold: 5,
 };
+
+/**
+ * Fixed retry schedule for 429 responses. Not integrator-configurable — the
+ * rate limit is enforced server-side per API key, so these are the values that
+ * work against it and nothing a client sets can widen the limit.
+ *
+ * The server limits on a fixed window and reports the remaining wait in
+ * Retry-After, so that value is the only one that lands in the next window;
+ * BASE_DELAY_MS is the blind fallback for when the header is unreadable.
+ * MAX_DELAY_MS caps how long a call may block: past it the SDK stops early and
+ * throws RateLimitError carrying retryAfter, so a payment UI can say "try
+ * again in N seconds" instead of sitting on a spinner for a minute.
+ */
+export const RETRY_POLICY = {
+  MAX_RETRIES: 3,
+  BASE_DELAY_MS: 1000,
+  MAX_DELAY_MS: 10_000,
+} as const;
 
 export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   tokensPagination: true,

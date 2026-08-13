@@ -22,7 +22,17 @@ export type RouteIntent = {
   fromAmountWei: string | number;
   quoteToAmountWei: string | number;
   minToAmountWei: string | number;
+  /** Trustware's own request ID (a UUID) for the call that created this
+   *  intent — the same value the response carried in `X-Request-Id`, so it is
+   *  the ID to quote in a Trustware support request. Wire field:
+   *  `request_id`. Absent on intents created before it was split from
+   *  `providerRequestId`. */
   requestId?: string;
+  /** The routing provider's own correlation ID: Squid `requestId`, LiFi/Relay
+   *  route id, or Khalani's `{quoteId,routeId}` composite — the ID *that
+   *  provider's* status API and support recognise. Wire field:
+   *  `provider_request_id`. Absent when the winning provider returned none. */
+  providerRequestId?: string;
   routeRaw?: unknown;
   status: "created" | "submitted" | "bridging" | "success" | "failed";
   createdDate: Date | string;
@@ -41,7 +51,14 @@ export type Transaction = {
   toChainId: string | number;
   sourceTxHash: string;
   destTxHash: string;
-  requestId: string;
+  /** Trustware's own request ID (a UUID), copied from the intent. Wire field:
+   *  `request_id`. Optional: absent on a "pending" payload, and on rows
+   *  created before it was split from `providerRequestId`. */
+  requestId?: string;
+  /** The routing provider's own correlation ID, copied from the intent — what
+   *  that provider's status API polls with. Wire field:
+   *  `provider_request_id`. See RouteIntent.providerRequestId. */
+  providerRequestId?: string;
   transactionRequest: unknown;
   /**
    * "pending" means the intent exists but no receipt has been submitted yet —
@@ -217,6 +234,11 @@ export type RoutePlan = {
   execution?: { transaction?: TxRequest; approvals?: RouteApproval[] };
   steps?: unknown[];
   provider?: string;
+  /** The winning provider's own correlation ID, not Trustware's — it is
+   *  absent when that provider issued none, and it is what lands on the
+   *  intent as `providerRequestId`. Trustware's request ID for the same call
+   *  comes back in the `X-Request-Id` response header (the provider's is also
+   *  mirrored there as `X-Provider-Request-Id`). */
   requestId?: string;
   reliabilityScore?: number;
   diagnostics?: { rawPayload?: unknown };

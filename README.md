@@ -347,21 +347,35 @@ Trustware.setDestinationAddress("0xDestination...");
 
 ## Rate Limiting
 
-Client retry behavior is configured through `retry`.
+The API is rate limited per API key, and that limit is shared by everyone using
+your key — not per end user. The SDK retries 429s for you on a fixed schedule:
+it waits however long the server's `Retry-After` asks, up to 10s, for at most 3
+retries. This is not configurable, because the limit is enforced server-side —
+no client setting can widen it, and any schedule other than the server's own
+either gives up too early or hammers a window that is already closed.
+
+`retry` configures observability only:
 
 ```ts
 const config = {
   ...trustwareConfig,
   retry: {
-    autoRetry: true,
-    maxRetries: 3,
-    baseDelayMs: 1000,
+    onRateLimitInfo: (info) => console.debug(info.remaining, "requests left"),
+    onRateLimited: (info, attempt) => console.warn("429", attempt, info),
+    onRateLimitApproaching: (info) => showSoftWarning(info),
     approachingThreshold: 5,
   },
 } satisfies TrustwareConfigOptions;
 ```
 
-If retries are exhausted, the SDK throws `RateLimitError`.
+The SDK throws `RateLimitError` when retries are exhausted, and also when the
+server asks for a wait longer than 10s — the second case is not a failure so
+much as a schedule: `retriesExhausted` is `false` and `rateLimitInfo.retryAfter`
+holds the seconds to wait, so show the user when to come back rather than
+blocking them on a spinner.
+
+If you're seeing 429s in normal traffic, the fix is a higher limit on your key,
+not client-side tuning — talk to us.
 
 ## Docs
 

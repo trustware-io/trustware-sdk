@@ -1,7 +1,7 @@
 /* core/http.ts */
 import { SDK_NAME, SDK_VERSION, API_ROOT, API_PREFIX } from "../constants";
 import { TrustwareConfigStore } from "../config/";
-import type { RateLimitInfo } from "../types/config";
+import { RETRY_POLICY, type RateLimitInfo } from "../types/config";
 
 export function apiBase() {
   return `${API_ROOT}${API_PREFIX}`;
@@ -146,27 +146,29 @@ type FetchOptions = RequestInit & {
 };
 
 /**
- * Rate-limit-aware fetch wrapper.
- * Automatically handles 429 responses with exponential backoff retry.
- * Notifies callbacks on rate limit events.
+ * Runs `attempt` and retries it on 429 until it succeeds, retries run out, or
+ * the wait the server is asking for is longer than we're willing to block.
+ *
+ * The caller supplies the whole request as a thunk rather than a URL so each
+ * attempt is genuinely fresh — `smart-account/client.ts` needs a new
+ * AbortController timeout per try, which it could not get if this helper
+ * reused one RequestInit (an aborted signal would poison every later attempt).
+ *
+ * The backend limits per SDK API key on a fixed 60s window, so once a key is
+ * limited every request fails until the window rolls. Blind exponential
+ * backoff (1s, 2s, 4s) lands all three retries inside that same window and
+ * always fails; the server's Retry-After is the only value that actually
+ * points at the next window, which is why it must reach us — see the backend's
+ * Access-Control-Expose-Headers.
  */
-export async function rateLimitedFetch(
-  url: string,
-  options: FetchOptions = {}
+export async function withRateLimitRetry(
+  attempt: () => Promise<Response>
 ): Promise<Response> {
-  const { skipRateLimit, ...fetchOptions } = options;
-
-  // If auto-retry is disabled or skipped, just do a normal fetch
-  const cfg = TrustwareConfigStore.get();
-  if (!cfg.retry.autoRetry || skipRateLimit) {
-    return fetch(url, fetchOptions);
-  }
-
-  const { maxRetries, baseDelayMs } = cfg.retry;
+  const { MAX_RETRIES, BASE_DELAY_MS, MAX_DELAY_MS } = RETRY_POLICY;
   let retryCount = 0;
 
   while (true) {
-    const response = await fetch(url, fetchOptions);
+    const response = await attempt();
 
     // Parse rate limit headers
     const rateLimitInfo = parseRateLimitHeaders(response);
@@ -178,7 +180,7 @@ export async function rateLimitedFetch(
       }
 
       // Check if we should retry
-      if (retryCount >= maxRetries) {
+      if (retryCount >= MAX_RETRIES) {
         // Max retries exhausted
         throw new RateLimitError(
           rateLimitInfo || { limit: 0, remaining: 0, reset: 0 },
@@ -188,10 +190,24 @@ export async function rateLimitedFetch(
 
       // Calculate delay and retry
       const delay = calculateBackoffDelay(
-        baseDelayMs,
+        BASE_DELAY_MS,
         retryCount,
         rateLimitInfo?.retryAfter
       );
+
+      // Honouring a long Retry-After would park a payment UI on a spinner for
+      // up to a minute per try. Past the ceiling, hand the caller the wait it
+      // has to sit out (retriesExhausted: false, so the error reads "try again
+      // in N seconds") and let it render that instead of hanging. Sleeping a
+      // capped-but-still-too-short delay would be worse than both: it burns a
+      // retry that is guaranteed to come back 429.
+      if (delay > MAX_DELAY_MS) {
+        throw new RateLimitError(
+          rateLimitInfo || { limit: 0, remaining: 0, reset: 0 },
+          false
+        );
+      }
+
       await sleep(delay);
       retryCount++;
       continue;
@@ -204,4 +220,22 @@ export async function rateLimitedFetch(
 
     return response;
   }
+}
+
+/**
+ * Rate-limit-aware fetch wrapper.
+ * Automatically handles 429 responses with exponential backoff retry.
+ * Notifies callbacks on rate limit events.
+ */
+export async function rateLimitedFetch(
+  url: string,
+  options: FetchOptions = {}
+): Promise<Response> {
+  const { skipRateLimit, ...fetchOptions } = options;
+
+  if (skipRateLimit) {
+    return fetch(url, fetchOptions);
+  }
+
+  return withRateLimitRetry(() => fetch(url, fetchOptions));
 }
