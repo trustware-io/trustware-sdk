@@ -207,9 +207,23 @@ function isUserRejected(e: unknown): boolean {
   return msg.includes("user rejected") || msg.includes("user denied");
 }
 
+export type SendRouteTransactionOptions = {
+  /**
+   * The caller has already run the plan's approval flow (checked allowances,
+   * sent any approves, waited for confirmation). Skips the internal
+   * ensureApprovals pass entirely — re-reading an allowance immediately
+   * after its approve confirms can return pre-block state from a different
+   * RPC node, which made the SDK prompt for the same approval twice
+   * (BVT-330). Exactly one path must own the approval decision per
+   * execution; this flag is how a caller claims that ownership.
+   */
+  approvalsEnsured?: boolean;
+};
+
 export async function sendRouteTransaction(
   b: BuildRouteResult,
-  fallbackChainId?: number | string
+  fallbackChainId?: number | string,
+  options?: SendRouteTransactionOptions
 ): Promise<string> {
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
@@ -249,7 +263,8 @@ export async function sendRouteTransaction(
 
     // A sponsored (Account Kit) route grants its allowance internally via
     // Permit2 — skip the separate approve step entirely in that case.
-    if (!validatedSponsorship) {
+    // Likewise when the caller already ran the approval flow itself.
+    if (!validatedSponsorship && !options?.approvalsEnsured) {
       await ensureApprovals(
         w,
         b.route?.execution?.approvals,
