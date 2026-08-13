@@ -5,6 +5,97 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.10] - 2026-08-03
+
+
+### Added
+
+- Bridge and Call: optional `hooks.postHook` on `buildRoute`/`buildDepositAddress` executes a destination-chain contract call as soon as bridged funds land (e.g. depositing straight into a vault). New `PostHookRequest` type, plus an exported `assertValidPostHook` that fails fast client-side on a malformed hook. Fully backward compatible — omit `hooks` and nothing changes (#91)
+- Automatic ERC20 approvals in `sendRouteTransaction`: reads `route.execution.approvals`, checks the current allowance, sends `approve()` only when it's insufficient, and waits for confirmation before sending the route transaction. Sponsored (Account Kit) routes are skipped — they grant allowance internally via Permit2. New `RouteApproval` type
+- Exact landed-amount verification: `Transaction.landed_amount_verified` marks when `toAmountWei` is confirmed on-chain rather than a pre-trade quote estimate (#92)
+- Ethereum and Polygon chain parameters for wallet network switching, expanding sponsorship chain coverage
+- Exported `BuildRouteBody` and `BuildRouteResponse` types, and the `WALLETS` / `POPULAR_ORDER` wallet constants, from the package root
+
+
+### Internal
+
+- Bump action-gh-release to v3 for node24 runtime
+
+## [1.1.9] - 2026-07-27
+
+
+### Added
+
+- Report connected EOA in receipt payload (#89) (#89)
+
+
+### Fixed
+
+- Clean up app-store fallback timeout in mobile wallet deep link
+- Connect injected wallet in deposit mobile dropdown (#86) (#86)
+
+
+### Internal
+
+- Pin npm to v11 for publish — npm 12.0.0 breaks --provenance
+- Publish with npm 12 + co-installed sigstore
+- Update LICENSE contact to contact@trustware.io
+- Restore canonical Apache 2.0 text, add third-party notices
+
+
+## [1.1.8] - 2026-06-24
+
+
+### Fixed
+
+- Fetch timeouts, input validation, safe BigInt parsing, remove debug log
+- Stream balances
+- Sync package-lock with viem/reown bumps
+- Drop unused ethers, correct @solana/web3.js version
+- Resolve set-state-in-effect lint errors and formatting
+- Render staging release notes instead of empty body
+- Reserve SOL fees on max, nested rejection code, dead wallet-standard listener
+
+
+### Internal
+
+- Bump to 1.1.8-staging.1
+- Require npm version, document lockfile-sync trap
+- Add status header, badges, and ASCII logo
+- Polish ASCII banner, refine tagline, trim badges
+- Shrink ASCII banner to cyberpunk HUD frame
+- Remove stale design-system + roadmap docs, refresh CLAUDE.md
+- Npm audit fix — safe transitive security bumps
+
+
+### Other
+
+- Sponsored tx structure
+- OOG error handling and retry
+- Monotonic fee escalation in retry loop
+- Permit 2 fees etc
+- Dynamic base overrides
+- Add test, and extra gas first SA tx
+- Cap verificationGasLimit at 2x to satisfy bundler efficiency floor
+- Swipe-to-confirm Image Fallback fix
+- Exported functions and types from sdk for shillswap
+- Undid some changes
+- Retry logic for wallets conncetions
+- Merge conflicts
+- Npm i
+- Swap mode
+- Bump staging
+- Patch
+- Patch events
+- Permit 2 bug patches
+- Bump staging version
+- Format
+- Token & chain filtering
+- Better token filtering
+- Bump version
+- Use effect clean up
+- Search token fix
+
 ## [1.1.7] - 2026-05-20
 
 ### Fixed
