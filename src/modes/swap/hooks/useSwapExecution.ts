@@ -468,8 +468,15 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               ]
             : [];
 
+        // When this holds, the loop below owns the approval decision for the
+        // whole execution and sendRouteTransaction must not second-guess it:
+        // its ensureApprovals re-reads the allowance right after our approve
+        // confirms, and a stale read from a different RPC node made it prompt
+        // for the same approval twice (BVT-330).
+        const ownsApprovals = !isNative && !!walletAddress && !!chainIdStr;
+
         for (const required of requiredApprovals) {
-          if (!(!isNative && walletAddress && chainIdStr)) break;
+          if (!ownsApprovals) break;
 
           let allowanceWei = 0n;
           try {
@@ -574,7 +581,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
         const hash = await Trustware.sendRouteTransaction(
           routeResult,
-          numericChainId
+          numericChainId,
+          { approvalsEnsured: ownsApprovals }
         );
 
         try {
