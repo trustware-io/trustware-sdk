@@ -39,18 +39,30 @@ export type RouteIntent = {
   updatedDate: Date | string;
 };
 
+/**
+ * A status payload from `getStatus`/`pollStatus`.
+ *
+ * Every field except `status` is optional, because a `"pending"` payload is a
+ * stub — the intent exists but no receipt has landed, so there is no
+ * transaction row to describe yet. Check `status` before reading anything
+ * else.
+ *
+ * Note the wire uses snake_case (`source_tx_hash`, `intent_id`, ...) while
+ * this type is camelCase; see `normalizeTx` in modes/swap/hooks/useSwapExecution.ts.
+ * Read defensively if you consume the raw payload.
+ */
 export type Transaction = {
-  id: string;
-  intentId: string;
-  fromAddress: string;
-  toAddress: string;
+  id?: string;
+  intentId?: string;
+  fromAddress?: string;
+  toAddress?: string;
   /** Connected wallet (EOA) that originated the payment when the sender is a
    *  smart account. Wire field: `origin_eoa`. */
   origin_eoa?: string;
-  fromChainId: string | number;
-  toChainId: string | number;
-  sourceTxHash: string;
-  destTxHash: string;
+  fromChainId?: string | number;
+  toChainId?: string | number;
+  sourceTxHash?: string;
+  destTxHash?: string;
   /** Trustware's own request ID (a UUID), copied from the intent. Wire field:
    *  `request_id`. Optional: absent on a "pending" payload, and on rows
    *  created before it was split from `providerRequestId`. */
@@ -59,14 +71,15 @@ export type Transaction = {
    *  that provider's status API polls with. Wire field:
    *  `provider_request_id`. See RouteIntent.providerRequestId. */
   providerRequestId?: string;
-  transactionRequest: unknown;
+  transactionRequest?: unknown;
   /**
    * "pending" means the intent exists but no receipt has been submitted yet —
    * the backend returns it (HTTP 200) instead of the old 404 so pollers can
    * tell "not ready yet, keep polling" apart from "unknown intent" (a real
    * 404, which means stop polling). A pending response carries only
-   * `intent_id`, `status`, `intent_status`, and `create_date`; the other
-   * Transaction fields are absent until a receipt lands.
+   * `intent_id`, `status`, `intent_status`, `create_date` and — once the
+   * intent has an execution step plan — `steps`; every other field here is
+   * absent until a receipt lands.
    */
   status: "pending" | "submitted" | "bridging" | "success" | "failed";
   statusRaw?: unknown;
