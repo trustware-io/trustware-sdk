@@ -81,6 +81,32 @@ async function waitForApprovalConfirmation(
   throw new Error("Timed out waiting for approval confirmation");
 }
 
+/**
+ * The wallet's current account, asserted to still be the one this execution
+ * was planned for.
+ *
+ * Allowance checks read an address the UI captured when the route was built,
+ * but every transaction the flow sends is signed by whatever account the
+ * wallet is on at that moment. If the user switches accounts mid-flow the two
+ * diverge: an allowance satisfied by the old account would wave through a
+ * route transaction the new one never approved. The route and its intent
+ * belong to the old account either way, so a switch ends the execution rather
+ * than silently re-approving for the new one.
+ */
+export async function requireActiveAddress(
+  wallet: { getAddress: () => Promise<string> } | null | undefined,
+  plannedFor: string
+): Promise<string> {
+  if (!wallet) throw new Error("Wallet not connected. Please reconnect.");
+  const active = await wallet.getAddress();
+  if (active?.toLowerCase() !== plannedFor?.toLowerCase()) {
+    throw new Error(
+      "Wallet account changed. Please review and confirm the swap again."
+    );
+  }
+  return active;
+}
+
 export function useSwapExecution(fromChain: ChainDef | null) {
   const [state, setState] = useState<SwapExecutionState>({
     txStatus: "idle",
@@ -475,6 +501,14 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         // for the same approval twice (BVT-330).
         const ownsApprovals = !isNative && !!walletAddress && !!chainIdStr;
 
+        // Read the account the wallet is actually on, rather than trusting the
+        // address captured when the route was built — an allowance read
+        // against a stale address says nothing about the account that will
+        // sign the route's transaction.
+        const activeAddress = ownsApprovals
+          ? await requireActiveAddress(wallet, walletAddress as string)
+          : undefined;
+
         for (const required of requiredApprovals) {
           if (!ownsApprovals) break;
 
@@ -483,7 +517,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             const { allowance } = await getEVMAllowance({
               chainId: required.chainId,
               tokenAddress: required.token,
-              ownerAddress: walletAddress,
+              ownerAddress: activeAddress as string,
               spenderAddress: required.spender,
             });
             allowanceWei = BigInt(allowance || "0");
@@ -577,6 +611,15 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               allowanceStatus: "sufficient",
             }));
           }
+        }
+
+        // Claiming ownership of the approvals is only safe while the account
+        // that granted them is still the active one — the approve above can
+        // sit in the wallet for a long time, which is ample room to switch
+        // accounts. Re-check immediately before handing the flag over, since
+        // that flag is what stops sendRouteTransaction re-verifying itself.
+        if (ownsApprovals) {
+          await requireActiveAddress(wallet, walletAddress as string);
         }
 
         const hash = await Trustware.sendRouteTransaction(
