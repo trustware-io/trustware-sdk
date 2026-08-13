@@ -76,16 +76,84 @@
   },
   "size-limit": [
     {
+      "name": "Core (headless, ESM)",
+      "path": "dist/core.mjs",
+      "limit": "540 KB",
+      "gzip": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "viem",
+        "wagmi",
+        "@rainbow-me/rainbowkit",
+        "@walletconnect/ethereum-provider",
+        "qrcode",
+        "radix-ui"
+      ]
+    },
+    {
+      "name": "Wallet (ESM)",
+      "path": "dist/wallet.mjs",
+      "limit": "525 KB",
+      "gzip": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "viem",
+        "wagmi",
+        "@rainbow-me/rainbowkit",
+        "@walletconnect/ethereum-provider",
+        "qrcode",
+        "radix-ui"
+      ]
+    },
+    {
+      "name": "Widget (ESM)",
+      "path": "dist/widget.mjs",
+      "limit": "665 KB",
+      "gzip": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "viem",
+        "wagmi",
+        "@rainbow-me/rainbowkit",
+        "@walletconnect/ethereum-provider",
+        "qrcode",
+        "radix-ui"
+      ]
+    },
+    {
       "name": "Full SDK (ESM)",
       "path": "dist/index.mjs",
-      "limit": "50 KB",
-      "gzip": true
+      "limit": "665 KB",
+      "gzip": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "viem",
+        "wagmi",
+        "@rainbow-me/rainbowkit",
+        "@walletconnect/ethereum-provider",
+        "qrcode",
+        "radix-ui"
+      ]
     },
     {
       "name": "Smart Account (ESM)",
       "path": "dist/smart-account.mjs",
-      "limit": "250 KB",
-      "gzip": true
+      "limit": "65 KB",
+      "gzip": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "viem",
+        "wagmi",
+        "@rainbow-me/rainbowkit",
+        "@walletconnect/ethereum-provider",
+        "qrcode",
+        "radix-ui"
+      ]
     }
   ],
   "peerDependencies": {
