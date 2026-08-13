@@ -336,36 +336,72 @@ export async function getStatus(intentId: string): Promise<Transaction> {
   );
   await assertOK(r);
   const j = await r.json();
-  return normalizeStatusIdentifiers(j.data);
+  return normalizeStatusPayload(j.data);
 }
 
 /**
- * Maps the two correlation IDs from their wire names.
+ * Wire (snake_case) → Transaction (camelCase) field names.
  *
- * The payload is snake_case while Transaction is camelCase, so `requestId`
- * (Trustware's, the one to quote at support) and `providerRequestId` (the
- * routing provider's) would otherwise always read undefined.
+ * `origin_eoa` and `landed_amount_verified` are absent on purpose: Transaction
+ * spells those two in snake_case already, so they need no mapping.
+ */
+const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
+  intent_id: "intentId",
+  from_address: "fromAddress",
+  to_address: "toAddress",
+  from_chain_id: "fromChainId",
+  to_chain_id: "toChainId",
+  source_tx_hash: "sourceTxHash",
+  dest_tx_hash: "destTxHash",
+  request_id: "requestId",
+  provider_request_id: "providerRequestId",
+  transaction_request: "transactionRequest",
+  status_raw: "statusRaw",
+  route_path: "routePath",
+  route_status: "routeStatus",
+  to_amount_wei: "toAmountWei",
+  from_chain_block: "fromChainBlock",
+  to_chain_block: "toChainBlock",
+  from_chain_tx_url: "fromChainTxUrl",
+  to_chain_tx_url: "toChainTxUrl",
+  gas_status: "gasStatus",
+  is_gmp_transaction: "isGMPTransaction",
+  axelar_transaction_url: "axelarTransactionUrl",
+  create_date: "createdDate",
+  update_date: "updatedDate",
+  time_spent_ms: "timeSpentMs",
+};
+
+/**
+ * Maps the status payload onto the camelCase names `Transaction` advertises.
+ *
+ * The whole payload is snake_case on the wire (`source_tx_hash`, `intent_id`,
+ * `create_date`, ...) while `Transaction` is camelCase, so without this every
+ * documented field — `sourceTxHash`, `destTxHash`, `intentId`, the two
+ * correlation IDs — reads undefined on whatever `getStatus`/`pollStatus`/
+ * `runTopUp` hand back. Swap mode used to be the only path that worked,
+ * because it re-mapped four of these itself (`normalizeTx` in
+ * modes/swap/hooks/useSwapExecution.ts).
  *
  * The raw keys are kept — anything already reading `request_id` off this
- * object keeps working — and a missing ID stays missing rather than becoming a
+ * object keeps working — an explicit camelCase key on the wire wins over the
+ * snake_case one, and a missing field stays missing rather than becoming a
  * defined-but-undefined property, so `"requestId" in tx` still means what it
  * says.
  */
-function normalizeStatusIdentifiers(raw: unknown): Transaction {
+export function normalizeStatusPayload(raw: unknown): Transaction {
   if (!raw || typeof raw !== "object") return raw as Transaction;
 
   const wire = raw as Record<string, unknown>;
-  const out = { ...wire } as Transaction & Record<string, unknown>;
+  const out: Record<string, unknown> = { ...wire };
 
-  const requestId = wire.requestId ?? wire.request_id;
-  if (typeof requestId === "string") out.requestId = requestId;
-
-  const providerRequestId = wire.providerRequestId ?? wire.provider_request_id;
-  if (typeof providerRequestId === "string") {
-    out.providerRequestId = providerRequestId;
+  for (const [snake, camel] of Object.entries(STATUS_WIRE_TO_CAMEL)) {
+    if (out[camel] !== undefined) continue;
+    if (!(snake in wire)) continue;
+    out[camel] = wire[snake];
   }
 
-  return out;
+  return out as Transaction;
 }
 
 /**

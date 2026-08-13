@@ -210,12 +210,12 @@ Use this when your app already controls wallet connection through Wagmi, Viem, o
 import { useMemo } from "react";
 import { useWalletClient } from "wagmi";
 import { TrustwareProvider, TrustwareWidget } from "@trustware/sdk";
-import { useWagmi } from "@trustware/sdk/wallet";
+import { createWagmiWallet } from "@trustware/sdk/wallet";
 
 export function DepositPanel() {
   const { data: walletClient } = useWalletClient();
   const wallet = useMemo(
-    () => (walletClient ? useWagmi(walletClient) : undefined),
+    () => (walletClient ? createWagmiWallet(walletClient) : undefined),
     [walletClient]
   );
 
@@ -230,6 +230,10 @@ export function DepositPanel() {
   );
 }
 ```
+
+`createWagmiWallet` was previously named `useWagmi`. The old name still works but
+is deprecated: it is a plain factory, not a React hook, and the `use` prefix
+makes `react-hooks/rules-of-hooks` flag the `useMemo` call site above.
 
 Use this mode when:
 

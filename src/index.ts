@@ -1,6 +1,7 @@
 // src/index.ts
 export { Trustware, TrustwareCore } from "./core";
 export { RateLimitError } from "./core/http";
+export { assertValidPostHook } from "./core/routes";
 export type { BuildRouteBody, BuildRouteResponse } from "./core/routes";
 export { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
 export type { YourTokenData } from "src/widget/state/deposit/types";
@@ -10,7 +11,9 @@ export {
   useWireDetectionIntoManager,
   WagmiBridge,
   WagmiConnector,
+  createEIP1193Wallet,
   useEIP1193,
+  createWagmiWallet,
   useWagmi,
   toWalletInterfaceFromDetected,
   useWalletInfo,

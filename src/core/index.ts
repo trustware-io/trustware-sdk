@@ -15,6 +15,7 @@ import {
   getStatus,
   pollStatus,
 } from "./routes";
+export { assertValidPostHook } from "./routes";
 import {
   getBalances,
   getBalancesByAddress,
