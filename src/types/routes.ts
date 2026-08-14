@@ -47,9 +47,19 @@ export type RouteIntent = {
  * transaction row to describe yet. Check `status` before reading anything
  * else.
  *
- * Note the wire uses snake_case (`source_tx_hash`, `intent_id`, ...) while
- * this type is camelCase; see `normalizeTx` in modes/swap/hooks/useSwapExecution.ts.
- * Read defensively if you consume the raw payload.
+ * The wire is snake_case (`source_tx_hash`, `intent_id`, ...) while this type
+ * is camelCase. `getStatus` maps one onto the other (see
+ * `normalizeStatusPayload` in core/routes.ts), so anything reaching you through
+ * `getStatus`/`pollStatus`/`runTopUp` has the camelCase names populated.
+ *
+ * The raw snake_case keys are still present **at runtime** — dropping them
+ * would break callers that already read them — but they are deliberately not
+ * declared here, because camelCase is the supported spelling and the raw ones
+ * are only kept for back-compat. Reading `tx.source_tx_hash` therefore needs a
+ * cast, and new code should not: use `tx.sourceTxHash`.
+ *
+ * `origin_eoa` and `landed_amount_verified` are the exception — the wire has no
+ * camelCase spelling for those two, so they are declared as-is below.
  */
 export type Transaction = {
   id?: string;

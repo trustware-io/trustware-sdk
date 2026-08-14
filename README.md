@@ -37,8 +37,6 @@ The current widget flow is:
 
 `Home -> Select Token -> Confirm Deposit -> Processing -> Success/Error`
 
-The refactored widget keeps the same behavior, but the configuration surface is now documented around the actual `TrustwareConfigOptions` shape and the current widget step model.
-
 ## Installation
 
 Supports React `18.2+` and `19`.
@@ -115,7 +113,7 @@ type TrustwareConfigOptions = {
     };
   };
   autoDetectProvider?: boolean;
-  theme?: TrustwareWidgetTheme;
+  theme?: "light" | "dark" | "system"; // TrustwareTheme
   messages?: Partial<TrustwareWidgetMessages>;
   retry?: RetryConfig;
   walletConnect?: WalletConnectConfig;
@@ -172,7 +170,8 @@ type TrustwareConfigOptions = {
 ### Other Config Groups
 
 - `autoDetectProvider`: enables Trustware-managed wallet discovery.
-- `theme`: widget color and radius customization.
+- `theme`: widget color mode — `"light" | "dark" | "system"` (default
+  `"system"`). Switch it at runtime with `Trustware.setTheme("dark")`.
 - `messages`: top-level copy overrides.
 - `retry`: API retry and rate-limit behavior.
 - `walletConnect`: WalletConnect overrides.
@@ -232,6 +231,13 @@ export function DepositPanel() {
 }
 ```
 
+`useWagmi` (like `useEIP1193`) is a plain adapter factory, not a React hook,
+despite the `use` prefix. If your ESLint setup runs `react-hooks/rules-of-hooks`
+it will flag the call inside the `useMemo` callback above; silence it with an
+`eslint-disable-next-line react-hooks/rules-of-hooks` comment — the call is
+safe. See [docs.trustware.io](https://docs.trustware.io/guides/embedded-wallets#adapt-the-embedded-wallet)
+for the same pattern with embedded wallets.
+
 Use this mode when:
 
 - your app already owns wallet state
@@ -285,18 +291,27 @@ Use this when you want Trustware’s routing and wallet plumbing without the wid
 ```ts
 import { Trustware } from "@trustware/sdk";
 
+// buildRoute states both sides explicitly. fromAmount is in the source token's
+// smallest unit, and the estimate comes back on the route — there is no
+// separate quote call.
 const route = await Trustware.buildRoute({
-  amount: "0.1",
+  fromChain: "1",
+  fromToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC on Ethereum
+  toChain: "8453",
+  toToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // native on Base
+  fromAmount: "25000000", // 25 USDC (6 decimals)
   fromAddress: await Trustware.getAddress(),
+  toAddress: "0xDestination...",
 });
+console.log(route.route?.estimate, route.finalExchangeRate);
 
-const quote = await Trustware.getQuote(route);
-
-const result = await Trustware.runTopUp({
-  amount: "0.1",
-  fromAddress: await Trustware.getAddress(),
-});
+// Or let the SDK own route + submit + receipt + polling. Missing route fields
+// come from the provider config; the sender comes from the attached wallet.
+const tx = await Trustware.runTopUp({ fromAmount: "25000000" });
+console.log(tx.status, tx.destTxHash);
 ```
+
+See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 
 ## Common Config Examples
 
@@ -386,8 +401,5 @@ const config = {
 
 ## Docs
 
-- [Integration Guide](docs/intergrationGuide.md)
-- [Core Guide](docs/coreGuide.md)
-- [Backend RPC Offload PDR](docs/backend-rpc-offload-pdr.md)
-- [Widget Architecture Boundaries](docs/widget-architecture-boundaries.md)
-- [Widget Refactor Baseline](docs/widget-refactor-baseline.md)
+Full API reference, integration guides, and examples live at
+[docs.trustware.io](https://docs.trustware.io).

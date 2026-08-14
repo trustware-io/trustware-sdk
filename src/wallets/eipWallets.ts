@@ -61,6 +61,9 @@ async function addThenSwitch(eth: EIP1193, chainId: number) {
 }
 
 /* ---------------- EIP-1193 adapter (safe switching) ---------------- */
+// NOTE: a plain factory despite the `use` prefix — NOT a React hook. The name
+// is the published API (docs.trustware.io documents `useEIP1193` and host
+// integrations import it by name), so do not rename it.
 export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
   if (!eth?.request) throw new Error("useEIP1193: invalid provider");
   let switching = false;
@@ -106,6 +109,8 @@ export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
 }
 
 /* ---------------- Wagmi/Viem client adapter (version-agnostic) ---------------- */
+// NOTE: a plain factory despite the `use` prefix — NOT a React hook. Same
+// deal as useEIP1193 above: the name is the published API, do not rename it.
 export function useWagmi(client: any): WalletInterFaceAPI {
   if (!client) throw new Error("useWagmi: missing client");
   let switching = false;
