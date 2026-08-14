@@ -188,7 +188,7 @@ If you run `npm run build` without the env var, the SDK will call production API
 > The widget formerly lived under `src/widget-v2/`; it is now `src/widget/`. There is no `widget-v2` directory anymore (the exported component is still internally named `TrustwareWidgetV2` and aliased to `TrustwareWidget` in `src/widget/index.tsx`).
 
 ### Entry Point
-- `src/index.ts` — single barrel. Re-exports: `Trustware`/`TrustwareCore` (core facade), `TrustwareProvider`/`useTrustware`, `TrustwareWidget`, `TrustwareError`, wallet helpers (`walletManager`, `useWalletDetection`, `WagmiBridge`, `createWagmiWallet`, …), `RateLimitError`, plus `./identity`, `./validation/address`, `./types`, `./constants`.
+- `src/index.ts` — single barrel. Re-exports: `Trustware`/`TrustwareCore` (core facade), `TrustwareProvider`/`useTrustware`, `TrustwareWidget`, `TrustwareError`, wallet helpers (`walletManager`, `useWalletDetection`, `WagmiBridge`, `useWagmi`, …), `RateLimitError`, plus `./identity`, `./validation/address`, `./types`, `./constants`.
 
 ### Core Facade (`src/core/`)
 `Trustware` (type alias `TrustwareCore`) is a plain object facade — the headless API. Key surface (`src/core/index.ts`):
@@ -229,7 +229,7 @@ home → select-token → crypto-pay → processing → success | error
 - `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
 - `src/smart-account/` — ERC-4337 path: `createTrustwareSmartAccountClient`, `sendRouteAsUserOperation`, `permit2.ts` (`PERMIT2`, `randomPermit2Nonce`), `uniswap.ts`, `fee-utils.ts`.
 - `src/identity/` — multi-chain wallet identity resolution (address ↔ chain normalization, used by `Trustware.getIdentity()`/`resolveAddressForChain`).
-- `src/wallets/` — detection + connection (`detect.ts`, `connect.ts`, `manager.ts` (`walletManager`), `adapters.ts`, `bridges.ts` (wagmi bridge), `eipWallets.ts`, `solana.ts`, `deepLink.ts`, `metadata.ts`). `eipWallets.ts` exports `createEIP1193Wallet` and `createWagmiWallet`; the older `useEIP1193`/`useWagmi` names are deprecated aliases — they are plain factories, not hooks, so the `use` prefix trips `react-hooks/rules-of-hooks` in host apps.
+- `src/wallets/` — detection + connection (`detect.ts`, `connect.ts`, `manager.ts` (`walletManager`), `adapters.ts`, `bridges.ts` (wagmi bridge), `eipWallets.ts`, `solana.ts`, `deepLink.ts`, `metadata.ts`). `eipWallets.ts` exports `useEIP1193` and `useWagmi` — plain adapter factories, **not** React hooks, despite the `use` prefix. **Do not rename them**: the names are the published API (docs.trustware.io and host integrations import them by name). The prefix means `react-hooks/rules-of-hooks` flags host call sites inside `useMemo`/`useEffect`; hosts silence it with an eslint-disable comment.
 - `src/config/` — `store.ts` (`TrustwareConfigStore`), `defaults.ts`, `merge.ts`, `walletconnect.ts`.
 - `src/errors/` — `TrustwareError.ts` + `errorCodes.ts` (`INVALID_CONFIG`, `INVALID_API_KEY`, `WALLET_NOT_CONNECTED`, `BRIDGE_FAILED`, `NETWORK_ERROR`, `INPUT_ERROR`, `UNKNOWN_ERROR`).
 - `src/events/events.ts` — `TrustwareEvent` union (`error`, `transaction_started`, `transaction_success`, `wallet_connected`, `token_page_loaded/error`, `balance_stream_chunk/fallback`, `swap_route_changed`), surfaced via `config.onEvent`.

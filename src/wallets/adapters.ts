@@ -1,13 +1,8 @@
 import type { WalletInterFaceAPI, DetectedWallet, EIP1193 } from "../types/";
-import {
-  useEIP1193,
-  createEIP1193Wallet,
-  useWagmi,
-  createWagmiWallet,
-} from "./eipWallets";
+import { useEIP1193, useWagmi } from "./eipWallets";
 import { toSolanaWalletInterface } from "./solana";
 
-export { useEIP1193, createEIP1193Wallet, useWagmi, createWagmiWallet };
+export { useEIP1193, useWagmi };
 
 export function toWalletInterfaceFromDetected(
   dw: DetectedWallet
@@ -17,5 +12,5 @@ export function toWalletInterfaceFromDetected(
     return toSolanaWalletInterface(dw.provider);
   }
   const eth = dw.provider as EIP1193;
-  return createEIP1193Wallet(eth);
+  return useEIP1193(eth);
 }

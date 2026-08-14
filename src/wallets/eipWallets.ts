@@ -61,8 +61,11 @@ async function addThenSwitch(eth: EIP1193, chainId: number) {
 }
 
 /* ---------------- EIP-1193 adapter (safe switching) ---------------- */
-export function createEIP1193Wallet(eth: EIP1193): WalletInterFaceAPI {
-  if (!eth?.request) throw new Error("createEIP1193Wallet: invalid provider");
+// NOTE: a plain factory despite the `use` prefix — NOT a React hook. The name
+// is the published API (docs.trustware.io documents `useEIP1193` and host
+// integrations import it by name), so do not rename it.
+export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
+  if (!eth?.request) throw new Error("useEIP1193: invalid provider");
   let switching = false;
 
   return {
@@ -105,17 +108,11 @@ export function createEIP1193Wallet(eth: EIP1193): WalletInterFaceAPI {
   };
 }
 
-/**
- * @deprecated Use {@link createEIP1193Wallet}. This is a plain factory, not a
- * React hook — the `use` prefix makes `react-hooks/rules-of-hooks` flag every
- * call site inside `useMemo`/`useEffect` in host apps. Kept as an alias for
- * back-compat; it will be removed in the next major.
- */
-export const useEIP1193 = createEIP1193Wallet;
-
 /* ---------------- Wagmi/Viem client adapter (version-agnostic) ---------------- */
-export function createWagmiWallet(client: any): WalletInterFaceAPI {
-  if (!client) throw new Error("createWagmiWallet: missing client");
+// NOTE: a plain factory despite the `use` prefix — NOT a React hook. Same
+// deal as useEIP1193 above: the name is the published API, do not rename it.
+export function useWagmi(client: any): WalletInterFaceAPI {
+  if (!client) throw new Error("useWagmi: missing client");
   let switching = false;
 
   async function getAddress(): Promise<`0x${string}`> {
@@ -206,14 +203,6 @@ export function createWagmiWallet(client: any): WalletInterFaceAPI {
   };
 }
 
-/**
- * @deprecated Use {@link createWagmiWallet}. This is a plain factory, not a
- * React hook — the `use` prefix makes `react-hooks/rules-of-hooks` flag every
- * call site inside `useMemo`/`useEffect` in host apps. Kept as an alias for
- * back-compat; it will be removed in the next major.
- */
-export const useWagmi = createWagmiWallet;
-
 /* ---------------- Provider discovery (prefer Rabby) ---------------- */
 
 type Detected = { id: string; name: string; provider: EIP1193 };
@@ -281,5 +270,5 @@ export async function autoDetectWallet(
   }
 
   const best = rank(Array.from(dedup.values()))[0];
-  return { kind: "eip1193", wallet: createEIP1193Wallet(best.provider) };
+  return { kind: "eip1193", wallet: useEIP1193(best.provider) };
 }

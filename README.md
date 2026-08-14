@@ -210,12 +210,12 @@ Use this when your app already controls wallet connection through Wagmi, Viem, o
 import { useMemo } from "react";
 import { useWalletClient } from "wagmi";
 import { TrustwareProvider, TrustwareWidget } from "@trustware/sdk";
-import { createWagmiWallet } from "@trustware/sdk/wallet";
+import { useWagmi } from "@trustware/sdk/wallet";
 
 export function DepositPanel() {
   const { data: walletClient } = useWalletClient();
   const wallet = useMemo(
-    () => (walletClient ? createWagmiWallet(walletClient) : undefined),
+    () => (walletClient ? useWagmi(walletClient) : undefined),
     [walletClient]
   );
 
@@ -231,11 +231,12 @@ export function DepositPanel() {
 }
 ```
 
-`createWagmiWallet` was previously named `useWagmi`. The old name still works but
-is deprecated: it is a plain factory, not a React hook, so calling it as
-`useWagmi(...)` inside the `useMemo` callback above makes
-`react-hooks/rules-of-hooks` report a hook called outside a component body. The
-`useMemo` itself is fine — only the `use`-prefixed callee is the problem.
+`useWagmi` (like `useEIP1193`) is a plain adapter factory, not a React hook,
+despite the `use` prefix. If your ESLint setup runs `react-hooks/rules-of-hooks`
+it will flag the call inside the `useMemo` callback above; silence it with an
+`eslint-disable-next-line react-hooks/rules-of-hooks` comment — the call is
+safe. See [docs.trustware.io](https://docs.trustware.io/guides/embedded-wallets#adapt-the-embedded-wallet)
+for the same pattern with embedded wallets.
 
 Use this mode when:
 
