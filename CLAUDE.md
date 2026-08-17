@@ -11,11 +11,23 @@ TRUSTWARE_API_ROOT=http://localhost:8000 npm run build
 
 Other commands:
 ```bash
-npm install          # Install dependencies
-npm run dev          # Watch mode (rebuilds on changes) - NOTE: doesn't set API URL
-npm run validate     # Full validation (typecheck + lint:strict + format:check)
-npm run size         # Check bundle size (limit: 50 KB gzipped)
+npm install               # Install dependencies
+npm run dev               # Watch mode (rebuilds on changes) - NOTE: doesn't set API URL
+npm run build:local       # Build against http://localhost:8000
+npm run build:staging     # Build against the staging API
+npm run validate          # Full validation (typecheck + lint:strict + format:check)
+npm run test:unit         # Unit tests (scripts/run-unit-tests.mjs)
+npm run test:widget-smoke # Builds, then runs the widget flow smoke test
+npm run check:surface     # Assert the public export surface hasn't drifted
+npm run size              # Report gzipped size per entry point
+npm run size:check        # Same, but fails when an entry exceeds its budget
 ```
+
+Bundle size is budgeted **per entry**, not as one number — `size-limit` in
+`package.json` sets each one, and react/react-dom/viem/wagmi/rainbowkit/
+walletconnect/qrcode/radix-ui are excluded as external. Current budgets:
+smart-account 65 KB, wallet 525 KB, core 540 KB, widget and full SDK 665 KB
+(all gzipped).
 
 ## Release Process
 
@@ -36,7 +48,9 @@ It does **not** merge staging → main. For a production release: merge staging 
 
 `cliff.toml` configures [git-cliff](https://git-cliff.org) to generate Keep-a-Changelog entries from Conventional Commits. On production releases (`X.Y.Z`), the Release workflow runs git-cliff and commits the updated `CHANGELOG.md` alongside the version bump. Staging tags are skipped (`skip_tags` in `cliff.toml`), so their commits roll into the next production release section. `publish.yml` also creates a GitHub Release for every published tag with git-cliff-generated notes (staging releases marked as prereleases).
 
-Preview locally before cutting: `git-cliff --tag v1.2.3 --unreleased`.
+Commits that aren't Conventional Commits are **not** dropped — they land under an `### Other` heading. Prefix with `feat:`/`fix:`/`chore:` to get a properly grouped entry instead; merge and `chore(release):` commits are skipped entirely.
+
+Preview locally before cutting: `git-cliff --tag v1.2.3 --unreleased` (for a version not yet tagged) or `git-cliff --latest` (for the newest existing tag). Note the distinction — `--unreleased` matches nothing once the tag exists, which is why `publish.yml` uses `--latest`.
 
 ### Bumping the version
 
@@ -174,28 +188,35 @@ If you run `npm run build` without the env var, the SDK will call production API
 > The widget formerly lived under `src/widget-v2/`; it is now `src/widget/`. There is no `widget-v2` directory anymore (the exported component is still internally named `TrustwareWidgetV2` and aliased to `TrustwareWidget` in `src/widget/index.tsx`).
 
 ### Entry Point
-- `src/index.ts` — single barrel. Re-exports: `Trustware`/`TrustwareCore` (core facade), `TrustwareProvider`/`useTrustware`, `TrustwareWidget`, `TrustwareError`, wallet helpers (`walletManager`, `useWalletDetection`, `WagmiBridge`, …), `RateLimitError`, plus `./identity`, `./validation/address`, `./types`, `./constants`.
+- `src/index.ts` — single barrel. Re-exports: `Trustware`/`TrustwareCore` (core facade), `TrustwareProvider`/`useTrustware`, `TrustwareWidget`, `TrustwareError`, wallet helpers (`walletManager`, `useWalletDetection`, `WagmiBridge`, `useWagmi`, …), `RateLimitError`, plus `./identity`, `./validation/address`, `./types`, `./constants`.
 
 ### Core Facade (`src/core/`)
 `Trustware` (type alias `TrustwareCore`) is a plain object facade — the headless API. Key surface (`src/core/index.ts`):
 - **Lifecycle**: `init(config)` (loads config into `TrustwareConfigStore` + validates the API key once via `validateSdkAccess`), `getConfig()`, `useWallet(w)`, `autoDetect(timeoutMs)`.
 - **Config setters**: `setDestinationAddress/Chain/Token`, `setTheme`/`getTheme` (toggle the widget's light/dark/system mode at runtime, e.g. from a host app's own theme toggle), `addIdentityAddress`, `resolveAddressForChain`, `getWallet`, `getIdentity`, `getAddress`.
-- **REST** (`core/routes.ts`, `core/balances.ts`): `buildRoute`, `buildDepositAddress`, `submitReceipt`, `getStatus`, `pollStatus`, `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
+- **REST** (`core/routes.ts`, `core/balances.ts`): `buildRoute`, `buildDepositAddress`, `submitReceipt`, `submitStepReceipt`, `getStatus`, `pollStatus`, `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
+  - `buildRoute` takes a full `BuildRouteBody` — `fromChain`, `toChain`, `fromToken`, `toToken`, `fromAmount`, `fromAddress`, `toAddress` are all **required**; it does not fall back to the provider config. `fromAmount` is in the source token's smallest unit (`fromAmountUsd` carries the USD figure). Optional `hooks.postHook` does bridge-and-call; `buildRoute`/`buildDepositAddress` run `assertValidPostHook` on it internally. That helper is defined in `src/core/routes.ts` and re-exported from both the package root and `./core`, so hosts can validate a hook before building.
+  - There is **no** `getQuote` — the estimate comes back on the route (`route.route?.estimate`, `route.finalExchangeRate`).
+  - The status wire payload is entirely snake_case while `Transaction` is camelCase. `getStatus` runs `normalizeStatusPayload` (`src/core/routes.ts`) to map every field onto the camelCase names the type advertises, keeping the raw wire keys alongside them. Before 1.1.11 it mapped only `request_id`/`provider_request_id`, so `sourceTxHash`/`destTxHash`/`intentId` read `undefined` everywhere except swap mode, which re-mapped four of them itself in `normalizeTx`.
+- **Validation**: `validateAddressForChain`, `validateRouteAddresses`.
 - **Data hooks** (`core/useChains.ts`, `core/useTokens.ts`): `useChains`, `useTokens`.
-- **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`.
+- **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`. `runTopUp({ fromAmount, ... })` resolves the rest from config, sends, submits the receipt, and polls — it resolves to the `Transaction` that `pollStatus` returns (read `sourceTxHash`/`destTxHash`; there is no `txHash` field).
+
+There is **no** event-emitter on the facade (`Trustware.on` does not exist). Events reach the host through `config.onEvent`.
 - Other core modules: `http.ts` (fetch wrapper + retry/rate-limit, exports `RateLimitError`), `forex.ts`, `registryClient.ts`, `sdkRpc.ts`.
 
 ### Provider (`src/provider.tsx`)
 `TrustwareProvider` props: `config: TrustwareConfigOptions` (required), `wallet?`, `autoDetect = true`. On mount it runs `Trustware.init(config)`, attaches a passed wallet or `autoDetect`s one, and tracks `status: "idle" | "initializing" | "ready" | "error"`. `useTrustware()` returns `{ status, errors, core, emitError, emitSuccess, emitEvent, revalidate }`. The provider bridges `config.onError` / `onSuccess` / `onEvent` callbacks to the emit helpers.
 
-`TrustwareConfigOptions` (`src/types/config.ts`): `apiKey`, `routes { toChain, toToken, fromToken?, fromChain?, toAddress?, defaultSlippage?, options? }`, `theme` (`light|dark|system`), `messages?`, `retry?`, `walletConnect?`, `features?` (feature flags incl. `swapMode`, `balanceStreaming`, `tokensPagination`, swap-dest-token controls), `onError/onSuccess/onEvent`.
+`TrustwareConfigOptions` (`src/types/config.ts`) is a union discriminated on `mode`: `apiKey`, `mode?` (`"deposit"` default — `routes` required; `"swap"` — `routes` optional), `routes { toChain, toToken, fromToken?, fromChain?, fromAddress?, toAddress?, defaultSlippage?, options? }`, `autoDetectProvider?`, `theme?` (`"light" | "dark" | "system"`, default `"system"` — a **mode string, not a palette object**), `messages?`, `retry?` (observability callbacks only — the limit is server-side), `walletConnect?`, `features?` (`tokensPagination`, `balanceStreaming`, `swapMode`, `swapDefaultDestToken`, `swapLockDestToken`, `swapAllowedDestTokens`), `onError/onSuccess/onEvent`.
 
 ### Widget (`src/widget/`)
 - `index.tsx` — exports `TrustwareWidget` (= internal `TrustwareWidgetV2`).
 - `pages/` — `Home`, `SelectToken`, `CryptoPay/` (deposit/amount flow + `RouteQuoteLoader.tsx`), `Processing`, `Success`, `Error`.
 - `state/deposit/` — navigation + wallet/token state hooks (`useDepositNavigationState`, `useWalletTokenState`, `useWalletConnect`, `useWalletSessionState`, `useThemePreference`, `types.ts`).
-- `features/` — feature folders (`amount`, `route-preview`, `token-selection`, `transaction`, `wallet`).
-- `components/`, `hooks/`, `context/`, `data/` (`popularChains.json`, `featuredAssets.json`), `helpers/`, `lib/` (`mapError.ts` — maps backend/route errors → user-facing messages for the Error page; `utils.ts`), `styles/`, `utils/`, `__tests__/`.
+- `features/` — feature folders (`amount`, `route-preview`, `token-selection`, `transaction`, `wallet`). Domain logic and view-model hooks live here, not in `pages/`.
+- `app/` — shell plumbing: `WidgetRouter.tsx`, `WidgetPersistence.ts`, `WidgetShellOverlays.tsx`, `widgetSteps.ts`.
+- `components/`, `hooks/`, `context/`, `data/` (`popularChains.json`, `featuredAssets.json`), `helpers/`, `lib/` (`mapError.ts` — maps backend/route errors → user-facing messages for the Error page; `utils.ts`), `styles/`, `utils/`, `__tests__/`. `components/` is shell UI and reusable primitives; it should not import SDK orchestration code.
 
 ### Widget Navigation (real flow)
 `src/widget/state/deposit/useDepositNavigationState.ts` is a history-stack navigator, **not** the old 8-state machine. Steps (`NavigationStep`):
@@ -205,10 +226,10 @@ home → select-token → crypto-pay → processing → success | error
 `goBack()` pops the history stack; `resetNavigation()` returns to `home`.
 
 ### Other Subsystems
-- `src/modes/swap/` — swap mode (gated by `features.swapMode`): `SwapMode.tsx`, `currency.ts`, hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
+- `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
 - `src/smart-account/` — ERC-4337 path: `createTrustwareSmartAccountClient`, `sendRouteAsUserOperation`, `permit2.ts` (`PERMIT2`, `randomPermit2Nonce`), `uniswap.ts`, `fee-utils.ts`.
 - `src/identity/` — multi-chain wallet identity resolution (address ↔ chain normalization, used by `Trustware.getIdentity()`/`resolveAddressForChain`).
-- `src/wallets/` — detection + connection (`detect.ts`, `connect.ts`, `manager.ts` (`walletManager`), `adapters.ts`, `bridges.ts` (wagmi bridge), `eipWallets.ts`, `solana.ts`, `deepLink.ts`, `metadata.ts`).
+- `src/wallets/` — detection + connection (`detect.ts`, `connect.ts`, `manager.ts` (`walletManager`), `adapters.ts`, `bridges.ts` (wagmi bridge), `eipWallets.ts`, `solana.ts`, `deepLink.ts`, `metadata.ts`). `eipWallets.ts` exports `useEIP1193` and `useWagmi` — plain adapter factories, **not** React hooks, despite the `use` prefix. **Do not rename them**: the names are the published API (docs.trustware.io and host integrations import them by name). The prefix means `react-hooks/rules-of-hooks` flags host call sites inside `useMemo`/`useEffect`; hosts silence it with an eslint-disable comment.
 - `src/config/` — `store.ts` (`TrustwareConfigStore`), `defaults.ts`, `merge.ts`, `walletconnect.ts`.
 - `src/errors/` — `TrustwareError.ts` + `errorCodes.ts` (`INVALID_CONFIG`, `INVALID_API_KEY`, `WALLET_NOT_CONNECTED`, `BRIDGE_FAILED`, `NETWORK_ERROR`, `INPUT_ERROR`, `UNKNOWN_ERROR`).
 - `src/events/events.ts` — `TrustwareEvent` union (`error`, `transaction_started`, `transaction_success`, `wallet_connected`, `token_page_loaded/error`, `balance_stream_chunk/fallback`, `swap_route_changed`), surfaced via `config.onEvent`.
@@ -406,3 +427,21 @@ The widget follows this user flow:
 ## Changelog
 
 Per-release history is auto-generated by git-cliff in `CHANGELOG.md` (see Release Process). Do not hand-maintain a changelog here.
+
+Known drift: git-cliff commits `CHANGELOG.md` during a **production** release, so the update lands on `main` and nothing merges it back. `staging`'s copy therefore falls behind by every prod cut until someone syncs it (`git show origin/main:CHANGELOG.md > CHANGELOG.md`). A release whose section is missing entirely can be regenerated with `git-cliff vPREV..vTAG --tag vTAG`.
+
+## Documentation
+
+Public docs — API reference, integration guides, examples — live at
+[docs.trustware.io](https://docs.trustware.io). **This repo has no `docs/`
+folder; do not re-create one.** It previously held `coreGuide.md`,
+`integrationGuide.md`, and widget refactor notes, all of which drifted into
+documenting methods that never existed (`Trustware.getQuote`, `Trustware.on`, a
+`theme` palette object). In-repo prose is limited to:
+
+- `README.md` — install + quick start, and the only place SDK usage examples live
+- `CLAUDE.md` — this file, for agents and contributors
+- `LINTING.md` — lint/format tooling setup
+- `THIRD_PARTY_NOTICES.md` — license attribution for bundled code; the only doc shipped in the npm tarball (`files[]`)
+
+When changing a public API, update `README.md` **and** docs.trustware.io. Verify any example you write by compiling it — the deleted guides all type-checked as errors.

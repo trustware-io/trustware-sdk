@@ -85,18 +85,37 @@ jobs:
         # npm bundles it again.
         run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --tag staging --provenance
 
-      # Staging release notes show every commit since the last production tag
-      # (cliff.toml ignores staging tags as boundaries), giving a running
-      # preview of what's heading to prod next. Do NOT pass --tag here: the
-      # staging tag matches cliff.toml's skip_tags, so git-cliff would skip the
-      # release and emit an empty body. Omitting --tag renders the unreleased
-      # commits under an "[Unreleased]" heading instead.
+      # Staging release notes show every commit since the last production tag,
+      # giving a running preview of what's heading to prod next.
+      #
+      # The range is resolved explicitly instead of relying on `--unreleased`:
+      # production release commits are only ever made on `main` and are never
+      # merged back into `staging`, so no recent production tag is an *ancestor*
+      # of a staging tag. `--unreleased` walks by ancestry, so it fell back to
+      # the last production tag staging can actually see (v1.1.1) and rendered
+      # 216 commits instead of the 6 that were genuinely new.
+      #
+      # Do NOT pass --tag here: the staging tag matches cliff.toml's skip_tags,
+      # so git-cliff would skip the release and emit an empty body. Without
+      # --tag the commits render under an "[Unreleased]" heading.
+      # The pattern is anchored to exactly vMAJOR.MINOR.PATCH — the same shape as
+      # cliff.toml's `tag_pattern` — so every prerelease is excluded, not just
+      # `-staging.N`. A looser glob would let a `v1.2.0-rc.1` sort above the real
+      # newest release and truncate the range. `tail` always exits 0, so a repo
+      # with no production tag yet still falls back to an empty prefix (HEAD).
+      - name: Resolve last production tag
+        id: lasttag
+        run: |
+          LAST=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          echo "Last production tag: ${LAST:-<none>}"
+          echo "range=${LAST:+$LAST..}HEAD" >> "$GITHUB_OUTPUT"
+
       - name: Generate release notes
         id: changelog
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --unreleased --strip all
+          args: ${{ steps.lasttag.outputs.range }} --strip all
 
       - name: Create GitHub Release (staging)
         uses: softprops/action-gh-release@v3
@@ -156,12 +175,17 @@ jobs:
         # npm bundles it again.
         run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --provenance
 
+      # Use --latest, NOT `--tag <tag> --unreleased`. The tag already exists by
+      # the time this runs (pushing it is what triggered the workflow), so
+      # "unreleased" matches zero commits and the body renders empty — which is
+      # how v1.1.8, v1.1.9 and v1.1.10 all shipped with empty release notes.
+      # --latest renders the newest production tag's section instead.
       - name: Generate release notes
         id: changelog
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --tag ${{ github.ref_name }} --unreleased --strip all
+          args: --latest --strip all
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3

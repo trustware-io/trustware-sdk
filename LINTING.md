@@ -62,8 +62,8 @@ Uses the new flat config format with:
 Key features:
 - Relaxed rules for existing codebase
 - TypeScript type-checked linting
-- React hooks validation
-- Import/export organization
+- React and React hooks validation
+- Prettier conflict resolution via `eslint-config-prettier`
 
 ### Prettier (`.prettierrc`)
 

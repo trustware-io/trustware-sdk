@@ -37,8 +37,6 @@ The current widget flow is:
 
 `Home -> Select Token -> Confirm Deposit -> Processing -> Success/Error`
 
-The refactored widget keeps the same behavior, but the configuration surface is now documented around the actual `TrustwareConfigOptions` shape and the current widget step model.
-
 ## Installation
 
 Supports React `18.2+` and `19`.
@@ -115,7 +113,7 @@ type TrustwareConfigOptions = {
     };
   };
   autoDetectProvider?: boolean;
-  theme?: TrustwareWidgetTheme;
+  theme?: "light" | "dark" | "system"; // TrustwareTheme
   messages?: Partial<TrustwareWidgetMessages>;
   retry?: RetryConfig;
   walletConnect?: WalletConnectConfig;
@@ -172,7 +170,8 @@ type TrustwareConfigOptions = {
 ### Other Config Groups
 
 - `autoDetectProvider`: enables Trustware-managed wallet discovery.
-- `theme`: widget color and radius customization.
+- `theme`: widget color mode — `"light" | "dark" | "system"` (default
+  `"system"`). Switch it at runtime with `Trustware.setTheme("dark")`.
 - `messages`: top-level copy overrides.
 - `retry`: API retry and rate-limit behavior.
 - `walletConnect`: WalletConnect overrides.
@@ -232,6 +231,13 @@ export function DepositPanel() {
 }
 ```
 
+`useWagmi` (like `useEIP1193`) is a plain adapter factory, not a React hook,
+despite the `use` prefix. If your ESLint setup runs `react-hooks/rules-of-hooks`
+it will flag the call inside the `useMemo` callback above; silence it with an
+`eslint-disable-next-line react-hooks/rules-of-hooks` comment — the call is
+safe. See [docs.trustware.io](https://docs.trustware.io/guides/embedded-wallets#adapt-the-embedded-wallet)
+for the same pattern with embedded wallets.
+
 Use this mode when:
 
 - your app already owns wallet state
@@ -285,18 +291,27 @@ Use this when you want Trustware’s routing and wallet plumbing without the wid
 ```ts
 import { Trustware } from "@trustware/sdk";
 
+// buildRoute states both sides explicitly. fromAmount is in the source token's
+// smallest unit, and the estimate comes back on the route — there is no
+// separate quote call.
 const route = await Trustware.buildRoute({
-  amount: "0.1",
+  fromChain: "1",
+  fromToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC on Ethereum
+  toChain: "8453",
+  toToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // native on Base
+  fromAmount: "25000000", // 25 USDC (6 decimals)
   fromAddress: await Trustware.getAddress(),
+  toAddress: "0xDestination...",
 });
+console.log(route.route?.estimate, route.finalExchangeRate);
 
-const quote = await Trustware.getQuote(route);
-
-const result = await Trustware.runTopUp({
-  amount: "0.1",
-  fromAddress: await Trustware.getAddress(),
-});
+// Or let the SDK own route + submit + receipt + polling. Missing route fields
+// come from the provider config; the sender comes from the attached wallet.
+const tx = await Trustware.runTopUp({ fromAmount: "25000000" });
+console.log(tx.status, tx.destTxHash);
 ```
+
+See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 
 ## Common Config Examples
 
@@ -347,26 +362,44 @@ Trustware.setDestinationAddress("0xDestination...");
 
 ## Rate Limiting
 
-Client retry behavior is configured through `retry`.
+The API is rate limited per API key, and that limit is shared by everyone using
+your key — not per end user. Your key's limit, its remaining requests and the
+window boundary come back on every response (`X-RateLimit-Limit`, `-Remaining`,
+`-Reset`, plus `Retry-After` on a 429).
+
+The SDK retries 429s on the schedule those headers state — it keeps no schedule
+of its own to disagree with them. It waits exactly as long as the server asks,
+for as long as the total stays under 10 seconds. Past that it stops and throws,
+because how long your app can afford to block is the one thing the server can't
+know. If a response carries no timing at all, the SDK stops rather than
+guessing: the limit is a fixed window, so an invented delay either lands inside
+the same closed window or overshoots one it could have read exactly.
+
+None of that is configurable — the limit is enforced server-side, so no client
+setting can widen it. If you need more headroom, ask us to raise the limit on
+your key. `retry` configures observability only:
 
 ```ts
 const config = {
   ...trustwareConfig,
   retry: {
-    autoRetry: true,
-    maxRetries: 3,
-    baseDelayMs: 1000,
+    onRateLimitInfo: (info) => console.debug(info.remaining, "requests left"),
+    onRateLimited: (info, attempt) => console.warn("429", attempt, info),
+    onRateLimitApproaching: (info) => showSoftWarning(info),
     approachingThreshold: 5,
   },
 } satisfies TrustwareConfigOptions;
 ```
 
-If retries are exhausted, the SDK throws `RateLimitError`.
+`RateLimitError` distinguishes the two ways the SDK gives up:
+
+- `retriesExhausted: false` — the wait is known and simply longer than the SDK
+  will block for. `rateLimitInfo.retryAfter` holds it, so show the user when to
+  come back instead of leaving them on a spinner.
+- `retriesExhausted: true` — the response carried no usable timing, so there was
+  nothing to retry against.
 
 ## Docs
 
-- [Integration Guide](docs/intergrationGuide.md)
-- [Core Guide](docs/coreGuide.md)
-- [Backend RPC Offload PDR](docs/backend-rpc-offload-pdr.md)
-- [Widget Architecture Boundaries](docs/widget-architecture-boundaries.md)
-- [Widget Refactor Baseline](docs/widget-refactor-baseline.md)
+Full API reference, integration guides, and examples live at
+[docs.trustware.io](https://docs.trustware.io).

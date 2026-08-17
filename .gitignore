@@ -21,3 +21,4 @@ coverage/
 .security-key
 logs/security/
 commented.txt
+.firecrawl/

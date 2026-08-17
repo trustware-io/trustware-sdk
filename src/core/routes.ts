@@ -286,6 +286,47 @@ export async function submitReceipt(
   return j.data;
 }
 
+/**
+ * Reports the submitted tx hash for one execution step of a multi-step
+ * route — approve steps only; the main tx keeps going through
+ * `submitReceipt`. `stepIndex` is the step's position in
+ * `route.execution.approvals` (the backend seeds its step plan in the same
+ * order). Best-effort telemetry: callers fire-and-forget so a failed report
+ * never blocks the payment flow, but a successful one lets the backend tell
+ * "approve landed, main never followed" apart from an intent the user
+ * abandoned before signing anything.
+ */
+export async function submitStepReceipt(
+  intentId: string,
+  stepIndex: number,
+  txHash: string
+) {
+  const r = await rateLimitedFetch(
+    `${apiBase()}/v1/route-intent/${intentId}/steps/${stepIndex}/receipt`,
+    {
+      method: "POST",
+      headers: jsonHeaders({ "Idempotency-Key": txHash }),
+      body: JSON.stringify({ txHash }),
+    }
+  );
+  await assertOK(r);
+  const j = await r.json();
+  return j.data;
+}
+
+/**
+ * Fetches the current status for a route intent.
+ *
+ * Response contract:
+ * - 404 (throws)              → intent doesn't exist. Stop polling.
+ * - 200 status: "pending"     → intent exists, no receipt yet. Keep polling.
+ * - 200 status: "submitted"   → receipt in, tx in flight. Keep polling.
+ * - 200 status: "bridging"    → cross-chain leg in progress. Keep polling.
+ * - 200 status: "success"/"failed" → terminal. Stop polling.
+ *
+ * A "pending" payload is a stub ({intent_id, status, intent_status,
+ * create_date}) — the full Transaction fields appear once a receipt lands.
+ */
 export async function getStatus(intentId: string): Promise<Transaction> {
   const r = await rateLimitedFetch(
     `${apiBase()}/v1/route-intent/${intentId}/status`,
@@ -295,9 +336,79 @@ export async function getStatus(intentId: string): Promise<Transaction> {
   );
   await assertOK(r);
   const j = await r.json();
-  return j.data as Transaction;
+  return normalizeStatusPayload(j.data);
 }
 
+/**
+ * Wire (snake_case) → Transaction (camelCase) field names.
+ *
+ * `origin_eoa` and `landed_amount_verified` are absent on purpose: Transaction
+ * spells those two in snake_case already, so they need no mapping.
+ */
+const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
+  intent_id: "intentId",
+  from_address: "fromAddress",
+  to_address: "toAddress",
+  from_chain_id: "fromChainId",
+  to_chain_id: "toChainId",
+  source_tx_hash: "sourceTxHash",
+  dest_tx_hash: "destTxHash",
+  request_id: "requestId",
+  provider_request_id: "providerRequestId",
+  transaction_request: "transactionRequest",
+  status_raw: "statusRaw",
+  route_path: "routePath",
+  route_status: "routeStatus",
+  to_amount_wei: "toAmountWei",
+  from_chain_block: "fromChainBlock",
+  to_chain_block: "toChainBlock",
+  from_chain_tx_url: "fromChainTxUrl",
+  to_chain_tx_url: "toChainTxUrl",
+  gas_status: "gasStatus",
+  is_gmp_transaction: "isGMPTransaction",
+  axelar_transaction_url: "axelarTransactionUrl",
+  create_date: "createdDate",
+  update_date: "updatedDate",
+  time_spent_ms: "timeSpentMs",
+};
+
+/**
+ * Maps the status payload onto the camelCase names `Transaction` advertises.
+ *
+ * The whole payload is snake_case on the wire (`source_tx_hash`, `intent_id`,
+ * `create_date`, ...) while `Transaction` is camelCase, so without this every
+ * documented field — `sourceTxHash`, `destTxHash`, `intentId`, the two
+ * correlation IDs — reads undefined on whatever `getStatus`/`pollStatus`/
+ * `runTopUp` hand back. Swap mode used to be the only path that worked,
+ * because it re-mapped four of these itself (`normalizeTx` in
+ * modes/swap/hooks/useSwapExecution.ts).
+ *
+ * The raw keys are kept — anything already reading `request_id` off this
+ * object keeps working — an explicit camelCase key on the wire wins over the
+ * snake_case one, and a missing field stays missing rather than becoming a
+ * defined-but-undefined property, so `"requestId" in tx` still means what it
+ * says.
+ */
+export function normalizeStatusPayload(raw: unknown): Transaction {
+  if (!raw || typeof raw !== "object") return raw as Transaction;
+
+  const wire = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...wire };
+
+  for (const [snake, camel] of Object.entries(STATUS_WIRE_TO_CAMEL)) {
+    if (out[camel] !== undefined) continue;
+    if (!(snake in wire)) continue;
+    out[camel] = wire[snake];
+  }
+
+  return out as Transaction;
+}
+
+/**
+ * Polls intent status until terminal ("success"/"failed") or timeout.
+ * Non-terminal statuses ("pending", "submitted", "bridging") keep the loop
+ * going; a 404 (unknown intent) throws out of the loop — don't retry it.
+ */
 export async function pollStatus(
   intentId: string,
   { intervalMs = 2000, timeoutMs = 5 * 60_000 } = {}

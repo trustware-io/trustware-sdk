@@ -21,26 +21,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bump action-gh-release to v3 for node24 runtime
 
+
 ## [1.1.9] - 2026-07-27
 
 
 ### Added
 
-- Report connected EOA in receipt payload (#89) (#89)
+- Report connected EOA in receipt payload (#89)
 
 
 ### Fixed
 
 - Clean up app-store fallback timeout in mobile wallet deep link
-- Connect injected wallet in deposit mobile dropdown (#86) (#86)
+- Fix deeplink for swapMode
+- Connect injected wallet in deposit mobile dropdown (#86)
 
 
 ### Internal
 
+- Test and cleanup
 - Pin npm to v11 for publish — npm 12.0.0 breaks --provenance
 - Publish with npm 12 + co-installed sigstore
 - Update LICENSE contact to contact@trustware.io
 - Restore canonical Apache 2.0 text, add third-party notices
+
+
+### Other
+
+- Halliday deeplink
+- Solana swap send reliability: fresh blockhash before signing, retry on wallet internal errors
+- And theme toggle functions to be controled by app
+- Remove unused config flag
+- Bump version
+- Sm
+- Delete unused commented file
+- Potential fix for pull request finding 'CodeQL / Stored cross-site scripting'
+- Code rabbit fix
+- Comment clean up
+- Delete pakage-lock
+- Add pakage-lock
+- Add pakage-lock 2
+- Add pakage-lock 3
+- Fix formatting with Prettier
+- Filter out non deeplink wallets
+- Filter out non deeplink wallets for default mode
+- Prettier format SwapMode + SwapWalletSelectorDesktop
+- Adjust the Config rules (#88)
+- Add nib chain
+
+## [1.1.8] - 2026-06-24
+
+
+### Fixed
+
+- Fetch timeouts, input validation, safe BigInt parsing, remove debug log
+- Stream balances
+- Sync package-lock with viem/reown bumps
+- Drop unused ethers, correct @solana/web3.js version
+- Resolve set-state-in-effect lint errors and formatting
+- Render staging release notes instead of empty body
+- Reserve SOL fees on max, nested rejection code, dead wallet-standard listener
+
+
+### Internal
+
+- Bump to 1.1.8-staging.1
+- Require npm version, document lockfile-sync trap
+- Add status header, badges, and ASCII logo
+- Polish ASCII banner, refine tagline, trim badges
+- Shrink ASCII banner to cyberpunk HUD frame
+- Remove stale design-system + roadmap docs, refresh CLAUDE.md
+- Npm audit fix — safe transitive security bumps
+
+
+### Other
+
+- Sponsored tx structure
+- OOG error handling and retry
+- Monotonic fee escalation in retry loop
+- Permit2 fees, etc.
+- Dynamic base overrides
+- Add test, and extra gas first SA tx
+- Cap verificationGasLimit at 2x to satisfy bundler efficiency floor
+- Swipe-to-confirm Image Fallback fix
+- Exported functions and types from sdk for shillswap
+- Undid some changes
+- Retry logic for wallet connections
+- Merge conflicts
+- Npm i
+- Swap mode
+- Bump staging
+- Patch
+- Patch events
+- Permit 2 bug patches
+- Bump staging version
+- Format
+- Token & chain filtering
+- Better token filtering
+- Bump version
+- Use effect clean up
+- Search token fix
 
 ## [1.1.7] - 2026-05-20
 

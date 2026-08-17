@@ -3,4 +3,9 @@ export {
   useTrustwareRoute,
   type TrustwareRouteState,
 } from "./useTrustwareHook";
-export { useGTM, type UseGTMReturn } from "./useGTM";
+export {
+  useGTM,
+  useGTMTracker,
+  type UseGTMReturn,
+  type UseGTMTrackerReturn,
+} from "./useGTM";

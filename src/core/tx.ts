@@ -8,6 +8,7 @@ import { walletManager } from "../wallets/";
 import {
   buildRoute,
   submitReceipt,
+  submitStepReceipt,
   pollStatus,
   isEvmTxRequest,
   isSerializedSolanaTxRequest,
@@ -88,22 +89,78 @@ async function waitForTxConfirmation(chainId: string, txHash: string) {
  * (src/modes/swap/hooks/useSwapExecution.ts), now available to any direct
  * `sendRouteTransaction` caller too.
  */
+/**
+ * Anything at or above this is a provider saying "approve everything"
+ * rather than naming a real amount — 2^255, far beyond any token supply.
+ */
+const UNLIMITED_APPROVAL_FLOOR = 1n << 255n;
+
+/**
+ * How much allowance this approval really needs.
+ *
+ * Providers routinely plan an unlimited approve (Khalani returns 2^256-1)
+ * even though the route only ever pulls the trade amount. Requesting that
+ * verbatim asks the user for an unlimited allowance they did not opt into,
+ * and checking against it treats an adequate exact-amount allowance as
+ * missing — which is what produced a duplicate approve on every ERC20 swap.
+ * An unlimited plan amount is therefore sized down to the route's own
+ * amount; a plan that names a real amount is honoured as-is.
+ */
+export function requiredApprovalAmount(
+  planAmountWei: bigint,
+  routeAmountWei?: bigint
+): bigint {
+  if (
+    planAmountWei >= UNLIMITED_APPROVAL_FLOOR &&
+    routeAmountWei !== undefined &&
+    routeAmountWei > 0n
+  ) {
+    return routeAmountWei;
+  }
+  return planAmountWei;
+}
+
+/**
+ * Whether the current allowance already satisfies a planned approval.
+ *
+ * A required amount of 0 is a reset-to-zero instruction (USDT-style tokens
+ * refuse to move a non-zero allowance to another non-zero value), so it is
+ * satisfied only when the allowance is already 0 — the opposite of the
+ * "have we got enough?" test every other approval uses.
+ */
+export function approvalSatisfied(
+  currentAllowance: bigint,
+  requiredWei: bigint
+): boolean {
+  if (requiredWei === 0n) return currentAllowance === 0n;
+  return currentAllowance >= requiredWei;
+}
+
 async function ensureApprovals(
   w: EvmWalletInterface,
   approvals: RouteApproval[] | undefined,
-  fallbackChainId?: number
+  fallbackChainId?: number,
+  /** Intent to report approve step receipts against (BVT-299). The step
+   *  index is the approval's position in the plan's approvals array —
+   *  the backend seeds its step plan in the same order. */
+  intentId?: string,
+  /** The route's own source amount, used to size an unlimited plan
+   *  approval down to what the trade actually needs. */
+  routeAmountWei?: bigint
 ) {
   if (!approvals || approvals.length === 0) return;
   const owner = await w.getAddress();
-  for (const approval of approvals) {
+  for (const [stepIndex, approval] of approvals.entries()) {
     const spender = approval.spender;
     const tokenAddress = approval.tokenAddress;
     const amount = approval.amount;
     if (!spender || !tokenAddress || !amount) continue;
     const chainId = approval.chainId || String(fallbackChainId ?? "");
     if (!chainId) continue;
-    const amountWei = BigInt(amount);
-    if (amountWei === 0n) continue;
+    // A planned approval of 0 is not a no-op: it is the reset-to-zero step
+    // tokens like USDT require before an existing non-zero allowance can be
+    // changed. Skipping it leaves the following approve to revert.
+    const amountWei = requiredApprovalAmount(BigInt(amount), routeAmountWei);
 
     let currentAllowance = 0n;
     try {
@@ -119,7 +176,7 @@ async function ensureApprovals(
       // approve anyway rather than risk sending a transaction we already
       // know would revert.
     }
-    if (currentAllowance >= amountWei) continue;
+    if (approvalSatisfied(currentAllowance, amountWei)) continue;
 
     const data = encodeFunctionData({
       abi: erc20ApproveAbi,
@@ -132,6 +189,11 @@ async function ensureApprovals(
       value: 0n,
       chainId: Number.isFinite(Number(chainId)) ? Number(chainId) : undefined,
     });
+    if (intentId) {
+      // Fire-and-forget: the report must never block or fail the payment
+      // flow; the backend's reaper self-heals a missed one.
+      void submitStepReceipt(intentId, stepIndex, hash).catch(() => {});
+    }
     await waitForTxConfirmation(chainId, hash);
   }
 }
@@ -145,9 +207,23 @@ function isUserRejected(e: unknown): boolean {
   return msg.includes("user rejected") || msg.includes("user denied");
 }
 
+export type SendRouteTransactionOptions = {
+  /**
+   * The caller has already run the plan's approval flow (checked allowances,
+   * sent any approves, waited for confirmation). Skips the internal
+   * ensureApprovals pass entirely — re-reading an allowance immediately
+   * after its approve confirms can return pre-block state from a different
+   * RPC node, which made the SDK prompt for the same approval twice
+   * (BVT-330). Exactly one path must own the approval decision per
+   * execution; this flag is how a caller claims that ownership.
+   */
+  approvalsEnsured?: boolean;
+};
+
 export async function sendRouteTransaction(
   b: BuildRouteResult,
-  fallbackChainId?: number | string
+  fallbackChainId?: number | string,
+  options?: SendRouteTransactionOptions
 ): Promise<string> {
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
@@ -187,11 +263,14 @@ export async function sendRouteTransaction(
 
     // A sponsored (Account Kit) route grants its allowance internally via
     // Permit2 — skip the separate approve step entirely in that case.
-    if (!validatedSponsorship) {
+    // Likewise when the caller already ran the approval flow itself.
+    if (!validatedSponsorship && !options?.approvalsEnsured) {
       await ensureApprovals(
         w,
         b.route?.execution?.approvals,
-        Number.isFinite(target) ? target : undefined
+        Number.isFinite(target) ? target : undefined,
+        b.intentId,
+        BigInt(b.route?.estimate?.fromAmount ?? "0")
       );
     }
 

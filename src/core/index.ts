@@ -11,9 +11,12 @@ import {
   buildRoute,
   buildDepositAddress,
   submitReceipt,
+  submitStepReceipt,
   getStatus,
   pollStatus,
 } from "./routes";
+export { assertValidPostHook } from "./routes";
+export type { BuildRouteBody, BuildRouteResponse } from "./routes";
 import {
   getBalances,
   getBalancesByAddress,
@@ -180,6 +183,7 @@ export const Trustware = {
   buildRoute,
   buildDepositAddress,
   submitReceipt,
+  submitStepReceipt,
   getStatus,
   pollStatus,
   getBalances,

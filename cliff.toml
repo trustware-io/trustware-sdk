@@ -14,6 +14,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 """
+# Two notes on the body template:
+#   - `unique(attribute="message")` drops the duplicate entry you get when the
+#     same change exists as two separate commits on staging and main and the
+#     release merge pulls both in (identical subject, different SHA).
+#   - The `is not containing` guard stops a doubled PR number ("Foo (#89) (#89)")
+#     when a squash-merge already baked "(#89)" into the subject and git-cliff's
+#     GitHub integration also resolves `commit.remote.pr_number`.
 body = """
 {% if version -%}
 ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
@@ -23,8 +30,9 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group }}
 
-{% for commit in commits -%}
-- {{ commit.message | split(pat="\n") | first | upper_first }}{% if commit.remote.pr_number %} (#{{ commit.remote.pr_number }}){% endif %}
+{% for commit in commits | unique(attribute="message") -%}
+{% set subject = commit.message | split(pat="\n") | first | trim -%}
+- {{ subject | upper_first }}{% if commit.remote.pr_number and subject is not containing("(#" ~ commit.remote.pr_number ~ ")") %} (#{{ commit.remote.pr_number }}){% endif %}
 {% endfor %}
 {% endfor %}
 """
@@ -33,7 +41,11 @@ footer = ""
 
 [git]
 conventional_commits = true
-filter_unconventional = true
+# Non-Conventional subjects are kept and swept into "Other" by the catch-all
+# parser below, rather than silently vanishing. Dropping them produced release
+# notes for v1.1.8/v1.1.9/v1.1.10 that listed nothing but CI chores while real
+# features (bridge-and-call, landed-amount verification) went unmentioned.
+filter_unconventional = false
 split_commits = false
 protect_breaking_commits = false
 filter_commits = true
@@ -48,6 +60,10 @@ commit_parsers = [
   # Drop release/CI-release housekeeping commits — they're noise in the changelog.
   { message = "^chore\\(release\\)", skip = true },
   { message = "^ci\\(release\\)", skip = true },
+  # Merge and release-merge commits carry no content of their own; their
+  # children are already listed individually.
+  { message = "^Merge ", skip = true },
+  { message = "^Release v[0-9]", skip = true },
 
   { message = "^feat",     group = "Added" },
   { message = "^fix",      group = "Fixed" },
@@ -59,4 +75,9 @@ commit_parsers = [
   { message = "^build",    group = "Internal" },
   { message = "^ci",       group = "Internal" },
   { message = "^chore",    group = "Internal" },
+
+  # Catch-all — anything that isn't a Conventional Commit still gets listed
+  # (under "Other", which sorts last) instead of being dropped on the floor.
+  # Write `feat:`/`fix:` subjects to land in a nicer section than this one.
+  { message = ".*",        group = "Other" },
 ]
