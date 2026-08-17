@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.11] - 2026-08-17
+
+
+### Added
+
+- Initialize GTM at the widget root (#95)
+- Report approve step receipts for multi-step routes (#97)
+- Adopt pending intent status; stop polling on 404 (#96)
+
+
+### Fixed
+
+- Stop dropping commits and emitting empty release notes (#94)
+- Let the caller own the approval decision (BVT-330) (#98)
+- Cover the payment path with retry, fix the schedule (#99)
+- Populate the status payload, export assertValidPostHook (#100)
+
 ## [1.1.10] - 2026-08-03
 
 
