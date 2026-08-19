@@ -1,6 +1,7 @@
 import type {
   BalanceRow,
   BalanceStreamOptions,
+  BalanceStreamSummary,
   GetBalancesOptions,
   WalletAddressBalanceWrapper,
   ChainDef,
@@ -197,6 +198,20 @@ function mergeBalanceWrappers(
   return Array.from(merged.values());
 }
 
+function toSummary(
+  frame: Record<string, unknown>,
+  address: string
+): BalanceStreamSummary {
+  const total = toNumberOrUndefined(frame.total) ?? 0;
+  return {
+    address: toStringOrUndefined(frame.address) ?? address,
+    partial: Boolean(frame.partial),
+    completed: toNumberOrUndefined(frame.completed) ?? 0,
+    total,
+    elapsedMs: toNumberOrUndefined(frame.elapsed),
+  };
+}
+
 async function parseStreamingBalances(
   response: Response,
   address: string,
@@ -230,8 +245,15 @@ async function parseStreamingBalances(
 
           try {
             const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-            // Skip non-balance frames (e.g. the final "summary" event from the backend)
-            if (!parsed.chain_id) continue;
+            // The backend closes the stream with a summary frame carrying
+            // `partial`. It has no chain_id, so it is not a chunk — hand it to
+            // the caller instead of dropping it on the floor.
+            if (!parsed.chain_id) {
+              if (parsed.type === "summary") {
+                options.onSummary?.(toSummary(parsed, address));
+              }
+              continue;
+            }
             const chunk = normalizeStreamChunk(parsed as RawBalanceChunk);
             emitBalanceStreamChunk(address, chunk.length);
             yield chunk;
@@ -251,6 +273,10 @@ async function parseStreamingBalances(
             const chunk = normalizeStreamChunk(parsed as RawBalanceChunk);
             emitBalanceStreamChunk(address, chunk.length);
             yield chunk;
+          } else if (parsed.type === "summary") {
+            // The summary is the last line, so it is the frame most likely to
+            // arrive without a trailing newline.
+            options.onSummary?.(toSummary(parsed, address));
           }
         } catch (error) {
           if (options.strict) {
@@ -323,7 +349,7 @@ export async function getBalancesByAddress(
     return merged;
   }
 
-  const url = `${apiBase()}/data/balances/${address}`;
+  const url = `${apiBase()}/v1/data/balances/${address}`;
   const r = await rateLimitedFetch(url, {
     method: "GET",
     credentials: "omit",
@@ -331,7 +357,35 @@ export async function getBalancesByAddress(
   });
   if (!r.ok) throw new Error(`balances: HTTP ${r.status}`);
   const j = await r.json();
-  return Array.isArray(j) ? j : (j.results ?? []);
+  const results: WalletAddressBalanceWrapper[] = Array.isArray(j)
+    ? j
+    : (j.results ?? []);
+
+  // The buffered response carries the same `partial` flag the stream reports in
+  // its summary frame. Reporting it here too means a consumer's onSummary fires
+  // exactly once per scan whichever path served it — including the fallback
+  // below, where the caller asked to stream and silently did not.
+  if (opts?.onSummary) {
+    const completed = results.length;
+    opts.onSummary({
+      address,
+      partial: Array.isArray(j) ? false : Boolean(j.partial),
+      completed,
+      total: completed,
+    });
+  }
+  return results;
+}
+
+/**
+ * Options for the buffered call this module falls back to.
+ *
+ * `stream: false` is the load-bearing part: getBalancesByAddress re-enters the
+ * generator when `stream` is set, so forwarding the caller's options verbatim
+ * would turn a persistently failing stream into infinite recursion.
+ */
+function bufferedOptions(opts: BalanceStreamOptions): BalanceStreamOptions {
+  return { ...opts, stream: false };
 }
 
 export async function* getBalancesByAddressStream(
@@ -339,11 +393,11 @@ export async function* getBalancesByAddressStream(
   opts: BalanceStreamOptions = {}
 ): AsyncGenerator<WalletAddressBalanceWrapper[], void, void> {
   if (!TrustwareConfigStore.get().features.balanceStreaming) {
-    yield await getBalancesByAddress(address);
+    yield await getBalancesByAddress(address, bufferedOptions(opts));
     return;
   }
 
-  const url = `${apiBase()}/data/balances/${address}?stream=1`;
+  const url = `${apiBase()}/v1/data/balances/${address}?stream=1`;
 
   try {
     const response = await rateLimitedFetch(url, {
@@ -361,8 +415,19 @@ export async function* getBalancesByAddressStream(
 
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
+      // Asked to stream, answered buffered — the shape a caller is least likely
+      // to notice, so it reports its summary like every other path.
       const payload = await response.json();
-      yield Array.isArray(payload) ? payload : (payload.results ?? []);
+      const results: WalletAddressBalanceWrapper[] = Array.isArray(payload)
+        ? payload
+        : (payload.results ?? []);
+      opts.onSummary?.({
+        address,
+        partial: Array.isArray(payload) ? false : Boolean(payload.partial),
+        completed: results.length,
+        total: results.length,
+      });
+      yield results;
       return;
     }
 
@@ -372,7 +437,7 @@ export async function* getBalancesByAddressStream(
     }
   } catch (error) {
     emitBalanceStreamFallback(address, error);
-    yield await getBalancesByAddress(address);
+    yield await getBalancesByAddress(address, bufferedOptions(opts));
   }
 }
 

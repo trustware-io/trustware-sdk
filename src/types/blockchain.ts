@@ -50,10 +50,35 @@ export type TokenPageResult = {
   pageInfo: TokenPageInfo;
 };
 
+/**
+ * Terminal state of an address balance scan.
+ *
+ * `partial` is the one field a caller cannot reconstruct from the chunks: the
+ * backend scans every configured chain and reports `partial: true` when any of
+ * them failed, so "no balance on chain X" and "we could not reach chain X" look
+ * identical in the rows themselves. Rendering an empty wallet off a partial
+ * scan is the failure this exists to prevent.
+ */
+export type BalanceStreamSummary = {
+  address: string;
+  partial: boolean;
+  /** Chains that reported a result — equal to `total` on a complete scan. */
+  completed: number;
+  total: number;
+  /** Server-side scan duration. Absent on the buffered path, which does not report it. */
+  elapsedMs?: number;
+};
+
 export type BalanceStreamOptions = {
   stream?: boolean;
   signal?: AbortSignal;
   strict?: boolean;
+  /**
+   * Called once per scan with its terminal state, on the streamed and buffered
+   * paths alike — including when a stream fails and falls back — so a consumer
+   * can trust `partial` without knowing which path served it.
+   */
+  onSummary?: (summary: BalanceStreamSummary) => void;
 };
 
 export type GetBalancesOptions = {
