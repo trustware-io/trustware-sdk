@@ -41,9 +41,9 @@ export function isNotFoundError(err: unknown): boolean {
   return err instanceof Error && err.message.startsWith("HTTP 404");
 }
 
-///sdk/validate
+/** GET /api/v1/sdk/validate */
 export async function validateSdkAccess() {
-  const r = await fetch(`${apiBase()}/sdk/validate`, {
+  const r = await fetch(`${apiBase()}/v1/sdk/validate`, {
     method: "GET",
     headers: jsonHeaders(),
   });
