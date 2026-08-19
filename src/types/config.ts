@@ -226,7 +226,17 @@ export const RATE_LIMIT_WAIT_BUDGET_MS = 10_000;
 
 export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   tokensPagination: true,
-  balanceStreaming: false,
+  // On by default: an address scan covers every configured chain and takes
+  // seconds end to end, so streaming turns one long wait into a wallet that
+  // fills in as results land — first chunk in ~200ms against a ~2.3s buffered
+  // response, measured on a live backend.
+  //
+  // Safe to default because the path degrades on its own: a backend with
+  // BALANCE_STREAM_ENABLED off refuses the stream, and the SDK falls back to
+  // the buffered endpoint (emitting balance_stream_fallback), as does any
+  // runtime whose fetch has no readable body — React Native, most notably.
+  // The cost of defaulting ahead of a backend is one refused request per scan.
+  balanceStreaming: true,
   shouldAllowGA4: true,
   swapMode: false,
   swapDefaultDestToken: null,

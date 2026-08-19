@@ -101,3 +101,22 @@ describe("resolveConfig - legacy features.swapMode (deprecated)", () => {
     console.warn = originalWarn;
   });
 });
+
+describe("resolveConfig - balance streaming default", () => {
+  it("streams by default", () => {
+    const resolved = resolveConfig({
+      apiKey: "test-key",
+      routes: { toChain: "8453", toToken: "USDC" },
+    } as unknown as TrustwareConfigOptions);
+    assert.equal(resolved.features.balanceStreaming, true);
+  });
+
+  it("still lets an integrator opt out", () => {
+    const resolved = resolveConfig({
+      apiKey: "test-key",
+      routes: { toChain: "8453", toToken: "USDC" },
+      features: { balanceStreaming: false },
+    } as unknown as TrustwareConfigOptions);
+    assert.equal(resolved.features.balanceStreaming, false);
+  });
+});
