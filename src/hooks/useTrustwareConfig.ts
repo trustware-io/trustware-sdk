@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { ResolvedTrustwareConfig } from "../types";
-import { DEFAULT_RETRY_CONFIG } from "../types/config";
+import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
 import { TrustwareConfigStore } from "../config/store";
 
 export function useTrustwareConfig(): ResolvedTrustwareConfig {
@@ -30,15 +30,7 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
         // Shared with the resolver rather than restated, so this placeholder
         // can't drift from the real defaults.
         retry: { ...DEFAULT_RETRY_CONFIG },
-        features: {
-          tokensPagination: true,
-          balanceStreaming: false,
-          shouldAllowGA4: true,
-          swapMode: false,
-          swapDefaultDestToken: null,
-          swapLockDestToken: false,
-          swapAllowedDestTokens: null,
-        },
+        features: { ...DEFAULT_FEATURE_FLAGS },
       };
     }
   });
