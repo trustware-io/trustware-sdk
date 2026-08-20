@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus } from "../../core/routes";
 import { isNotFoundError } from "../../core/http";
+import { describeTransactionFailure } from "../../core/failure";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -178,7 +179,7 @@ export function useTransactionPolling() {
             }
 
             if (tx.status === "failed") {
-              const failError = mapFailedTransactionError(tx);
+              const failError = describeTransactionFailure(tx);
               clearPolling();
               setState((prev) => ({
                 ...prev,
@@ -384,42 +385,6 @@ function mapReceiptError(err: unknown): string {
   }
 
   return cleanedMsg || "Failed to submit transaction. Please try again.";
-}
-
-/**
- * Maps failed transaction details to user-friendly error message
- */
-function mapFailedTransactionError(tx: Transaction): string {
-  // Check for specific failure reasons in the status
-  const statusRaw = tx.statusRaw;
-  if (typeof statusRaw === "object" && statusRaw !== null) {
-    const statusObj = statusRaw as Record<string, unknown>;
-    const reason = statusObj.reason || statusObj.error || statusObj.message;
-
-    if (reason) {
-      const reasonLower = String(reason).toLowerCase();
-
-      if (reasonLower.includes("slippage") || reasonLower.includes("price")) {
-        return "Transaction failed due to price movement. Please try again with a higher slippage.";
-      }
-
-      if (reasonLower.includes("liquidity")) {
-        return "Transaction failed due to insufficient liquidity. Try a smaller amount.";
-      }
-
-      if (reasonLower.includes("timeout") || reasonLower.includes("expired")) {
-        return "Transaction expired. Please start a new deposit.";
-      }
-    }
-  }
-
-  // Check gas status
-  if (tx.gasStatus === "insufficient") {
-    return "Transaction failed due to insufficient gas. Please ensure you have enough native tokens for gas.";
-  }
-
-  // Default failure message
-  return "Transaction failed. Please try again or contact support if the issue persists.";
 }
 
 export default useTransactionPolling;
