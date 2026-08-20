@@ -38,6 +38,8 @@ describe("needsErc20Approval", () => {
 
   it("never requires approval on a non-EVM chain", () => {
     assert.equal(needsErc20Approval(USDC_BASE, "bitcoin"), false);
+    // Solana's chain id is numeric and used to be inferred as EVM.
+    assert.equal(needsErc20Approval(USDC_BASE, "1151111081099710"), false);
     assert.equal(needsErc20Approval("usei", "cosmos"), false);
     assert.equal(needsErc20Approval("ibc/ABC123", "cosmos"), false);
   });
