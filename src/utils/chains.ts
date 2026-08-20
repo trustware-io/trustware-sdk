@@ -3,6 +3,9 @@ import type { ChainDef, ChainType } from "../types";
 export const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 export const NATIVE_SOLANA = "So11111111111111111111111111111111111111111";
 
+/** Solana mainnet-beta as the routing backend identifies it numerically. */
+export const SOLANA_CHAIN_ID = "1151111081099710";
+
 const CHAIN_TYPE_ALIASES: Record<string, ChainType> = {
   btc: "bitcoin",
   bitcoin: "bitcoin",
@@ -26,6 +29,11 @@ function inferChainTypeFromValue(normalized: string): ChainType | undefined {
   ) {
     return normalized;
   }
+
+  // Solana's own chain id is numeric, so it has to be claimed before the
+  // "all digits means EVM" heuristic below — otherwise SPL routes get
+  // classified as EVM and take ERC20 code paths that cannot work.
+  if (normalized === SOLANA_CHAIN_ID) return "solana";
 
   if (/^eip155:\d+$/.test(normalized) || /^\d+$/.test(normalized)) {
     return "evm";
