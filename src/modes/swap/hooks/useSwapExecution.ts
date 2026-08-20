@@ -7,8 +7,10 @@ import { isNotFoundError } from "src/core/http";
 import { approvalSatisfied, requiredApprovalAmount } from "src/core/tx";
 import { getEVMAllowance, getEVMTxStatus } from "src/core/sdkRpc";
 import {
+  isEvmAddress,
   isNativeTokenAddress,
   isZeroAddrLike,
+  needsErc20Approval,
   normalizeChainType,
 } from "src/widget/helpers/chainHelpers";
 import type { BuildRouteResult, ChainDef, Transaction } from "src/types";
@@ -218,12 +220,12 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       }
 
       const chainType = normalizeChainType(fromChain);
-      const isNative =
-        !fromTokenAddress ||
-        isNativeTokenAddress(fromTokenAddress, chainType) ||
-        isZeroAddrLike(fromTokenAddress, chainType);
 
-      if (isNative) {
+      // Native assets need no allowance, and neither does anything off EVM:
+      // an SPL mint is not an ERC20 contract, so reading an allowance against
+      // it fails and the failure used to surface as "Approve <TOKEN>" on a
+      // Solana swap that has nothing to approve.
+      if (!needsErc20Approval(fromTokenAddress, chainType)) {
         setState((p) => ({ ...p, allowanceStatus: "sufficient" }));
         return;
       }
@@ -245,7 +247,9 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               BigInt(a.amount || "0"),
               amountWei
             );
-            if (!token || !a.spender) return [];
+            // Only an ERC20 has an allowance to read. A plan entry naming
+            // anything else (an SPL mint, a Cosmos denom) is not one.
+            if (!isEvmAddress(token) || !isEvmAddress(a.spender)) return [];
             return [
               {
                 chainId: a.chainId || chainIdStr,
@@ -464,7 +468,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               const token = (a.tokenAddress ?? fromTokenAddress) as
                 `0x${string}` | undefined;
               const approvalSpender = a.spender as `0x${string}` | undefined;
-              if (!token || !approvalSpender) return [];
+              // Same guard as checkAllowance: approve() is an ERC20 call, so
+              // a plan entry that doesn't name EVM addresses can't be one.
+              if (!isEvmAddress(token) || !isEvmAddress(approvalSpender))
+                return [];
               // A planned approval of 0 is the reset-to-zero step USDT-style
               // tokens require before an existing allowance can change —
               // dropping it makes the approve that follows revert.
@@ -494,12 +501,25 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               ]
             : [];
 
+        // Ownership is all-or-nothing. Any plan entry the guard above dropped
+        // is one this loop will never grant, so claiming ownership after a
+        // drop would silently skip it — sendRouteTransaction gets the whole
+        // array instead. A plan with no approvals array is covered by
+        // definition; the inferred-spender fallback stands in for it.
+        const coversEveryPlannedApproval =
+          plannedApprovals.length === 0 ||
+          requiredApprovals.length === plannedApprovals.length;
+
         // When this holds, the loop below owns the approval decision for the
         // whole execution and sendRouteTransaction must not second-guess it:
         // its ensureApprovals re-reads the allowance right after our approve
         // confirms, and a stale read from a different RPC node made it prompt
         // for the same approval twice (BVT-330).
-        const ownsApprovals = !isNative && !!walletAddress && !!chainIdStr;
+        const ownsApprovals =
+          coversEveryPlannedApproval &&
+          needsErc20Approval(fromTokenAddress, chainType) &&
+          !!walletAddress &&
+          !!chainIdStr;
 
         // Read the account the wallet is actually on, rather than trusting the
         // address captured when the route was built — an allowance read
