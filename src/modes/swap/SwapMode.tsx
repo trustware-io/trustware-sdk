@@ -33,6 +33,7 @@ import {
   normalizeChainType,
   isNativeTokenAddress,
   isZeroAddrLike,
+  needsErc20Approval,
 } from "src/widget/helpers/chainHelpers";
 import { useTrustwareConfig } from "src/hooks";
 import { useTrustware } from "src/provider";
@@ -491,6 +492,13 @@ export function SwapMode({
 
   const fromChainType = normalizeChainType(fromChain);
   const toChainType = normalizeChainType(toChain);
+  // "Max approval" only sizes an ERC20 approve(). A Solana swap or a native
+  // asset never runs one, so the toggle would promise a step that never
+  // happens — hide it rather than offer a setting with no effect.
+  const canSetMaxApproval = needsErc20Approval(
+    fromToken?.address,
+    fromChainType
+  );
   const needsDestAddress =
     !!fromChainType && !!toChainType && fromChainType !== toChainType;
   const isValidDestAddress =
@@ -2732,71 +2740,73 @@ export function SwapMode({
                   )}
                 </div>
 
-                {/* Max approval toggle */}
-                <div style={{ marginBottom: spacing[4] }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div>
-                      <p
-                        style={{
-                          fontSize: fontSize.sm,
-                          fontWeight: fontWeight.medium,
-                          color: colors.foreground,
-                        }}
-                      >
-                        Max approval
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "0.625rem",
-                          color: colors.mutedForeground,
-                          marginTop: "2px",
-                        }}
-                      >
-                        Approve unlimited spend (saves gas on repeat swaps)
-                      </p>
-                    </div>
-                    <button
-                      role="switch"
-                      aria-checked={maxApproval}
-                      onClick={() => setMaxApproval((v) => !v)}
+                {/* Max approval toggle — ERC20 approvals only */}
+                {canSetMaxApproval && (
+                  <div style={{ marginBottom: spacing[4] }}>
+                    <div
                       style={{
-                        width: "2.5rem",
-                        height: "1.375rem",
-                        borderRadius: "9999px",
-                        backgroundColor: maxApproval
-                          ? colors.primary
-                          : colors.muted,
-                        border: 0,
-                        cursor: "pointer",
-                        position: "relative",
-                        transition: "background-color 0.2s",
-                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                       }}
                     >
-                      <span
+                      <div>
+                        <p
+                          style={{
+                            fontSize: fontSize.sm,
+                            fontWeight: fontWeight.medium,
+                            color: colors.foreground,
+                          }}
+                        >
+                          Max approval
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "0.625rem",
+                            color: colors.mutedForeground,
+                            marginTop: "2px",
+                          }}
+                        >
+                          Approve unlimited spend (saves gas on repeat swaps)
+                        </p>
+                      </div>
+                      <button
+                        role="switch"
+                        aria-checked={maxApproval}
+                        onClick={() => setMaxApproval((v) => !v)}
                         style={{
-                          position: "absolute",
-                          top: "0.1875rem",
-                          left: maxApproval
-                            ? "calc(100% - 1rem - 0.1875rem)"
-                            : "0.1875rem",
-                          width: "1rem",
-                          height: "1rem",
+                          width: "2.5rem",
+                          height: "1.375rem",
                           borderRadius: "9999px",
-                          backgroundColor: colors.primaryForeground,
-                          transition: "left 0.2s",
-                          display: "block",
+                          backgroundColor: maxApproval
+                            ? colors.primary
+                            : colors.muted,
+                          border: 0,
+                          cursor: "pointer",
+                          position: "relative",
+                          transition: "background-color 0.2s",
+                          flexShrink: 0,
                         }}
-                      />
-                    </button>
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "0.1875rem",
+                            left: maxApproval
+                              ? "calc(100% - 1rem - 0.1875rem)"
+                              : "0.1875rem",
+                            width: "1rem",
+                            height: "1rem",
+                            borderRadius: "9999px",
+                            backgroundColor: colors.primaryForeground,
+                            transition: "left 0.2s",
+                            display: "block",
+                          }}
+                        />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Display currency */}
                 <div
