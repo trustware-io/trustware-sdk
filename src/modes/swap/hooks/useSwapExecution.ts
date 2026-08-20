@@ -4,6 +4,7 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
 import { submitReceipt, submitStepReceipt, getStatus } from "src/core/routes";
 import { isNotFoundError } from "src/core/http";
+import { describeTransactionFailure } from "src/core/failure";
 import { approvalSatisfied, requiredApprovalAmount } from "src/core/tx";
 import { getEVMAllowance, getEVMTxStatus } from "src/core/sdkRpc";
 import {
@@ -170,7 +171,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           }
           if (tx.status === "failed") {
             clearPolling();
-            const msg = "Transaction failed on-chain. Please try again.";
+            const msg = describeTransactionFailure(tx);
             setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
             onError(msg);
             return;
