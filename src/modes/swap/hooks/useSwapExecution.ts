@@ -628,12 +628,14 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           { approvalsEnsured: ownsApprovals }
         );
 
-        try {
-          await submitReceipt(routeResult.intentId, hash);
-        } catch {
-          /* non-fatal */
-        }
-
+        // The hash is the point of no return: the swap is on-chain and the
+        // screen must reflect that immediately. Reporting the receipt is a
+        // separate, best-effort concern — `rateLimitedFetch` has no request
+        // timeout and will sit out a server-directed 429 wait, so awaiting it
+        // here pinned the progress ring at "confirming" while the transaction
+        // was already confirming on-chain. Fire it alongside the poll instead;
+        // the status endpoint answers 200 {"status":"pending"} in the
+        // pre-receipt window, so polling first is safe.
         setState((p) => ({
           ...p,
           isSubmitting: false,
@@ -643,6 +645,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         }));
 
         startPolling(routeResult.intentId, onSuccess, onError);
+
+        void submitReceipt(routeResult.intentId, hash).catch(() => {});
       } catch (err) {
         const msg = mapTxError(err);
         setState((p) => ({

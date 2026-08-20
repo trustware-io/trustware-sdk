@@ -573,7 +573,34 @@ export async function sendRouteAsUserOperation(
   }
   console.debug("[send] UserOp included", { userOpHash, txHash });
 
-  await submitReceipt(intentId, txHash!, getSponsorshipRequestId(), eoaAddress);
+  // The UserOp is included — the swap has happened, and reporting the receipt
+  // must be unable to either undo that or delay the news of it.
+  //
+  // Undo: a throw here propagates out of sendRouteAsUserOperation, which the
+  // swap caller reads as "SA path failed" and answers by re-sending the very
+  // same route down the EOA path. Losing the receipt costs backend
+  // attribution; re-sending costs the user a second swap.
+  //
+  // Delay: the caller only advances its progress screen and starts polling
+  // once this function resolves, and `rateLimitedFetch` has no request timeout
+  // and sits out a server-directed 429 wait — so awaiting the receipt stalls
+  // the UI on a transaction that is already on-chain.
+  //
+  // Hence fire-and-forget. The try/catch still earns its place: the arguments
+  // are evaluated eagerly, so getSponsorshipRequestId() can throw
+  // synchronously, before there is a promise to attach .catch to.
+  try {
+    void submitReceipt(
+      intentId,
+      txHash,
+      getSponsorshipRequestId(),
+      eoaAddress
+    ).catch((err) => {
+      console.debug("[send] receipt submission failed (non-fatal)", err);
+    });
+  } catch (err) {
+    console.debug("[send] receipt submission failed (non-fatal)", err);
+  }
 
-  return { userOpHash, txHash: txHash!, intentId };
+  return { userOpHash, txHash, intentId };
 }
