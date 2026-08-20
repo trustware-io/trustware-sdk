@@ -46,6 +46,8 @@ describe("needsErc20Approval", () => {
     assert.equal(needsErc20Approval(undefined, "evm"), false);
     assert.equal(needsErc20Approval("", "evm"), false);
     assert.equal(needsErc20Approval("0xdeadbeef", "evm"), false);
+    assert.equal(needsErc20Approval(` ${USDC_BASE} `, "evm"), false);
+    assert.equal(needsErc20Approval(` ${NATIVE_EVM} `, "evm"), false);
   });
 });
 
@@ -66,5 +68,14 @@ describe("isEvmAddress", () => {
     assert.equal(isEvmAddress(""), false);
     assert.equal(isEvmAddress("0x123"), false);
     assert.equal(isEvmAddress(USDC_BASE + "00"), false);
+  });
+
+  // The predicate narrows the caller's own string, and that string goes
+  // straight to the allowance endpoint and to viem — both reject padding.
+  it("rejects a padded address rather than trimming it", () => {
+    assert.equal(isEvmAddress(` ${USDC_BASE} `), false);
+    assert.equal(isEvmAddress(`\n${USDC_BASE}`), false);
+    assert.equal(isEvmAddress(`${USDC_BASE}\t`), false);
+    assert.equal(isEvmAddress(` ${NATIVE_EVM} `), false);
   });
 });

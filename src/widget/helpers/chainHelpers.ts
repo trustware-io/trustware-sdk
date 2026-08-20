@@ -178,8 +178,14 @@ const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 /** Chain types that can never run an ERC20 `approve()`. */
 const NON_EVM_CHAIN_TYPES = new Set(["solana", "bitcoin", "btc"]);
 
+/**
+ * The value as given must already be a 20-byte hex address — no trimming.
+ * This narrows the caller's own string, and every consumer passes that exact
+ * string on to an allowance read or to viem, both of which reject padding.
+ * Accepting " 0xabc… " here would hand them a value the type says is safe.
+ */
 export function isEvmAddress(value?: string | null): value is `0x${string}` {
-  return !!value && EVM_ADDRESS_RE.test(value.trim());
+  return !!value && EVM_ADDRESS_RE.test(value);
 }
 
 /**
