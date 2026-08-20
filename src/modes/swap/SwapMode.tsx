@@ -988,9 +988,13 @@ export function SwapMode({
     };
   }, [route.loading]);
 
-  // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval
+  // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval.
+  // Only on the quote-facing stages: once the swap is submitted the quote is
+  // spent, and refreshing it just spends rate-limit budget the status poll
+  // needs on /route calls whose answer nothing reads.
   useEffect(() => {
     if (!route.data) return;
+    if (stage !== "home" && stage !== "review") return;
     const id = setInterval(() => {
       const ts = quoteTimestampRef.current;
       if (ts === null) return;
@@ -1002,7 +1006,7 @@ export function SwapMode({
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [route.data]);
+  }, [route.data, stage]);
 
   // Check allowance upfront when entering review so button shows correct label immediately
   useEffect(() => {

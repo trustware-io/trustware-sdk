@@ -573,7 +573,22 @@ export async function sendRouteAsUserOperation(
   }
   console.debug("[send] UserOp included", { userOpHash, txHash });
 
-  await submitReceipt(intentId, txHash!, getSponsorshipRequestId(), eoaAddress);
+  // The UserOp is included — the swap has happened. Reporting the receipt
+  // must never be able to undo that: a throw here propagates out of
+  // sendRouteAsUserOperation, which the swap caller reads as "SA path failed"
+  // and answers by re-sending the very same route down the EOA path. Losing
+  // the receipt costs backend attribution; re-sending costs the user a second
+  // swap, so this is deliberately swallowed.
+  try {
+    await submitReceipt(
+      intentId,
+      txHash!,
+      getSponsorshipRequestId(),
+      eoaAddress
+    );
+  } catch (err) {
+    console.debug("[send] receipt submission failed (non-fatal)", err);
+  }
 
   return { userOpHash, txHash: txHash!, intentId };
 }
