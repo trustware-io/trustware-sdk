@@ -38,6 +38,21 @@ describe("canonicalRouteToken", () => {
     }
   });
 
+  // A number reaches normalizeChainType as a would-be ChainDef, whose .type
+  // and .chainId are undefined — so without an explicit conversion the whole
+  // mapping silently no-ops for numeric callers.
+  it("handles a numeric chain id", () => {
+    assert.equal(
+      canonicalRouteToken(NATIVE_EVM, 1151111081099710),
+      SOLANA_NATIVE_ROUTE_TOKEN
+    );
+    assert.equal(canonicalRouteToken(NATIVE_EVM, 8453), NATIVE_EVM);
+    assert.equal(
+      canonicalRouteToken(USDC_SOLANA, 1151111081099710),
+      USDC_SOLANA
+    );
+  });
+
   it("leaves the mint alone when it is already canonical", () => {
     assert.equal(
       canonicalRouteToken(SOLANA_NATIVE_ROUTE_TOKEN, "solana"),

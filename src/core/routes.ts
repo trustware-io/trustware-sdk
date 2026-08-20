@@ -37,7 +37,13 @@ export function canonicalRouteToken(
   address: string | undefined,
   chain: string | number | undefined
 ): string {
-  if (normalizeChainType(chain as string) !== "solana") return address ?? "";
+  // normalizeChainType treats a non-string as a ChainDef and reads .type /
+  // .chainId off it, so a numeric chain id resolves to undefined and would
+  // skip the mapping entirely. Convert before inferring.
+  const chainType = normalizeChainType(
+    chain === undefined || chain === null ? undefined : String(chain)
+  );
+  if (chainType !== "solana") return address ?? "";
   if (!address) return SOLANA_NATIVE_ROUTE_TOKEN;
   const trimmed = address.trim();
   if (
