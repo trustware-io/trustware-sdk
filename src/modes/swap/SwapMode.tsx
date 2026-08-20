@@ -1008,6 +1008,15 @@ export function SwapMode({
     return () => clearInterval(id);
   }, [route.data, stage]);
 
+  // Every fetch nulls route.data for its whole duration (useSwapRoute), so the
+  // refresh above can pull the quote out from under the review screen — and if
+  // it fails, leave it there with nothing to act on. Give that screen a way to
+  // ask for a new quote itself.
+  const handleRetryQuote = useCallback(() => {
+    if (!latestFetchParamsRef.current) return;
+    void fetchRef.current(latestFetchParamsRef.current);
+  }, []);
+
   // Check allowance upfront when entering review so button shows correct label immediately
   useEffect(() => {
     if (stage !== "review") return;
@@ -2389,6 +2398,10 @@ export function SwapMode({
             txStatus={execution.txStatus}
             isSubmitting={execution.isSubmitting}
             isGasSponsored={isGasSponsored}
+            hasQuote={!!route.data}
+            isQuoteRefreshing={route.loading}
+            quoteError={route.error}
+            onRetryQuote={handleRetryQuote}
             onExecute={() => void handleExecute()}
           />
         </div>
@@ -3706,6 +3719,11 @@ type SwapActionAreaProps = {
   txStatus: SwapTxStatus;
   isSubmitting: boolean;
   isGasSponsored: boolean;
+  /** False while the TTL refresh has the quote in flight, or after it failed. */
+  hasQuote: boolean;
+  isQuoteRefreshing: boolean;
+  quoteError: string | null;
+  onRetryQuote: () => void;
   onExecute: () => void;
 };
 
@@ -3715,12 +3733,21 @@ function SwapActionArea({
   txStatus,
   isSubmitting,
   isGasSponsored,
+  hasQuote,
+  isQuoteRefreshing,
+  quoteError,
+  onRetryQuote,
   onExecute,
 }: SwapActionAreaProps): React.ReactElement {
   // SA path (sponsored) handles approval via Permit2 inside the UserOp batch —
   // no separate approve step, so we never show "Approve TOKEN" when sponsored.
   const needsApproval = allowanceStatus === "needed" && !isGasSponsored;
   const isChecking = allowanceStatus === "checking";
+
+  // The quote is gone and not coming back on its own — offer a retry rather
+  // than a Swap button that handleExecute silently drops for want of a route.
+  const quoteUnavailable =
+    !hasQuote && !isQuoteRefreshing && !isSubmitting && txStatus === "idle";
 
   let label: string;
   if (isChecking) {
@@ -3729,13 +3756,16 @@ function SwapActionArea({
     label = `Approving ${fromTokenSymbol}...`;
   } else if (isSubmitting) {
     label = "Confirm in wallet...";
+  } else if (isQuoteRefreshing) {
+    label = "Refreshing quote...";
   } else if (needsApproval) {
     label = `Approve ${fromTokenSymbol}`;
   } else {
     label = "Swap";
   }
 
-  const isDisabled = isSubmitting || isChecking;
+  const isDisabled =
+    isSubmitting || isChecking || isQuoteRefreshing || !hasQuote;
 
   return (
     <div style={{ marginTop: spacing[6] }}>
@@ -3776,27 +3806,58 @@ function SwapActionArea({
         </div>
       )}
 
-      <button
-        onClick={onExecute}
-        disabled={isDisabled}
-        style={mergeStyles(
-          {
-            width: "100%",
-            height: "3.5rem",
-            borderRadius: "1.5rem",
-            backgroundColor: colors.primary,
-            color: colors.primaryForeground,
-            fontSize: fontSize.base,
-            fontWeight: fontWeight.semibold,
-            border: 0,
-            cursor: "pointer",
-            transition: "opacity 0.2s",
-          },
-          isDisabled && { opacity: 0.6, cursor: "not-allowed" }
-        )}
-      >
-        {label}
-      </button>
+      {quoteUnavailable ? (
+        <>
+          <p
+            style={{
+              fontSize: fontSize.xs,
+              color: colors.destructive,
+              textAlign: "center",
+              marginBottom: spacing[3],
+            }}
+          >
+            {quoteError ?? "This quote expired."}
+          </p>
+          <button
+            onClick={onRetryQuote}
+            style={{
+              width: "100%",
+              height: "3.5rem",
+              borderRadius: "1.5rem",
+              backgroundColor: colors.primary,
+              color: colors.primaryForeground,
+              fontSize: fontSize.base,
+              fontWeight: fontWeight.semibold,
+              border: 0,
+              cursor: "pointer",
+            }}
+          >
+            Get a new quote
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={onExecute}
+          disabled={isDisabled}
+          style={mergeStyles(
+            {
+              width: "100%",
+              height: "3.5rem",
+              borderRadius: "1.5rem",
+              backgroundColor: colors.primary,
+              color: colors.primaryForeground,
+              fontSize: fontSize.base,
+              fontWeight: fontWeight.semibold,
+              border: 0,
+              cursor: "pointer",
+              transition: "opacity 0.2s",
+            },
+            isDisabled && { opacity: 0.6, cursor: "not-allowed" }
+          )}
+        >
+          {label}
+        </button>
+      )}
 
       {needsApproval && !isSubmitting && (
         <p
