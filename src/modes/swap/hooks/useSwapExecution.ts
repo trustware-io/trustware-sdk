@@ -501,12 +501,22 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               ]
             : [];
 
+        // Ownership is all-or-nothing. Any plan entry the guard above dropped
+        // is one this loop will never grant, so claiming ownership after a
+        // drop would silently skip it — sendRouteTransaction gets the whole
+        // array instead. A plan with no approvals array is covered by
+        // definition; the inferred-spender fallback stands in for it.
+        const coversEveryPlannedApproval =
+          plannedApprovals.length === 0 ||
+          requiredApprovals.length === plannedApprovals.length;
+
         // When this holds, the loop below owns the approval decision for the
         // whole execution and sendRouteTransaction must not second-guess it:
         // its ensureApprovals re-reads the allowance right after our approve
         // confirms, and a stale read from a different RPC node made it prompt
         // for the same approval twice (BVT-330).
         const ownsApprovals =
+          coversEveryPlannedApproval &&
           needsErc20Approval(fromTokenAddress, chainType) &&
           !!walletAddress &&
           !!chainIdStr;
