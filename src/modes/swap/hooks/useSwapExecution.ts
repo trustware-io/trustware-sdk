@@ -5,8 +5,14 @@ import { Trustware } from "src/core";
 import { submitReceipt, submitStepReceipt, getStatus } from "src/core/routes";
 import { isNotFoundError } from "src/core/http";
 import { describeTransactionFailure } from "src/core/failure";
-import { approvalSatisfied, requiredApprovalAmount } from "src/core/tx";
-import { getEVMAllowance, getEVMTxStatus } from "src/core/sdkRpc";
+import {
+  approvalSatisfied,
+  ensureWalletOnChain,
+  requiredApprovalAmount,
+  waitForApprovalConfirmation,
+} from "src/core/tx";
+import { getEVMAllowance } from "src/core/sdkRpc";
+import { isValueDestroying } from "../routeValue";
 import {
   isEvmAddress,
   isNativeTokenAddress,
@@ -52,10 +58,6 @@ export type SwapExecutionState = {
   allowanceStatus: AllowanceStatus;
 };
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function isUserRejection(err: unknown): boolean {
   if (!err) return false;
   const e = err as Record<string, unknown>;
@@ -69,20 +71,8 @@ function isUserRejection(err: unknown): boolean {
   );
 }
 
-async function waitForApprovalConfirmation(
-  chainId: string,
-  txHash: `0x${string}`
-) {
-  const started = Date.now();
-  while (Date.now() - started < 120_000) {
-    const status = await getEVMTxStatus({ chainId, txHash });
-    if (status.status === "success") return;
-    if (status.status === "reverted")
-      throw new Error("Approval transaction reverted");
-    await sleep(2_000);
-  }
-  throw new Error("Timed out waiting for approval confirmation");
-}
+// Approval confirmation lives in core/tx so both the widget and direct
+// sendRouteTransaction callers get the same not_found handling.
 
 /**
  * The wallet's current account, asserted to still be the one this execution
@@ -314,6 +304,19 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     ) => {
       if (!routeResult?.txReq) {
         const msg = "Invalid route data. Please try again.";
+        setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
+        onError(msg);
+        return;
+      }
+
+      // Checked here rather than only on the CTA because this is the single
+      // point every execution passes through. Quotes refresh while the review
+      // screen is open, and the Solana path rebuilds the route immediately
+      // before signing, so the route being signed is not necessarily the one
+      // the CTA judged.
+      if (isValueDestroying(routeResult.route?.estimate)) {
+        const msg =
+          "This route now costs more in fees than it delivers. Get a new quote.";
         setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
         onError(msg);
         return;
@@ -557,18 +560,16 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               throw new Error("Invalid chain ID for token approval");
             }
 
-            // Switch to correct chain first
+            // Be on the approval's own chain before signing, and prove it.
+            // A failed switch must abort: sending anyway signs against
+            // whatever chain the wallet is still on, where the token address
+            // usually holds no code and the approve "succeeds" having granted
+            // nothing.
             const targetChain = Number(required.chainId ?? txReq.chainId);
-            if (Number.isFinite(targetChain)) {
-              const current = await wallet.getChainId();
-              if (current !== targetChain) {
-                try {
-                  await wallet.switchChain(targetChain);
-                } catch {
-                  /* non-fatal */
-                }
-              }
+            if (!Number.isFinite(targetChain)) {
+              throw new Error("Invalid chain ID for token approval");
             }
+            await ensureWalletOnChain(wallet, targetChain);
 
             // Never grant less than the plan asks for, or the route's own
             // transaction reverts. maxApproval only widens.

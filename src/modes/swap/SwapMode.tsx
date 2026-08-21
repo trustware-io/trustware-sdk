@@ -39,6 +39,7 @@ import { useTrustwareConfig } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
 import { useSwapExecution } from "./hooks/useSwapExecution";
+import { isValueDestroying } from "./routeValue";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
 // import { SwapWalletSelector } from "./components/SwapWalletSelector";
@@ -2418,6 +2419,11 @@ export function SwapMode({
   }
 
   // ─── Home ─────────────────────────────────────────────────────────────────────
+  // Fees exceed everything the route delivers, so executing it loses money
+  // outright. The price-impact badge alone reads as "expensive"; this is a
+  // different claim and blocks rather than decorates.
+  const feesExceedOutput = isValueDestroying(route.data?.route?.estimate);
+
   const ctaLabel = !hasTokens
     ? "Get started"
     : !hasAmount
@@ -2430,14 +2436,17 @@ export function SwapMode({
             ? `Enter ${toChain?.networkName ?? "destination"} address`
             : route.loading
               ? "Getting quote..."
-              : "Review";
+              : feesExceedOutput
+                ? "Fees exceed amount received"
+                : "Review";
 
   const ctaDisabled =
     !hasTokens ||
     !hasAmount ||
     insufficient ||
     (isConnected && needsDestAddress && !isValidDestAddress) ||
-    route.loading;
+    route.loading ||
+    feesExceedOutput;
   const ctaAction = !isConnected
     ? handleConnectAndReview
     : () => void handleReview();
@@ -3528,6 +3537,21 @@ export function SwapMode({
           >
             {ctaLabel}
           </button>
+          {feesExceedOutput && (
+            <div
+              style={{
+                marginTop: `-${spacing[2]}`,
+                marginBottom: spacing[3],
+                fontSize: fontSize.xs,
+                lineHeight: 1.4,
+                color: "#f87171",
+                textAlign: "center",
+              }}
+            >
+              This route costs more in fees than it delivers. Try a larger
+              amount, or a different token or network.
+            </div>
+          )}
         </div>
 
         {/* Rate / gas footer — expandable, shown when both tokens selected */}
