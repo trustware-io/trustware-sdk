@@ -334,40 +334,6 @@ console.log(tx.status, tx.destTxHash);
 
 See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 
-### 5. Bridge and Call
-
-A route can end in a contract call on the destination chain instead of a plain
-transfer — depositing into a vault in the same flow as the bridge, say. Pass
-`hooks.postHook` to `buildRoute` or `buildDepositAddress`; omit `hooks` entirely
-and nothing about the existing behaviour changes.
-
-```ts
-import { Trustware, assertValidPostHook } from "@trustware/sdk";
-
-const hooks = {
-  postHook: {
-    target: "0xVault...",
-    callData: "0xdeadbeef", // ABI-encoded deposit(uint256)
-    fundAmount: "25000000",
-    // target pulls fundToken via transferFrom, so it needs an approval
-    toApprovalAddress: "0xVault...",
-    // optional for Squid, but required to stay eligible for LiFi
-    estimatedGas: "250000",
-  },
-};
-
-// Same check buildRoute runs internally — call it early to fail in your own
-// form validation rather than on a round trip to the backend.
-assertValidPostHook(hooks);
-
-const route = await Trustware.buildRoute({ ...routeBody, hooks });
-```
-
-Instead of `fundAmount` you can set `fullAmount: true` with an `amountInputPos`,
-which has the backend patch `callData` with the amount that actually lands. That
-mode is Squid-only, so requests using it are only routed to providers that
-support it.
-
 ## Common Config Examples
 
 ### Fixed Amount Deposit
