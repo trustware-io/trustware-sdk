@@ -276,6 +276,11 @@ jobs:
           # literally, not as "@here", which posts as plain text and notifies
           # nobody. It has to live in a block's mrkdwn (the top-level `text`
           # fallback alone does not trigger the mention).
+          #
+          # The npm URL is posted bare rather than as `<url|npm>` so the whole
+          # versioned package address is readable and copyable in the message;
+          # Slack auto-links it. Links inside blocks aren't unfurled, so this
+          # doesn't drag an npm preview card in behind it.
           jq -n \
             --arg text "${EMOJI} SDK ${CHANNEL_LABEL} release ${TAG}" \
             --arg headline "<!here> ${EMOJI} *${PKG}* \`${VERSION}\` published to npm (${CHANNEL_LABEL})" \
@@ -293,7 +298,8 @@ jobs:
                    else [ { type: "section", text: { type: "mrkdwn", text: ("*What changed*\n" + $summary) } } ]
                    end)
                 + [ { type: "context", elements: [ { type: "mrkdwn", text: ("`" + $install + "`") } ] },
-                    { type: "context", elements: [ { type: "mrkdwn", text: ("<" + $release_url + "|Full release notes>  •  <" + $npm_url + "|npm>") } ] } ]
+                    { type: "context", elements: [ { type: "mrkdwn", text: (":package: " + $npm_url) } ] },
+                    { type: "context", elements: [ { type: "mrkdwn", text: ("<" + $release_url + "|Full release notes>") } ] } ]
               )
             }' > payload.json
 
