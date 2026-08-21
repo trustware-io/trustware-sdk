@@ -32,6 +32,10 @@ jobs:
     if: contains(github.ref_name, '-staging.')
     runs-on: ubuntu-latest
     environment: npm-staging
+    # Re-exported so notify-slack can drop the same notes that go on the
+    # GitHub Release into the Slack message, instead of only linking to them.
+    outputs:
+      notes: ${{ steps.changelog.outputs.content }}
     permissions:
       id-token: write   # Required for npm trusted publishing (OIDC)
       contents: write   # Required to create the GitHub Release
@@ -129,6 +133,10 @@ jobs:
     if: ${{ !contains(github.ref_name, '-staging.') }}
     runs-on: ubuntu-latest
     environment: npm-production
+    # Re-exported so notify-slack can drop the same notes that go on the
+    # GitHub Release into the Slack message, instead of only linking to them.
+    outputs:
+      notes: ${{ steps.changelog.outputs.content }}
     permissions:
       id-token: write
       contents: write   # Required to create the GitHub Release
@@ -193,3 +201,109 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.content }}
+
+  # Announces the release in Slack. Runs after whichever publish job actually
+  # ran — `needs.*.result` is [success, skipped] for a staging tag and
+  # [skipped, success] for a production one, so requiring *a* success covers
+  # both while still staying silent when the publish itself failed.
+  #
+  # The webhook is a REPO-level secret, not an environment one: this job
+  # deliberately declares no `environment:`, so npm-staging / npm-production
+  # secrets are not in scope here.
+  notify-slack:
+    needs: [publish-staging, publish-production]
+    if: always() && contains(needs.*.result, 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post release to Slack
+        env:
+          WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
+          TAG: ${{ github.ref_name }}
+          # Exactly one of these is non-empty — the other job was skipped.
+          NOTES: ${{ needs.publish-staging.outputs.notes }}${{ needs.publish-production.outputs.notes }}
+        run: |
+          # No webhook configured (e.g. a fork) — skip rather than fail a
+          # release that has already been published.
+          if [ -z "$WEBHOOK" ]; then
+            echo "SLACK_RELEASE_WEBHOOK_URL not set; skipping Slack notification."
+            exit 0
+          fi
+
+          VERSION="${TAG#v}"
+          case "$TAG" in
+            *-staging.*)
+              CHANNEL_LABEL="staging"
+              PKG="@trustware/sdk-staging"
+              EMOJI=":construction:"
+              INSTALL="npm i ${PKG}@staging"
+              ;;
+            *)
+              CHANNEL_LABEL="production"
+              PKG="@trustware/sdk"
+              EMOJI=":rocket:"
+              INSTALL="npm i ${PKG}@latest"
+              ;;
+          esac
+
+          RELEASE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+          NPM_URL="https://www.npmjs.com/package/${PKG}/v/${VERSION}"
+
+          # Condense git-cliff's notes into a few Slack-sized bullets:
+          # drop markdown headings and blanks, keep the first MAX_LINES
+          # changes, translate `**bold**` to Slack's single-asterisk mrkdwn,
+          # and hard-cap the length so a big release can't blow past Slack's
+          # 3000-char block limit. Full notes stay one click away.
+          MAX_LINES=6
+          MAX_CHARS=900
+          SUMMARY=$(printf '%s\n' "$NOTES" \
+            | sed -e 's/\r$//' -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' \
+            | sed -e 's/\*\*\([^*]*\)\*\*/*\1*/g' -e 's/^[[:space:]]*[-*][[:space:]]*/• /' \
+            | head -n "$MAX_LINES")
+          TOTAL=$(printf '%s\n' "$NOTES" \
+            | sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' | wc -l)
+          if [ "$TOTAL" -gt "$MAX_LINES" ]; then
+            SUMMARY="${SUMMARY}"$'\n'"_…and $((TOTAL - MAX_LINES)) more_"
+          fi
+          if [ "${#SUMMARY}" -gt "$MAX_CHARS" ]; then
+            SUMMARY="$(printf '%.*s' "$MAX_CHARS" "$SUMMARY")…"
+          fi
+
+          # jq builds the payload so version/tag/notes strings can never break
+          # out of the JSON, and Block Kit renders it as a compact card. The
+          # "What changed" section is omitted entirely when the notes are empty.
+          #
+          # `<!here>` is Slack's escape sequence for @here — it must be written
+          # literally, not as "@here", which posts as plain text and notifies
+          # nobody. It has to live in a block's mrkdwn (the top-level `text`
+          # fallback alone does not trigger the mention).
+          #
+          # The npm URL is posted bare rather than as `<url|npm>` so the whole
+          # versioned package address is readable and copyable in the message;
+          # Slack auto-links it. Links inside blocks aren't unfurled, so this
+          # doesn't drag an npm preview card in behind it.
+          jq -n \
+            --arg text "${EMOJI} SDK ${CHANNEL_LABEL} release ${TAG}" \
+            --arg headline "<!here> ${EMOJI} *${PKG}* \`${VERSION}\` published to npm (${CHANNEL_LABEL})" \
+            --arg summary "$SUMMARY" \
+            --arg install "$INSTALL" \
+            --arg release_url "$RELEASE_URL" \
+            --arg npm_url "$NPM_URL" \
+            '{
+              username: "Trustware",
+              icon_emoji: ":package:",
+              text: $text,
+              blocks: (
+                [ { type: "section", text: { type: "mrkdwn", text: $headline } } ]
+                + (if ($summary | gsub("\\s"; "")) == "" then []
+                   else [ { type: "section", text: { type: "mrkdwn", text: ("*What changed*\n" + $summary) } } ]
+                   end)
+                + [ { type: "context", elements: [ { type: "mrkdwn", text: ("`" + $install + "`") } ] },
+                    { type: "context", elements: [ { type: "mrkdwn", text: (":package: " + $npm_url) } ] },
+                    { type: "context", elements: [ { type: "mrkdwn", text: ("<" + $release_url + "|Full release notes>") } ] } ]
+              )
+            }' > payload.json
+
+          curl -sS --fail-with-body -X POST \
+            -H 'Content-Type: application/json' \
+            --data @payload.json \
+            "$WEBHOOK"
