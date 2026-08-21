@@ -45,32 +45,7 @@ npm install @trustware/sdk
 pnpm add @trustware/sdk
 ```
 
-`react` and `react-dom` are peer dependencies at `>=18.2 <20` — your app
-supplies them. `viem` is a peer too (`^2.52`), but you do not need to install
-it: it arrives transitively as a regular dependency of `@reown/appkit`, which
-the SDK depends on. The peer range only bites if you pin `viem` yourself —
-anything below `2.52` gets flagged `invalid` against it.
-
-`viem` is left external at build time so your app keeps exactly one copy of it:
-bundling a second instance cost ~380 KB and is a real source of bugs for
-anything holding chain or client state.
-
-## Entry Points
-
-The package ships several entry points so you only pay for what you import:
-
-| Import | Contains |
-| --- | --- |
-| `@trustware/sdk` | provider, widget, core and wallet helpers — everything but `smart-account` |
-| `@trustware/sdk/react` | the widget and its types |
-| `@trustware/sdk/core` | headless `Trustware` facade, route + balance calls |
-| `@trustware/sdk/wallet` | wallet detection, adapters, `walletManager` |
-| `@trustware/sdk/smart-account` | ERC-4337 client and user-operation helpers |
-| `@trustware/sdk/constants` · `/types` | shared constants and type-only imports |
-
-Every entry is tree-shakeable (`sideEffects: false`) and size-budgeted in CI —
-65 KB gzipped for `smart-account`, up to 665 KB for the full SDK, with the peer
-dependencies above excluded from the count.
+Supports React `18.2+` and `19`.
 
 ## Main Exports
 
@@ -247,7 +222,7 @@ Use this mode when:
 
 ### 2. Widget With a Host-Managed Wallet
 
-Use this when your app already controls wallet connection through Wagmi, Viem, or another adapter.
+Use this when your app already controls wallet connection through Wagmi or another adapter.
 
 ```tsx
 import { useMemo } from "react";
