@@ -434,23 +434,15 @@ unless you import it.
 
 `config.onEvent` receives a discriminated `TrustwareEvent`:
 
-| `type` | Payload |
-| --- | --- |
-| `error` | `error: TrustwareError` |
-| `transaction_started` | — |
-| `transaction_success` | `txHash`, optional `transaction` |
-| `wallet_connected` | `address` |
-| `token_page_loaded` | `chainRef`, `count`, `hasNextPage`, optional `query` / `cursor` |
-| `token_page_error` | `chainRef`, `message`, optional `query` / `cursor` |
-| `balance_stream_chunk` | `address`, `chunkSize` |
-| `balance_stream_fallback` | `address`, `message` |
-| `swap_route_changed` | `fromChain`, `fromToken`, `toChain`, `toToken`, optional `amount` |
-
-`onError` and `onSuccess` are narrower conveniences over the same stream: the
-SDK raises each failure through `onError` and an `error` event together, and
-each completed transaction through `onSuccess` and a `transaction_success`
-event together. Use whichever shape suits you — subscribing to both means
-handling the same thing twice.
+- `error`
+- `transaction_started`
+- `transaction_success`
+- `wallet_connected`
+- `token_page_loaded`
+- `token_page_error`
+- `balance_stream_chunk`
+- `balance_stream_fallback`
+- `swap_route_changed`
 
 ## Rate Limiting
 
