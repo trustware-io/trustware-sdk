@@ -271,9 +271,14 @@ jobs:
           # jq builds the payload so version/tag/notes strings can never break
           # out of the JSON, and Block Kit renders it as a compact card. The
           # "What changed" section is omitted entirely when the notes are empty.
+          #
+          # `<!here>` is Slack's escape sequence for @here — it must be written
+          # literally, not as "@here", which posts as plain text and notifies
+          # nobody. It has to live in a block's mrkdwn (the top-level `text`
+          # fallback alone does not trigger the mention).
           jq -n \
             --arg text "${EMOJI} SDK ${CHANNEL_LABEL} release ${TAG}" \
-            --arg headline "${EMOJI} *${PKG}* \`${VERSION}\` published to npm (${CHANNEL_LABEL})" \
+            --arg headline "<!here> ${EMOJI} *${PKG}* \`${VERSION}\` published to npm (${CHANNEL_LABEL})" \
             --arg summary "$SUMMARY" \
             --arg install "$INSTALL" \
             --arg release_url "$RELEASE_URL" \
