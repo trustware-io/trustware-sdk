@@ -39,20 +39,32 @@ The current widget flow is:
 
 ## Installation
 
-Supports React `18.2+` and `19`.
-
 ```bash
 npm install @trustware/sdk
 # or
 pnpm add @trustware/sdk
 ```
 
+Supports React `18.2+` and `19`.
+
 ## Main Exports
 
 - `TrustwareProvider`
+- `useTrustware`
 - `TrustwareWidget`
 - `Trustware`
-- `useTrustware`
+- `TrustwareError`
+- `RateLimitError`
+- `assertValidPostHook`
+- `walletManager`
+- `useWalletDetection`
+- `useWalletInfo`
+- `connectDetectedWallet`
+- `WagmiBridge`
+- `useWagmi`
+- `useEIP1193`
+- `WALLETS`
+- `./identity`, `./validation/address`, `./types`, `./constants`
 
 ## Quick Start
 
@@ -102,6 +114,7 @@ type TrustwareConfigOptions = {
     toChain: string;
     toToken: string;
     fromToken?: string;
+    fromChain?: string;
     fromAddress?: string;
     toAddress?: string;
     defaultSlippage?: number;
@@ -156,9 +169,13 @@ type TrustwareConfigOptions = {
 - `routes.toChain`: destination chain key or chain id string.
 - `routes.toToken`: destination token address or registry token identifier.
 - `routes.fromToken`: optional source token preference.
+- `routes.fromChain`: optional source chain preference.
 - `routes.fromAddress`: optional source wallet override.
 - `routes.toAddress`: optional destination address override.
 - `routes.defaultSlippage`: optional slippage percentage. Defaults to `1`.
+
+Chain and token fields are strings, including numeric chain ids — `"8453"`, not
+`8453`.
 
 ### Route Options
 
@@ -169,14 +186,15 @@ type TrustwareConfigOptions = {
 
 ### Other Config Groups
 
-- `autoDetectProvider`: enables Trustware-managed wallet discovery.
+- `autoDetectProvider`: enables Trustware-managed wallet discovery. Defaults to
+  `false` — set it to `true` if you are not attaching a wallet yourself.
 - `theme`: widget color mode — `"light" | "dark" | "system"` (default
   `"system"`). Switch it at runtime with `Trustware.setTheme("dark")`.
 - `messages`: top-level copy overrides.
-- `retry`: API retry and rate-limit behavior.
+- `retry`: rate-limit observability callbacks — see [Rate Limiting](#rate-limiting).
 - `walletConnect`: WalletConnect overrides.
 - `features`: feature rollout controls, including swap-mode token selection constraints.
-- `onError`, `onSuccess`, `onEvent`: lifecycle callbacks.
+- `onError`, `onSuccess`, `onEvent`: lifecycle callbacks — see [Events](#events).
 
 ## Widget Usage Patterns
 
@@ -204,7 +222,7 @@ Use this mode when:
 
 ### 2. Widget With a Host-Managed Wallet
 
-Use this when your app already controls wallet connection through Wagmi, Viem, or another adapter.
+Use this when your app already controls wallet connection through Wagmi or another adapter.
 
 ```tsx
 import { useMemo } from "react";
@@ -250,11 +268,9 @@ Use this mode when:
 
 ```tsx
 import { useRef } from "react";
-import {
-  TrustwareProvider,
-  TrustwareWidget,
-  type TrustwareWidgetRef,
-} from "@trustware/sdk";
+import { TrustwareProvider, TrustwareWidget } from "@trustware/sdk";
+// The widget's prop and ref types live on the widget entry, not the root barrel.
+import type { TrustwareWidgetRef } from "@trustware/sdk/react";
 
 export function ControlledWidget() {
   const widgetRef = useRef<TrustwareWidgetRef>(null);
@@ -277,12 +293,17 @@ export function ControlledWidget() {
 
 Current widget props:
 
-- `theme?: "light" | "dark" | "system"`
+- `theme?: "light" | "dark" | "system"` — initial mode only; `Trustware.setTheme()` drives it afterwards
 - `initialStep?: "home" | "select-token" | "crypto-pay" | "processing" | "success" | "error"`
-- `defaultOpen?: boolean`
+- `defaultOpen?: boolean` — defaults to `true`, which is what you want for inline usage
+- `style?: React.CSSProperties` — merged onto the widget shell
 - `onOpen?: () => void`
 - `onClose?: () => void`
-- `showThemeToggle?: boolean`
+- `showThemeToggle?: boolean` — defaults to `true`
+
+And the ref (`TrustwareWidgetRef`): `open()`, `close()`, `isOpen()`. `close()`
+asks for confirmation first if a transaction is in flight, so it is safe to wire
+straight to a dismiss button.
 
 ### 4. Headless Core API
 
@@ -355,10 +376,73 @@ Trustware.setDestinationAddress("0xDestination...");
 
 ## Headless / Core Notes
 
+`Trustware` is a plain object, not a class or an event emitter — there is no
+`Trustware.on()`. Events reach you through `config.onEvent`.
+
+**Lifecycle and config**
+
+- `Trustware.init(config)` loads the config and validates the API key once.
 - `Trustware.getConfig()` returns the resolved config.
-- `Trustware.getWallet()` and `Trustware.getAddress()` expose the active wallet.
+- `Trustware.setTheme(mode)` / `getTheme()` switch the widget's color mode at runtime.
+- `Trustware.setDestinationAddress/Chain/Token()` update the route defaults in place.
+
+**Wallets**
+
 - `Trustware.useWallet(wallet)` attaches a wallet imperatively.
+- `Trustware.getWallet()` and `Trustware.getAddress()` expose the active wallet.
 - `Trustware.autoDetect()` can still be used if you want SDK-managed discovery outside the widget.
+- `Trustware.getIdentity()` / `resolveAddressForChain()` / `addIdentityAddress()` handle
+  multi-chain identities, so an EVM address and a Solana address can belong to one user.
+
+**Routes, status and balances**
+
+- `buildRoute`, `buildDepositAddress` — build a route, or an address to deposit into.
+- `submitReceipt`, `submitStepReceipt`, `sendRouteTransaction`, `runTopUp` — execution.
+- `getStatus`, `pollStatus` — read a transaction through to a terminal state.
+- `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
+- `useChains`, `useTokens` — React hooks over the chain and token registries.
+- `validateAddressForChain`, `validateRouteAddresses` — check addresses before you spend a request.
+
+There is no `getQuote`: the estimate is part of the route, on
+`route.route?.estimate` and `route.finalExchangeRate`.
+
+### Provider Context
+
+`useTrustware()` returns `{ status, errors, core, emitError, emitSuccess,
+emitEvent, revalidate }`. `status` is `"idle" | "initializing" | "ready" |
+"error"` — gate anything that calls the API on `"ready"`. `core` is the same
+`Trustware` facade, handed to you so you don't have to import it separately, and
+`revalidate()` re-runs init after a failure (an API key arriving late, for
+instance).
+
+## Smart Accounts
+
+For ERC-4337 flows, `@trustware/sdk/smart-account` sends a route as a user
+operation rather than a wallet transaction:
+
+```ts
+import {
+  createTrustwareSmartAccountClient,
+  sendRouteAsUserOperation,
+} from "@trustware/sdk/smart-account";
+```
+
+It is a separate entry point on purpose — 65 KB gzipped, and nothing pulls it in
+unless you import it.
+
+## Events
+
+`config.onEvent` receives a discriminated `TrustwareEvent`:
+
+- `error`
+- `transaction_started`
+- `transaction_success`
+- `wallet_connected`
+- `token_page_loaded`
+- `token_page_error`
+- `balance_stream_chunk`
+- `balance_stream_fallback`
+- `swap_route_changed`
 
 ## Rate Limiting
 
