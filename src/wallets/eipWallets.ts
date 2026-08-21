@@ -1,57 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/wallet.ts
 import type { WalletInterFaceAPI, EIP1193 } from "../types/";
-
-/* ---------------- chain params for addChain fallback ---------------- */
-const CHAIN_PARAMS: Record<
-  number,
-  {
-    chainIdHex: `0x${string}`;
-    chainName: string;
-    rpcUrls: string[];
-    nativeCurrency: { name: string; symbol: string; decimals: number };
-    blockExplorerUrls?: string[];
-  }
-> = {
-  1: {
-    chainIdHex: "0x1",
-    chainName: "Ethereum",
-    rpcUrls: ["https://eth.llamarpc.com"],
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://etherscan.io"],
-  },
-  137: {
-    chainIdHex: "0x89",
-    chainName: "Polygon",
-    rpcUrls: ["https://polygon-rpc.com"],
-    nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
-    blockExplorerUrls: ["https://polygonscan.com"],
-  },
-  8453: {
-    chainIdHex: "0x2105",
-    chainName: "Base",
-    rpcUrls: ["https://mainnet.base.org"],
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://basescan.org"],
-  },
-  42161: {
-    chainIdHex: "0xa4b1",
-    chainName: "Arbitrum One",
-    rpcUrls: ["https://arb1.arbitrum.io/rpc"],
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://arbiscan.io"],
-  },
-  43114: {
-    chainIdHex: "0xa86a",
-    chainName: "Avalanche C-Chain",
-    rpcUrls: ["https://api.avax.network/ext/bc/C/rpc"],
-    nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
-    blockExplorerUrls: ["https://snowtrace.io"],
-  },
-};
+import { chainParamsFor } from "./chainParams";
 
 async function addThenSwitch(eth: EIP1193, chainId: number) {
-  const p = CHAIN_PARAMS[chainId];
+  const p = chainParamsFor(chainId);
   if (!p) throw new Error(`Unknown chain ${chainId} (no params to add)`);
   await eth.request({ method: "wallet_addEthereumChain", params: [p] as any });
   await eth.request({
@@ -86,7 +39,7 @@ export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
       if (switching) return; // prevent 4001: already in progress
       switching = true;
       const hex =
-        CHAIN_PARAMS[chainId]?.chainIdHex ?? `0x${chainId.toString(16)}`;
+        chainParamsFor(chainId)?.chainIdHex ?? `0x${chainId.toString(16)}`;
       try {
         await eth.request({
           method: "wallet_switchEthereumChain",
@@ -146,7 +99,7 @@ export function useWagmi(client: any): WalletInterFaceAPI {
       if (!eth?.request) throw new Error("switchChain not available");
       try {
         const hex =
-          CHAIN_PARAMS[target]?.chainIdHex ?? `0x${target.toString(16)}`;
+          chainParamsFor(target)?.chainIdHex ?? `0x${target.toString(16)}`;
         await eth.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: hex }],

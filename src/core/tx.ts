@@ -25,6 +25,52 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Put the wallet on `target` and confirm it landed there, throwing if not.
+ *
+ * The confirmation is the point. `switchChain` can silently do nothing — the
+ * user dismisses the prompt (4001), a switch is already in flight so the
+ * adapter's re-entrancy guard returns early, the wallet has no params for an
+ * unknown chain, or it simply ignores the request. Callers used to treat all
+ * of that as non-fatal and send anyway, which signs against whichever chain
+ * the wallet is still on. That is not a degraded outcome: an approve built for
+ * one chain, sent on another, hits a different (often codeless) address, and
+ * the EVM reports success for a call to an address with no code. The user
+ * spends gas, approves nothing, and the SDK then polls for the hash on a chain
+ * that never saw it.
+ *
+ * A wrong-chain send cannot be undone, so this fails closed.
+ */
+export async function ensureWalletOnChain(
+  wallet: Pick<EvmWalletInterface, "getChainId" | "switchChain">,
+  target: number
+): Promise<void> {
+  if (!Number.isFinite(target) || target <= 0) {
+    throw new Error(`Invalid chain id: ${target}`);
+  }
+
+  if ((await wallet.getChainId()) === target) return;
+
+  let switchError: unknown;
+  try {
+    await wallet.switchChain(target);
+  } catch (e) {
+    switchError = e;
+  }
+
+  // Re-read rather than trusting the call to have thrown on failure: the
+  // adapters swallow 4001 and the early-return guard resolves without doing
+  // anything, so a resolved promise is not evidence the chain changed.
+  if ((await wallet.getChainId()) === target) return;
+
+  if (switchError && isUserRejected(switchError)) {
+    throw switchError;
+  }
+  throw new Error(
+    `Wallet is on the wrong network. Switch to chain ${target} and try again.`
+  );
+}
+
 const erc20ApproveAbi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
 ]);
@@ -64,19 +110,88 @@ async function sendEvmTx(
   return response.hash as string;
 }
 
-async function waitForTxConfirmation(chainId: string, txHash: string) {
-  const timeoutMs = 120_000;
-  const intervalMs = 2_000;
+/**
+ * How long a hash may keep reading `not_found` before we call it absent.
+ *
+ * A freshly broadcast transaction is legitimately unknown for a moment: the
+ * wallet's RPC and the RPC the backend reads are different nodes, so there is
+ * real propagation lag. Past this window, though, continued absence means the
+ * chain never saw it — and polling the remaining ~100s only delays a failure
+ * that has already happened.
+ */
+const NOT_FOUND_GRACE_MS = 20_000;
+
+/**
+ * Poll until a transaction confirms, distinguishing "not on this chain" from
+ * "not yet mined".
+ *
+ * The backend already reports `not_found` separately from `pending`; treating
+ * them alike is what turned a wrong-chain send into a silent two-minute wait
+ * ending in a generic timeout. Naming the real problem lets the UI say the
+ * transaction isn't on the chain it was expected on.
+ */
+/** Overridable so the polling loop can be exercised without real timers or a
+ *  live backend. Production callers pass nothing. */
+export type TxConfirmationOptions = {
+  readStatus?: (params: {
+    chainId: string;
+    txHash: string;
+  }) => Promise<{ status: string }>;
+  timeoutMs?: number;
+  intervalMs?: number;
+  notFoundGraceMs?: number;
+};
+
+async function waitForEvmTxConfirmation(
+  chainId: string,
+  txHash: string,
+  label: string,
+  options: TxConfirmationOptions = {}
+) {
+  const {
+    readStatus = getEVMTxStatus,
+    timeoutMs = 120_000,
+    intervalMs = 2_000,
+    notFoundGraceMs = NOT_FOUND_GRACE_MS,
+  } = options;
+
   const started = Date.now();
+  let notFoundSince: number | null = null;
+
   while (Date.now() - started < timeoutMs) {
-    const status = await getEVMTxStatus({ chainId, txHash });
+    const status = await readStatus({ chainId, txHash });
     if (status.status === "success") return;
     if (status.status === "reverted") {
-      throw new Error("Approval transaction reverted");
+      throw new Error(`${label} transaction reverted`);
     }
+
+    if (status.status === "not_found") {
+      notFoundSince ??= Date.now();
+      if (Date.now() - notFoundSince >= notFoundGraceMs) {
+        throw new Error(
+          `${label} transaction ${txHash} was not found on chain ${chainId}. ` +
+            `It may have been sent on a different network — check your wallet's ` +
+            `selected network and try again.`
+        );
+      }
+    } else {
+      // Seen in the mempool: propagation is no longer in question, so a later
+      // not_found (reorg, eviction) restarts the grace window rather than
+      // inheriting a stale one.
+      notFoundSince = null;
+    }
+
     await sleep(intervalMs);
   }
-  throw new Error("Timed out waiting for approval confirmation");
+  throw new Error(`Timed out waiting for ${label.toLowerCase()} confirmation`);
+}
+
+export function waitForApprovalConfirmation(
+  chainId: string,
+  txHash: string,
+  options?: TxConfirmationOptions
+) {
+  return waitForEvmTxConfirmation(chainId, txHash, "Approval", options);
 }
 
 /**
@@ -194,7 +309,7 @@ async function ensureApprovals(
       // flow; the backend's reaper self-heals a missed one.
       void submitStepReceipt(intentId, stepIndex, hash).catch(() => {});
     }
-    await waitForTxConfirmation(chainId, hash);
+    await waitForApprovalConfirmation(chainId, hash);
   }
 }
 
@@ -251,14 +366,7 @@ export async function sendRouteTransaction(
     }
 
     if (Number.isFinite(target)) {
-      const current = await w.getChainId();
-      if (current !== target) {
-        try {
-          await w.switchChain(target);
-        } catch {
-          // switchChain failed/skipped — non-fatal
-        }
-      }
+      await ensureWalletOnChain(w, target);
     }
 
     // A sponsored (Account Kit) route grants its allowance internally via

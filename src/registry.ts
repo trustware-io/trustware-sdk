@@ -11,6 +11,10 @@ import {
   normalizeChainKey,
   normalizeChainType,
 } from "./utils/chains";
+import {
+  chainParamsFromChainDef,
+  registerChainParams,
+} from "./wallets/chainParams";
 
 export const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
@@ -162,6 +166,14 @@ export class Registry {
     this._chainsById.set(canonicalKey, normalized);
     for (const alias of getChainAliases(normalized)) {
       this._chainAliases.set(alias, canonicalKey);
+    }
+
+    // Let the wallet add this chain on demand. Without it, switching to any
+    // chain outside the small builtin table fails, and callers that treat a
+    // failed switch as non-fatal sign for the wrong network.
+    const addParams = chainParamsFromChainDef(normalized);
+    if (addParams) {
+      registerChainParams(Number(normalized.chainId ?? canonical), addParams);
     }
   }
 
