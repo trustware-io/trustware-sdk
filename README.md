@@ -35,25 +35,25 @@ Trustware SDK gives you three integration styles on top of the same routing and 
 
 The current widget flow is:
 
-`home -> select-token -> crypto-pay -> processing -> success | error`
-
-Those are the literal step names, so they double as the values `initialStep`
-accepts. `crypto-pay` is the amount-entry and confirm screen.
+`Home -> Select Token -> Confirm Deposit -> Processing -> Success/Error`
 
 ## Installation
 
 ```bash
-npm install @trustware/sdk viem
+npm install @trustware/sdk
 # or
-pnpm add @trustware/sdk viem
+pnpm add @trustware/sdk
 ```
 
-`react`, `react-dom` and `viem` are peer dependencies, not bundled ones —
-`react`/`react-dom` at `>=18.2 <20`, `viem` at `^2.52`. Most web3 apps already
-have all three, in which case the plain `npm install @trustware/sdk` is enough.
-`viem` is deliberately left external so your app keeps exactly one copy of it:
-two viem instances in one bundle is both ~380 KB of dead weight and a real
-source of bugs for anything holding chain or client state.
+`react` and `react-dom` are peer dependencies at `>=18.2 <20` — your app
+supplies them. `viem` is a peer too (`^2.52`), but you do not need to install
+it: it arrives transitively as a regular dependency of `@reown/appkit`, which
+the SDK depends on. The peer range only bites if you pin `viem` yourself —
+anything below `2.52` gets flagged `invalid` against it.
+
+`viem` is left external at build time so your app keeps exactly one copy of it:
+bundling a second instance cost ~380 KB and is a real source of bugs for
+anything holding chain or client state.
 
 ## Entry Points
 
@@ -74,17 +74,22 @@ dependencies above excluded from the count.
 
 ## Main Exports
 
-From the root barrel:
-
-- `TrustwareProvider`, `useTrustware` — React provider and its context hook
-- `TrustwareWidget` — the drop-in widget. Its `TrustwareWidgetProps` and
-  `TrustwareWidgetRef` types come from `@trustware/sdk/react`, not from here
-- `Trustware` — the headless core facade (aliased `TrustwareCore`)
-- `TrustwareError`, `RateLimitError` — the two error types the SDK throws
-- `assertValidPostHook` — validate a bridge-and-call hook before building a route
-- wallet helpers — `walletManager`, `useWalletDetection`, `useWalletInfo`,
-  `connectDetectedWallet`, `WagmiBridge`, `useWagmi`, `useEIP1193`, `WALLETS`
-- everything from `./identity`, `./validation/address`, `./types` and `./constants`
+- `TrustwareProvider`
+- `useTrustware`
+- `TrustwareWidget`
+- `Trustware`
+- `TrustwareError`
+- `RateLimitError`
+- `assertValidPostHook`
+- `walletManager`
+- `useWalletDetection`
+- `useWalletInfo`
+- `connectDetectedWallet`
+- `WagmiBridge`
+- `useWagmi`
+- `useEIP1193`
+- `WALLETS`
+- `./identity`, `./validation/address`, `./types`, `./constants`
 
 ## Quick Start
 
