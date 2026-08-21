@@ -103,8 +103,10 @@ export function chainParamsFromChainDef(
   ).toLowerCase();
   if (chainType !== "evm") return undefined;
 
+  // Safe-integer, not merely finite: a fractional or oversized id hex-encodes
+  // to something no wallet will accept.
   const numericId = Number(chain.chainId ?? chain.id);
-  if (!Number.isFinite(numericId) || numericId <= 0) return undefined;
+  if (!Number.isSafeInteger(numericId) || numericId <= 0) return undefined;
 
   const rpcUrls = usableRpcUrls(chain);
   if (rpcUrls.length === 0) return undefined;

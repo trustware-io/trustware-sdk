@@ -82,11 +82,15 @@ describe("waitForApprovalConfirmation", () => {
 
   // Once seen in the mempool, a later disappearance restarts the window rather
   // than inheriting a stale one from before it was found.
+  //
+  // intervalMs must exceed notFoundGraceMs or this proves nothing: with a zero
+  // interval every read lands in the same millisecond, so the elapsed check
+  // passes whether or not the window was reset. At 15ms/10ms the third read is
+  // ~30ms after the first, so inheriting the stale timestamp would throw.
   it("restarts the grace window after the tx has been seen", async () => {
-    const seen = ["not_found", "pending", "not_found", "success"];
-    const r = reader(seen);
+    const r = reader(["not_found", "pending", "not_found", "success"]);
     await waitForApprovalConfirmation(PLUME, HASH, {
-      intervalMs: 0,
+      intervalMs: 15,
       notFoundGraceMs: 10,
       timeoutMs: 5_000,
       readStatus: r.read,

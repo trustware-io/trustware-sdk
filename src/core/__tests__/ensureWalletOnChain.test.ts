@@ -104,4 +104,22 @@ describe("ensureWalletOnChain", () => {
     );
     assert.equal(wallet.calls.switchChain, 0);
   });
+
+  // Both are finite, and both hex-encode to something no wallet accepts.
+  it("rejects a fractional or unsafe-magnitude chain id", async () => {
+    const wallet = makeWallet({ chainId: BASE });
+    await assert.rejects(
+      () => ensureWalletOnChain(wallet, 1.5),
+      /Invalid chain id/
+    );
+    await assert.rejects(
+      () => ensureWalletOnChain(wallet, Number.MAX_SAFE_INTEGER + 2),
+      /Invalid chain id/
+    );
+    await assert.rejects(
+      () => ensureWalletOnChain(wallet, Number.POSITIVE_INFINITY),
+      /Invalid chain id/
+    );
+    assert.equal(wallet.calls.switchChain, 0);
+  });
 });

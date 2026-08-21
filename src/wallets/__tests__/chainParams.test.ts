@@ -51,6 +51,20 @@ describe("chainParamsFromChainDef", () => {
     );
   });
 
+  it("rejects a fractional or unsafe-magnitude chain id", () => {
+    assert.equal(
+      chainParamsFromChainDef({ ...PLUME, chainId: "1.5" } as ChainDef),
+      undefined
+    );
+    assert.equal(
+      chainParamsFromChainDef({
+        ...PLUME,
+        chainId: String(Number.MAX_SAFE_INTEGER + 2),
+      } as ChainDef),
+      undefined
+    );
+  });
+
   it("skips non-EVM chains", () => {
     assert.equal(
       chainParamsFromChainDef({ ...PLUME, chainType: "solana" } as ChainDef),

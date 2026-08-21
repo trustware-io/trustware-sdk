@@ -45,7 +45,9 @@ export async function ensureWalletOnChain(
   wallet: Pick<EvmWalletInterface, "getChainId" | "switchChain">,
   target: number
 ): Promise<void> {
-  if (!Number.isFinite(target) || target <= 0) {
+  // Safe-integer, not merely finite: 1.5 and 1e21 are both finite, and both
+  // produce a garbage `0x…` when hex-encoded for wallet_switchEthereumChain.
+  if (!Number.isSafeInteger(target) || target <= 0) {
     throw new Error(`Invalid chain id: ${target}`);
   }
 
@@ -298,11 +300,22 @@ async function ensureApprovals(
       functionName: "approve",
       args: [spender as `0x${string}`, amountWei],
     });
+    // Each approval carries its own chainId, which need not match the route's
+    // — the caller switched to the route target, not to this. Signing an
+    // approve on the wrong chain hits an address that usually holds no code
+    // there and "succeeds" having granted nothing, so put the wallet on this
+    // approval's chain and confirm before sending.
+    const approvalChainId = Number(chainId);
+    if (!Number.isSafeInteger(approvalChainId) || approvalChainId <= 0) {
+      throw new Error(`Approval has an invalid chain id: ${chainId}`);
+    }
+    await ensureWalletOnChain(w, approvalChainId);
+
     const hash = await sendEvmTx(w, {
       to: tokenAddress as `0x${string}`,
       data,
       value: 0n,
-      chainId: Number.isFinite(Number(chainId)) ? Number(chainId) : undefined,
+      chainId: approvalChainId,
     });
     if (intentId) {
       // Fire-and-forget: the report must never block or fail the payment
@@ -365,9 +378,17 @@ export async function sendRouteTransaction(
       // Mismatch: validatedSponsorship stays undefined; tx proceeds without paymaster.
     }
 
-    if (Number.isFinite(target)) {
-      await ensureWalletOnChain(w, target);
+    // An EVM route with no usable chain id cannot be placed on a chain, and
+    // sending it would sign against whatever the wallet happens to be on —
+    // the failure this guard exists to prevent. Refuse instead of skipping.
+    if (!Number.isSafeInteger(target) || target <= 0) {
+      throw new Error(
+        `Route is missing a usable chain id (got ${String(
+          txReq.chainId ?? fallbackChainId
+        )}).`
+      );
     }
+    await ensureWalletOnChain(w, target);
 
     // A sponsored (Account Kit) route grants its allowance internally via
     // Permit2 — skip the separate approve step entirely in that case.

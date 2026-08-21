@@ -48,9 +48,10 @@ export function useEIP1193(eth: EIP1193): WalletInterFaceAPI {
       } catch (e: any) {
         if (e?.code === 4902) {
           await addThenSwitch(eth, chainId);
-        } else if (e?.code === 4001) {
-          // user rejected or wallet busy; don’t crash the flow
         } else {
+          // 4001 included: swallowing a rejection here left callers believing
+          // the switch had happened, and they went on to sign on the old
+          // chain. Callers decide what a rejection means; this reports it.
           throw e;
         }
       } finally {
@@ -105,9 +106,8 @@ export function useWagmi(client: any): WalletInterFaceAPI {
           params: [{ chainId: hex }],
         });
       } catch (e: any) {
+        // 4001 rethrown deliberately — see the note in useEIP1193.switchChain.
         if (e?.code === 4902) await addThenSwitch(eth, target);
-        else if (e?.code === 4001)
-          void 0; // switchChain rejected/in-progress — non-fatal
         else throw e;
       }
     } finally {
