@@ -1,6 +1,16 @@
 // src/index.ts
 export { Trustware, TrustwareCore } from "./core";
 export { RateLimitError } from "./core/http";
+export {
+  RouteError,
+  isRouteError,
+  parseRouteError,
+  formatMinimum,
+  RouteDeclineCode,
+  RouteFailureCode,
+  RouteErrorCode,
+} from "./core/routeError";
+export type { RouteProviderOutcome, RouteErrorFacts } from "./core/routeError";
 export { assertValidPostHook } from "./core";
 export type { BuildRouteBody, BuildRouteResponse } from "./core";
 export { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";

@@ -17,6 +17,16 @@ import {
 } from "./routes";
 export { assertValidPostHook } from "./routes";
 export type { BuildRouteBody, BuildRouteResponse } from "./routes";
+export {
+  RouteError,
+  isRouteError,
+  parseRouteError,
+  formatMinimum,
+  RouteDeclineCode,
+  RouteFailureCode,
+  RouteErrorCode,
+} from "./routeError";
+export type { RouteProviderOutcome, RouteErrorFacts } from "./routeError";
 import {
   getBalances,
   getBalancesByAddress,

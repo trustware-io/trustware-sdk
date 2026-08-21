@@ -1,4 +1,5 @@
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
+import { routeErrorFromResponse } from "./routeError";
 import type {
   BuildRouteResult,
   PostHookRequest,
@@ -217,8 +218,10 @@ export async function buildRoute(
   }
 
   if (!r.ok) {
-    const msg = json?.error || json?.message || "Failed to build route";
-    throw new Error(msg);
+    // Structured, not just a sentence: the API says which provider is out and
+    // why (see RouteError). `message` is unchanged, so callers reading it keep
+    // working.
+    throw routeErrorFromResponse(r.status, json, "Failed to build route");
   }
 
   const intentId = json?.data?.intentId ?? json?.intentId ?? "";
@@ -282,9 +285,11 @@ export async function buildDepositAddress(
   }
 
   if (!r.ok) {
-    const msg =
-      json?.error || json?.message || "Failed to build deposit address";
-    throw new Error(msg);
+    throw routeErrorFromResponse(
+      r.status,
+      json,
+      "Failed to build deposit address"
+    );
   }
 
   const intentId = json?.data?.intentId ?? json?.intentId ?? "";
