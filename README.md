@@ -35,24 +35,56 @@ Trustware SDK gives you three integration styles on top of the same routing and 
 
 The current widget flow is:
 
-`Home -> Select Token -> Confirm Deposit -> Processing -> Success/Error`
+`home -> select-token -> crypto-pay -> processing -> success | error`
+
+Those are the literal step names, so they double as the values `initialStep`
+accepts. `crypto-pay` is the amount-entry and confirm screen.
 
 ## Installation
 
-Supports React `18.2+` and `19`.
-
 ```bash
-npm install @trustware/sdk
+npm install @trustware/sdk viem
 # or
-pnpm add @trustware/sdk
+pnpm add @trustware/sdk viem
 ```
+
+`react`, `react-dom` and `viem` are peer dependencies, not bundled ones —
+`react`/`react-dom` at `>=18.2 <20`, `viem` at `^2.52`. Most web3 apps already
+have all three, in which case the plain `npm install @trustware/sdk` is enough.
+`viem` is deliberately left external so your app keeps exactly one copy of it:
+two viem instances in one bundle is both ~380 KB of dead weight and a real
+source of bugs for anything holding chain or client state.
+
+## Entry Points
+
+The package ships several entry points so you only pay for what you import:
+
+| Import | Contains |
+| --- | --- |
+| `@trustware/sdk` | provider, widget, core and wallet helpers — everything but `smart-account` |
+| `@trustware/sdk/react` | the widget and its types |
+| `@trustware/sdk/core` | headless `Trustware` facade, route + balance calls |
+| `@trustware/sdk/wallet` | wallet detection, adapters, `walletManager` |
+| `@trustware/sdk/smart-account` | ERC-4337 client and user-operation helpers |
+| `@trustware/sdk/constants` · `/types` | shared constants and type-only imports |
+
+Every entry is tree-shakeable (`sideEffects: false`) and size-budgeted in CI —
+65 KB gzipped for `smart-account`, up to 665 KB for the full SDK, with the peer
+dependencies above excluded from the count.
 
 ## Main Exports
 
-- `TrustwareProvider`
-- `TrustwareWidget`
-- `Trustware`
-- `useTrustware`
+From the root barrel:
+
+- `TrustwareProvider`, `useTrustware` — React provider and its context hook
+- `TrustwareWidget` — the drop-in widget. Its `TrustwareWidgetProps` and
+  `TrustwareWidgetRef` types come from `@trustware/sdk/react`, not from here
+- `Trustware` — the headless core facade (aliased `TrustwareCore`)
+- `TrustwareError`, `RateLimitError` — the two error types the SDK throws
+- `assertValidPostHook` — validate a bridge-and-call hook before building a route
+- wallet helpers — `walletManager`, `useWalletDetection`, `useWalletInfo`,
+  `connectDetectedWallet`, `WagmiBridge`, `useWagmi`, `useEIP1193`, `WALLETS`
+- everything from `./identity`, `./validation/address`, `./types` and `./constants`
 
 ## Quick Start
 
@@ -102,6 +134,7 @@ type TrustwareConfigOptions = {
     toChain: string;
     toToken: string;
     fromToken?: string;
+    fromChain?: string;
     fromAddress?: string;
     toAddress?: string;
     defaultSlippage?: number;
@@ -156,9 +189,13 @@ type TrustwareConfigOptions = {
 - `routes.toChain`: destination chain key or chain id string.
 - `routes.toToken`: destination token address or registry token identifier.
 - `routes.fromToken`: optional source token preference.
+- `routes.fromChain`: optional source chain preference.
 - `routes.fromAddress`: optional source wallet override.
 - `routes.toAddress`: optional destination address override.
 - `routes.defaultSlippage`: optional slippage percentage. Defaults to `1`.
+
+Chain and token fields are strings, including numeric chain ids — `"8453"`, not
+`8453`.
 
 ### Route Options
 
@@ -169,14 +206,15 @@ type TrustwareConfigOptions = {
 
 ### Other Config Groups
 
-- `autoDetectProvider`: enables Trustware-managed wallet discovery.
+- `autoDetectProvider`: enables Trustware-managed wallet discovery. Defaults to
+  `false` — set it to `true` if you are not attaching a wallet yourself.
 - `theme`: widget color mode — `"light" | "dark" | "system"` (default
   `"system"`). Switch it at runtime with `Trustware.setTheme("dark")`.
 - `messages`: top-level copy overrides.
-- `retry`: API retry and rate-limit behavior.
+- `retry`: rate-limit observability callbacks — see [Rate Limiting](#rate-limiting).
 - `walletConnect`: WalletConnect overrides.
 - `features`: feature rollout controls, including swap-mode token selection constraints.
-- `onError`, `onSuccess`, `onEvent`: lifecycle callbacks.
+- `onError`, `onSuccess`, `onEvent`: lifecycle callbacks — see [Events](#events).
 
 ## Widget Usage Patterns
 
@@ -250,11 +288,9 @@ Use this mode when:
 
 ```tsx
 import { useRef } from "react";
-import {
-  TrustwareProvider,
-  TrustwareWidget,
-  type TrustwareWidgetRef,
-} from "@trustware/sdk";
+import { TrustwareProvider, TrustwareWidget } from "@trustware/sdk";
+// The widget's prop and ref types live on the widget entry, not the root barrel.
+import type { TrustwareWidgetRef } from "@trustware/sdk/react";
 
 export function ControlledWidget() {
   const widgetRef = useRef<TrustwareWidgetRef>(null);
@@ -277,12 +313,17 @@ export function ControlledWidget() {
 
 Current widget props:
 
-- `theme?: "light" | "dark" | "system"`
+- `theme?: "light" | "dark" | "system"` — initial mode only; `Trustware.setTheme()` drives it afterwards
 - `initialStep?: "home" | "select-token" | "crypto-pay" | "processing" | "success" | "error"`
-- `defaultOpen?: boolean`
+- `defaultOpen?: boolean` — defaults to `true`, which is what you want for inline usage
+- `style?: React.CSSProperties` — merged onto the widget shell
 - `onOpen?: () => void`
 - `onClose?: () => void`
-- `showThemeToggle?: boolean`
+- `showThemeToggle?: boolean` — defaults to `true`
+
+And the ref (`TrustwareWidgetRef`): `open()`, `close()`, `isOpen()`. `close()`
+asks for confirmation first if a transaction is in flight, so it is safe to wire
+straight to a dismiss button.
 
 ### 4. Headless Core API
 
@@ -312,6 +353,40 @@ console.log(tx.status, tx.destTxHash);
 ```
 
 See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
+
+### 5. Bridge and Call
+
+A route can end in a contract call on the destination chain instead of a plain
+transfer — depositing into a vault in the same flow as the bridge, say. Pass
+`hooks.postHook` to `buildRoute` or `buildDepositAddress`; omit `hooks` entirely
+and nothing about the existing behaviour changes.
+
+```ts
+import { Trustware, assertValidPostHook } from "@trustware/sdk";
+
+const hooks = {
+  postHook: {
+    target: "0xVault...",
+    callData: "0xdeadbeef", // ABI-encoded deposit(uint256)
+    fundAmount: "25000000",
+    // target pulls fundToken via transferFrom, so it needs an approval
+    toApprovalAddress: "0xVault...",
+    // optional for Squid, but required to stay eligible for LiFi
+    estimatedGas: "250000",
+  },
+};
+
+// Same check buildRoute runs internally — call it early to fail in your own
+// form validation rather than on a round trip to the backend.
+assertValidPostHook(hooks);
+
+const route = await Trustware.buildRoute({ ...routeBody, hooks });
+```
+
+Instead of `fundAmount` you can set `fullAmount: true` with an `amountInputPos`,
+which has the backend patch `callData` with the amount that actually lands. That
+mode is Squid-only, so requests using it are only routed to providers that
+support it.
 
 ## Common Config Examples
 
@@ -355,10 +430,81 @@ Trustware.setDestinationAddress("0xDestination...");
 
 ## Headless / Core Notes
 
+`Trustware` is a plain object, not a class or an event emitter — there is no
+`Trustware.on()`. Events reach you through `config.onEvent`.
+
+**Lifecycle and config**
+
+- `Trustware.init(config)` loads the config and validates the API key once.
 - `Trustware.getConfig()` returns the resolved config.
-- `Trustware.getWallet()` and `Trustware.getAddress()` expose the active wallet.
+- `Trustware.setTheme(mode)` / `getTheme()` switch the widget's color mode at runtime.
+- `Trustware.setDestinationAddress/Chain/Token()` update the route defaults in place.
+
+**Wallets**
+
 - `Trustware.useWallet(wallet)` attaches a wallet imperatively.
+- `Trustware.getWallet()` and `Trustware.getAddress()` expose the active wallet.
 - `Trustware.autoDetect()` can still be used if you want SDK-managed discovery outside the widget.
+- `Trustware.getIdentity()` / `resolveAddressForChain()` / `addIdentityAddress()` handle
+  multi-chain identities, so an EVM address and a Solana address can belong to one user.
+
+**Routes, status and balances**
+
+- `buildRoute`, `buildDepositAddress` — build a route, or an address to deposit into.
+- `submitReceipt`, `submitStepReceipt`, `sendRouteTransaction`, `runTopUp` — execution.
+- `getStatus`, `pollStatus` — read a transaction through to a terminal state.
+- `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
+- `useChains`, `useTokens` — React hooks over the chain and token registries.
+- `validateAddressForChain`, `validateRouteAddresses` — check addresses before you spend a request.
+
+There is no `getQuote`: the estimate is part of the route, on
+`route.route?.estimate` and `route.finalExchangeRate`.
+
+### Provider Context
+
+`useTrustware()` returns `{ status, errors, core, emitError, emitSuccess,
+emitEvent, revalidate }`. `status` is `"idle" | "initializing" | "ready" |
+"error"` — gate anything that calls the API on `"ready"`. `core` is the same
+`Trustware` facade, handed to you so you don't have to import it separately, and
+`revalidate()` re-runs init after a failure (an API key arriving late, for
+instance).
+
+## Smart Accounts
+
+For ERC-4337 flows, `@trustware/sdk/smart-account` sends a route as a user
+operation rather than a wallet transaction:
+
+```ts
+import {
+  createTrustwareSmartAccountClient,
+  sendRouteAsUserOperation,
+} from "@trustware/sdk/smart-account";
+```
+
+It is a separate entry point on purpose — 65 KB gzipped, and nothing pulls it in
+unless you import it.
+
+## Events
+
+`config.onEvent` receives a discriminated `TrustwareEvent`:
+
+| `type` | Payload |
+| --- | --- |
+| `error` | `error: TrustwareError` |
+| `transaction_started` | — |
+| `transaction_success` | `txHash`, optional `transaction` |
+| `wallet_connected` | `address` |
+| `token_page_loaded` | `chainRef`, `count`, `hasNextPage`, optional `query` / `cursor` |
+| `token_page_error` | `chainRef`, `message`, optional `query` / `cursor` |
+| `balance_stream_chunk` | `address`, `chunkSize` |
+| `balance_stream_fallback` | `address`, `message` |
+| `swap_route_changed` | `fromChain`, `fromToken`, `toChain`, `toToken`, optional `amount` |
+
+`onError` and `onSuccess` are narrower conveniences over the same stream: the
+SDK raises each failure through `onError` and an `error` event together, and
+each completed transaction through `onSuccess` and a `transaction_success`
+event together. Use whichever shape suits you — subscribing to both means
+handling the same thing twice.
 
 ## Rate Limiting
 
