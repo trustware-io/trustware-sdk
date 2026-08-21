@@ -9,6 +9,8 @@ import {
 } from "../context/DepositContext";
 import type { BuildRouteResult, ChainDef } from "../../types";
 import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../../core/routes";
+import { parseRouteError } from "../../core/routeError";
+import { mapError } from "../lib/mapError";
 
 /**
  * Route building state
@@ -375,6 +377,15 @@ export function useRouteBuilder({
  * Maps API errors to user-friendly messages
  */
 function mapErrorToMessage(err: unknown): string {
+  // A routing verdict is already classified — by the backend, which ran the
+  // providers. Re-deriving it from the sentence is what produced "This token or
+  // chain combination is not supported" for an amount below a provider's
+  // minimum: the summary contains "pair_unsupported" for one provider, and the
+  // substring rules below stopped there.
+  if (parseRouteError(err)) {
+    return mapError(err).message;
+  }
+
   if (err instanceof Error) {
     const msg = err.message.toLowerCase();
 
