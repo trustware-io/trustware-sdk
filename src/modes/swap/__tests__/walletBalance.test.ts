@@ -74,4 +74,62 @@ describe("findWalletBalanceRow", () => {
     assert.equal(findWalletBalanceRow(undefined, { address: PUSD }), undefined);
     assert.equal(findWalletBalanceRow([], { address: PUSD }), undefined);
   });
+
+  // Case is meaningless in a hex EVM address but significant in a Base58 SPL
+  // mint: these two differ only by case and are different mints. Folding case
+  // would let the first row answer for the second.
+  describe("solana addresses", () => {
+    const MINT_A = "So11111111111111111111111111111111111111112";
+    const MINT_B = "so11111111111111111111111111111111111111112";
+
+    const SOL_ROWS = [
+      {
+        address: MINT_A,
+        chainId: "solana",
+        symbol: "WSOL",
+        decimals: 9,
+        balance: "111",
+      },
+      {
+        address: MINT_B,
+        chainId: "solana",
+        symbol: "OTHER",
+        decimals: 6,
+        balance: "222",
+      },
+    ] as unknown as YourTokenData[];
+
+    it("keeps Base58 case, matching each mint to its own row", () => {
+      const a = findWalletBalanceRow(
+        SOL_ROWS,
+        { address: MINT_A },
+        "solana",
+        "solana"
+      );
+      assert.equal(a?.symbol, "WSOL");
+      assert.equal(a?.balance, "111");
+      assert.equal(a?.decimals, 9);
+
+      const b = findWalletBalanceRow(
+        SOL_ROWS,
+        { address: MINT_B },
+        "solana",
+        "solana"
+      );
+      assert.equal(b?.symbol, "OTHER");
+      assert.equal(b?.balance, "222");
+      assert.equal(b?.decimals, 6);
+    });
+
+    it("still folds case for EVM, where the checksum is display-only", () => {
+      const checksummed = "0xDDDD73F5DF1F0DC31373357BEAC77545DC5A6F3F";
+      const row = findWalletBalanceRow(
+        ROWS,
+        { address: checksummed },
+        "98866",
+        "evm"
+      );
+      assert.equal(row?.balance, "500000");
+    });
+  });
 });

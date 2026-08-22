@@ -689,7 +689,8 @@ export function SwapMode({
     const row = findWalletBalanceRow(
       yourWalletTokens,
       fromToken,
-      fromChain?.chainId
+      fromChain?.chainId,
+      normalizeChainType(fromChain)
     );
 
     const raw = row?.balance ?? (fromToken as YourTokenData).balance;
