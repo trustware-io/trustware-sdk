@@ -43,6 +43,9 @@ export function parseDecimalToWei(
   return intPart * base + fracPart;
 }
 
+/** Solana mainnet-beta as the routing backend identifies it numerically. */
+export const SOLANA_CHAIN_ID = "1151111081099710";
+
 const CHAIN_TYPE_ALIASES: Record<string, SquidChainType> = {
   btc: "bitcoin",
   bitcoin: "bitcoin",
@@ -68,6 +71,11 @@ function inferChainTypeFromValue(
   ) {
     return normalized;
   }
+
+  // Solana's own chain id is numeric, so it has to be claimed before the
+  // "all digits means EVM" heuristic below — otherwise SPL routes get
+  // classified as EVM and take ERC20 code paths that cannot work.
+  if (normalized === SOLANA_CHAIN_ID) return "solana";
 
   if (/^eip155:\d+$/.test(normalized) || /^\d+$/.test(normalized)) {
     return "evm";
@@ -170,6 +178,44 @@ export function isNativeTokenAddress(
   return (
     normalizeAddress(address, chainType) ===
     normalizeAddress(getNativeTokenAddress(chainType), chainType)
+  );
+}
+
+const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+/** Chain types that can never run an ERC20 `approve()`. */
+const NON_EVM_CHAIN_TYPES = new Set(["solana", "bitcoin", "btc"]);
+
+/**
+ * The value as given must already be a 20-byte hex address — no trimming.
+ * This narrows the caller's own string, and every consumer passes that exact
+ * string on to an allowance read or to viem, both of which reject padding.
+ * Accepting " 0xabc… " here would hand them a value the type says is safe.
+ */
+export function isEvmAddress(value?: string | null): value is `0x${string}` {
+  return !!value && EVM_ADDRESS_RE.test(value);
+}
+
+/**
+ * Whether spending this token has to be approved before a route can pull it.
+ *
+ * Only an EVM ERC20 does. An SPL mint is base58, not a 20-byte hex contract —
+ * a Solana transfer is authorized by the instruction the user signs, so there
+ * is no allowance to read and nothing to approve. Same for Cosmos denoms and
+ * for every chain's native asset. Deciding on the address shape (rather than
+ * the chain type alone) keeps EVM chains whose registry entry types itself as
+ * something else — Sei EVM normalizes to "cosmos" — on the approval path.
+ */
+export function needsErc20Approval(
+  tokenAddress?: string | null,
+  chainType?: ChainDef["type"] | null
+): boolean {
+  if (!isEvmAddress(tokenAddress)) return false;
+  const normalizedType = normalizeChainType(chainType ?? undefined);
+  if (normalizedType && NON_EVM_CHAIN_TYPES.has(normalizedType)) return false;
+  return (
+    !isNativeTokenAddress(tokenAddress, chainType) &&
+    !isZeroAddrLike(tokenAddress, chainType)
   );
 }
 

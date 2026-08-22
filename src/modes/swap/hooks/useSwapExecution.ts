@@ -4,11 +4,20 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
 import { submitReceipt, submitStepReceipt, getStatus } from "src/core/routes";
 import { isNotFoundError } from "src/core/http";
-import { approvalSatisfied, requiredApprovalAmount } from "src/core/tx";
-import { getEVMAllowance, getEVMTxStatus } from "src/core/sdkRpc";
+import { describeTransactionFailure } from "src/core/failure";
 import {
+  approvalSatisfied,
+  ensureWalletOnChain,
+  requiredApprovalAmount,
+  waitForApprovalConfirmation,
+} from "src/core/tx";
+import { getEVMAllowance } from "src/core/sdkRpc";
+import { isValueDestroying } from "../routeValue";
+import {
+  isEvmAddress,
   isNativeTokenAddress,
   isZeroAddrLike,
+  needsErc20Approval,
   normalizeChainType,
 } from "src/widget/helpers/chainHelpers";
 import type { BuildRouteResult, ChainDef, Transaction } from "src/types";
@@ -49,10 +58,6 @@ export type SwapExecutionState = {
   allowanceStatus: AllowanceStatus;
 };
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function isUserRejection(err: unknown): boolean {
   if (!err) return false;
   const e = err as Record<string, unknown>;
@@ -66,20 +71,8 @@ function isUserRejection(err: unknown): boolean {
   );
 }
 
-async function waitForApprovalConfirmation(
-  chainId: string,
-  txHash: `0x${string}`
-) {
-  const started = Date.now();
-  while (Date.now() - started < 120_000) {
-    const status = await getEVMTxStatus({ chainId, txHash });
-    if (status.status === "success") return;
-    if (status.status === "reverted")
-      throw new Error("Approval transaction reverted");
-    await sleep(2_000);
-  }
-  throw new Error("Timed out waiting for approval confirmation");
-}
+// Approval confirmation lives in core/tx so both the widget and direct
+// sendRouteTransaction callers get the same not_found handling.
 
 /**
  * The wallet's current account, asserted to still be the one this execution
@@ -168,7 +161,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           }
           if (tx.status === "failed") {
             clearPolling();
-            const msg = "Transaction failed on-chain. Please try again.";
+            const msg = describeTransactionFailure(tx);
             setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
             onError(msg);
             return;
@@ -218,12 +211,12 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       }
 
       const chainType = normalizeChainType(fromChain);
-      const isNative =
-        !fromTokenAddress ||
-        isNativeTokenAddress(fromTokenAddress, chainType) ||
-        isZeroAddrLike(fromTokenAddress, chainType);
 
-      if (isNative) {
+      // Native assets need no allowance, and neither does anything off EVM:
+      // an SPL mint is not an ERC20 contract, so reading an allowance against
+      // it fails and the failure used to surface as "Approve <TOKEN>" on a
+      // Solana swap that has nothing to approve.
+      if (!needsErc20Approval(fromTokenAddress, chainType)) {
         setState((p) => ({ ...p, allowanceStatus: "sufficient" }));
         return;
       }
@@ -245,7 +238,9 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               BigInt(a.amount || "0"),
               amountWei
             );
-            if (!token || !a.spender) return [];
+            // Only an ERC20 has an allowance to read. A plan entry naming
+            // anything else (an SPL mint, a Cosmos denom) is not one.
+            if (!isEvmAddress(token) || !isEvmAddress(a.spender)) return [];
             return [
               {
                 chainId: a.chainId || chainIdStr,
@@ -309,6 +304,19 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     ) => {
       if (!routeResult?.txReq) {
         const msg = "Invalid route data. Please try again.";
+        setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
+        onError(msg);
+        return;
+      }
+
+      // Checked here rather than only on the CTA because this is the single
+      // point every execution passes through. Quotes refresh while the review
+      // screen is open, and the Solana path rebuilds the route immediately
+      // before signing, so the route being signed is not necessarily the one
+      // the CTA judged.
+      if (isValueDestroying(routeResult.route?.estimate)) {
+        const msg =
+          "This route now costs more in fees than it delivers. Get a new quote.";
         setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
         onError(msg);
         return;
@@ -464,7 +472,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               const token = (a.tokenAddress ?? fromTokenAddress) as
                 `0x${string}` | undefined;
               const approvalSpender = a.spender as `0x${string}` | undefined;
-              if (!token || !approvalSpender) return [];
+              // Same guard as checkAllowance: approve() is an ERC20 call, so
+              // a plan entry that doesn't name EVM addresses can't be one.
+              if (!isEvmAddress(token) || !isEvmAddress(approvalSpender))
+                return [];
               // A planned approval of 0 is the reset-to-zero step USDT-style
               // tokens require before an existing allowance can change —
               // dropping it makes the approve that follows revert.
@@ -494,12 +505,25 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               ]
             : [];
 
+        // Ownership is all-or-nothing. Any plan entry the guard above dropped
+        // is one this loop will never grant, so claiming ownership after a
+        // drop would silently skip it — sendRouteTransaction gets the whole
+        // array instead. A plan with no approvals array is covered by
+        // definition; the inferred-spender fallback stands in for it.
+        const coversEveryPlannedApproval =
+          plannedApprovals.length === 0 ||
+          requiredApprovals.length === plannedApprovals.length;
+
         // When this holds, the loop below owns the approval decision for the
         // whole execution and sendRouteTransaction must not second-guess it:
         // its ensureApprovals re-reads the allowance right after our approve
         // confirms, and a stale read from a different RPC node made it prompt
         // for the same approval twice (BVT-330).
-        const ownsApprovals = !isNative && !!walletAddress && !!chainIdStr;
+        const ownsApprovals =
+          coversEveryPlannedApproval &&
+          needsErc20Approval(fromTokenAddress, chainType) &&
+          !!walletAddress &&
+          !!chainIdStr;
 
         // Read the account the wallet is actually on, rather than trusting the
         // address captured when the route was built — an allowance read
@@ -536,18 +560,16 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               throw new Error("Invalid chain ID for token approval");
             }
 
-            // Switch to correct chain first
+            // Be on the approval's own chain before signing, and prove it.
+            // A failed switch must abort: sending anyway signs against
+            // whatever chain the wallet is still on, where the token address
+            // usually holds no code and the approve "succeeds" having granted
+            // nothing.
             const targetChain = Number(required.chainId ?? txReq.chainId);
-            if (Number.isFinite(targetChain)) {
-              const current = await wallet.getChainId();
-              if (current !== targetChain) {
-                try {
-                  await wallet.switchChain(targetChain);
-                } catch {
-                  /* non-fatal */
-                }
-              }
+            if (!Number.isFinite(targetChain)) {
+              throw new Error("Invalid chain ID for token approval");
             }
+            await ensureWalletOnChain(wallet, targetChain);
 
             // Never grant less than the plan asks for, or the route's own
             // transaction reverts. maxApproval only widens.
@@ -628,12 +650,14 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           { approvalsEnsured: ownsApprovals }
         );
 
-        try {
-          await submitReceipt(routeResult.intentId, hash);
-        } catch {
-          /* non-fatal */
-        }
-
+        // The hash is the point of no return: the swap is on-chain and the
+        // screen must reflect that immediately. Reporting the receipt is a
+        // separate, best-effort concern — `rateLimitedFetch` has no request
+        // timeout and will sit out a server-directed 429 wait, so awaiting it
+        // here pinned the progress ring at "confirming" while the transaction
+        // was already confirming on-chain. Fire it alongside the poll instead;
+        // the status endpoint answers 200 {"status":"pending"} in the
+        // pre-receipt window, so polling first is safe.
         setState((p) => ({
           ...p,
           isSubmitting: false,
@@ -643,6 +667,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         }));
 
         startPolling(routeResult.intentId, onSuccess, onError);
+
+        void submitReceipt(routeResult.intentId, hash).catch(() => {});
       } catch (err) {
         const msg = mapTxError(err);
         setState((p) => ({

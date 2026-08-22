@@ -232,12 +232,22 @@ export function mapError(raw: unknown): MappedError {
     };
   }
 
-  // ── Transaction failed (generic) ───────────────────────────────────────────
+  // ── Transaction failed ─────────────────────────────────────────────────────
   if (lower.includes("transaction failed") || lower.includes("reverted")) {
+    // A caller that already worked out *why* (describeTransactionFailure reads
+    // the provider's substatus) must not have that replaced by boilerplate.
+    // Bare phrases, multi-line dumps and raw viem revert traces still get it.
+    const specific = msg.trim();
+    const isBare =
+      /^transaction (failed|reverted)[.!]?$/i.test(specific) ||
+      specific.length > 200 ||
+      specific.includes("\n");
     return {
       category: "transaction_failed",
       title: "Transaction Failed",
-      message: "The transaction could not be completed. Please try again.",
+      message: isBare
+        ? "The transaction could not be completed. Please try again."
+        : specific,
     };
   }
 

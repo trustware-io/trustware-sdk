@@ -9,6 +9,51 @@ import type {
 } from "../types";
 import { TrustwareConfigStore } from "src/config/store";
 import { validateRouteAddresses } from "../validation/address";
+import {
+  isSolanaNativeTokenAlias,
+  normalizeChainType,
+} from "../widget/helpers/chainHelpers";
+
+/**
+ * Wrapped SOL. The only identifier routing providers actually accept for
+ * native SOL — `So1111…111` makes LiFi answer `provider_error`, and the EVM
+ * native sentinel routes through an aggregator whose transaction reverts
+ * on-chain with `UnbalancedInstruction`.
+ */
+export const SOLANA_NATIVE_ROUTE_TOKEN =
+  "So11111111111111111111111111111111111111112";
+
+/**
+ * Normalizes how a chain's native asset is named on the wire.
+ *
+ * Token registries describe native SOL three different ways — the EVM
+ * sentinel `0xEeee…` (Squid's convention, and what the token list returns),
+ * `So1111…111`, and the wrapped-SOL mint. Providers only route the last one
+ * correctly, so pin it here rather than passing whichever spelling the
+ * selected token happened to carry. Non-Solana chains are untouched: the EVM
+ * sentinel is exactly right there.
+ */
+export function canonicalRouteToken(
+  address: string | undefined,
+  chain: string | number | undefined
+): string {
+  // normalizeChainType treats a non-string as a ChainDef and reads .type /
+  // .chainId off it, so a numeric chain id resolves to undefined and would
+  // skip the mapping entirely. Convert before inferring.
+  const chainType = normalizeChainType(
+    chain === undefined || chain === null ? undefined : String(chain)
+  );
+  if (chainType !== "solana") return address ?? "";
+  if (!address) return SOLANA_NATIVE_ROUTE_TOKEN;
+  const trimmed = address.trim();
+  if (
+    isSolanaNativeTokenAlias(trimmed) ||
+    trimmed === "0x0000000000000000000000000000000000000000"
+  ) {
+    return SOLANA_NATIVE_ROUTE_TOKEN;
+  }
+  return trimmed;
+}
 
 export type BuildRouteBody = {
   fromChain: string;
@@ -148,6 +193,8 @@ export async function buildRoute(
   const url = `${apiBase()}/v1/routes/route`;
   const payload = {
     ...body,
+    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
+    toToken: canonicalRouteToken(body.toToken, body.toChain),
     slippageBps:
       body.slippageBps ??
       (body.slippage === undefined
@@ -211,6 +258,8 @@ export async function buildDepositAddress(
   const url = `${apiBase()}/v1/routes/deposit-address`;
   const payload = {
     ...body,
+    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
+    toToken: canonicalRouteToken(body.toToken, body.toChain),
     slippageBps:
       body.slippageBps ??
       (body.slippage === undefined

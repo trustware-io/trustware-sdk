@@ -33,11 +33,14 @@ import {
   normalizeChainType,
   isNativeTokenAddress,
   isZeroAddrLike,
+  needsErc20Approval,
 } from "src/widget/helpers/chainHelpers";
 import { useTrustwareConfig } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
 import { useSwapExecution } from "./hooks/useSwapExecution";
+import { isValueDestroying } from "./routeValue";
+import { findWalletBalanceRow } from "./walletBalance";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
 // import { SwapWalletSelector } from "./components/SwapWalletSelector";
@@ -491,6 +494,13 @@ export function SwapMode({
 
   const fromChainType = normalizeChainType(fromChain);
   const toChainType = normalizeChainType(toChain);
+  // "Max approval" only sizes an ERC20 approve(). A Solana swap or a native
+  // asset never runs one, so the toggle would promise a step that never
+  // happens — hide it rather than offer a setting with no effect.
+  const canSetMaxApproval = needsErc20Approval(
+    fromToken?.address,
+    fromChainType
+  );
   const needsDestAddress =
     !!fromChainType && !!toChainType && fromChainType !== toChainType;
   const isValidDestAddress =
@@ -671,14 +681,24 @@ export function SwapMode({
 
   // rawToDecimal avoids the Number(BigInt) precision loss on tokens with 18 decimals
   const fromBalance = useMemo(() => {
-    const walletToken = fromToken as YourTokenData;
-    if (!walletToken || !("balance" in walletToken)) return null;
-    const raw = walletToken.balance;
+    if (!fromToken) return null;
+
+    // Read the balance from the wallet rows rather than from the selected
+    // token object — see findWalletBalanceRow for why the object alone is not
+    // enough.
+    const row = findWalletBalanceRow(
+      yourWalletTokens,
+      fromToken,
+      fromChain?.chainId,
+      normalizeChainType(fromChain)
+    );
+
+    const raw = row?.balance ?? (fromToken as YourTokenData).balance;
     if (!raw) return null;
-    const decimals = fromToken?.decimals ?? 18;
+    const decimals = row?.decimals ?? fromToken?.decimals ?? 18;
     const n = Number(rawToDecimal(raw, decimals));
     return Number.isFinite(n) ? n : null;
-  }, [fromToken]);
+  }, [fromToken, fromChain, yourWalletTokens]);
 
   // USD value of the balance — same formula as AmountBalanceRow: normalizedBalance * tokenPriceUSD
   const balanceUsd =
@@ -988,9 +1008,13 @@ export function SwapMode({
     };
   }, [route.loading]);
 
-  // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval
+  // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval.
+  // Only on the quote-facing stages: once the swap is submitted the quote is
+  // spent, and refreshing it just spends rate-limit budget the status poll
+  // needs on /route calls whose answer nothing reads.
   useEffect(() => {
     if (!route.data) return;
+    if (stage !== "home" && stage !== "review") return;
     const id = setInterval(() => {
       const ts = quoteTimestampRef.current;
       if (ts === null) return;
@@ -1002,7 +1026,16 @@ export function SwapMode({
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [route.data]);
+  }, [route.data, stage]);
+
+  // Every fetch nulls route.data for its whole duration (useSwapRoute), so the
+  // refresh above can pull the quote out from under the review screen — and if
+  // it fails, leave it there with nothing to act on. Give that screen a way to
+  // ask for a new quote itself.
+  const handleRetryQuote = useCallback(() => {
+    if (!latestFetchParamsRef.current) return;
+    void fetchRef.current(latestFetchParamsRef.current);
+  }, []);
 
   // Check allowance upfront when entering review so button shows correct label immediately
   useEffect(() => {
@@ -2385,6 +2418,10 @@ export function SwapMode({
             txStatus={execution.txStatus}
             isSubmitting={execution.isSubmitting}
             isGasSponsored={isGasSponsored}
+            hasQuote={!!route.data}
+            isQuoteRefreshing={route.loading}
+            quoteError={route.error}
+            onRetryQuote={handleRetryQuote}
             onExecute={() => void handleExecute()}
           />
         </div>
@@ -2393,6 +2430,11 @@ export function SwapMode({
   }
 
   // ─── Home ─────────────────────────────────────────────────────────────────────
+  // Fees exceed everything the route delivers, so executing it loses money
+  // outright. The price-impact badge alone reads as "expensive"; this is a
+  // different claim and blocks rather than decorates.
+  const feesExceedOutput = isValueDestroying(route.data?.route?.estimate);
+
   const ctaLabel = !hasTokens
     ? "Get started"
     : !hasAmount
@@ -2405,14 +2447,17 @@ export function SwapMode({
             ? `Enter ${toChain?.networkName ?? "destination"} address`
             : route.loading
               ? "Getting quote..."
-              : "Review";
+              : feesExceedOutput
+                ? "Fees exceed amount received"
+                : "Review";
 
   const ctaDisabled =
     !hasTokens ||
     !hasAmount ||
     insufficient ||
     (isConnected && needsDestAddress && !isValidDestAddress) ||
-    route.loading;
+    route.loading ||
+    feesExceedOutput;
   const ctaAction = !isConnected
     ? handleConnectAndReview
     : () => void handleReview();
@@ -2715,71 +2760,73 @@ export function SwapMode({
                   )}
                 </div>
 
-                {/* Max approval toggle */}
-                <div style={{ marginBottom: spacing[4] }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div>
-                      <p
-                        style={{
-                          fontSize: fontSize.sm,
-                          fontWeight: fontWeight.medium,
-                          color: colors.foreground,
-                        }}
-                      >
-                        Max approval
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "0.625rem",
-                          color: colors.mutedForeground,
-                          marginTop: "2px",
-                        }}
-                      >
-                        Approve unlimited spend (saves gas on repeat swaps)
-                      </p>
-                    </div>
-                    <button
-                      role="switch"
-                      aria-checked={maxApproval}
-                      onClick={() => setMaxApproval((v) => !v)}
+                {/* Max approval toggle — ERC20 approvals only */}
+                {canSetMaxApproval && (
+                  <div style={{ marginBottom: spacing[4] }}>
+                    <div
                       style={{
-                        width: "2.5rem",
-                        height: "1.375rem",
-                        borderRadius: "9999px",
-                        backgroundColor: maxApproval
-                          ? colors.primary
-                          : colors.muted,
-                        border: 0,
-                        cursor: "pointer",
-                        position: "relative",
-                        transition: "background-color 0.2s",
-                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                       }}
                     >
-                      <span
+                      <div>
+                        <p
+                          style={{
+                            fontSize: fontSize.sm,
+                            fontWeight: fontWeight.medium,
+                            color: colors.foreground,
+                          }}
+                        >
+                          Max approval
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "0.625rem",
+                            color: colors.mutedForeground,
+                            marginTop: "2px",
+                          }}
+                        >
+                          Approve unlimited spend (saves gas on repeat swaps)
+                        </p>
+                      </div>
+                      <button
+                        role="switch"
+                        aria-checked={maxApproval}
+                        onClick={() => setMaxApproval((v) => !v)}
                         style={{
-                          position: "absolute",
-                          top: "0.1875rem",
-                          left: maxApproval
-                            ? "calc(100% - 1rem - 0.1875rem)"
-                            : "0.1875rem",
-                          width: "1rem",
-                          height: "1rem",
+                          width: "2.5rem",
+                          height: "1.375rem",
                           borderRadius: "9999px",
-                          backgroundColor: colors.primaryForeground,
-                          transition: "left 0.2s",
-                          display: "block",
+                          backgroundColor: maxApproval
+                            ? colors.primary
+                            : colors.muted,
+                          border: 0,
+                          cursor: "pointer",
+                          position: "relative",
+                          transition: "background-color 0.2s",
+                          flexShrink: 0,
                         }}
-                      />
-                    </button>
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "0.1875rem",
+                            left: maxApproval
+                              ? "calc(100% - 1rem - 0.1875rem)"
+                              : "0.1875rem",
+                            width: "1rem",
+                            height: "1rem",
+                            borderRadius: "9999px",
+                            backgroundColor: colors.primaryForeground,
+                            transition: "left 0.2s",
+                            display: "block",
+                          }}
+                        />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Display currency */}
                 <div
@@ -3501,6 +3548,21 @@ export function SwapMode({
           >
             {ctaLabel}
           </button>
+          {feesExceedOutput && (
+            <div
+              style={{
+                marginTop: `-${spacing[2]}`,
+                marginBottom: spacing[3],
+                fontSize: fontSize.xs,
+                lineHeight: 1.4,
+                color: "#f87171",
+                textAlign: "center",
+              }}
+            >
+              This route costs more in fees than it delivers. Try a larger
+              amount, or a different token or network.
+            </div>
+          )}
         </div>
 
         {/* Rate / gas footer — expandable, shown when both tokens selected */}
@@ -3702,6 +3764,11 @@ type SwapActionAreaProps = {
   txStatus: SwapTxStatus;
   isSubmitting: boolean;
   isGasSponsored: boolean;
+  /** False while the TTL refresh has the quote in flight, or after it failed. */
+  hasQuote: boolean;
+  isQuoteRefreshing: boolean;
+  quoteError: string | null;
+  onRetryQuote: () => void;
   onExecute: () => void;
 };
 
@@ -3711,12 +3778,21 @@ function SwapActionArea({
   txStatus,
   isSubmitting,
   isGasSponsored,
+  hasQuote,
+  isQuoteRefreshing,
+  quoteError,
+  onRetryQuote,
   onExecute,
 }: SwapActionAreaProps): React.ReactElement {
   // SA path (sponsored) handles approval via Permit2 inside the UserOp batch —
   // no separate approve step, so we never show "Approve TOKEN" when sponsored.
   const needsApproval = allowanceStatus === "needed" && !isGasSponsored;
   const isChecking = allowanceStatus === "checking";
+
+  // The quote is gone and not coming back on its own — offer a retry rather
+  // than a Swap button that handleExecute silently drops for want of a route.
+  const quoteUnavailable =
+    !hasQuote && !isQuoteRefreshing && !isSubmitting && txStatus === "idle";
 
   let label: string;
   if (isChecking) {
@@ -3725,13 +3801,16 @@ function SwapActionArea({
     label = `Approving ${fromTokenSymbol}...`;
   } else if (isSubmitting) {
     label = "Confirm in wallet...";
+  } else if (isQuoteRefreshing) {
+    label = "Refreshing quote...";
   } else if (needsApproval) {
     label = `Approve ${fromTokenSymbol}`;
   } else {
     label = "Swap";
   }
 
-  const isDisabled = isSubmitting || isChecking;
+  const isDisabled =
+    isSubmitting || isChecking || isQuoteRefreshing || !hasQuote;
 
   return (
     <div style={{ marginTop: spacing[6] }}>
@@ -3772,27 +3851,58 @@ function SwapActionArea({
         </div>
       )}
 
-      <button
-        onClick={onExecute}
-        disabled={isDisabled}
-        style={mergeStyles(
-          {
-            width: "100%",
-            height: "3.5rem",
-            borderRadius: "1.5rem",
-            backgroundColor: colors.primary,
-            color: colors.primaryForeground,
-            fontSize: fontSize.base,
-            fontWeight: fontWeight.semibold,
-            border: 0,
-            cursor: "pointer",
-            transition: "opacity 0.2s",
-          },
-          isDisabled && { opacity: 0.6, cursor: "not-allowed" }
-        )}
-      >
-        {label}
-      </button>
+      {quoteUnavailable ? (
+        <>
+          <p
+            style={{
+              fontSize: fontSize.xs,
+              color: colors.destructive,
+              textAlign: "center",
+              marginBottom: spacing[3],
+            }}
+          >
+            {quoteError ?? "This quote expired."}
+          </p>
+          <button
+            onClick={onRetryQuote}
+            style={{
+              width: "100%",
+              height: "3.5rem",
+              borderRadius: "1.5rem",
+              backgroundColor: colors.primary,
+              color: colors.primaryForeground,
+              fontSize: fontSize.base,
+              fontWeight: fontWeight.semibold,
+              border: 0,
+              cursor: "pointer",
+            }}
+          >
+            Get a new quote
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={onExecute}
+          disabled={isDisabled}
+          style={mergeStyles(
+            {
+              width: "100%",
+              height: "3.5rem",
+              borderRadius: "1.5rem",
+              backgroundColor: colors.primary,
+              color: colors.primaryForeground,
+              fontSize: fontSize.base,
+              fontWeight: fontWeight.semibold,
+              border: 0,
+              cursor: "pointer",
+              transition: "opacity 0.2s",
+            },
+            isDisabled && { opacity: 0.6, cursor: "not-allowed" }
+          )}
+        >
+          {label}
+        </button>
+      )}
 
       {needsApproval && !isSubmitting && (
         <p
