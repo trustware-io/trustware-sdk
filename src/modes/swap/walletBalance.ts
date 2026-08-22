@@ -18,6 +18,24 @@ import type { YourTokenData } from "src/widget/state/deposit/types";
  * also maps the Solana native aliases onto one another, which a plain
  * comparison would miss.
  */
+/** Hex addresses are case-insensitive; everything else (Base58 SPL mints, BTC)
+ *  is not. */
+const HEX_ADDRESS = /^0x[0-9a-f]+$/i;
+
+/**
+ * `normalizeAddress` decides by chain type, which is the right call when the
+ * caller knows it — it also folds the Solana native aliases together. But it
+ * lowercases whenever the type is absent, which would silently reintroduce the
+ * Base58 bug for a caller that couldn't supply one. The address format is
+ * self-describing, so fall back to that rather than to case-folding.
+ */
+function compareKey(address: string, chainType?: ChainDef["type"]): string {
+  if (chainType) return normalizeAddress(address, chainType);
+  return HEX_ADDRESS.test(address.trim())
+    ? address.toLowerCase()
+    : address.trim();
+}
+
 export function findWalletBalanceRow(
   rows: YourTokenData[] | undefined,
   token: { address?: string } | null | undefined,
@@ -26,7 +44,7 @@ export function findWalletBalanceRow(
 ): YourTokenData | undefined {
   const rawAddress = token?.address;
   if (!rawAddress || !rows?.length) return undefined;
-  const wantAddress = normalizeAddress(rawAddress, chainType);
+  const wantAddress = compareKey(rawAddress, chainType);
   if (!wantAddress) return undefined;
 
   // A chain is only a constraint when we know it — an address alone can
@@ -36,7 +54,7 @@ export function findWalletBalanceRow(
 
   return rows.find((row) => {
     if (!row?.address) return false;
-    if (normalizeAddress(row.address, chainType) !== wantAddress) return false;
+    if (compareKey(row.address, chainType) !== wantAddress) return false;
     if (!wantChain) return true;
     return (
       String(row.chainId ?? "")

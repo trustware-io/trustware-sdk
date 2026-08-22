@@ -121,6 +121,30 @@ describe("findWalletBalanceRow", () => {
       assert.equal(b?.decimals, 6);
     });
 
+    // A caller that can't supply a chain type must not silently fall back to
+    // case-folding: the address format already says whether case matters.
+    it("keeps Base58 case even when no chain type is supplied", () => {
+      assert.equal(
+        findWalletBalanceRow(SOL_ROWS, { address: MINT_A }, "solana")?.symbol,
+        "WSOL"
+      );
+      assert.equal(
+        findWalletBalanceRow(SOL_ROWS, { address: MINT_B }, "solana")?.symbol,
+        "OTHER"
+      );
+    });
+
+    it("still folds hex case when no chain type is supplied", () => {
+      assert.equal(
+        findWalletBalanceRow(
+          ROWS,
+          { address: "0xDDDD73F5DF1F0DC31373357BEAC77545DC5A6F3F" },
+          "98866"
+        )?.balance,
+        "500000"
+      );
+    });
+
     it("still folds case for EVM, where the checksum is display-only", () => {
       const checksummed = "0xDDDD73F5DF1F0DC31373357BEAC77545DC5A6F3F";
       const row = findWalletBalanceRow(
