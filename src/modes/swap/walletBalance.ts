@@ -38,7 +38,7 @@ function compareKey(address: string, chainType?: ChainDef["type"]): string {
 
 export function findWalletBalanceRow(
   rows: YourTokenData[] | undefined,
-  token: { address?: string } | null | undefined,
+  token: { address?: string; chainId?: string | number } | null | undefined,
   chainId?: string | number | null,
   chainType?: ChainDef["type"]
 ): YourTokenData | undefined {
@@ -47,19 +47,28 @@ export function findWalletBalanceRow(
   const wantAddress = compareKey(rawAddress, chainType);
   if (!wantAddress) return undefined;
 
-  // A chain is only a constraint when we know it — an address alone can
-  // collide across chains (the same ERC20 address is routinely deployed to
-  // several), so prefer a chain-qualified match.
-  const wantChain = chainId == null ? "" : String(chainId).trim().toLowerCase();
+  // The chain is a required constraint, never an optional one. An address
+  // alone collides across chains — the same ERC20 address is routinely
+  // deployed to several, and a wallet full of airdropped spam multiplies the
+  // chances — so matching without one attributes some other chain's row, and
+  // its balance, to the selected token. On the Sell panel that is visible as a
+  // nonsense quantity under the right symbol.
+  //
+  // The selected chain is not always known: the panel can hold a token before
+  // a chain is picked. The token itself carries `chainId` in that case, and it
+  // is the token's own chain that decides which row is its balance. Fall back
+  // to it, and if neither is available, report no balance rather than the
+  // wrong one.
+  const wantChain = normalizeChain(chainId ?? token?.chainId);
+  if (!wantChain) return undefined;
 
   return rows.find((row) => {
     if (!row?.address) return false;
     if (compareKey(row.address, chainType) !== wantAddress) return false;
-    if (!wantChain) return true;
-    return (
-      String(row.chainId ?? "")
-        .trim()
-        .toLowerCase() === wantChain
-    );
+    return normalizeChain(row.chainId) === wantChain;
   });
+}
+
+function normalizeChain(chainId: string | number | null | undefined): string {
+  return chainId == null ? "" : String(chainId).trim().toLowerCase();
 }

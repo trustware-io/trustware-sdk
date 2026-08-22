@@ -689,13 +689,20 @@ export function SwapMode({
     const row = findWalletBalanceRow(
       yourWalletTokens,
       fromToken,
-      fromChain?.chainId,
+      fromChain?.chainId ?? fromToken?.chainId,
       normalizeChainType(fromChain)
     );
 
     const raw = row?.balance ?? (fromToken as YourTokenData).balance;
     if (!raw) return null;
-    const decimals = row?.decimals ?? fromToken?.decimals ?? 18;
+
+    // No decimals, no balance. Falling back to 18 used to look harmless, but
+    // it is a guess applied to a quantity: on a 6-decimal token it under-reads
+    // by 1e12, and on a row whose decimals never arrived it renders whatever
+    // the raw string happens to be. Showing nothing is the honest answer.
+    const decimals = row?.decimals ?? fromToken?.decimals;
+    if (decimals == null) return null;
+
     const n = Number(rawToDecimal(raw, decimals));
     return Number.isFinite(n) ? n : null;
   }, [fromToken, fromChain, yourWalletTokens]);
