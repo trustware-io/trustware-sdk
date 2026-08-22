@@ -54,11 +54,65 @@ describe("findWalletBalanceRow", () => {
     assert.equal(findWalletBalanceRow(ROWS, { address: PUSD }, "1"), undefined);
   });
 
-  it("matches on address alone when no chain is known", () => {
+  // Regression: this used to match on address alone, which is how the prod
+  // Sell panel showed a 46-digit quantity of pUSD before any chain was picked.
+  // A wallet holding airdropped spam has rows the selected token has nothing
+  // to do with; without a chain, the first address collision wins.
+  it("reports no balance when no chain is known anywhere", () => {
+    assert.equal(findWalletBalanceRow(ROWS, { address: PUSD }), undefined);
+  });
+
+  // The Sell panel can hold a token before a chain is selected. The token
+  // carries its own chain, and that is the one that decides.
+  it("falls back to the token's own chain", () => {
     assert.equal(
-      findWalletBalanceRow(ROWS, { address: PUSD })?.balance,
+      findWalletBalanceRow(ROWS, { address: PUSD, chainId: "98866" })?.balance,
       "500000"
     );
+  });
+
+  it("does not let the token's own chain match a different chain's row", () => {
+    assert.equal(
+      findWalletBalanceRow(ROWS, { address: PUSD, chainId: "1" }),
+      undefined
+    );
+  });
+
+  // An explicit chain argument is the selected chain and outranks the token's.
+  it("prefers the explicit chain over the token's", () => {
+    assert.equal(
+      findWalletBalanceRow(ROWS, { address: PUSD, chainId: "98866" }, "1"),
+      undefined
+    );
+  });
+
+  // Two chains, same address, different decimals — exactly the pUSD case:
+  // Plume USD is 6 decimals, Poof cUSD on Celo is 18. Answering with the wrong
+  // row mis-scales by 1e12 even when the balance itself is real.
+  it("picks the row for the asked-for chain when an address collides", () => {
+    const COLLIDING = [
+      {
+        address: PUSD,
+        chainId: "98866",
+        symbol: "pUSD",
+        decimals: 6,
+        balance: "1729372",
+      },
+      {
+        address: PUSD,
+        chainId: "42220",
+        symbol: "pUSD",
+        decimals: 18,
+        balance: "42424242424242424242424242",
+      },
+    ] as unknown as YourTokenData[];
+
+    const plume = findWalletBalanceRow(COLLIDING, { address: PUSD }, "98866");
+    assert.equal(plume?.balance, "1729372");
+    assert.equal(plume?.decimals, 6);
+
+    const celo = findWalletBalanceRow(COLLIDING, { address: PUSD }, "42220");
+    assert.equal(celo?.decimals, 18);
   });
 
   it("returns undefined for a token the wallet does not hold", () => {
@@ -71,8 +125,14 @@ describe("findWalletBalanceRow", () => {
   it("tolerates missing inputs", () => {
     assert.equal(findWalletBalanceRow(ROWS, null, "98866"), undefined);
     assert.equal(findWalletBalanceRow(ROWS, {}, "98866"), undefined);
-    assert.equal(findWalletBalanceRow(undefined, { address: PUSD }), undefined);
-    assert.equal(findWalletBalanceRow([], { address: PUSD }), undefined);
+    assert.equal(
+      findWalletBalanceRow(undefined, { address: PUSD }, "98866"),
+      undefined
+    );
+    assert.equal(
+      findWalletBalanceRow([], { address: PUSD }, "98866"),
+      undefined
+    );
   });
 
   // Case is meaningless in a hex EVM address but significant in a Base58 SPL
