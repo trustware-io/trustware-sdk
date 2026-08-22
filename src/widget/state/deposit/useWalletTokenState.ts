@@ -295,7 +295,7 @@ function hasChainData(token: Token | YourTokenData): token is YourTokenData {
   return "chainData" in token;
 }
 
-function mapWalletTokens(
+export function mapWalletTokens(
   balances: Awaited<ReturnType<typeof getBalancesByAddress>>,
   chains: ChainDef[],
   tokens: ReturnType<typeof useTokens>["tokens"]
@@ -364,6 +364,33 @@ function mapWalletTokens(
       );
       const nativeKey = `${normalizeChainKey(balanceRow.chain_id)}:${nativeAddress}`;
       foundToken = tokensByCanonicalKey.get(nativeKey);
+    }
+
+    // A native balance is always real and always the user's, so it must never
+    // be filtered out for want of a catalog entry. Not every chain lists its
+    // native asset at the sentinel address the lookup above probes — Tempo
+    // (4217) carries PathUSD at 0x20c0…0000 — which silently hid the whole
+    // native row. The chain definition already names the native currency, so
+    // fall back to that.
+    if (!foundToken && balanceRow.category === "native") {
+      const native = chain.nativeCurrency;
+      const symbol = native?.symbol?.trim();
+      if (symbol) {
+        return [
+          {
+            ...balanceRow,
+            symbol,
+            decimals: native?.decimals ?? balanceRow.decimals ?? 18,
+            name: native?.name?.trim() || symbol,
+            iconUrl: chain.chainIconURI || "",
+            chainId: balanceRow.chain_id,
+            usdPrice: undefined,
+            address: getNativeTokenAddress(chain.type),
+            chainIconURI: chain.chainIconURI || "",
+            chainData: chain,
+          },
+        ];
+      }
     }
 
     if (!foundToken?.name || !foundToken.symbol || !foundToken.address) {
