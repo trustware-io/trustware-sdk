@@ -15,6 +15,7 @@ import {
   canonicalTokenAddressForChain,
   getNativeTokenAddress,
   normalizeChainKey,
+  normalizeChainType,
 } from "../../helpers/chainHelpers";
 
 import type { Token, YourTokenData } from "./types";
@@ -359,7 +360,7 @@ export function mapWalletTokens(
     if (!foundToken && balanceRow.category === "native") {
       const nativeAddress = canonicalTokenAddressForChain(
         chain,
-        getNativeTokenAddress(chain.type),
+        getNativeTokenAddress(normalizeChainType(chain)),
         tokens
       );
       const nativeKey = `${normalizeChainKey(balanceRow.chain_id)}:${nativeAddress}`;
@@ -385,7 +386,7 @@ export function mapWalletTokens(
             iconUrl: chain.chainIconURI || "",
             chainId: balanceRow.chain_id,
             usdPrice: undefined,
-            address: getNativeTokenAddress(chain.type),
+            address: getNativeTokenAddress(normalizeChainType(chain)),
             chainIconURI: chain.chainIconURI || "",
             chainData: chain,
           },
