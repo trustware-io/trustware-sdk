@@ -40,6 +40,7 @@ import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
 import { useSwapExecution } from "./hooks/useSwapExecution";
 import { isValueDestroying } from "./routeValue";
+import { findWalletBalanceRow } from "./walletBalance";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
 // import { SwapWalletSelector } from "./components/SwapWalletSelector";
@@ -680,14 +681,24 @@ export function SwapMode({
 
   // rawToDecimal avoids the Number(BigInt) precision loss on tokens with 18 decimals
   const fromBalance = useMemo(() => {
-    const walletToken = fromToken as YourTokenData;
-    if (!walletToken || !("balance" in walletToken)) return null;
-    const raw = walletToken.balance;
+    if (!fromToken) return null;
+
+    // Read the balance from the wallet rows rather than from the selected
+    // token object — see findWalletBalanceRow for why the object alone is not
+    // enough.
+    const row = findWalletBalanceRow(
+      yourWalletTokens,
+      fromToken,
+      fromChain?.chainId,
+      normalizeChainType(fromChain)
+    );
+
+    const raw = row?.balance ?? (fromToken as YourTokenData).balance;
     if (!raw) return null;
-    const decimals = fromToken?.decimals ?? 18;
+    const decimals = row?.decimals ?? fromToken?.decimals ?? 18;
     const n = Number(rawToDecimal(raw, decimals));
     return Number.isFinite(n) ? n : null;
-  }, [fromToken]);
+  }, [fromToken, fromChain, yourWalletTokens]);
 
   // USD value of the balance — same formula as AmountBalanceRow: normalizedBalance * tokenPriceUSD
   const balanceUsd =
