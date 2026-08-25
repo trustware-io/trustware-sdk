@@ -11,8 +11,7 @@ import {
 
 /** A 404 exactly as iluvatar's returnProviderOutcomes renders it. */
 const noRouteBody = {
-  error:
-    "no route available for this pair (squid: amount_too_low; relay: no_routes)",
+  error: "no route available for this pair",
   code: "no_route_available",
   providers: [
     {
@@ -83,7 +82,7 @@ describe("routeErrorFromResponse", () => {
     const err = routeErrorFromResponse(
       404,
       {
-        error: "no route available for this pair (squid: amount_too_low)",
+        error: "no route available for this pair",
         providers: [
           {
             name: "squid",
@@ -121,7 +120,7 @@ describe("isRouteError", () => {
     // ours; the structural fields are what matter.
     const foreign = Object.assign(Object.create(null), {
       name: "RouteError",
-      message: "no route available for this pair (squid: no_routes)",
+      message: "no route available for this pair",
       status: 404,
       code: "no_route_available",
       providers: [
@@ -146,21 +145,59 @@ describe("parseRouteError", () => {
     assert.deepEqual(facts.minimum, { amount: "20", symbol: "USDC" });
   });
 
-  it("recovers the codes from a bare summary string", () => {
-    // The widget flattens errors to strings on the way into component state,
-    // so the string path is the one that runs in practice.
-    const facts = parseRouteError(noRouteBody.error);
-    assert.ok(facts);
-    assert.deepEqual(facts.codes, ["amount_too_low", "no_routes"]);
-    assert.equal(facts.allDeclined, true);
-  });
-
   it("marks a round containing a real failure as not all-declined", () => {
     const facts = parseRouteError(
-      "routing providers failed to answer (squid: provider_error; relay: no_routes)"
+      routeErrorFromResponse(
+        502,
+        {
+          error: "routing providers failed to answer",
+          code: "providers_failed",
+          providers: [
+            {
+              name: "squid",
+              outcome: "failed",
+              code: "provider_error",
+              message: "",
+            },
+            {
+              name: "relay",
+              outcome: "declined",
+              code: "no_routes",
+              message: "",
+            },
+          ],
+        },
+        "x"
+      )
     );
     assert.ok(facts);
     assert.equal(facts.allDeclined, false);
+  });
+
+  it("returns null for the current API's summary once flattened to a string", () => {
+    // The verdict lives in `providers` only; the sentence does not repeat it.
+    assert.equal(parseRouteError(noRouteBody.error), null);
+    assert.equal(
+      parseRouteError(new Error("routing providers failed to answer")),
+      null
+    );
+  });
+
+  it("still reads a legacy summary that spelled the codes out", () => {
+    // Backends before the verdict moved into `providers` alone rendered
+    // "summary (provider: code; …)". Same widget must behave against both.
+    const facts = parseRouteError(
+      "no route available for this pair (squid: amount_too_low; relay: no_routes)"
+    );
+    assert.ok(facts);
+    assert.deepEqual(facts.codes, ["amount_too_low", "no_routes"]);
+    assert.equal(facts.allDeclined, true);
+    assert.equal(
+      parseRouteError(
+        "routing providers failed to answer (squid: provider_error; relay: no_routes)"
+      )?.allDeclined,
+      false
+    );
   });
 
   it("does not read routing codes out of ordinary prose", () => {
@@ -197,7 +234,7 @@ describe("parseRouteError", () => {
   it("reads the backend's own minimum wording too", () => {
     const facts = parseRouteError(
       new RouteError({
-        message: "no route available for this pair (squid: amount_too_low)",
+        message: "no route available for this pair",
         status: 404,
         code: "no_route_available",
         providers: [
@@ -220,7 +257,7 @@ describe("minimum amounts", () => {
   function minimumOf(message: string) {
     return parseRouteError(
       new RouteError({
-        message: "no route available for this pair (squid: amount_too_low)",
+        message: "no route available for this pair",
         status: 404,
         providers: [
           {

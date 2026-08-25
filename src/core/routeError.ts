@@ -6,7 +6,7 @@
  * every provider, judges each answer, and returns why each one is out:
  *
  *   {
- *     "error": "no route available for this pair (squid: amount_too_low; relay: no_routes)",
+ *     "error": "no route available for this pair",
  *     "code": "no_route_available",
  *     "providers": [
  *       { "name": "squid", "outcome": "declined", "code": "amount_too_low",
@@ -208,11 +208,17 @@ export type RouteErrorFacts = {
 /**
  * Recovers the routing verdict from anything the widget might be holding.
  *
- * A RouteError gives it directly. A bare string or Error still yields the codes,
- * because the API embeds them in the summary it renders — "no route available
- * for this pair (squid: amount_too_low; relay: no_routes)". That matters: the
- * widget flattens errors to strings on their way into component state, so
- * without this the structure would be lost before anything could read it.
+ * A RouteError gives it directly, and that is the path that matters: the
+ * widget classifies while it still has the error object, before flattening
+ * the result to a string for component state (see useSwapRoute, and
+ * mapError's memory of its own output for the render pass).
+ *
+ * A bare string or Error is still read for a summary that spells the codes
+ * out — "no route available for this pair (squid: amount_too_low; …)" — which
+ * is what the API rendered before the verdict moved into `providers` alone.
+ * Kept so the widget behaves the same against a backend from before that
+ * change; against the current API the string carries no codes and this
+ * returns null.
  *
  * Returns null when the value carries no routing verdict at all, so callers can
  * fall through to their existing handling.
@@ -259,7 +265,11 @@ export function parseRouteError(raw: unknown): RouteErrorFacts | null {
   };
 }
 
-/** The two summaries the routing API renders — see returnProviderOutcomes. */
+/**
+ * The two summaries the routing API renders — see returnProviderOutcomes. Only
+ * consulted on the legacy string path above; the current API's summary has no
+ * codes after it.
+ */
 const ROUTE_SUMMARIES = [
   "no route available",
   "routing providers failed to answer",

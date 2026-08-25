@@ -5,6 +5,7 @@ import { parseDecimalToWei } from "src/widget/helpers/chainHelpers";
 import type { BuildRouteResult, ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import { TrustwareConfigStore } from "src/config/store";
+import { mapError } from "src/widget/lib/mapError";
 
 export type SwapRouteState = {
   data: BuildRouteResult | null;
@@ -71,7 +72,12 @@ export function useSwapRoute() {
         return result;
       } catch (err) {
         if (abortRef.current) return null;
-        const msg = err instanceof Error ? err.message : "Failed to get quote";
+        // Classify here, while the RouteError still has its provider
+        // outcomes. State holds a string, and the API's "error" sentence is
+        // only the summary — the verdict is in `providers`, which a message
+        // does not carry. mapError recognizes its own output, so the render
+        // pass (SwapMode maps route.error again) reproduces this result.
+        const msg = err ? mapError(err).message : "Failed to get quote";
         setState({ data: null, loading: false, error: msg });
         return null;
       }
