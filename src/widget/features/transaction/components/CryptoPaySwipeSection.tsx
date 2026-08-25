@@ -1,4 +1,5 @@
 import { SwipeToConfirmTokens } from "./SwipeToConfirmTokens";
+import { mapError } from "src/widget/lib/mapError";
 import type { YourTokenData } from "../../../context/DepositContext";
 import { spacing } from "../../../styles";
 
@@ -49,10 +50,14 @@ export function CryptoPaySwipeSection({
               ? "Swipe to approve"
               : "Swipe to confirm";
 
+  // The swipe label is a button, not an error page, so it gets the mapped
+  // title. What this replaces only rewrote a message that was *exactly* the
+  // word "squid", "api" or "body" — which no error is — so raw provider text
+  // like "squid api error: status=400 body={…}" was rendered on the button.
   function refineErrorMessage(message: string) {
-    return ["squid", "api", "body"].includes(message.toLowerCase())
-      ? "route not avaliable"
-      : message;
+    const mapped = mapError(message);
+    if (mapped.category !== "unknown") return mapped.title;
+    return message.length <= 60 ? message : "Route not available";
   }
 
   return (

@@ -1,3 +1,10 @@
+import {
+  formatMinimum,
+  parseRouteError,
+  RouteDeclineCode,
+  type RouteErrorFacts,
+} from "src/core";
+
 export type ErrorCategory =
   | "wallet_rejected"
   | "insufficient_funds"
@@ -43,16 +50,120 @@ function bodyMessage(body: Record<string, unknown>): string {
   ).toLowerCase();
 }
 
-export function mapError(raw: unknown): MappedError {
-  const msg =
-    raw instanceof Error
-      ? raw.message
-      : typeof raw === "string"
-        ? raw
-        : raw != null
-          ? String(raw)
-          : "";
+/**
+ * Turns the routing API's own verdict into the widget's category.
+ *
+ * Preferred over the substring rules below because it is what the backend
+ * decided, not a guess at what it meant: each provider reports a stable code
+ * (`amount_too_low`, `insufficient_liquidity`, `pair_unsupported`, …) and this
+ * reads them. Returns null when the codes say nothing actionable, so mapError
+ * falls through to its existing handling.
+ */
+function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
+  if (facts.codes.length === 0) return null;
 
+  // A provider that never answered is not evidence about the pair — saying "no
+  // route exists" would be a claim the backend explicitly refused to make.
+  if (!facts.allDeclined) {
+    return {
+      category: "route_error",
+      title: "Route Unavailable",
+      message:
+        "A routing provider did not respond. Please try again in a moment.",
+    };
+  }
+
+  const has = (code: string) => facts.codes.includes(code);
+  const tooLow = has(RouteDeclineCode.AmountTooLow);
+  const lowLiquidity = has(RouteDeclineCode.InsufficientLiquidity);
+
+  // Both cited at once points in two directions at once — a bigger amount for
+  // one provider, a smaller one for the other. Say neither.
+  if (tooLow && !lowLiquidity) {
+    const minimum = formatMinimum(facts.minimum);
+    return {
+      category: "no_route",
+      title: "Amount Below the Minimum",
+      message: minimum
+        ? `This route needs at least ${minimum}. Try a larger amount.`
+        : "This amount is below the minimum for this route. Try a larger amount.",
+    };
+  }
+
+  if (lowLiquidity && !tooLow) {
+    return {
+      category: "route_error",
+      title: "Insufficient Liquidity",
+      message:
+        "Not enough liquidity for this swap. Try a smaller amount or different token.",
+    };
+  }
+
+  if (
+    facts.codes.every((code) => code === RouteDeclineCode.DestinationCallFailed)
+  ) {
+    // Integrator-facing: the pair routes fine, their postHook is what reverted.
+    return DESTINATION_CALL_FAILED;
+  }
+
+  return {
+    category: "no_route",
+    title: "No Route Found",
+    message:
+      "No swap route exists for this pair. Try a different amount or token.",
+  };
+}
+
+/**
+ * Results this function has already produced, keyed by their message.
+ *
+ * The widget maps an error, stores the message in component state, and maps it
+ * again on the way out — SwapMode renders `mapError(route.error)` where
+ * `route.error` is already a mapped message. The second pass matched none of
+ * the rules below (they read provider text, not our own prose), so "Your
+ * balance is too low…" came back as "Something Went Wrong". Recognizing our own
+ * output makes the second pass a no-op instead.
+ *
+ * Only messages this function authored are kept. A rule that passes the input
+ * through unchanged is content-matched, so its output re-classifies the same
+ * way on its own; and authored messages are a fixed set of literals (plus the
+ * quoted minimum), so the map stays small without a cap that could stop
+ * remembering mid-session.
+ */
+const SELF_MAPPED = new Map<string, MappedError>();
+
+function rememberSelfMapped(mapped: MappedError, input: string): MappedError {
+  if (mapped.message && mapped.message !== input) {
+    SELF_MAPPED.set(mapped.message, mapped);
+  }
+  return mapped;
+}
+
+function messageOf(raw: unknown): string {
+  return raw instanceof Error
+    ? raw.message
+    : typeof raw === "string"
+      ? raw
+      : raw != null
+        ? String(raw)
+        : "";
+}
+
+export function mapError(raw: unknown): MappedError {
+  const msg = messageOf(raw);
+  const seen = SELF_MAPPED.get(msg);
+  if (seen) return seen;
+  return rememberSelfMapped(classifyError(raw, msg), msg);
+}
+
+const DESTINATION_CALL_FAILED: MappedError = {
+  category: "route_error",
+  title: "Destination Call Failed",
+  message:
+    "The destination contract call could not be simulated. Check the call data and target.",
+};
+
+function classifyError(raw: unknown, msg: string): MappedError {
   const lower = msg.toLowerCase();
 
   // ── Wallet rejections ──────────────────────────────────────────────────────
@@ -70,6 +181,16 @@ export function mapError(raw: unknown): MappedError {
       title: "Transaction Cancelled",
       message: "You declined the transaction in your wallet.",
     };
+  }
+
+  // ── Routing verdict ───────────────────────────────────────────────────────
+  // Read the backend's own judgement first. It ran every provider and recorded
+  // why each one is out; the rules below can only guess at that from prose, and
+  // guessed wrong for an amount below a provider's minimum.
+  const routeFacts = parseRouteError(raw);
+  if (routeFacts) {
+    const mapped = mapRouteFacts(routeFacts);
+    if (mapped) return mapped;
   }
 
   // ── API errors (Squid, LiFi, etc.) ────────────────────────────────────────
@@ -149,6 +270,43 @@ export function mapError(raw: unknown): MappedError {
     };
   }
 
+  // ── Liquidity ─────────────────────────────────────────────────────────────
+  // Ahead of the balance rule on purpose: "Not enough liquidity for this swap"
+  // is about the pool, not the wallet, and the balance rule's "not enough"
+  // matched it first — so this function's own liquidity message came back as
+  // "Insufficient Balance" the second time round.
+  // Deliberately narrow: a bare "slippage" or "price impact" also appears in
+  // revert text, which the transaction rules below classify better.
+  if (
+    lower.includes("not enough liquidity") ||
+    lower.includes("insufficient liquidity") ||
+    lower.includes("price impact too high")
+  ) {
+    return {
+      category: "route_error",
+      title: "Insufficient Liquidity",
+      message:
+        "Not enough liquidity for this swap. Try a smaller amount or different token.",
+    };
+  }
+
+  // ── Destination call ──────────────────────────────────────────────────────
+  // Deterministic on its own wording, not via the cache above: this result is
+  // otherwise close enough to "Route Unavailable" that the provider rule below
+  // would retitle it on a second pass.
+  if (lower.includes("destination contract call")) {
+    return DESTINATION_CALL_FAILED;
+  }
+
+  // ── Provider did not answer ───────────────────────────────────────────────
+  if (lower.includes("did not respond") || lower.includes("routing provider")) {
+    return {
+      category: "route_error",
+      title: "Route Unavailable",
+      message: msg.length < 160 ? msg : "Please try again in a moment.",
+    };
+  }
+
   // ── Insufficient funds ─────────────────────────────────────────────────────
   if (
     lower.includes("insufficient funds") ||
@@ -218,10 +376,31 @@ export function mapError(raw: unknown): MappedError {
     };
   }
 
+  // ── Amount below a provider minimum ───────────────────────────────────────
+  // Also covers this function's own wording. The widget stores a mapped message
+  // in component state and maps it again on the way out (SwapMode renders
+  // mapError(route.error)), so a message that did not re-classify to the same
+  // category fell through to "Something Went Wrong".
+  if (
+    lower.includes("below the minimum") ||
+    lower.includes("needs at least") ||
+    lower.includes("minimum swap amount")
+  ) {
+    return {
+      category: "no_route",
+      title: "Amount Below the Minimum",
+      message:
+        msg.length < 120
+          ? msg
+          : "This amount is below the minimum for this route. Try a larger amount.",
+    };
+  }
+
   // ── No route (plain) ───────────────────────────────────────────────────────
   if (
     lower.includes("no route") ||
     lower.includes("no routes") ||
+    lower.includes("no swap route") ||
     lower.includes("route not found")
   ) {
     return {
