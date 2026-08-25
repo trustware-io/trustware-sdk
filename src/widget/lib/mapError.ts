@@ -3,7 +3,7 @@ import {
   parseRouteError,
   RouteDeclineCode,
   type RouteErrorFacts,
-} from "src/core/routeError";
+} from "src/core";
 
 export type ErrorCategory =
   | "wallet_rejected"
@@ -103,12 +103,7 @@ function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
     facts.codes.every((code) => code === RouteDeclineCode.DestinationCallFailed)
   ) {
     // Integrator-facing: the pair routes fine, their postHook is what reverted.
-    return {
-      category: "route_error",
-      title: "Destination Call Failed",
-      message:
-        "The destination contract call could not be simulated. Check the call data and target.",
-    };
+    return DESTINATION_CALL_FAILED;
   }
 
   return {
@@ -129,40 +124,46 @@ function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
  * balance is too low…" came back as "Something Went Wrong". Recognizing our own
  * output makes the second pass a no-op instead.
  *
- * Capped so a long-lived widget cannot accumulate entries from the rules that
- * pass an arbitrary message through.
+ * Only messages this function authored are kept. A rule that passes the input
+ * through unchanged is content-matched, so its output re-classifies the same
+ * way on its own; and authored messages are a fixed set of literals (plus the
+ * quoted minimum), so the map stays small without a cap that could stop
+ * remembering mid-session.
  */
 const SELF_MAPPED = new Map<string, MappedError>();
-const SELF_MAPPED_LIMIT = 64;
 
-function rememberSelfMapped(mapped: MappedError): MappedError {
-  if (mapped.message && SELF_MAPPED.size < SELF_MAPPED_LIMIT) {
+function rememberSelfMapped(mapped: MappedError, input: string): MappedError {
+  if (mapped.message && mapped.message !== input) {
     SELF_MAPPED.set(mapped.message, mapped);
   }
   return mapped;
 }
 
-export function mapError(raw: unknown): MappedError {
-  if (typeof raw === "string") {
-    const seen = SELF_MAPPED.get(raw);
-    if (seen) return seen;
-  } else if (raw instanceof Error) {
-    const seen = SELF_MAPPED.get(raw.message);
-    if (seen) return seen;
-  }
-  return rememberSelfMapped(classifyError(raw));
+function messageOf(raw: unknown): string {
+  return raw instanceof Error
+    ? raw.message
+    : typeof raw === "string"
+      ? raw
+      : raw != null
+        ? String(raw)
+        : "";
 }
 
-function classifyError(raw: unknown): MappedError {
-  const msg =
-    raw instanceof Error
-      ? raw.message
-      : typeof raw === "string"
-        ? raw
-        : raw != null
-          ? String(raw)
-          : "";
+export function mapError(raw: unknown): MappedError {
+  const msg = messageOf(raw);
+  const seen = SELF_MAPPED.get(msg);
+  if (seen) return seen;
+  return rememberSelfMapped(classifyError(raw, msg), msg);
+}
 
+const DESTINATION_CALL_FAILED: MappedError = {
+  category: "route_error",
+  title: "Destination Call Failed",
+  message:
+    "The destination contract call could not be simulated. Check the call data and target.",
+};
+
+function classifyError(raw: unknown, msg: string): MappedError {
   const lower = msg.toLowerCase();
 
   // ── Wallet rejections ──────────────────────────────────────────────────────
@@ -289,12 +290,16 @@ function classifyError(raw: unknown): MappedError {
     };
   }
 
+  // ── Destination call ──────────────────────────────────────────────────────
+  // Deterministic on its own wording, not via the cache above: this result is
+  // otherwise close enough to "Route Unavailable" that the provider rule below
+  // would retitle it on a second pass.
+  if (lower.includes("destination contract call")) {
+    return DESTINATION_CALL_FAILED;
+  }
+
   // ── Provider did not answer ───────────────────────────────────────────────
-  if (
-    lower.includes("did not respond") ||
-    lower.includes("routing provider") ||
-    lower.includes("destination contract call")
-  ) {
+  if (lower.includes("did not respond") || lower.includes("routing provider")) {
     return {
       category: "route_error",
       title: "Route Unavailable",

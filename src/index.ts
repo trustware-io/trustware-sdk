@@ -9,8 +9,8 @@ export {
   RouteDeclineCode,
   RouteFailureCode,
   RouteErrorCode,
-} from "./core/routeError";
-export type { RouteProviderOutcome, RouteErrorFacts } from "./core/routeError";
+} from "./core";
+export type { RouteProviderOutcome, RouteErrorFacts } from "./core";
 export { assertValidPostHook } from "./core";
 export type { BuildRouteBody, BuildRouteResponse } from "./core";
 export { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";

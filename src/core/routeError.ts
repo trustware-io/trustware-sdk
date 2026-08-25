@@ -108,16 +108,21 @@ export class RouteError extends Error {
 
   /** The distinct provider codes, e.g. ["amount_too_low", "no_routes"]. */
   get providerCodes(): string[] {
-    return [...new Set(this.providers.map((p) => p.code).filter(Boolean))];
+    return providerCodes(this.providers);
   }
+}
+
+function providerCodes(providers: readonly RouteProviderOutcome[]): string[] {
+  return [...new Set(providers.map((p) => p.code).filter(Boolean))];
 }
 
 /** Narrowing helper that also works across bundle/realm boundaries. */
 export function isRouteError(err: unknown): err is RouteError {
   return (
     err instanceof RouteError ||
-    (err instanceof Error &&
-      err.name === "RouteError" &&
+    (err !== null &&
+      typeof err === "object" &&
+      (err as { name?: unknown }).name === "RouteError" &&
       Array.isArray((err as RouteError).providers))
   );
 }
@@ -126,8 +131,38 @@ type RouteErrorBody = {
   error?: string;
   message?: string;
   code?: string;
-  providers?: RouteProviderOutcome[];
+  providers?: unknown[];
 };
+
+/**
+ * Longest route-error text that is parsed for codes or a minimum. The API's
+ * summaries are a few hundred bytes; anything larger is not one of them, and
+ * skipping it keeps the parsers below from ever working on a large input.
+ */
+const MAX_ROUTE_ERROR_TEXT = 4_096;
+
+/**
+ * Accepts a provider entry only when its identifying fields are strings, and
+ * returns a fresh object so a `message` of the wrong type can never reach the
+ * text parsers. An omitted message is kept as "".
+ */
+function toProviderOutcome(value: unknown): RouteProviderOutcome | null {
+  if (!value || typeof value !== "object") return null;
+  const p = value as Record<string, unknown>;
+  if (
+    typeof p.name !== "string" ||
+    typeof p.outcome !== "string" ||
+    typeof p.code !== "string"
+  ) {
+    return null;
+  }
+  return {
+    name: p.name,
+    outcome: p.outcome,
+    code: p.code,
+    message: typeof p.message === "string" ? p.message : "",
+  };
+}
 
 /**
  * Builds the error to throw for a non-2xx /v1/routes/* response.
@@ -142,9 +177,9 @@ export function routeErrorFromResponse(
 ): RouteError {
   const parsed = (body ?? {}) as RouteErrorBody;
   const providers = Array.isArray(parsed.providers)
-    ? parsed.providers.filter(
-        (p): p is RouteProviderOutcome => !!p && typeof p === "object"
-      )
+    ? parsed.providers
+        .map(toProviderOutcome)
+        .filter((p): p is RouteProviderOutcome => p !== null)
     : [];
   return new RouteError({
     message: parsed.error || parsed.message || fallbackMessage,
@@ -183,9 +218,11 @@ export type RouteErrorFacts = {
  * fall through to their existing handling.
  */
 export function parseRouteError(raw: unknown): RouteErrorFacts | null {
+  // Read the fields, not the getter: a RouteError from another realm is a
+  // plain object with the same shape and no prototype of ours.
   if (isRouteError(raw) && raw.providers.length > 0) {
     return {
-      codes: raw.providerCodes,
+      codes: providerCodes(raw.providers),
       providers: raw.providers,
       allDeclined: raw.providers.every((p) => p.outcome !== "failed"),
       minimum: firstMinimum(raw.providers.map((p) => p.message)),
@@ -200,25 +237,17 @@ export function parseRouteError(raw: unknown): RouteErrorFacts | null {
         : raw != null && typeof raw === "object" && "message" in raw
           ? String((raw as { message: unknown }).message)
           : "";
-  if (!text) return null;
+  if (!text || text.length > MAX_ROUTE_ERROR_TEXT) return null;
 
   // Only our own routing summaries are read this way. Scanning arbitrary text
   // for bare code words would misread ordinary prose — "connection timeout"
   // is not the provider outcome `timeout` — so the text has to be one of the
   // two summaries the routing API renders before its "provider: code" pairs
   // are trusted.
-  if (!ROUTE_SUMMARY.test(text)) return null;
+  const lower = text.toLowerCase();
+  if (!ROUTE_SUMMARIES.some((summary) => lower.includes(summary))) return null;
 
-  const codes: string[] = [];
-  for (const [, code] of text.matchAll(SUMMARY_ENTRY)) {
-    const normalized = code.toLowerCase();
-    if (
-      ALL_PROVIDER_CODES.includes(normalized) &&
-      !codes.includes(normalized)
-    ) {
-      codes.push(normalized);
-    }
-  }
+  const codes = summaryCodes(lower);
   if (codes.length === 0) return null;
 
   const failureCodes: readonly string[] = Object.values(RouteFailureCode);
@@ -231,10 +260,34 @@ export function parseRouteError(raw: unknown): RouteErrorFacts | null {
 }
 
 /** The two summaries the routing API renders — see returnProviderOutcomes. */
-const ROUTE_SUMMARY = /no route available|routing providers failed to answer/i;
+const ROUTE_SUMMARIES = [
+  "no route available",
+  "routing providers failed to answer",
+] as const;
 
-/** "squid: amount_too_low" inside the summary's parenthetical. */
-const SUMMARY_ENTRY = /[a-z][a-z0-9_-]*\s*:\s*([a-z_]+)/gi;
+/**
+ * Reads the codes out of the summary's parenthetical — "(squid: amount_too_low;
+ * relay: no_routes)" — with plain string operations. The text is a response
+ * body, so the parse has to stay linear in its length: a pattern that could
+ * re-scan from each character would make an oversized body a way to stall
+ * the widget's error path.
+ */
+function summaryCodes(lowerText: string): string[] {
+  const open = lowerText.indexOf("(");
+  const close = lowerText.lastIndexOf(")");
+  if (open < 0 || close <= open) return [];
+
+  const codes: string[] = [];
+  for (const entry of lowerText.slice(open + 1, close).split(";")) {
+    const colon = entry.indexOf(":");
+    if (colon < 0) continue;
+    const code = entry.slice(colon + 1).trim();
+    if (ALL_PROVIDER_CODES.includes(code) && !codes.includes(code)) {
+      codes.push(code);
+    }
+  }
+  return codes;
+}
 
 /**
  * Pulls "20.0 USDC" out of a provider's refusal.
@@ -247,7 +300,7 @@ function firstMinimum(
   messages: readonly string[]
 ): { amount: string; symbol: string } | undefined {
   for (const message of messages) {
-    if (!message) continue;
+    if (!message || message.length > MAX_ROUTE_ERROR_TEXT) continue;
     const named = message.match(
       /minimum(?:\s+swap)?\s+amount[^\d]*([\d,]+(?:\.\d+)?)\s*([A-Za-z][A-Za-z0-9]*)?/i
     );
@@ -264,9 +317,13 @@ function firstMinimum(
 
 /** "20.00" -> "20", "20.50" -> "20.5" — a minimum reads better without padding. */
 function trimAmount(value: string): string {
-  const cleaned = value.replace(/,/g, "");
-  if (!cleaned.includes(".")) return cleaned;
-  return cleaned.replace(/\.?0+$/, "") || cleaned;
+  const cleaned = value.split(",").join("");
+  const point = cleaned.indexOf(".");
+  if (point < 0) return cleaned;
+  let end = cleaned.length;
+  while (end > point + 1 && cleaned[end - 1] === "0") end--;
+  if (end === point + 1) end = point;
+  return cleaned.slice(0, end) || cleaned;
 }
 
 /** Renders a minimum for display: "20 USDC", "$20", or "" when unknown. */

@@ -80,6 +80,27 @@ describe("mapError on a routing verdict", () => {
     assert.equal(mapped.title, "Destination Call Failed");
   });
 
+  it("keeps a destination-call result on its own wording, not the cache", () => {
+    // The self-mapped cache must not be what decides this: after many distinct
+    // results have gone through, a second pass on a destination-call message
+    // still has to read as "Destination Call Failed", not "Route Unavailable".
+    for (let i = 0; i < 200; i++) {
+      mapError(
+        `no route available for this pair (squid: amount_too_low; p${i}: no_routes)`
+      );
+    }
+    const once = mapError(
+      "no route available for this pair (squid: destination_call_failed)"
+    );
+    assert.equal(once.title, "Destination Call Failed");
+    const twice = mapError(once.message);
+    assert.equal(twice.title, "Destination Call Failed");
+    assert.equal(twice.category, "route_error");
+    // A never-seen phrasing takes the same rule without any cache help.
+    const fresh = mapError("Destination contract call reverted at 0xabc");
+    assert.equal(fresh.title, "Destination Call Failed");
+  });
+
   it("still reports an unsupported pair as no route", () => {
     const mapped = mapError(
       "no route available for this pair (squid: pair_unsupported; relay: chain_unsupported)"

@@ -9,7 +9,7 @@ import {
 } from "../context/DepositContext";
 import type { BuildRouteResult, ChainDef } from "../../types";
 import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../../core/routes";
-import { parseRouteError } from "../../core/routeError";
+import { parseRouteError } from "../../core";
 import { mapError } from "../lib/mapError";
 
 /**

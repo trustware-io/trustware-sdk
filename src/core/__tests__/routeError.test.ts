@@ -76,6 +76,63 @@ describe("routeErrorFromResponse", () => {
     );
     assert.deepEqual(err.providers, []);
   });
+
+  it("drops a provider entry whose identifying fields are not strings", () => {
+    // A malformed entry must not turn the route failure into a parse failure
+    // later on — `message.match` on a number would throw inside parseRouteError.
+    const err = routeErrorFromResponse(
+      404,
+      {
+        error: "no route available for this pair (squid: amount_too_low)",
+        providers: [
+          {
+            name: "squid",
+            outcome: "declined",
+            code: "amount_too_low",
+            message: 20,
+          },
+          { name: 7, outcome: "declined", code: "no_routes", message: "x" },
+          { name: "relay", outcome: "declined", code: "no_routes" },
+          null,
+          "lifi",
+        ],
+      },
+      "Failed to build route"
+    );
+    assert.deepEqual(err.providers, [
+      {
+        name: "squid",
+        outcome: "declined",
+        code: "amount_too_low",
+        message: "",
+      },
+      { name: "relay", outcome: "declined", code: "no_routes", message: "" },
+    ]);
+    const facts = parseRouteError(err);
+    assert.ok(facts);
+    assert.deepEqual(facts.codes, ["amount_too_low", "no_routes"]);
+    assert.equal(facts.minimum, undefined);
+  });
+});
+
+describe("isRouteError", () => {
+  it("recognizes a RouteError from another realm by shape", () => {
+    // A bundle boundary can hand us an object whose Error prototype is not
+    // ours; the structural fields are what matter.
+    const foreign = Object.assign(Object.create(null), {
+      name: "RouteError",
+      message: "no route available for this pair (squid: no_routes)",
+      status: 404,
+      code: "no_route_available",
+      providers: [
+        { name: "squid", outcome: "declined", code: "no_routes", message: "" },
+      ],
+    });
+    assert.ok(isRouteError(foreign));
+    assert.deepEqual(parseRouteError(foreign)?.codes, ["no_routes"]);
+    assert.equal(isRouteError(null), false);
+    assert.equal(isRouteError({ name: "RouteError" }), false);
+  });
 });
 
 describe("parseRouteError", () => {
@@ -121,6 +178,22 @@ describe("parseRouteError", () => {
     assert.equal(parseRouteError("no route available for this pair"), null);
   });
 
+  it("stays linear on oversized or colon-less summaries", () => {
+    // Response text is untrusted input to these parsers; neither a long
+    // identifier with no ":" nor a huge body may cost more than one pass.
+    const longIdentifier =
+      "no route available for this pair (" + "a".repeat(50_000) + ")";
+    const started = Date.now();
+    assert.equal(parseRouteError(longIdentifier), null);
+    assert.ok(Date.now() - started < 200);
+
+    const stillParses =
+      "no route available for this pair (" +
+      "a".repeat(4_000) +
+      "; squid: no_routes)";
+    assert.deepEqual(parseRouteError(stillParses)?.codes, ["no_routes"]);
+  });
+
   it("reads the backend's own minimum wording too", () => {
     const facts = parseRouteError(
       new RouteError({
@@ -140,6 +213,69 @@ describe("parseRouteError", () => {
     );
     assert.ok(facts);
     assert.deepEqual(facts.minimum, { amount: "20", symbol: "USD" });
+  });
+});
+
+describe("minimum amounts", () => {
+  function minimumOf(message: string) {
+    return parseRouteError(
+      new RouteError({
+        message: "no route available for this pair (squid: amount_too_low)",
+        status: 404,
+        providers: [
+          {
+            name: "squid",
+            outcome: "declined",
+            code: "amount_too_low",
+            message,
+          },
+        ],
+      })
+    )?.minimum;
+  }
+
+  it("trims padding without touching significant digits", () => {
+    assert.deepEqual(
+      minimumOf("Minimum swap amount for this route is 20.00 USDC"),
+      {
+        amount: "20",
+        symbol: "USDC",
+      }
+    );
+    assert.deepEqual(
+      minimumOf("Minimum swap amount for this route is 20.50 USDC"),
+      {
+        amount: "20.5",
+        symbol: "USDC",
+      }
+    );
+    assert.deepEqual(
+      minimumOf("Minimum swap amount for this route is 1,000 USDT"),
+      {
+        amount: "1000",
+        symbol: "USDT",
+      }
+    );
+    assert.deepEqual(
+      minimumOf("Minimum swap amount for this route is 100 USDC"),
+      {
+        amount: "100",
+        symbol: "USDC",
+      }
+    );
+  });
+
+  it("handles a long zero-padded amount in one pass", () => {
+    const padded =
+      "Minimum swap amount for this route is 20." +
+      "0".repeat(3_000) +
+      "1 USDC";
+    const started = Date.now();
+    const minimum = minimumOf(padded);
+    assert.ok(Date.now() - started < 200);
+    assert.equal(minimum?.symbol, "USDC");
+    assert.ok(minimum?.amount.startsWith("20.0"));
+    assert.ok(minimum?.amount.endsWith("1"));
   });
 });
 
