@@ -13,6 +13,7 @@ export type ErrorCategory =
   | "network_error"
   | "transaction_failed"
   | "timeout"
+  | "fees_exceed_output"
   | "unknown";
 
 export type MappedError = {
@@ -74,6 +75,20 @@ function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
   }
 
   const has = (code: string) => facts.codes.includes(code);
+
+  // The SDK's own verdict (assertRouteDeliversValue): a route exists, but
+  // executing it loses money outright. Not "no route" — the same inputs
+  // return the same route — so it gets a category of its own, which the
+  // swap CTA uses to block rather than offer "Review".
+  if (has(RouteDeclineCode.FeesExceedOutput)) {
+    return {
+      category: "fees_exceed_output",
+      title: "Fees Exceed Amount Received",
+      message:
+        "This route costs more in fees than it delivers. Try a larger amount, or a different token or network.",
+    };
+  }
+
   const tooLow = has(RouteDeclineCode.AmountTooLow);
   const lowLiquidity = has(RouteDeclineCode.InsufficientLiquidity);
 

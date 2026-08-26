@@ -12,6 +12,11 @@ export {
 } from "./core";
 export type { RouteProviderOutcome, RouteErrorFacts } from "./core";
 export { assertValidPostHook } from "./core";
+export {
+  assertRouteDeliversValue,
+  isValueDestroying,
+  routeNetUsd,
+} from "./core";
 export type { BuildRouteBody, BuildRouteResponse } from "./core";
 export { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
 export type { YourTokenData } from "src/widget/state/deposit/types";

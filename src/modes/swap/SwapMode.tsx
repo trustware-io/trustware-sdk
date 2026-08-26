@@ -39,7 +39,6 @@ import { useTrustwareConfig } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
 import { useSwapExecution } from "./hooks/useSwapExecution";
-import { isValueDestroying } from "./routeValue";
 import { findWalletBalanceRow } from "./walletBalance";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
@@ -2438,9 +2437,12 @@ export function SwapMode({
 
   // ─── Home ─────────────────────────────────────────────────────────────────────
   // Fees exceed everything the route delivers, so executing it loses money
-  // outright. The price-impact badge alone reads as "expensive"; this is a
-  // different claim and blocks rather than decorates.
-  const feesExceedOutput = isValueDestroying(route.data?.route?.estimate);
+  // outright. buildRoute refuses such a route (core/routeValue), so it never
+  // lands in route.data — it is a route.error whose mapped category names
+  // the verdict. Unlike other quote errors, "Review" must not re-fetch: the
+  // same inputs return the same losing route, so the CTA blocks instead.
+  const feesExceedOutput =
+    !!route.error && mapError(route.error).category === "fees_exceed_output";
 
   const ctaLabel = !hasTokens
     ? "Get started"
@@ -3555,21 +3557,6 @@ export function SwapMode({
           >
             {ctaLabel}
           </button>
-          {feesExceedOutput && (
-            <div
-              style={{
-                marginTop: `-${spacing[2]}`,
-                marginBottom: spacing[3],
-                fontSize: fontSize.xs,
-                lineHeight: 1.4,
-                color: "#f87171",
-                textAlign: "center",
-              }}
-            >
-              This route costs more in fees than it delivers. Try a larger
-              amount, or a different token or network.
-            </div>
-          )}
         </div>
 
         {/* Rate / gas footer — expandable, shown when both tokens selected */}

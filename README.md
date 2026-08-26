@@ -56,6 +56,7 @@ Supports React `18.2+` and `19`.
 - `TrustwareError`
 - `RateLimitError`
 - `assertValidPostHook`
+- `assertRouteDeliversValue`, `isValueDestroying`, `routeNetUsd`
 - `walletManager`
 - `useWalletDetection`
 - `useWalletInfo`
@@ -405,6 +406,11 @@ Trustware.setDestinationAddress("0xDestination...");
 
 There is no `getQuote`: the estimate is part of the route, on
 `route.route?.estimate` and `route.finalExchangeRate`.
+
+`buildRoute`, `buildDepositAddress` and `sendRouteTransaction` refuse a route
+whose fees exceed what it delivers, throwing a `RouteError` with code
+`fees_exceed_output`. A route the provider did not price in USD is not refused.
+`routeNetUsd(estimate)` / `isValueDestroying(estimate)` expose the same check.
 
 ### Provider Context
 

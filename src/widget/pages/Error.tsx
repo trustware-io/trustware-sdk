@@ -35,7 +35,8 @@ export function Error({ style: _style }: ErrorProps): React.ReactElement {
     setTransactionStatus("idle");
     const step =
       mapped.category === "wallet_rejected" ||
-      mapped.category === "network_error"
+      mapped.category === "network_error" ||
+      mapped.category === "fees_exceed_output"
         ? "crypto-pay"
         : mapped.category === "no_route" || mapped.category === "route_error"
           ? "select-token"

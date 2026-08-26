@@ -1,3 +1,4 @@
+import { assertRouteDeliversValue } from "./routeValue";
 import type {
   BuildRouteResult,
   RouteApproval,
@@ -353,6 +354,11 @@ export async function sendRouteTransaction(
   fallbackChainId?: number | string,
   options?: SendRouteTransactionOptions
 ): Promise<string> {
+  // buildRoute already refused a losing route, so one can only arrive here
+  // assembled by hand — and signing it is the irreversible step. Refused
+  // before the wallet is consulted.
+  assertRouteDeliversValue(b.route);
+
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
 
