@@ -38,7 +38,7 @@ import { TrustwareErrorCode } from "src/errors/errorCodes";
 //       description:
 //         input?.metadata?.description ?? "Cross-chain bridge & top-up",
 //       url: input?.metadata?.url ?? "https://trustware.io",
-//       icons: input?.metadata?.icons ?? ["https://app.trustware.io/icon.png"],
+//       icons: input?.metadata?.icons ?? ["https://assets.trustware.io/icon.png"],
 //     },
 //     relayUrl: input?.relayUrl,
 //     showQrModal: input?.showQrModal ?? true,
