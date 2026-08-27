@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.14] - 2026-08-27
+
+
+### Added
+
+- Keep the routing API's verdict instead of one sentence
+
+
+### Fixed
+
+- Classify route failures from the backend's codes
+- Stop rendering raw provider text on the swipe button
+- Parse route-error text linearly and validate provider entries
+- Classify a route failure before it is flattened to a string
+
+
+### Internal
+
+- FullAmount hooks are no longer squid-only
+- Load wallet logos from assets.trustware.io
+
 ## [1.1.13] - 2026-08-22
 
 
