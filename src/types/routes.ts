@@ -181,14 +181,15 @@ export type RouteSponsorship = {
  * behavior changes.
  *
  * There are two ways to tell the backend how much the call should act on:
- * - `fundAmount` (recommended — works with every provider): a fixed amount
- *   you already know ahead of time, with `callData` ABI-encoded for that
- *   exact number.
- * - `fullAmount: true` + `amountInputPos` (Squid only): lets the backend
- *   dynamically patch `callData` with the *actual* landed amount at
- *   execution time — useful when the exact bridged amount can't be known in
- *   advance. Requests using this mode are only ever routed to a provider
- *   that supports it.
+ * - `fundAmount`: a fixed amount you already know ahead of time, with
+ *   `callData` ABI-encoded for that exact number.
+ * - `fullAmount: true` + `amountInputPos`: lets the backend fill in the
+ *   landed amount for you — useful when the exact bridged amount can't be
+ *   known in advance. Squid patches `callData` at execution time; for every
+ *   other provider the backend prices the bridge first and patches
+ *   `callData` with the quoted minimum before building the route. Either
+ *   way the mode is served, so it no longer narrows which providers can
+ *   route the request.
  *
  * Pick one of the two amount modes; you don't need both.
  */
@@ -203,24 +204,24 @@ export type PostHookRequest = {
   fundToken?: string;
   /** Fixed amount (wei). Required unless `fullAmount` is set. */
   fundAmount?: string;
-  /** Squid-only: dynamically patch `callData` with the actual landed amount. */
+  /** Let the backend patch `callData` with the landed amount. */
   fullAmount?: boolean;
-  /** Squid-only: required when `fullAmount` is true — the ABI arg index to patch. */
+  /** Required when `fullAmount` is true — the ABI arg index to patch. Must be a static (non-dynamic) argument. */
   amountInputPos?: number;
   /**
-   * Gas limit hint for the call. Optional for Squid, but required to keep
-   * this request eligible for LiFi — include it unless you're intentionally
-   * Squid-only.
+   * Gas limit hint for the call. Optional for Squid and Relay, but required
+   * to keep this request eligible for LiFi — include it unless you're
+   * intentionally excluding LiFi.
    */
   estimatedGas?: string;
   /**
    * Set this when `target` needs to pull `fundToken` via `transferFrom` (the
    * common ERC20 vault-deposit case) — usually the same address as `target`
-   * itself. On Squid, an `approve()` call is automatically prepended before
-   * your call (patched with the landed amount too, when `fullAmount` is
-   * true). On LiFi, this is passed through as-is; LiFi's own execution
-   * engine handles the approval. Leave unset for native-asset calls, which
-   * never need an approval.
+   * itself. On Squid and Relay, an `approve()` call is automatically
+   * prepended before your call, for the same amount your call acts on. On
+   * LiFi, this is passed through as-is; LiFi's own execution engine handles
+   * the approval. Leave unset for native-asset calls, which never need an
+   * approval.
    */
   toApprovalAddress?: string;
   /** Where bridged funds go if the call fails (LiFi only). */
