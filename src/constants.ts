@@ -12,8 +12,10 @@ export const API_PREFIX = "/api";
 export const WALLETCONNECT_PROJECT_ID = __WALLETCONNECT_PROJECT_ID__;
 
 // Assets base URL for wallet logos and other static assets
-export const ASSETS_BASE_URL = "https://app.trustware.io";
-// export const ASSETS_BASE_URL = "https://bv.trustware.io";
+// Wallet/token logos are served from the devops `pulumi/assets` stack
+// (S3 + CloudFront). The old QuickLinks host (app.trustware.io) is kept
+// alive as an alias for SDK builds that still hardcode it.
+export const ASSETS_BASE_URL = "https://assets.trustware.io";
 
 // WalletConnect Cloud project ID - built into the SDK for seamless wallet connections
 // This is a public identifier (not a secret) registered with WalletConnect Cloud

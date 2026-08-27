@@ -989,7 +989,7 @@ function resolvedMetadata() {
     url: pageUrl ?? "https://trustware.io",
     icons: configured?.icons?.length
       ? configured.icons
-      : ["https://app.trustware.io/icon.png"],
+      : ["https://assets.trustware.io/icon.png"],
   };
 }
 
