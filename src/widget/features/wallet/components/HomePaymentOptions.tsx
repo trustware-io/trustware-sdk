@@ -1,17 +1,13 @@
 import React from "react";
 
 import type { DetectedWallet } from "../../../../types";
-import { colors, fontSize, spacing } from "../../../styles";
+import { spacing } from "../../../styles";
 import { CryptoWalletDropdownContent } from "./CryptoWalletDropdownContent";
-import { FiatPaymentDropdownContent } from "./FiatPaymentDropdownContent";
-import { fiatOptions } from "./fiatOptions";
 import { PaymentDropdownButton } from "./PaymentDropdownButton";
-import { CryptoPaymentIcon, FiatPaymentIcon } from "./paymentOptionIcons";
+import { CryptoPaymentIcon } from "./paymentOptionIcons";
 import {
-  dividerRowStyle,
   dropdownWrapperOpenStyle,
   dropdownWrapperStyle,
-  mutedOrDividerStyle,
 } from "./paymentOptionStyles";
 
 export interface HomePaymentOptionsProps {
@@ -31,13 +27,9 @@ export interface HomePaymentOptionsProps {
 export function HomePaymentOptions({
   browserWallets,
   cryptoDropdownRef,
-  fiatDropdownRef,
-  handleFiatSelect,
   handleWalletConnect,
   handleWalletSelect,
   isCryptoDropdownOpen,
-  isFiatDropdownOpen,
-  isDarkTheme,
   setIsCryptoDropdownOpen,
   setIsFiatDropdownOpen,
 }: HomePaymentOptionsProps): React.ReactElement {
@@ -78,6 +70,8 @@ export function HomePaymentOptions({
         ) : null}
       </div>
 
+      {/* removed only temporary */}
+      {/*
       <div style={dividerRowStyle}>
         <div style={mutedOrDividerStyle(isDarkTheme)} />
         <span
@@ -115,6 +109,7 @@ export function HomePaymentOptions({
           />
         ) : null}
       </div>
+      */}
     </div>
   );
 }
