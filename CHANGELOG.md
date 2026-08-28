@@ -5,8 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.13] - 2026-08-22
+## [1.1.15] - 2026-08-28
 
+### Added
+
+- Keep the routing API's verdict instead of one sentence
+
+### Fixed
+
+- Classify route failures from the backend's codes
+- Stop rendering raw provider text on the swipe button
+- Parse route-error text linearly and validate provider entries
+- Classify a route failure before it is flattened to a string
+- Refuse a route whose fees exceed its output in every mode
+- Load GTM and emit payment events in swap mode
+- Refcount container owners so one unmount cannot silence another
+- Drop duplicate token symbol from sell input
+
+### Internal
+
+- FullAmount hooks are no longer squid-only
+- Load wallet logos from assets.trustware.io
+- Hide the fiat payment option on home
+- Describe the GA4 analytics wiring
+
+### Other
+
+- Revert "chore(release): v1.1.14"
+
+## [1.1.13] - 2026-08-22
 
 ### Fixed
 
@@ -14,12 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.12] - 2026-08-22
 
-
 ### Added
 
 - Report scan partiality, move address calls to v1
 - Stream address balances by default
-
 
 ### Fixed
 
@@ -41,7 +66,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Don't fall back to case-folding when the chain type is unknown
 - Resolve the native address from either chain type field
 
-
 ### Internal
 
 - Update dependencies within semver ranges
@@ -56,13 +80,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.11] - 2026-08-17
 
-
 ### Added
 
 - Initialize GTM at the widget root (#95)
 - Report approve step receipts for multi-step routes (#97)
 - Adopt pending intent status; stop polling on 404 (#96)
-
 
 ### Fixed
 
@@ -73,7 +95,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.10] - 2026-08-03
 
-
 ### Added
 
 - Bridge and Call: optional `hooks.postHook` on `buildRoute`/`buildDepositAddress` executes a destination-chain contract call as soon as bridged funds land (e.g. depositing straight into a vault). New `PostHookRequest` type, plus an exported `assertValidPostHook` that fails fast client-side on a malformed hook. Fully backward compatible — omit `hooks` and nothing changes (#91)
@@ -82,26 +103,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ethereum and Polygon chain parameters for wallet network switching, expanding sponsorship chain coverage
 - Exported `BuildRouteBody` and `BuildRouteResponse` types, and the `WALLETS` / `POPULAR_ORDER` wallet constants, from the package root
 
-
 ### Internal
 
 - Bump action-gh-release to v3 for node24 runtime
 
-
 ## [1.1.9] - 2026-07-27
-
 
 ### Added
 
 - Report connected EOA in receipt payload (#89)
-
 
 ### Fixed
 
 - Clean up app-store fallback timeout in mobile wallet deep link
 - Fix deeplink for swapMode
 - Connect injected wallet in deposit mobile dropdown (#86)
-
 
 ### Internal
 
@@ -110,7 +126,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Publish with npm 12 + co-installed sigstore
 - Update LICENSE contact to contact@trustware.io
 - Restore canonical Apache 2.0 text, add third-party notices
-
 
 ### Other
 
@@ -137,7 +152,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.8] - 2026-06-24
 
-
 ### Fixed
 
 - Fetch timeouts, input validation, safe BigInt parsing, remove debug log
@@ -148,7 +162,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Render staging release notes instead of empty body
 - Reserve SOL fees on max, nested rejection code, dead wallet-standard listener
 
-
 ### Internal
 
 - Bump to 1.1.8-staging.1
@@ -158,7 +171,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shrink ASCII banner to cyberpunk HUD frame
 - Remove stale design-system + roadmap docs, refresh CLAUDE.md
 - Npm audit fix — safe transitive security bumps
-
 
 ### Other
 
