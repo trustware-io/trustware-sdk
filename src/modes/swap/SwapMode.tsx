@@ -35,11 +35,12 @@ import {
   isZeroAddrLike,
   needsErc20Approval,
 } from "src/widget/helpers/chainHelpers";
-import { useTrustwareConfig } from "src/hooks";
+import { useTrustwareConfig, useGTMTracker } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
 import { useSwapExecution } from "./hooks/useSwapExecution";
 import { findWalletBalanceRow } from "./walletBalance";
+import { buildSwapPaymentParams, claimAttemptOnce } from "./analytics";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
 // import { SwapWalletSelector } from "./components/SwapWalletSelector";
@@ -243,6 +244,15 @@ export function SwapMode({
   const currencyDropdownRef = useRef<HTMLDivElement>(null);
 
   const { emitEvent } = useTrustware();
+
+  // GA4 payment events. The container itself is loaded by WidgetAnalytics at
+  // the widget root — this is an event-only consumer, so it uses the tracker
+  // rather than useGTM (see src/hooks/useGTM.ts on the single-owner contract).
+  // trackEvent is inert until that container initializes, which is also how
+  // features.shouldAllowGA4 = false ends up emitting nothing.
+  const { trackEvent } = useGTMTracker();
+  const initiatedAttemptRef = useRef<object | null>(null);
+  const completedAttemptRef = useRef<object | null>(null);
 
   // Read feature flags and theme from config
   const { features, theme: configTheme } = useTrustwareConfig();
@@ -565,6 +575,26 @@ export function SwapMode({
 
   const handleExecute = useCallback(async () => {
     if (!route.data) return;
+
+    // Snapshot the pair now: the completion callback fires minutes later, and
+    // the swap that completed is the one the user confirmed here, not whatever
+    // is selected by then. Destination comes from swap's own toChain/toToken —
+    // swap mode has no config.routes to read.
+    const paymentParams = buildSwapPaymentParams({
+      fromChain,
+      fromToken,
+      toChain,
+      toToken,
+      domain: window.origin,
+    });
+
+    // One event per confirmation. handleExecute is re-entrant for as long as it
+    // takes the "processing" stage to unmount the Swap button, so a double-tap
+    // would otherwise count the same route twice.
+    if (claimAttemptOnce(initiatedAttemptRef, route.data)) {
+      trackEvent("payment_initiated", paymentParams);
+    }
+
     setStage("processing");
     const fromTokenAddress =
       fromToken?.address ?? (fromToken as { address?: string })?.address;
@@ -590,12 +620,31 @@ export function SwapMode({
       walletAddress ?? undefined,
       maxApproval,
       () => {
+        // useSwapExecution calls this from exactly one place: the
+        // tx.status === "success" branch of its poll loop, after clearPolling()
+        // has aborted further polls. The attempt guard covers what that does
+        // not: a late poll from a superseded attempt resolving into this
+        // closure. A genuine retry always rebuilds the route (the error
+        // screen's only exit clears it), so it is a new object and reports.
+        if (claimAttemptOnce(completedAttemptRef, routeToSend)) {
+          trackEvent("payment_completed", paymentParams);
+        }
         setCompletedAt(new Date());
         setStage("success");
       },
       () => setStage("error")
     );
-  }, [route, execution, fromToken, walletAddress, maxApproval]);
+  }, [
+    route,
+    execution,
+    fromChain,
+    fromToken,
+    toChain,
+    toToken,
+    walletAddress,
+    maxApproval,
+    trackEvent,
+  ]);
 
   const handleReset = useCallback(() => {
     execution.reset();
