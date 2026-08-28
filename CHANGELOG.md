@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.13] - 2026-08-22
+
+
+### Fixed
+
+- Never answer a balance lookup from another chain's row
+
+## [1.1.12] - 2026-08-22
+
+
+### Added
+
+- Report scan partiality, move address calls to v1
+- Stream address balances by default
+
+
+### Fixed
+
+- Stop the progress screen hanging at "confirming"
+- Don't offer a dead Swap button while the quote refreshes
+- Don't block the SA path on the receipt POST either
+- Stop asking to approve SPL tokens
+- Hide the Max approval toggle when nothing gets approved
+- Only claim approval ownership when the whole plan is covered
+- Don't let isEvmAddress narrow a whitespace-padded string
+- Surface the provider's failure reason instead of boilerplate
+- Send the wrapped-SOL mint for native SOL
+- Convert a numeric chain id before inferring its type
+- Never sign a route transaction on the wrong chain
+- Close the wrong-chain gaps CodeRabbit found
+- Show the sell balance for a token picked from the catalog
+- Never hide a native balance for want of a catalog entry
+- Compare token addresses per chain, not by lowercasing
+- Don't fall back to case-folding when the chain type is unknown
+- Resolve the native address from either chain type field
+
+
+### Internal
+
+- Update dependencies within semver ranges
+- Announce releases in Slack
+- Ping the release channel on publish
+- Show the full npm package URL in the Slack card
+- Correct the drifted parts and cover what was missing
+- Drop the viem install line, trim flow and exports
+- Cut the dependency prose and entry-point table
+- Drop the bridge-and-call example
+- List the events instead of tabling them
+
 ## [1.1.11] - 2026-08-17
 
 
