@@ -1,5 +1,6 @@
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import { routeErrorFromResponse } from "./routeError";
+import { assertRouteDeliversValue } from "./routeValue";
 import type {
   BuildRouteResult,
   PostHookRequest,
@@ -239,6 +240,9 @@ export async function buildRoute(
   if (!txReq?.data) {
     throw new Error("Invalid route: missing transaction data");
   }
+  // The backend scores on net_usd but still returns the best of a bad set.
+  // Refused here, on the way in, so no consumer ever holds a losing route.
+  assertRouteDeliversValue(route);
 
   return { intentId, txReq, actions, finalExchangeRate, route, sponsorship };
 }
@@ -301,6 +305,7 @@ export async function buildDepositAddress(
   if (!depositAddress) {
     throw new Error("Invalid route: missing deposit address");
   }
+  assertRouteDeliversValue(route);
 
   return {
     intentId,

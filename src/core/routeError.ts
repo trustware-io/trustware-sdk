@@ -47,6 +47,9 @@ export const RouteDeclineCode = {
   InsufficientLiquidity: "insufficient_liquidity",
   DestinationCallFailed: "destination_call_failed",
   RouteUnsupported: "route_unsupported",
+  /** The SDK's own verdict, not a provider's: the winning route's fees exceed
+   *  what it delivers. See assertRouteDeliversValue. */
+  FeesExceedOutput: "fees_exceed_output",
 } as const;
 
 /** Codes for a provider that did not answer properly. These are faults. */
@@ -62,6 +65,9 @@ export const RouteErrorCode = {
   NoRouteAvailable: "no_route_available",
   /** At least one provider failed, so "unroutable" cannot be claimed: 502. */
   ProvidersFailed: "providers_failed",
+  /** A route came back but the SDK refused it: its fees exceed its output.
+   *  Reached client-side, so `status` is 0. */
+  FeesExceedOutput: "fees_exceed_output",
 } as const;
 
 const ALL_PROVIDER_CODES: readonly string[] = [
@@ -81,7 +87,8 @@ const ALL_PROVIDER_CODES: readonly string[] = [
  * configuration/lifecycle error surfaced through `onError`.
  */
 export class RouteError extends Error {
-  /** HTTP status: 404 when every provider declined, 502 when one failed. */
+  /** HTTP status: 404 when every provider declined, 502 when one failed,
+   *  0 when the SDK reached the verdict itself without a response. */
   readonly status: number;
   /** Top-level verdict — see RouteErrorCode. Empty when the API sent none. */
   readonly code: string;

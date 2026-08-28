@@ -205,3 +205,21 @@ describe("mapError is stable when applied to its own output", () => {
     });
   }
 });
+
+describe("mapError on the SDK's own value verdict", () => {
+  // buildRoute refuses a route whose fees exceed its output with the same
+  // structure the API uses for its verdicts, so both widget modes read it
+  // through the codes rather than the sentence.
+  it("names the fees verdict and blocks rather than suggests a retry", () => {
+    const mapped = mapError(declined("fees_exceed_output"));
+    assert.equal(mapped.category, "fees_exceed_output");
+    assert.equal(mapped.title, "Fees Exceed Amount Received");
+    assert.match(mapped.message, /costs more in fees than it delivers/);
+  });
+
+  // The widget stores the mapped sentence and maps it again on render.
+  it("recognizes its own sentence on the second pass", () => {
+    const first = mapError(declined("fees_exceed_output"));
+    assert.deepEqual(mapError(first.message), first);
+  });
+});

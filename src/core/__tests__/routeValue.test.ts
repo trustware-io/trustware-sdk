@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { isValueDestroying, routeNetUsd } from "src/modes/swap/routeValue";
+import { isValueDestroying, routeNetUsd } from "src/core/routeValue";
 
 describe("routeNetUsd", () => {
   it("is output value minus fees", () => {

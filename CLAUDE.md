@@ -5,11 +5,13 @@ React provider, widget, and headless API for cross-chain bridging and top-up rou
 ## Development Commands
 
 **CRITICAL: Always build with local backend URL during development:**
+
 ```bash
 TRUSTWARE_API_ROOT=http://localhost:8000 npm run build
 ```
 
 Other commands:
+
 ```bash
 npm install               # Install dependencies
 npm run dev               # Watch mode (rebuilds on changes) - NOTE: doesn't set API URL
@@ -33,8 +35,8 @@ smart-account 65 KB, wallet 525 KB, core 540 KB, widget and full SDK 665 KB
 
 Publishing is **tag-driven**. Branch pushes never publish — pushing a version tag is what cuts a release. Two npm packages are published from this repo:
 
-| Tag | Package | Dist-tag | Environment |
-|-----|---------|----------|-------------|
+| Tag                | Package                  | Dist-tag  | Environment      |
+| ------------------ | ------------------------ | --------- | ---------------- |
 | `v1.2.3`           | `@trustware/sdk`         | `latest`  | `npm-production` |
 | `v1.2.3-staging.5` | `@trustware/sdk-staging` | `staging` | `npm-staging`    |
 
@@ -62,6 +64,7 @@ npm version 1.2.3-staging.5 --no-git-tag-version # staging
 ```
 
 If you've already hand-edited `package.json`, recover with:
+
 ```bash
 npm install --package-lock-only --ignore-scripts
 ```
@@ -169,6 +172,7 @@ export default nextConfig;
 Without `outputFileTracingRoot`, you'll get "Module not found: Can't resolve '@trustware/sdk'" errors even though the symlink exists and resolves correctly. This is because Turbopack restricts module resolution to the project root for caching and performance reasons.
 
 **Sources**:
+
 - [Next.js 16's Turbopack breaks npm link](https://steveharrison.dev/next-js-16s-turbopack-breaks-npm-link/)
 - [GitHub Issue #77562](https://github.com/vercel/next.js/issues/77562)
 
@@ -188,10 +192,13 @@ If you run `npm run build` without the env var, the SDK will call production API
 > The widget formerly lived under `src/widget-v2/`; it is now `src/widget/`. There is no `widget-v2` directory anymore (the exported component is still internally named `TrustwareWidgetV2` and aliased to `TrustwareWidget` in `src/widget/index.tsx`).
 
 ### Entry Point
+
 - `src/index.ts` — single barrel. Re-exports: `Trustware`/`TrustwareCore` (core facade), `TrustwareProvider`/`useTrustware`, `TrustwareWidget`, `TrustwareError`, wallet helpers (`walletManager`, `useWalletDetection`, `WagmiBridge`, `useWagmi`, …), `RateLimitError`, plus `./identity`, `./validation/address`, `./types`, `./constants`.
 
 ### Core Facade (`src/core/`)
+
 `Trustware` (type alias `TrustwareCore`) is a plain object facade — the headless API. Key surface (`src/core/index.ts`):
+
 - **Lifecycle**: `init(config)` (loads config into `TrustwareConfigStore` + validates the API key once via `validateSdkAccess`), `getConfig()`, `useWallet(w)`, `autoDetect(timeoutMs)`.
 - **Config setters**: `setDestinationAddress/Chain/Token`, `setTheme`/`getTheme` (toggle the widget's light/dark/system mode at runtime, e.g. from a host app's own theme toggle), `addIdentityAddress`, `resolveAddressForChain`, `getWallet`, `getIdentity`, `getAddress`.
 - **REST** (`core/routes.ts`, `core/balances.ts`): `buildRoute`, `buildDepositAddress`, `submitReceipt`, `submitStepReceipt`, `getStatus`, `pollStatus`, `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
@@ -203,30 +210,76 @@ If you run `npm run build` without the env var, the SDK will call production API
 - **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`. `runTopUp({ fromAmount, ... })` resolves the rest from config, sends, submits the receipt, and polls — it resolves to the `Transaction` that `pollStatus` returns (read `sourceTxHash`/`destTxHash`; there is no `txHash` field).
 
 There is **no** event-emitter on the facade (`Trustware.on` does not exist). Events reach the host through `config.onEvent`.
-- Other core modules: `http.ts` (fetch wrapper + retry/rate-limit, exports `RateLimitError`), `forex.ts`, `registryClient.ts`, `sdkRpc.ts`.
+
+- **Route value guard** (`core/routeValue.ts`): `buildRoute`, `buildDepositAddress` and `sendRouteTransaction` all run `assertRouteDeliversValue`, which throws a `RouteError` (`code: "fees_exceed_output"`, one `declined` provider outcome with the same code, `status: 0`) when `toAmountUsd − totalFeesUsd < 0`. The backend ranks on that `net_usd` but never sends it or rejects on it, so the SDK recomputes it from the estimate. Fails open when either USD figure is missing. Lives in core, not a mode, so every consumer gets the same verdict; `mapError` maps the code to category `"fees_exceed_output"`.
+- Other core modules: `http.ts` (fetch wrapper + retry/rate-limit, exports `RateLimitError`), `routeError.ts` (structured `RouteError` + code vocabularies), `forex.ts`, `registryClient.ts`, `sdkRpc.ts`.
 
 ### Provider (`src/provider.tsx`)
+
 `TrustwareProvider` props: `config: TrustwareConfigOptions` (required), `wallet?`, `autoDetect = true`. On mount it runs `Trustware.init(config)`, attaches a passed wallet or `autoDetect`s one, and tracks `status: "idle" | "initializing" | "ready" | "error"`. `useTrustware()` returns `{ status, errors, core, emitError, emitSuccess, emitEvent, revalidate }`. The provider bridges `config.onError` / `onSuccess` / `onEvent` callbacks to the emit helpers.
 
 `TrustwareConfigOptions` (`src/types/config.ts`) is a union discriminated on `mode`: `apiKey`, `mode?` (`"deposit"` default — `routes` required; `"swap"` — `routes` optional), `routes { toChain, toToken, fromToken?, fromChain?, fromAddress?, toAddress?, defaultSlippage?, options? }`, `autoDetectProvider?`, `theme?` (`"light" | "dark" | "system"`, default `"system"` — a **mode string, not a palette object**), `messages?`, `retry?` (observability callbacks only — the limit is server-side), `walletConnect?`, `features?` (`tokensPagination`, `balanceStreaming`, `swapMode`, `swapDefaultDestToken`, `swapLockDestToken`, `swapAllowedDestTokens`), `onError/onSuccess/onEvent`.
 
 ### Widget (`src/widget/`)
+
 - `index.tsx` — exports `TrustwareWidget` (= internal `TrustwareWidgetV2`).
 - `pages/` — `Home`, `SelectToken`, `CryptoPay/` (deposit/amount flow + `RouteQuoteLoader.tsx`), `Processing`, `Success`, `Error`.
 - `state/deposit/` — navigation + wallet/token state hooks (`useDepositNavigationState`, `useWalletTokenState`, `useWalletConnect`, `useWalletSessionState`, `useThemePreference`, `types.ts`).
 - `features/` — feature folders (`amount`, `route-preview`, `token-selection`, `transaction`, `wallet`). Domain logic and view-model hooks live here, not in `pages/`.
-- `app/` — shell plumbing: `WidgetRouter.tsx`, `WidgetPersistence.ts`, `WidgetShellOverlays.tsx`, `widgetSteps.ts`.
+- `app/` — shell plumbing: `WidgetRouter.tsx`, `WidgetPersistence.ts`, `WidgetShellOverlays.tsx`, `widgetSteps.ts`, `WidgetAnalytics.tsx`.
 - `components/`, `hooks/`, `context/`, `data/` (`popularChains.json`, `featuredAssets.json`), `helpers/`, `lib/` (`mapError.ts` — maps backend/route errors → user-facing messages for the Error page; `utils.ts`), `styles/`, `utils/`, `__tests__/`. `components/` is shell UI and reusable primitives; it should not import SDK orchestration code.
 
+### Analytics (GA4 via GTM)
+
+`src/hooks/useGTM.ts` exposes two hooks with different jobs. `useGTM(gtmId)`
+loads the container; `useGTMTracker()` only pushes to an already-loaded one.
+Event-only consumers must use the tracker.
+
+`WidgetAnalytics` (`src/widget/app/`) is the single `useGTM` caller. It wraps
+the mode branch in `TrustwareWidgetV2`, above both `SwapMode` and
+`DepositProvider`, so the container loads for either mode. It used to sit
+inside `WidgetInner`, which only renders on the deposit path, and swap-mode
+hosts consequently reported nothing to GA4 at all. Keep it above the branch;
+`grep -rn "useGTM(" src/` should return exactly one call site.
+
+Container ownership is refcounted at module scope in `useGTM.ts`: the script
+loads on 0 → 1 owners and unloads on 1 → 0, so two widgets on one page share
+one container and the first to unmount does not silence the second.
+
+Two events reach BigQuery, and their names and param keys are fixed by the BI
+queries in `quicklinks_v1/iluvatar/db/g4a_repo.go` — renaming either breaks
+dashboards outside this repo:
+
+| Event               | Deposit                                                   | Swap                                        |
+| ------------------- | --------------------------------------------------------- | ------------------------------------------- |
+| `payment_initiated` | `features/transaction/hooks/useTransactionActionModel.ts` | `modes/swap/SwapMode.tsx` (`handleExecute`) |
+| `payment_completed` | `widget/hooks/useTransactionPolling.ts`                   | `modes/swap/SwapMode.tsx` (`onSuccess`)     |
+
+Both carry `from_chain`, `from_token`, `to_chain`, `to_token`, `domain`. Deposit
+reads its destination from `config.routes`; **swap must not** — `routes` is
+optional under `mode: "swap"` and is usually undefined, so swap reads its own
+`toChain`/`toToken` state. `modes/swap/analytics.ts` builds the payload and
+guards each emit with `claimAttemptOnce`, keyed on the route **object
+identity** rather than `intentId`: `buildRoute` falls back to `intentId: ""`,
+which an id-keyed guard would read as unclaimable and silently drop.
+
+Collection is gated on `features.shouldAllowGA4` (default true), checked inside
+`useGTM`. `GTM_ID` is baked at build time from `TRUSTWARE_GTM_ID`; an empty
+value in a dev build logs and no-ops rather than throwing.
+
 ### Widget Navigation (real flow)
+
 `src/widget/state/deposit/useDepositNavigationState.ts` is a history-stack navigator, **not** the old 8-state machine. Steps (`NavigationStep`):
+
 ```
 home → select-token → crypto-pay → processing → success | error
 ```
+
 `goBack()` pops the history stack; `resetNavigation()` returns to `home`.
 
 ### Other Subsystems
-- `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
+
+- `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, `analytics.ts` (GA4 payload builder + once-per-attempt guard), hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
 - `src/smart-account/` — ERC-4337 path: `createTrustwareSmartAccountClient`, `sendRouteAsUserOperation`, `permit2.ts` (`PERMIT2`, `randomPermit2Nonce`), `uniswap.ts`, `fee-utils.ts`.
 - `src/identity/` — multi-chain wallet identity resolution (address ↔ chain normalization, used by `Trustware.getIdentity()`/`resolveAddressForChain`).
 - `src/wallets/` — detection + connection (`detect.ts`, `connect.ts`, `manager.ts` (`walletManager`), `adapters.ts`, `bridges.ts` (wagmi bridge), `eipWallets.ts`, `solana.ts`, `deepLink.ts`, `metadata.ts`). `eipWallets.ts` exports `useEIP1193` and `useWagmi` — plain adapter factories, **not** React hooks, despite the `use` prefix. **Do not rename them**: the names are the published API (docs.trustware.io and host integrations import them by name). The prefix means `react-hooks/rules-of-hooks` flags host call sites inside `useMemo`/`useEffect`; hosts silence it with an eslint-disable comment.
@@ -237,6 +290,7 @@ home → select-token → crypto-pay → processing → success | error
 - `src/utils/chains.ts` — chain key/type normalization. `src/logos/` — bundled logo asset.
 
 ### WalletConnect Integration
+
 WalletConnect uses `@reown/appkit-universal-connector` (`@reown/appkit*` ^1.8.x), configured in `src/config/walletconnect.ts` (defines the Solana CAIP network + Universal Connector). A built-in project ID ships in `src/constants`; override via `config.walletConnect.projectId`.
 
 ## Build Configuration
@@ -289,6 +343,7 @@ src/widget/styles/
 ### Patterns
 
 **Static styles** - Define as `React.CSSProperties` constants:
+
 ```typescript
 const buttonStyle: React.CSSProperties = {
   padding: spacing[3],
@@ -298,6 +353,7 @@ const buttonStyle: React.CSSProperties = {
 ```
 
 **Conditional styles** - Use `mergeStyles()`:
+
 ```typescript
 <div style={mergeStyles(
   baseStyle,
@@ -307,18 +363,21 @@ const buttonStyle: React.CSSProperties = {
 ```
 
 **Animations** - Keyframes are injected via `<style>` tag in WidgetContainer:
+
 ```typescript
 <div style={{ animation: 'tw-fade-in 0.3s ease-out' }}>
 ```
 
 **Theming** - CSS variables injected via `<style>` tag, referenced in inline styles:
+
 ```typescript
-backgroundColor: 'hsl(var(--tw-background))'
+backgroundColor: "hsl(var(--tw-background))";
 ```
 
 ### Why No Tailwind/External CSS
 
 When the SDK is embedded in a host app, the host's build system doesn't process the SDK's CSS:
+
 - Tailwind classes won't be compiled
 - CSS imports may fail or be ignored
 - PostCSS plugins won't run
@@ -330,11 +389,13 @@ Inline styles are self-contained and work everywhere.
 ### Basic Setup (React/Vite/Next.js)
 
 1. **Install the SDK**:
+
 ```bash
 npm install @trustware/sdk
 ```
 
 2. **Wrap your app with TrustwareProvider**:
+
 ```tsx
 import { TrustwareProvider } from "@trustware/sdk";
 
@@ -344,9 +405,9 @@ function App() {
       apiKey="your-api-key"
       config={{
         routes: {
-          toChain: 8453,          // Base chain ID
+          toChain: 8453, // Base chain ID
           toToken: "USDC",
-          toAddress: "0x...",     // Destination wallet
+          toAddress: "0x...", // Destination wallet
         },
       }}
     >
@@ -357,6 +418,7 @@ function App() {
 ```
 
 3. **Add the widget anywhere in your app**:
+
 ```tsx
 import { TrustwareWidget } from "@trustware/sdk";
 
@@ -407,6 +469,7 @@ function Providers({ children }) {
 ### Widget Flow
 
 The widget follows this user flow:
+
 1. **Home** - User sees deposit options (Pay with crypto / Pay with fiat)
 2. **Select Token** - Two-column layout to select chain and token
 3. **Confirm Deposit** - Amount entry with slider, token carousel, fee summary
@@ -416,13 +479,13 @@ The widget follows this user flow:
 
 ### Key Components
 
-| Component | Description |
-|-----------|-------------|
-| `TrustwareProvider` | Required context provider with API key and config |
-| `TrustwareWidget` | Full deposit widget with all UI states |
-| `TokenSwipePill` | Horizontal token carousel with swipe gestures |
-| `AmountSlider` | Range slider with snap-to-tick behavior |
-| `SwipeToConfirmTokens` | Swipe gesture for secure confirmation |
+| Component              | Description                                       |
+| ---------------------- | ------------------------------------------------- |
+| `TrustwareProvider`    | Required context provider with API key and config |
+| `TrustwareWidget`      | Full deposit widget with all UI states            |
+| `TokenSwipePill`       | Horizontal token carousel with swipe gestures     |
+| `AmountSlider`         | Range slider with snap-to-tick behavior           |
+| `SwipeToConfirmTokens` | Swipe gesture for secure confirmation             |
 
 ## Changelog
 
