@@ -33,8 +33,7 @@ import { ACTIVE_TRANSACTION_STATUSES } from "./app/widgetSteps";
 import { useTrustware } from "../provider";
 import { useWalletExternalDisconnect } from "src/wallets/manager";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
-import { useGTM } from "src/hooks";
-import { GTM_ID } from "src/constants";
+import { WidgetAnalytics } from "./app/WidgetAnalytics";
 import { SwapMode } from "src/modes/swap";
 
 // Styles for WidgetContent
@@ -174,16 +173,6 @@ function WidgetInner({
   const { resolvedTheme } = useDepositUi();
   const { status, revalidate, errors } = useTrustware();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-
-  // Initialize GTM at the widget root so gtm.init (and its page_view) fires on
-  // widget render rather than only once the transaction hooks mount. Without
-  // this, everything upstream of the transaction step — impressions, chain and
-  // token selection, quoting — is invisible to GA4, which makes active-user and
-  // mobile-traffic metrics count only users who reached checkout.
-  // This is the sole useGTM caller: it owns loading the container and removing
-  // it on unmount. Event-only consumers use useGTMTracker instead. Collection
-  // remains gated on features.shouldAllowGA4.
-  useGTM(GTM_ID);
 
   /**
    * Handle close request - shows confirmation if transaction is active
@@ -353,21 +342,28 @@ export const TrustwareWidgetV2 = forwardRef<
     return null;
   }
 
-  // Swap Mode bypasses DepositProvider — fully standalone
-  if (config.mode === "swap") {
-    return <SwapMode theme={theme} style={style} />;
-  }
-
+  // GTM is loaded once here, above the mode branch, so the container (and the
+  // page_view it fires) exists for swap mode too. Swap mode returns before
+  // WidgetInner renders, so hanging analytics off WidgetInner left swap-mode
+  // hosts reporting nothing at all. See WidgetAnalytics for the single-owner
+  // contract this respects.
   return (
-    <DepositProvider initialStep={effectiveInitialStep}>
-      <WidgetInner
-        theme={theme}
-        style={style}
-        onClose={handleClose}
-        closeRequestRef={closeRequestRef}
-        showThemeToggle={showThemeToggle}
-      />
-    </DepositProvider>
+    <WidgetAnalytics>
+      {config.mode === "swap" ? (
+        // Swap Mode bypasses DepositProvider — fully standalone
+        <SwapMode theme={theme} style={style} />
+      ) : (
+        <DepositProvider initialStep={effectiveInitialStep}>
+          <WidgetInner
+            theme={theme}
+            style={style}
+            onClose={handleClose}
+            closeRequestRef={closeRequestRef}
+            showThemeToggle={showThemeToggle}
+          />
+        </DepositProvider>
+      )}
+    </WidgetAnalytics>
   );
 });
 
