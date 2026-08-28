@@ -1,4 +1,5 @@
-import type { RouteEstimate } from "src/types";
+import type { RouteEstimate, RoutePlan } from "src/types";
+import { RouteDeclineCode, RouteError, RouteErrorCode } from "./routeError";
 
 /**
  * Whether a route is worth executing at all, in plain USD terms.
@@ -57,4 +58,40 @@ export function isValueDestroying(
   if (toUsd < USD_NOISE_FLOOR && feesUsd < USD_NOISE_FLOOR) return false;
 
   return net < 0;
+}
+
+function usd(value: string | undefined): string {
+  const n = parseUsd(value);
+  return n == null ? "?" : `$${n.toFixed(2)}`;
+}
+
+/**
+ * Refuses a route whose fees exceed what it delivers.
+ *
+ * Runs inside buildRoute, buildDepositAddress and sendRouteTransaction, so
+ * every consumer — both widget modes, the headless hook, runTopUp and hosts
+ * calling the core API directly — gets the one verdict from one place.
+ *
+ * Thrown as a RouteError in the routing API's own vocabulary: the winning
+ * provider is reported as `declined` with code `fees_exceed_output`, which is
+ * what the response would carry if the engine made this call itself. The
+ * widgets read the code, not the sentence.
+ */
+export function assertRouteDeliversValue(route: RoutePlan | undefined): void {
+  const estimate = route?.estimate;
+  if (!isValueDestroying(estimate)) return;
+  const message = `This route's fees (${usd(estimate?.totalFeesUsd)}) exceed what it delivers (${usd(estimate?.toAmountUsd)}).`;
+  throw new RouteError({
+    message,
+    status: 0,
+    code: RouteErrorCode.FeesExceedOutput,
+    providers: [
+      {
+        name: route?.provider ?? "unknown",
+        outcome: "declined",
+        code: RouteDeclineCode.FeesExceedOutput,
+        message,
+      },
+    ],
+  });
 }

@@ -12,7 +12,6 @@ import {
   waitForApprovalConfirmation,
 } from "src/core/tx";
 import { getEVMAllowance } from "src/core/sdkRpc";
-import { isValueDestroying } from "../routeValue";
 import {
   isEvmAddress,
   isNativeTokenAddress,
@@ -304,19 +303,6 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     ) => {
       if (!routeResult?.txReq) {
         const msg = "Invalid route data. Please try again.";
-        setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
-        onError(msg);
-        return;
-      }
-
-      // Checked here rather than only on the CTA because this is the single
-      // point every execution passes through. Quotes refresh while the review
-      // screen is open, and the Solana path rebuilds the route immediately
-      // before signing, so the route being signed is not necessarily the one
-      // the CTA judged.
-      if (isValueDestroying(routeResult.route?.estimate)) {
-        const msg =
-          "This route now costs more in fees than it delivers. Get a new quote.";
         setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
         onError(msg);
         return;

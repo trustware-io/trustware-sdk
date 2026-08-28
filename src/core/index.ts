@@ -16,6 +16,11 @@ import {
   pollStatus,
 } from "./routes";
 export { assertValidPostHook } from "./routes";
+export {
+  assertRouteDeliversValue,
+  isValueDestroying,
+  routeNetUsd,
+} from "./routeValue";
 export type { BuildRouteBody, BuildRouteResponse } from "./routes";
 export {
   RouteError,
