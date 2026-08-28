@@ -3138,23 +3138,6 @@ export function SwapMode({
                   transition: "font-size 0.15s ease",
                 }}
               />
-              {amountInputMode === "token" && fromToken && (
-                <span
-                  style={{
-                    fontSize: scaleFontSize(amount || "0"),
-                    fontWeight: fontWeight.medium,
-                    letterSpacing: "-0.02em",
-                    color: amount
-                      ? colors.foreground
-                      : `${colors.mutedForeground}80`,
-                    transition: "font-size 0.15s ease",
-                    flexShrink: 0,
-                    userSelect: "none",
-                  }}
-                >
-                  {fromToken.symbol}
-                </span>
-              )}
               <TokenPillButton
                 token={fromToken}
                 chain={fromChain}
