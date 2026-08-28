@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { Trustware } from "../core";
 
 declare global {
@@ -46,6 +46,28 @@ function isGA4Allowed(): boolean {
  * re-running (and appearing to own) initialization.
  */
 let isContainerInitialized = false;
+
+/**
+ * How many mounted `useGTM` callers currently want the container.
+ *
+ * The container loads when this goes 0 → 1 and unloads when it goes 1 → 0, so
+ * two widgets on one page share one script and the first to unmount does not
+ * take it away from the second. Before this was counted, the second caller hit
+ * the `isContainerInitialized` early return and so registered no cleanup at
+ * all: when the first unmounted, its cleanup pulled the script and cleared the
+ * flag, and the survivor was left permanently silent because its effect deps
+ * never change and it therefore never re-ran.
+ */
+let containerRefCount = 0;
+
+/**
+ * The script this module injected, or null when the page already had one.
+ *
+ * Module-level rather than a per-hook ref because the last caller to unmount
+ * is not necessarily the one that injected it. Staying null for a
+ * host-provided script keeps teardown from removing something we do not own.
+ */
+let injectedScript: HTMLScriptElement | null = null;
 
 /**
  * useGTMTracker — push events to an already-initialized GTM container.
@@ -160,8 +182,6 @@ export function useGTMTracker(): UseGTMTrackerReturn {
  * trackEvent('purchase', { value: 29.99, currency: 'USD' });
  */
 export function useGTM(gtmId: string): UseGTMReturn {
-  // Keep a ref to the injected <script> so we can clean it up on unmount
-  const scriptRef = useRef<HTMLScriptElement | null>(null);
   const tracker = useGTMTracker();
 
   // ── Initialization ─────────────
@@ -182,7 +202,24 @@ export function useGTM(gtmId: string): UseGTMReturn {
       return;
     }
 
-    if (isContainerInitialized) return;
+    // Count this caller before the initialization check, so every mounted
+    // caller is balanced by a cleanup — including the ones that find the
+    // container already up and do no work here.
+    containerRefCount += 1;
+
+    const release = () => {
+      containerRefCount -= 1;
+      // Someone else still needs the container. Leave it alone.
+      if (containerRefCount > 0) return;
+
+      if (injectedScript) {
+        injectedScript.parentNode?.removeChild(injectedScript);
+        injectedScript = null;
+      }
+      isContainerInitialized = false;
+    };
+
+    if (isContainerInitialized) return release;
 
     // Bail out if the GTM script is already on the page (e.g. server-side injection)
     const alreadyLoaded = document.querySelector(
@@ -191,7 +228,7 @@ export function useGTM(gtmId: string): UseGTMReturn {
     if (alreadyLoaded) {
       window.dataLayer = window.dataLayer || [];
       isContainerInitialized = true;
-      return;
+      return release;
     }
 
     // Initialize dataLayer before the script loads so early pushes are queued
@@ -207,17 +244,11 @@ export function useGTM(gtmId: string): UseGTMReturn {
     script.async = true;
     script.src = `https://www.googletagmanager.com/gtm.js?id=${gtmId}`;
     firstScript.parentNode?.insertBefore(script, firstScript);
-    scriptRef.current = script;
+    injectedScript = script;
 
     isContainerInitialized = true;
 
-    return () => {
-      if (scriptRef.current) {
-        scriptRef.current.parentNode?.removeChild(scriptRef.current);
-        scriptRef.current = null;
-      }
-      isContainerInitialized = false;
-    };
+    return release;
   }, [gtmId]);
 
   // ── Methods ────────────
