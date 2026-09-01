@@ -13,27 +13,32 @@ import { TrustwareConfigStore } from "src/config/store";
 import { validateRouteAddresses } from "../validation/address";
 import {
   isSolanaNativeTokenAlias,
+  NATIVE_EVM,
   normalizeChainType,
 } from "../widget/helpers/chainHelpers";
 
 /**
- * Wrapped SOL. The only identifier routing providers actually accept for
- * native SOL — `So1111…111` makes LiFi answer `provider_error`, and the EVM
- * native sentinel routes through an aggregator whose transaction reverts
- * on-chain with `UnbalancedInstruction`.
+ * The EVM native-asset sentinel, reused as the wire representation of native
+ * SOL. This is NOT the wrapped-SOL mint (`So1111…112`) — wSOL is a distinct
+ * SPL token you only hold once you've wrapped, and sending its mint for a
+ * native-SOL swap routes against a balance the caller doesn't have. The
+ * backend already translates this sentinel into each provider's own
+ * native-SOL spelling for a Solana leg (LiFi/Relay: the Solana System
+ * Program id `1111…1111`; Squid: the sentinel itself, per Squid's own docs)
+ * — see `lifiTokenAddress`/`relayTokenAddress` in iluvatar.
  */
-export const SOLANA_NATIVE_ROUTE_TOKEN =
-  "So11111111111111111111111111111111111111112";
+export const SOLANA_NATIVE_ROUTE_TOKEN = NATIVE_EVM;
 
 /**
  * Normalizes how a chain's native asset is named on the wire.
  *
- * Token registries describe native SOL three different ways — the EVM
- * sentinel `0xEeee…` (Squid's convention, and what the token list returns),
- * `So1111…111`, and the wrapped-SOL mint. Providers only route the last one
- * correctly, so pin it here rather than passing whichever spelling the
- * selected token happened to carry. Non-Solana chains are untouched: the EVM
- * sentinel is exactly right there.
+ * Token registries describe native SOL two different ways — the EVM
+ * sentinel `0xEeee…` (what the token list returns) and `So1111…111` (a
+ * placeholder alias, not a real mint). Neither is the wrapped-SOL mint, and
+ * providers expect the sentinel, not wSOL, for a native-SOL leg — so pin it
+ * here rather than passing whichever spelling the selected token happened to
+ * carry. Non-Solana chains are untouched: the EVM sentinel is exactly right
+ * there.
  */
 export function canonicalRouteToken(
   address: string | undefined,
