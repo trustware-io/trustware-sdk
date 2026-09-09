@@ -108,39 +108,41 @@ export function App() {
 keyed on `mode` — `routes` is only required in the default `"deposit"` mode:
 
 ```ts
-type TrustwareConfigOptions = {
-  apiKey: string;
-  mode?: "deposit"; // default, omit this field entirely for a normal deposit/top-up widget
-  routes: {
-    toChain: string;
-    toToken: string;
-    fromToken?: string;
-    fromChain?: string;
-    fromAddress?: string;
-    toAddress?: string;
-    defaultSlippage?: number;
-    options?: {
-      routeRefreshMs?: number;
-      fixedFromAmount?: string | number;
-      minAmountOut?: string | number;
-      maxAmountOut?: string | number;
+type TrustwareConfigOptions =
+  | {
+      apiKey: string;
+      mode?: "deposit"; // default, omit this field entirely for a normal deposit/top-up widget
+      routes: {
+        toChain: string;
+        toToken: string;
+        fromToken?: string;
+        fromChain?: string;
+        fromAddress?: string;
+        toAddress?: string;
+        defaultSlippage?: number;
+        options?: {
+          routeRefreshMs?: number;
+          fixedFromAmount?: string | number;
+          minAmountOut?: string | number;
+          maxAmountOut?: string | number;
+        };
+      };
+      autoDetectProvider?: boolean;
+      theme?: "light" | "dark" | "system"; // TrustwareTheme
+      messages?: Partial<TrustwareWidgetMessages>;
+      retry?: RetryConfig;
+      walletConnect?: WalletConnectConfig;
+      features?: FeatureFlags;
+      onError?: (error: TrustwareError) => void;
+      onSuccess?: (transaction: Transaction) => void;
+      onEvent?: (event: TrustwareEvent) => void;
+    }
+  | {
+      apiKey: string;
+      mode: "swap"; // swap widget — from/to chain+token are chosen entirely in-widget
+      routes?: Partial<TrustwareConfigOptions["routes"]>; // optional, not required
+      // ...same common fields as above
     };
-  };
-  autoDetectProvider?: boolean;
-  theme?: "light" | "dark" | "system"; // TrustwareTheme
-  messages?: Partial<TrustwareWidgetMessages>;
-  retry?: RetryConfig;
-  walletConnect?: WalletConnectConfig;
-  features?: FeatureFlags;
-  onError?: (error: TrustwareError) => void;
-  onSuccess?: (transaction: Transaction) => void;
-  onEvent?: (event: TrustwareEvent) => void;
-} | {
-  apiKey: string;
-  mode: "swap"; // swap widget — from/to chain+token are chosen entirely in-widget
-  routes?: Partial<TrustwareConfigOptions["routes"]>; // optional, not required
-  // ...same common fields as above
-};
 ```
 
 ### Modes
@@ -411,6 +413,12 @@ There is no `getQuote`: the estimate is part of the route, on
 whose fees exceed what it delivers, throwing a `RouteError` with code
 `fees_exceed_output`. A route the provider did not price in USD is not refused.
 `routeNetUsd(estimate)` / `isValueDestroying(estimate)` expose the same check.
+
+An address the backend cannot accept on its chain (wrong EIP-55 checksum, not a
+Solana public key) comes back as a 400 `RouteError` with code `invalid_address`
+and one `rejected` provider outcome per provider. No provider was called; fix
+the request rather than retry it. `validateRouteAddresses` catches the same
+cases client-side before the request is spent.
 
 ### Provider Context
 
