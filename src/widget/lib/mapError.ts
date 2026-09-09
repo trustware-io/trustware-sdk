@@ -14,6 +14,7 @@ export type ErrorCategory =
   | "transaction_failed"
   | "timeout"
   | "fees_exceed_output"
+  | "invalid_address"
   | "unknown";
 
 export type MappedError = {
@@ -62,6 +63,13 @@ function bodyMessage(body: Record<string, unknown>): string {
  */
 function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
   if (facts.codes.length === 0) return null;
+
+  // The backend refused the request before asking any provider: an address
+  // that cannot be valid on its chain. Ahead of everything else, since
+  // neither "no route" nor "try again" is true — the request has to change.
+  if (facts.rejected) {
+    return INVALID_ADDRESS;
+  }
 
   // A provider that never answered is not evidence about the pair — saying "no
   // route exists" would be a claim the backend explicitly refused to make.
@@ -170,6 +178,13 @@ export function mapError(raw: unknown): MappedError {
   if (seen) return seen;
   return rememberSelfMapped(classifyError(raw, msg), msg);
 }
+
+const INVALID_ADDRESS: MappedError = {
+  category: "invalid_address",
+  title: "Invalid Address",
+  message:
+    "The recipient address is not valid for the selected network. Check the address and try again.",
+};
 
 const DESTINATION_CALL_FAILED: MappedError = {
   category: "route_error",
@@ -311,6 +326,16 @@ function classifyError(raw: unknown, msg: string): MappedError {
   // would retitle it on a second pass.
   if (lower.includes("destination contract call")) {
     return DESTINATION_CALL_FAILED;
+  }
+
+  // ── Rejected address ──────────────────────────────────────────────────────
+  // The API's 400 summary ("request rejected: invalid address") once flattened
+  // to a string, and this function's own sentence on the second pass.
+  if (
+    lower.includes("invalid address") ||
+    lower.includes("address is not valid")
+  ) {
+    return INVALID_ADDRESS;
   }
 
   // ── Provider did not answer ───────────────────────────────────────────────

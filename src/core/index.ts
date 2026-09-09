@@ -29,6 +29,7 @@ export {
   formatMinimum,
   RouteDeclineCode,
   RouteFailureCode,
+  RouteRejectionCode,
   RouteErrorCode,
 } from "./routeError";
 export type { RouteProviderOutcome, RouteErrorFacts } from "./routeError";

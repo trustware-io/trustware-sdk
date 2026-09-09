@@ -8,6 +8,7 @@ export {
   formatMinimum,
   RouteDeclineCode,
   RouteFailureCode,
+  RouteRejectionCode,
   RouteErrorCode,
 } from "./core";
 export type { RouteProviderOutcome, RouteErrorFacts } from "./core";

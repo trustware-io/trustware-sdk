@@ -27,9 +27,12 @@
 /** One provider's answer, as the routing API reports it. */
 export type RouteProviderOutcome = {
   name: string;
-  /** "declined" — this provider cannot route the pair; "failed" — it errored. */
-  outcome: "declined" | "failed" | (string & {});
-  /** Stable machine code; see RouteDeclineCode / RouteFailureCode. */
+  /** "declined" — this provider cannot route the pair; "failed" — it errored;
+   *  "rejected" — it refused the request before any call because the caller's
+   *  own input cannot be valid (see RouteRejectionCode). */
+  outcome: "declined" | "failed" | "rejected" | (string & {});
+  /** Stable machine code; see RouteDeclineCode / RouteFailureCode /
+   *  RouteRejectionCode. */
   code: string;
   message: string;
 };
@@ -59,12 +62,26 @@ export const RouteFailureCode = {
   ProviderError: "provider_error",
 } as const;
 
+/**
+ * Codes for a provider that refused the request before any call. The caller's
+ * input is the problem, not the pair and not the provider: an address that
+ * cannot be valid on its chain (not hex, wrong EIP-55 checksum, not a Solana
+ * public key). The backend's validators are shared and deterministic, so one
+ * rejection is the verdict whatever the other providers said.
+ */
+export const RouteRejectionCode = {
+  InvalidAddress: "invalid_address",
+} as const;
+
 /** Top-level verdict for the request as a whole. */
 export const RouteErrorCode = {
   /** Every provider declined: a negative result, returned as 404. */
   NoRouteAvailable: "no_route_available",
   /** At least one provider failed, so "unroutable" cannot be claimed: 502. */
   ProvidersFailed: "providers_failed",
+  /** The caller's address cannot be valid on its chain; no provider was
+   *  asked. Returned as 400. Fix the request rather than retry it. */
+  InvalidAddress: "invalid_address",
   /** A route came back but the SDK refused it: its fees exceed its output.
    *  Reached client-side, so `status` is 0. */
   FeesExceedOutput: "fees_exceed_output",
@@ -73,6 +90,7 @@ export const RouteErrorCode = {
 const ALL_PROVIDER_CODES: readonly string[] = [
   ...Object.values(RouteDeclineCode),
   ...Object.values(RouteFailureCode),
+  ...Object.values(RouteRejectionCode),
 ];
 
 /**
@@ -88,7 +106,8 @@ const ALL_PROVIDER_CODES: readonly string[] = [
  */
 export class RouteError extends Error {
   /** HTTP status: 404 when every provider declined, 502 when one failed,
-   *  0 when the SDK reached the verdict itself without a response. */
+   *  400 when the caller's address was rejected, 0 when the SDK reached the
+   *  verdict itself without a response. */
   readonly status: number;
   /** Top-level verdict — see RouteErrorCode. Empty when the API sent none. */
   readonly code: string;
@@ -111,6 +130,11 @@ export class RouteError extends Error {
   /** True when every provider declined — nobody failed, so the pair is the problem. */
   get isNoRouteAvailable(): boolean {
     return this.code === RouteErrorCode.NoRouteAvailable || this.status === 404;
+  }
+
+  /** True when the caller's address was rejected — nothing to retry, fix the request. */
+  get isInvalidAddress(): boolean {
+    return this.code === RouteErrorCode.InvalidAddress;
   }
 
   /** The distinct provider codes, e.g. ["amount_too_low", "no_routes"]. */
@@ -202,8 +226,13 @@ export type RouteErrorFacts = {
   codes: string[];
   /** Per-provider outcomes, empty when only the message survived. */
   providers: readonly RouteProviderOutcome[];
-  /** True when no provider failed — every one of them declined. */
+  /** True when no provider failed or rejected — every one of them declined. */
   allDeclined: boolean;
+  /**
+   * True when a provider rejected the caller's own input. Outranks the rest:
+   * the pair may route fine and no provider failed, the request is wrong.
+   */
+  rejected: boolean;
   /**
    * The smallest amount a provider said it would accept, when one said so.
    * Both spellings are covered: Squid's own "Minimum swap amount for this route
@@ -234,10 +263,13 @@ export function parseRouteError(raw: unknown): RouteErrorFacts | null {
   // Read the fields, not the getter: a RouteError from another realm is a
   // plain object with the same shape and no prototype of ours.
   if (isRouteError(raw) && raw.providers.length > 0) {
+    const rejected = raw.providers.some((p) => p.outcome === "rejected");
     return {
       codes: providerCodes(raw.providers),
       providers: raw.providers,
-      allDeclined: raw.providers.every((p) => p.outcome !== "failed"),
+      allDeclined:
+        !rejected && raw.providers.every((p) => p.outcome !== "failed"),
+      rejected,
       minimum: firstMinimum(raw.providers.map((p) => p.message)),
     };
   }
@@ -268,6 +300,7 @@ export function parseRouteError(raw: unknown): RouteErrorFacts | null {
     codes,
     providers: [],
     allDeclined: !codes.some((code) => failureCodes.includes(code)),
+    rejected: false,
     minimum: firstMinimum([text]),
   };
 }

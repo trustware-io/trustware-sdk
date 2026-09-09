@@ -212,7 +212,7 @@ If you run `npm run build` without the env var, the SDK will call production API
 There is **no** event-emitter on the facade (`Trustware.on` does not exist). Events reach the host through `config.onEvent`.
 
 - **Route value guard** (`core/routeValue.ts`): `buildRoute`, `buildDepositAddress` and `sendRouteTransaction` all run `assertRouteDeliversValue`, which throws a `RouteError` (`code: "fees_exceed_output"`, one `declined` provider outcome with the same code, `status: 0`) when `toAmountUsd − totalFeesUsd < 0`. The backend ranks on that `net_usd` but never sends it or rejects on it, so the SDK recomputes it from the estimate. Fails open when either USD figure is missing. Lives in core, not a mode, so every consumer gets the same verdict; `mapError` maps the code to category `"fees_exceed_output"`.
-- Other core modules: `http.ts` (fetch wrapper + retry/rate-limit, exports `RateLimitError`), `routeError.ts` (structured `RouteError` + code vocabularies), `forex.ts`, `registryClient.ts`, `sdkRpc.ts`.
+- Other core modules: `http.ts` (fetch wrapper + retry/rate-limit, exports `RateLimitError`), `routeError.ts` (structured `RouteError` + code vocabularies; provider outcomes are `declined` / `failed` / `rejected`, the last being a 400 `invalid_address` verdict that `mapError` maps to category `"invalid_address"`), `forex.ts`, `registryClient.ts`, `sdkRpc.ts`.
 
 ### Provider (`src/provider.tsx`)
 
