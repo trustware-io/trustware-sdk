@@ -9,12 +9,15 @@ const USDC_SOLANA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const NATIVE_SOLANA_ALIAS = "So11111111111111111111111111111111111111111";
+const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
 describe("canonicalRouteToken", () => {
-  // The token list returns native SOL as the EVM sentinel. Sent verbatim, LiFi
-  // routes through an aggregator whose transaction fails on-chain with
-  // InstructionError[5, UnbalancedInstruction].
-  it("maps every native-SOL spelling to the wrapped-SOL mint", () => {
+  // The token list returns native SOL as the EVM sentinel. The wSOL mint is a
+  // distinct SPL token the caller may not hold — sending it for a native-SOL
+  // swap routes against a balance that doesn't exist. The backend translates
+  // the sentinel into each provider's own native-SOL spelling for a Solana
+  // leg (LiFi/Relay: the System Program id; Squid: the sentinel itself).
+  it("maps every native-SOL spelling to the EVM sentinel", () => {
     for (const chain of ["solana", "solana-mainnet-beta", "1151111081099710"]) {
       assert.equal(
         canonicalRouteToken(NATIVE_EVM, chain),
@@ -62,6 +65,13 @@ describe("canonicalRouteToken", () => {
 
   it("passes SPL mints through untouched", () => {
     assert.equal(canonicalRouteToken(USDC_SOLANA, "solana"), USDC_SOLANA);
+  });
+
+  // wSOL is a real, distinct SPL token (you only hold it once you've
+  // wrapped) — it must never be conflated with native SOL on the wire.
+  it("passes the wSOL mint through untouched, distinct from native SOL", () => {
+    assert.equal(canonicalRouteToken(WSOL_MINT, "solana"), WSOL_MINT);
+    assert.notEqual(WSOL_MINT, SOLANA_NATIVE_ROUTE_TOKEN);
   });
 
   it("trims stray whitespace on a Solana token", () => {

@@ -50,7 +50,66 @@ function failed(...entries: Array<[outcome: string, code: string]>) {
   );
 }
 
+/** The current API's 400: the caller's address was rejected pre-flight. */
+function rejected(...names: string[]) {
+  return routeErrorFromResponse(
+    400,
+    {
+      error: "request rejected: invalid address",
+      code: "invalid_address",
+      providers: names.map((name) => ({
+        name,
+        outcome: "rejected",
+        code: "invalid_address",
+        message: `provider "${name}" rejected toAddress: invalid EVM address checksum`,
+      })),
+    },
+    "Failed to build route"
+  );
+}
+
 describe("mapError on a routing verdict", () => {
+  it("blames the address, not the pair, when the backend rejected it", () => {
+    // Before this the rejection read as "No Route Found — try a different
+    // token": every outcome was non-"failed", so it counted as all-declined.
+    const mapped = mapError(rejected("squid", "lifi"));
+    assert.equal(mapped.category, "invalid_address");
+    assert.equal(mapped.title, "Invalid Address");
+    assert.match(mapped.message, /check the address/i);
+  });
+
+  it("keeps the rejection verdict next to a decline", () => {
+    const err = routeErrorFromResponse(
+      400,
+      {
+        error: "request rejected: invalid address",
+        code: "invalid_address",
+        providers: [
+          {
+            name: "lifi",
+            outcome: "rejected",
+            code: "invalid_address",
+            message: "",
+          },
+          {
+            name: "relay",
+            outcome: "declined",
+            code: "no_routes",
+            message: "",
+          },
+        ],
+      },
+      "Failed to build route"
+    );
+    assert.equal(mapError(err).category, "invalid_address");
+  });
+
+  it("reads the flattened 400 summary the same way", () => {
+    const mapped = mapError("request rejected: invalid address");
+    assert.equal(mapped.category, "invalid_address");
+    assert.equal(mapped.title, "Invalid Address");
+  });
+
   it("names the minimum a provider asked for", () => {
     // Before this, an $8 EVM->Solana swap read "No Route Found — try a
     // different token", while Squid had said the amount was the problem and
@@ -186,6 +245,8 @@ describe("mapError is stable when applied to its own output", () => {
     ["pair_unsupported", declined("pair_unsupported")],
     ["destination_call_failed", declined("destination_call_failed")],
     ["provider_error", failed(["failed", "provider_error"])],
+    ["invalid_address", rejected("squid", "lifi")],
+    ["flattened 400 summary", "request rejected: invalid address"],
     ["bare summary string", "no route available for this pair"],
     ["insufficient funds for gas", "insufficient funds for gas"],
     ["execution reverted", "execution reverted"],

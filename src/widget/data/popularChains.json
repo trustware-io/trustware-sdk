@@ -5,11 +5,15 @@
       "chainId": 1
     },
     {
-      "name": "BSC",
-      "chainId": 56
+      "name": "Solana"
     },
     {
-      "name": "Solana"
+      "name": "Base",
+      "chainId": 8453
+    },
+    {
+      "name": "BSC",
+      "chainId": 56
     },
     {
       "name": "Tron"
@@ -18,22 +22,23 @@
       "name": "Bitcoin"
     },
     {
-      "name": "Base",
-      "chainId": 8453
-    },
-    {
       "name": "Hyperliquid L1"
-    },
-    {
-      "name": "Provenance"
     },
     {
       "name": "Arbitrum",
       "chainId": 42161
     },
     {
+      "name": "Monad",
+      "chainId": 143
+    },
+    {
       "name": "Polygon",
       "chainId": 137
+    },
+    {
+      "name": "Robinhood Chain",
+      "chainId": 4663
     },
     {
       "name": "Plasma",
@@ -47,10 +52,6 @@
       "name": "Sui"
     },
     {
-      "name": "Monad",
-      "chainId": 143
-    },
-    {
       "name": "OP Mainnet",
       "chainId": 10
     },
@@ -62,18 +63,13 @@
       "name": "Stellar"
     },
     {
+      "name": "Anubis"
+    },
+    {
+      "name": "Provenance"
+    },
+    {
       "name": "Starknet"
-    },
-    {
-      "name": "Near"
-    },
-    {
-      "name": "Mantle",
-      "chainId": 5000
-    },
-    {
-      "name": "Movement",
-      "chainId": 3073
     },
     {
       "name": "Ink",
@@ -83,30 +79,34 @@
       "name": "Flare"
     },
     {
-      "name": "Aptos"
+      "name": "X Layer"
     },
     {
-      "name": "MegaETH",
-      "chainId": 4326
+      "name": "Near"
+    },
+    {
+      "name": "Gnosis",
+      "chainId": 100
+    },
+    {
+      "name": "Mantle",
+      "chainId": 5000
+    },
+    {
+      "name": "Stacks"
+    },
+    {
+      "name": "Morph"
     },
     {
       "name": "Rootstock",
       "chainId": 30
     },
     {
-      "name": "dYdX"
-    },
-    {
-      "name": "Cardano"
-    },
-    {
-      "name": "Stacks"
-    },
-    {
-      "name": "X Layer"
+      "name": "Mixin"
     }
   ],
   "popularLimit": 8,
-  "updatedAt": "2026-06-19",
+  "updatedAt": "2026-09-02",
   "source": "https://api.llama.fi/v2/chains — sorted by TVL"
 }

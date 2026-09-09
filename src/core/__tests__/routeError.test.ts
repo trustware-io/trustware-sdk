@@ -114,6 +114,70 @@ describe("routeErrorFromResponse", () => {
   });
 });
 
+/** A 400 exactly as iluvatar renders a rejected address (BVT-396). */
+const invalidAddressBody = {
+  error: "request rejected: invalid address",
+  code: "invalid_address",
+  providers: [
+    {
+      name: "squid",
+      outcome: "rejected",
+      code: "invalid_address",
+      message:
+        'provider "squid" rejected toAddress: invalid EVM address checksum',
+    },
+    {
+      name: "lifi",
+      outcome: "rejected",
+      code: "invalid_address",
+      message:
+        'provider "lifi" rejected toAddress: invalid EVM address checksum',
+    },
+  ],
+};
+
+describe("a rejected address", () => {
+  it("is its own verdict, not a no-route", () => {
+    const err = routeErrorFromResponse(
+      400,
+      invalidAddressBody,
+      "Failed to build route"
+    );
+    assert.equal(err.status, 400);
+    assert.equal(err.code, "invalid_address");
+    assert.equal(err.isInvalidAddress, true);
+    assert.equal(err.isNoRouteAvailable, false);
+    assert.deepEqual(err.providerCodes, ["invalid_address"]);
+  });
+
+  it("outranks the declines around it in the parsed facts", () => {
+    // One rejection is the verdict: the validators are shared, so the other
+    // providers' declines say nothing the caller can act on.
+    const facts = parseRouteError(
+      routeErrorFromResponse(
+        400,
+        {
+          ...invalidAddressBody,
+          providers: [
+            invalidAddressBody.providers[0],
+            {
+              name: "relay",
+              outcome: "declined",
+              code: "chain_unsupported",
+              message: "",
+            },
+          ],
+        },
+        "Failed to build route"
+      )
+    );
+    assert.ok(facts);
+    assert.equal(facts.rejected, true);
+    assert.equal(facts.allDeclined, false);
+    assert.deepEqual(facts.codes, ["invalid_address", "chain_unsupported"]);
+  });
+});
+
 describe("isRouteError", () => {
   it("recognizes a RouteError from another realm by shape", () => {
     // A bundle boundary can hand us an object whose Error prototype is not
