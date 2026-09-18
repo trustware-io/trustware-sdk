@@ -4,7 +4,11 @@ import {
   useDepositNavigation,
   useDepositTransaction,
 } from "../context/DepositContext";
-import { WidgetPageHeader, WidgetSecurityFooter } from "../components";
+import {
+  SuccessHero,
+  WidgetPageHeader,
+  WidgetSecurityFooter,
+} from "../components";
 import {
   SuccessSummaryCard,
   useTransactionPolling,
@@ -88,6 +92,8 @@ export function Success({ style }: SuccessProps): React.ReactElement {
           alignItems: "center",
         }}
       >
+        <SuccessHero style={{ marginBottom: "1rem" }} />
+
         <SuccessSummaryCard
           amount={parsedAmount}
           explorerUrl={explorerUrl}

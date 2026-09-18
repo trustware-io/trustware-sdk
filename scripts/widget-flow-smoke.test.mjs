@@ -77,6 +77,7 @@ test("renders processing step shell", () => {
 test("renders success step shell", () => {
   const html = renderWidget({ initialStep: "success" });
   assert.match(html, /Deposit Complete/);
+  assert.match(html, /assets\.trustware\.io\/assets\/sdk\/success-hero\.webp/);
 });
 
 test("renders error step shell", () => {

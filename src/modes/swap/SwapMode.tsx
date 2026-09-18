@@ -21,6 +21,7 @@ import {
   WidgetContainer,
   WidgetSecurityFooter,
   ErrorPage,
+  SuccessHero,
 } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
 import { isSerializedSolanaTxRequest } from "src/core/routes";
@@ -1639,6 +1640,8 @@ export function SwapMode({
           </Suspense>
 
           <div style={{ padding: `${spacing[6]} ${spacing[6]} 0` }}>
+            <SuccessHero style={{ marginBottom: spacing[5] }} />
+
             {/* Header */}
             <div
               style={{
