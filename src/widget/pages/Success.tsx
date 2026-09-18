@@ -29,7 +29,7 @@ export interface SuccessProps {
 export function Success({ style }: SuccessProps): React.ReactElement {
   const { selectedToken, selectedChain, amount } = useDepositForm();
   const { resetState } = useDepositNavigation();
-  const { transactionHash } = useDepositTransaction();
+  const { transactionHash, soldAmount } = useDepositTransaction();
 
   // Get transaction details for explorer URL
   const { transaction } = useTransactionPolling();
@@ -92,7 +92,10 @@ export function Success({ style }: SuccessProps): React.ReactElement {
           alignItems: "center",
         }}
       >
-        <SuccessHero style={{ marginBottom: "1rem" }} />
+        <SuccessHero
+          sellAmount={Number(soldAmount)}
+          style={{ marginBottom: "1rem" }}
+        />
 
         <SuccessSummaryCard
           amount={parsedAmount}

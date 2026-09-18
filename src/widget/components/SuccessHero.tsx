@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import { ASSETS_BASE_URL } from "src/constants";
+import { isPowerOfTwo } from "../utils/powerOfTwo";
 
 /**
  * Hero image shown on both success screens (deposit `Success` page and swap
@@ -12,19 +13,23 @@ import { ASSETS_BASE_URL } from "src/constants";
 export const SUCCESS_HERO_IMAGE_URL = `${ASSETS_BASE_URL}/assets/sdk/success-hero.webp`;
 
 export interface SuccessHeroProps {
+  /** Source-token amount the user sold, in token units. */
+  sellAmount: number;
   /** Additional inline styles merged onto the image */
   style?: React.CSSProperties;
 }
 
 /**
- * Decorative banner for success screens. Renders nothing if the CDN fetch
- * fails so a network hiccup never leaves a broken-image icon on the receipt.
+ * Easter egg banner for success screens. Only shows when the amount sold is
+ * a power of two (0.5, 1, 2, 4, 8 …). Renders nothing if the CDN fetch fails
+ * so a network hiccup never leaves a broken-image icon on the receipt.
  */
 export function SuccessHero({
+  sellAmount,
   style,
 }: SuccessHeroProps): React.ReactElement | null {
   const [failed, setFailed] = useState(false);
-  if (failed) return null;
+  if (failed || !isPowerOfTwo(sellAmount)) return null;
 
   return (
     <img

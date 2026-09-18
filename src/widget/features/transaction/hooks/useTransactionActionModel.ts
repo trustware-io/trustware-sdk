@@ -14,6 +14,7 @@ import {
   type YourTokenData,
 } from "../../../context/DepositContext";
 import { useTransactionSubmit } from "../../../hooks";
+import { rawToDecimal } from "../../../helpers/tokenAmount";
 import {
   getNativeTokenAddress,
   isNativeTokenAddress,
@@ -491,6 +492,11 @@ export function useTransactionActionModel({
       domain: window.origin,
     });
 
+    const soldAmount = rawToDecimal(
+      amountWei.toString(),
+      selectedToken?.decimals ?? 0
+    );
+
     // Silent smart-account sponsored path. Conditions: sponsorship present,
     // wallet is EIP-1193 EVM, ERC-20 token, numeric chain ID available, and
     // the path hasn't already failed once in this session.
@@ -545,7 +551,11 @@ export function useTransactionActionModel({
         }
       };
 
-      const hash = await submitTransaction(routeResult, sendOverride);
+      const hash = await submitTransaction(
+        routeResult,
+        sendOverride,
+        soldAmount
+      );
       if (hash === null && !wasRejected) {
         // Non-rejection failure: mark as failed so the next retry uses EOA.
         setSmartAccountFailed(true);
@@ -553,7 +563,7 @@ export function useTransactionActionModel({
       return;
     }
 
-    await submitTransaction(routeResult);
+    await submitTransaction(routeResult, undefined, soldAmount);
   }, [
     amountWei,
     backendChainId,
@@ -565,6 +575,7 @@ export function useTransactionActionModel({
     selectedChain?.chainId,
     selectedChain?.networkName,
     selectedToken?.address,
+    selectedToken?.decimals,
     selectedToken?.symbol,
     smartAccountFailed,
     submitTransaction,

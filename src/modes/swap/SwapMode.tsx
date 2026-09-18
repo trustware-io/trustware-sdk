@@ -1640,7 +1640,10 @@ export function SwapMode({
           </Suspense>
 
           <div style={{ padding: `${spacing[6]} ${spacing[6]} 0` }}>
-            <SuccessHero style={{ marginBottom: spacing[5] }} />
+            <SuccessHero
+              sellAmount={tokenSellNum}
+              style={{ marginBottom: spacing[5] }}
+            />
 
             {/* Header */}
             <div
