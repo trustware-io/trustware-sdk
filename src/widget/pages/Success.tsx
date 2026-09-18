@@ -9,6 +9,7 @@ import {
   SuccessSummaryCard,
   useTransactionPolling,
 } from "../features/transaction";
+import { SUCCESS_HERO_IMAGE } from "../data/successHero";
 
 // Lazy load the ConfettiEffect to reduce initial bundle size
 const ConfettiEffect = lazy(() => import("../components/ConfettiEffect"));
@@ -88,6 +89,25 @@ export function Success({ style }: SuccessProps): React.ReactElement {
           alignItems: "center",
         }}
       >
+        {/* POC: celebratory hero image above the summary card */}
+        <img
+          src={SUCCESS_HERO_IMAGE}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          style={{
+            width: "100%",
+            maxHeight: "220px",
+            objectFit: "cover",
+            objectPosition: "center top",
+            borderRadius: "1rem",
+            marginBottom: "1rem",
+            display: "block",
+            userSelect: "none",
+            animation: "tw-fade-in 0.4s ease-out",
+          }}
+        />
+
         <SuccessSummaryCard
           amount={parsedAmount}
           explorerUrl={explorerUrl}
