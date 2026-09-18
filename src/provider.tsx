@@ -16,9 +16,9 @@ import { TrustwareError } from "./errors/TrustwareError";
 import { TrustwareEvent } from "./events/events";
 import type { Transaction } from "./types/routes";
 
-export type Status = "idle" | "initializing" | "ready" | "error";
+type Status = "idle" | "initializing" | "ready" | "error";
 
-export type Ctx = {
+type Ctx = {
   status: Status;
   errors?: string;
   core: typeof Trustware;
@@ -28,7 +28,7 @@ export type Ctx = {
   revalidate?: () => Promise<void>;
 };
 
-export const Ctx = createContext<Ctx>({ status: "idle", core: Trustware });
+const Ctx = createContext<Ctx>({ status: "idle", core: Trustware });
 
 export function TrustwareProvider({
   config,

@@ -7,7 +7,7 @@
  * CSS variables for theming - scoped to .trustware-widget
  * These variables are used by inline styles throughout the widget
  */
-export const THEME_STYLES = `
+const THEME_STYLES = `
 /* CSS Variables for theming - scoped to widget */
 .trustware-widget {
   /* Light theme (default) - New design system with bright blue primary */
@@ -86,7 +86,7 @@ export const THEME_STYLES = `
  * Pseudo-state styles that can't be done with inline styles
  * Kept minimal - only for hover/focus/active states
  */
-export const PSEUDO_STYLES = `
+const PSEUDO_STYLES = `
 /* Reset styles for elements inside widget */
 .trustware-widget button {
   font-family: inherit;

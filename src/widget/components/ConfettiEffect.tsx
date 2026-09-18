@@ -10,7 +10,7 @@ interface ConfettiPiece {
   rotation: number;
 }
 
-export interface ConfettiEffectProps {
+interface ConfettiEffectProps {
   /** Whether the confetti animation should be active */
   isActive: boolean;
   /** Duration in ms before confetti pieces are cleared (default: 3000) */
@@ -24,7 +24,7 @@ export interface ConfettiEffectProps {
  * Renders animated confetti pieces that fall within the parent container.
  * This component should be lazy loaded to reduce initial bundle size.
  */
-export function ConfettiEffect({
+function ConfettiEffect({
   isActive,
   clearDelay = 3000,
   pieceCount = 50,

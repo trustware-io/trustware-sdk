@@ -1,4 +1,1 @@
-export {
-  SwipeToConfirmTokens,
-  type SwipeToConfirmTokensProps,
-} from "../../../components/SwipeToConfirmTokens";
+export { SwipeToConfirmTokens } from "../../../components/SwipeToConfirmTokens";

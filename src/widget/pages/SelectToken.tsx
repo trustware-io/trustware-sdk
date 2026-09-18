@@ -154,5 +154,3 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     </div>
   );
 }
-
-export default SelectToken;

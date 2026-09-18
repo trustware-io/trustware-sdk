@@ -16,7 +16,7 @@ import {
   registerChainParams,
 } from "./wallets/chainParams";
 
-export const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 const PAGE_CACHE_TTL_MS = 5 * 60 * 1000;
 const PAGE_CACHE_LIMIT = 100;

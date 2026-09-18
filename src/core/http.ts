@@ -53,7 +53,7 @@ export async function validateSdkAccess() {
 }
 
 /** Parse rate limit headers from a response */
-export function parseRateLimitHeaders(r: Response): RateLimitInfo | null {
+function parseRateLimitHeaders(r: Response): RateLimitInfo | null {
   const limit = r.headers.get("X-RateLimit-Limit");
   const remaining = r.headers.get("X-RateLimit-Remaining");
   const reset = r.headers.get("X-RateLimit-Reset");

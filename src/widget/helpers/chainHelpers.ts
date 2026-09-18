@@ -44,7 +44,7 @@ export function parseDecimalToWei(
 }
 
 /** Solana mainnet-beta as the routing backend identifies it numerically. */
-export const SOLANA_CHAIN_ID = "1151111081099710";
+const SOLANA_CHAIN_ID = "1151111081099710";
 
 const CHAIN_TYPE_ALIASES: Record<string, SquidChainType> = {
   btc: "bitcoin",

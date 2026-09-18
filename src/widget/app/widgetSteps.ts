@@ -20,15 +20,6 @@ export const PAGE_COMPONENTS: Record<NavigationStep, React.ComponentType> = {
   error: Error,
 };
 
-export const STEP_ORDER: NavigationStep[] = [
-  "home",
-  "select-token",
-  "crypto-pay",
-  "processing",
-  "success",
-  "error",
-];
-
 export const ACTIVE_TRANSACTION_STATUSES: TransactionStatus[] = [
   "confirming",
   "processing",

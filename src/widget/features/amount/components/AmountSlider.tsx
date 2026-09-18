@@ -1,4 +1,1 @@
-export {
-  AmountSlider,
-  type AmountSliderProps,
-} from "../../../components/AmountSlider";
+export { AmountSlider } from "../../../components/AmountSlider";

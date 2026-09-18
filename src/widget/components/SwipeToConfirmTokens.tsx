@@ -540,5 +540,3 @@ export function SwipeToConfirmTokens({
     </div>
   );
 }
-
-export default SwipeToConfirmTokens;

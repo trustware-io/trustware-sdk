@@ -1,10 +1,10 @@
 import type { ChainDef, ChainType } from "../types";
 
-export const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-export const NATIVE_SOLANA = "So11111111111111111111111111111111111111111";
+const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+const NATIVE_SOLANA = "So11111111111111111111111111111111111111111";
 
 /** Solana mainnet-beta as the routing backend identifies it numerically. */
-export const SOLANA_CHAIN_ID = "1151111081099710";
+const SOLANA_CHAIN_ID = "1151111081099710";
 
 const CHAIN_TYPE_ALIASES: Record<string, ChainType> = {
   btc: "bitcoin",
@@ -86,7 +86,7 @@ export function getNativeTokenAddress(chainType?: ChainType | null) {
     : NATIVE_EVM;
 }
 
-export function isSolanaNativeTokenAlias(address?: string | null) {
+function isSolanaNativeTokenAlias(address?: string | null) {
   if (!address) return false;
   const trimmed = address.trim();
   if (!trimmed) return false;

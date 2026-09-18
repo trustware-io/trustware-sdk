@@ -1,4 +1,3 @@
-import type { AppKitNetwork } from "@reown/appkit/networks";
 import type { CustomCaipNetwork } from "@reown/appkit-common";
 import { UniversalConnector } from "@reown/appkit-universal-connector";
 import { TrustwareConfigStore } from "./store";
@@ -26,7 +25,7 @@ export const solanaMainnet: CustomCaipNetwork<"solana"> = {
 };
 
 // well-known non-zero placeholder that won't be treated as falsy.
-export const bitcoinMainnet: CustomCaipNetwork<"bip122"> = {
+const bitcoinMainnet: CustomCaipNetwork<"bip122"> = {
   id: 8333,
   chainNamespace: "bip122",
   caipNetworkId: "bip122:000000000019d6689c085ae165831e93",
@@ -44,7 +43,7 @@ export const bitcoinMainnet: CustomCaipNetwork<"bip122"> = {
 };
 
 // Sei Cosmos (pacific-1) — unique numeric placeholder, won't collide with EVM.
-export const seiCosmosMainnet: CustomCaipNetwork<"cosmos"> = {
+const seiCosmosMainnet: CustomCaipNetwork<"cosmos"> = {
   id: 9001,
   chainNamespace: "cosmos",
   caipNetworkId: "cosmos:pacific-1",
@@ -57,7 +56,7 @@ export const seiCosmosMainnet: CustomCaipNetwork<"cosmos"> = {
 
 // ─── EVM chains ───────────────────────────────────────────────────────────────
 
-export const ethereumMainnet: CustomCaipNetwork<"eip155"> = {
+const ethereumMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1",
@@ -68,7 +67,7 @@ export const ethereumMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const optimismMainnet: CustomCaipNetwork<"eip155"> = {
+const optimismMainnet: CustomCaipNetwork<"eip155"> = {
   id: 10,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:10",
@@ -79,7 +78,7 @@ export const optimismMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const flareMainnet: CustomCaipNetwork<"eip155"> = {
+const flareMainnet: CustomCaipNetwork<"eip155"> = {
   id: 14,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:14",
@@ -90,7 +89,7 @@ export const flareMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const cronosMainnet: CustomCaipNetwork<"eip155"> = {
+const cronosMainnet: CustomCaipNetwork<"eip155"> = {
   id: 25,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:25",
@@ -101,7 +100,7 @@ export const cronosMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const rootstockMainnet: CustomCaipNetwork<"eip155"> = {
+const rootstockMainnet: CustomCaipNetwork<"eip155"> = {
   id: 30,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:30",
@@ -116,7 +115,7 @@ export const rootstockMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const telosMainnet: CustomCaipNetwork<"eip155"> = {
+const telosMainnet: CustomCaipNetwork<"eip155"> = {
   id: 40,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:40",
@@ -127,7 +126,7 @@ export const telosMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const xdcMainnet: CustomCaipNetwork<"eip155"> = {
+const xdcMainnet: CustomCaipNetwork<"eip155"> = {
   id: 50,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:50",
@@ -138,7 +137,7 @@ export const xdcMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const bscMainnet: CustomCaipNetwork<"eip155"> = {
+const bscMainnet: CustomCaipNetwork<"eip155"> = {
   id: 56,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:56",
@@ -149,7 +148,7 @@ export const bscMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const victionMainnet: CustomCaipNetwork<"eip155"> = {
+const victionMainnet: CustomCaipNetwork<"eip155"> = {
   id: 88,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:88",
@@ -160,7 +159,7 @@ export const victionMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const gnosisMainnet: CustomCaipNetwork<"eip155"> = {
+const gnosisMainnet: CustomCaipNetwork<"eip155"> = {
   id: 100,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:100",
@@ -171,7 +170,7 @@ export const gnosisMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const fuseMainnet: CustomCaipNetwork<"eip155"> = {
+const fuseMainnet: CustomCaipNetwork<"eip155"> = {
   id: 122,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:122",
@@ -182,7 +181,7 @@ export const fuseMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const unichainMainnet: CustomCaipNetwork<"eip155"> = {
+const unichainMainnet: CustomCaipNetwork<"eip155"> = {
   id: 130,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:130",
@@ -193,7 +192,7 @@ export const unichainMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const polygonMainnet: CustomCaipNetwork<"eip155"> = {
+const polygonMainnet: CustomCaipNetwork<"eip155"> = {
   id: 137,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:137",
@@ -204,7 +203,7 @@ export const polygonMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const monadMainnet: CustomCaipNetwork<"eip155"> = {
+const monadMainnet: CustomCaipNetwork<"eip155"> = {
   id: 143,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:143",
@@ -215,7 +214,7 @@ export const monadMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const sonicMainnet: CustomCaipNetwork<"eip155"> = {
+const sonicMainnet: CustomCaipNetwork<"eip155"> = {
   id: 146,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:146",
@@ -226,7 +225,7 @@ export const sonicMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const opBnbMainnet: CustomCaipNetwork<"eip155"> = {
+const opBnbMainnet: CustomCaipNetwork<"eip155"> = {
   id: 204,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:204",
@@ -237,7 +236,7 @@ export const opBnbMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const lensMainnet: CustomCaipNetwork<"eip155"> = {
+const lensMainnet: CustomCaipNetwork<"eip155"> = {
   id: 232,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:232",
@@ -248,7 +247,7 @@ export const lensMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const fantomMainnet: CustomCaipNetwork<"eip155"> = {
+const fantomMainnet: CustomCaipNetwork<"eip155"> = {
   id: 250,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:250",
@@ -259,7 +258,7 @@ export const fantomMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const fraxtalMainnet: CustomCaipNetwork<"eip155"> = {
+const fraxtalMainnet: CustomCaipNetwork<"eip155"> = {
   id: 252,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:252",
@@ -270,7 +269,7 @@ export const fraxtalMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const bobaMainnet: CustomCaipNetwork<"eip155"> = {
+const bobaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 288,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:288",
@@ -281,7 +280,7 @@ export const bobaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const hederaMainnet: CustomCaipNetwork<"eip155"> = {
+const hederaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 295,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:295",
@@ -292,7 +291,7 @@ export const hederaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const filecoinMainnet: CustomCaipNetwork<"eip155"> = {
+const filecoinMainnet: CustomCaipNetwork<"eip155"> = {
   id: 314,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:314",
@@ -303,7 +302,7 @@ export const filecoinMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const zkSyncMainnet: CustomCaipNetwork<"eip155"> = {
+const zkSyncMainnet: CustomCaipNetwork<"eip155"> = {
   id: 324,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:324",
@@ -314,7 +313,7 @@ export const zkSyncMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const worldchainMainnet: CustomCaipNetwork<"eip155"> = {
+const worldchainMainnet: CustomCaipNetwork<"eip155"> = {
   id: 480,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:480",
@@ -327,7 +326,7 @@ export const worldchainMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const flowMainnet: CustomCaipNetwork<"eip155"> = {
+const flowMainnet: CustomCaipNetwork<"eip155"> = {
   id: 747,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:747",
@@ -338,7 +337,7 @@ export const flowMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const stableMainnet: CustomCaipNetwork<"eip155"> = {
+const stableMainnet: CustomCaipNetwork<"eip155"> = {
   id: 988,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:988",
@@ -349,7 +348,7 @@ export const stableMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const hyperEvmMainnet: CustomCaipNetwork<"eip155"> = {
+const hyperEvmMainnet: CustomCaipNetwork<"eip155"> = {
   id: 999,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:999",
@@ -360,7 +359,7 @@ export const hyperEvmMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const metisMainnet: CustomCaipNetwork<"eip155"> = {
+const metisMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1088,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1088",
@@ -371,7 +370,7 @@ export const metisMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const liskMainnet: CustomCaipNetwork<"eip155"> = {
+const liskMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1135,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1135",
@@ -382,7 +381,7 @@ export const liskMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const moonbeamMainnet: CustomCaipNetwork<"eip155"> = {
+const moonbeamMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1284,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1284",
@@ -393,7 +392,7 @@ export const moonbeamMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const seiMainnet: CustomCaipNetwork<"eip155"> = {
+const seiMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1329,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1329",
@@ -404,7 +403,7 @@ export const seiMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const hyperliquidMainnet: CustomCaipNetwork<"eip155"> = {
+const hyperliquidMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1337,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1337",
@@ -415,7 +414,7 @@ export const hyperliquidMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const vanaMainnet: CustomCaipNetwork<"eip155"> = {
+const vanaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1480,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1480",
@@ -426,7 +425,7 @@ export const vanaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const gravityMainnet: CustomCaipNetwork<"eip155"> = {
+const gravityMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1625,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1625",
@@ -437,7 +436,7 @@ export const gravityMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const pharosMainnet: CustomCaipNetwork<"eip155"> = {
+const pharosMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1672,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1672",
@@ -448,7 +447,7 @@ export const pharosMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const soneiumMainnet: CustomCaipNetwork<"eip155"> = {
+const soneiumMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1868,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1868",
@@ -459,7 +458,7 @@ export const soneiumMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const swellchainMainnet: CustomCaipNetwork<"eip155"> = {
+const swellchainMainnet: CustomCaipNetwork<"eip155"> = {
   id: 1923,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:1923",
@@ -470,7 +469,7 @@ export const swellchainMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const roninMainnet: CustomCaipNetwork<"eip155"> = {
+const roninMainnet: CustomCaipNetwork<"eip155"> = {
   id: 2020,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:2020",
@@ -481,7 +480,7 @@ export const roninMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const kavaEvmMainnet: CustomCaipNetwork<"eip155"> = {
+const kavaEvmMainnet: CustomCaipNetwork<"eip155"> = {
   id: 2222,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:2222",
@@ -492,7 +491,7 @@ export const kavaEvmMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const abstractMainnet: CustomCaipNetwork<"eip155"> = {
+const abstractMainnet: CustomCaipNetwork<"eip155"> = {
   id: 2741,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:2741",
@@ -503,7 +502,7 @@ export const abstractMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const morphMainnet: CustomCaipNetwork<"eip155"> = {
+const morphMainnet: CustomCaipNetwork<"eip155"> = {
   id: 2818,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:2818",
@@ -514,7 +513,7 @@ export const morphMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const peaqMainnet: CustomCaipNetwork<"eip155"> = {
+const peaqMainnet: CustomCaipNetwork<"eip155"> = {
   id: 3338,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:3338",
@@ -525,7 +524,7 @@ export const peaqMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const tempoMainnet: CustomCaipNetwork<"eip155"> = {
+const tempoMainnet: CustomCaipNetwork<"eip155"> = {
   id: 4217,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:4217",
@@ -536,7 +535,7 @@ export const tempoMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const megaEthMainnet: CustomCaipNetwork<"eip155"> = {
+const megaEthMainnet: CustomCaipNetwork<"eip155"> = {
   id: 4326,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:4326",
@@ -547,7 +546,7 @@ export const megaEthMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const mantleMainnet: CustomCaipNetwork<"eip155"> = {
+const mantleMainnet: CustomCaipNetwork<"eip155"> = {
   id: 5000,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:5000",
@@ -558,7 +557,7 @@ export const mantleMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const somniaMainnet: CustomCaipNetwork<"eip155"> = {
+const somniaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 5031,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:5031",
@@ -569,7 +568,7 @@ export const somniaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const kaiaMainnet: CustomCaipNetwork<"eip155"> = {
+const kaiaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 8217,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:8217",
@@ -580,7 +579,7 @@ export const kaiaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const baseMainnet: CustomCaipNetwork<"eip155"> = {
+const baseMainnet: CustomCaipNetwork<"eip155"> = {
   id: 8453,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:8453",
@@ -591,7 +590,7 @@ export const baseMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const plasmaMainnet: CustomCaipNetwork<"eip155"> = {
+const plasmaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 9745,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:9745",
@@ -602,7 +601,7 @@ export const plasmaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const immutableZkEvmMainnet: CustomCaipNetwork<"eip155"> = {
+const immutableZkEvmMainnet: CustomCaipNetwork<"eip155"> = {
   id: 13371,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:13371",
@@ -613,7 +612,7 @@ export const immutableZkEvmMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const apechainMainnet: CustomCaipNetwork<"eip155"> = {
+const apechainMainnet: CustomCaipNetwork<"eip155"> = {
   id: 33139,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:33139",
@@ -624,7 +623,7 @@ export const apechainMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const modeMainnet: CustomCaipNetwork<"eip155"> = {
+const modeMainnet: CustomCaipNetwork<"eip155"> = {
   id: 34443,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:34443",
@@ -635,7 +634,7 @@ export const modeMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const arbitrumMainnet: CustomCaipNetwork<"eip155"> = {
+const arbitrumMainnet: CustomCaipNetwork<"eip155"> = {
   id: 42161,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:42161",
@@ -646,7 +645,7 @@ export const arbitrumMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const arbitrumNovaMainnet: CustomCaipNetwork<"eip155"> = {
+const arbitrumNovaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 42170,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:42170",
@@ -657,7 +656,7 @@ export const arbitrumNovaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const celoMainnet: CustomCaipNetwork<"eip155"> = {
+const celoMainnet: CustomCaipNetwork<"eip155"> = {
   id: 42220,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:42220",
@@ -668,7 +667,7 @@ export const celoMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const etherlinkMainnet: CustomCaipNetwork<"eip155"> = {
+const etherlinkMainnet: CustomCaipNetwork<"eip155"> = {
   id: 42793,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:42793",
@@ -679,7 +678,7 @@ export const etherlinkMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const hemiMainnet: CustomCaipNetwork<"eip155"> = {
+const hemiMainnet: CustomCaipNetwork<"eip155"> = {
   id: 43111,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:43111",
@@ -690,7 +689,7 @@ export const hemiMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const avalancheMainnet: CustomCaipNetwork<"eip155"> = {
+const avalancheMainnet: CustomCaipNetwork<"eip155"> = {
   id: 43114,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:43114",
@@ -701,7 +700,7 @@ export const avalancheMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const sophonMainnet: CustomCaipNetwork<"eip155"> = {
+const sophonMainnet: CustomCaipNetwork<"eip155"> = {
   id: 50104,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:50104",
@@ -712,7 +711,7 @@ export const sophonMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const superpositionMainnet: CustomCaipNetwork<"eip155"> = {
+const superpositionMainnet: CustomCaipNetwork<"eip155"> = {
   id: 55244,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:55244",
@@ -723,7 +722,7 @@ export const superpositionMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const inkMainnet: CustomCaipNetwork<"eip155"> = {
+const inkMainnet: CustomCaipNetwork<"eip155"> = {
   id: 57073,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:57073",
@@ -734,7 +733,7 @@ export const inkMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const lineaMainnet: CustomCaipNetwork<"eip155"> = {
+const lineaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 59144,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:59144",
@@ -745,7 +744,7 @@ export const lineaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const bobMainnet: CustomCaipNetwork<"eip155"> = {
+const bobMainnet: CustomCaipNetwork<"eip155"> = {
   id: 60808,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:60808",
@@ -756,7 +755,7 @@ export const bobMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const berachainMainnet: CustomCaipNetwork<"eip155"> = {
+const berachainMainnet: CustomCaipNetwork<"eip155"> = {
   id: 80094,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:80094",
@@ -767,7 +766,7 @@ export const berachainMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const blastMainnet: CustomCaipNetwork<"eip155"> = {
+const blastMainnet: CustomCaipNetwork<"eip155"> = {
   id: 81457,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:81457",
@@ -778,7 +777,7 @@ export const blastMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const plumeMainnet: CustomCaipNetwork<"eip155"> = {
+const plumeMainnet: CustomCaipNetwork<"eip155"> = {
   id: 98866,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:98866",
@@ -789,7 +788,7 @@ export const plumeMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const taikoMainnet: CustomCaipNetwork<"eip155"> = {
+const taikoMainnet: CustomCaipNetwork<"eip155"> = {
   id: 167000,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:167000",
@@ -800,7 +799,7 @@ export const taikoMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const scrollMainnet: CustomCaipNetwork<"eip155"> = {
+const scrollMainnet: CustomCaipNetwork<"eip155"> = {
   id: 534352,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:534352",
@@ -811,7 +810,7 @@ export const scrollMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const katanaMainnet: CustomCaipNetwork<"eip155"> = {
+const katanaMainnet: CustomCaipNetwork<"eip155"> = {
   id: 747474,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:747474",
@@ -822,7 +821,7 @@ export const katanaMainnet: CustomCaipNetwork<"eip155"> = {
   },
 };
 
-export const cornMainnet: CustomCaipNetwork<"eip155"> = {
+const cornMainnet: CustomCaipNetwork<"eip155"> = {
   id: 21000000,
   chainNamespace: "eip155",
   caipNetworkId: "eip155:21000000",
@@ -920,13 +919,6 @@ const solanaChains: CustomCaipNetwork<"solana">[] = [solanaMainnet];
 const bitcoinChains: CustomCaipNetwork<"bip122">[] = [bitcoinMainnet];
 
 const cosmosChains: CustomCaipNetwork<"cosmos">[] = [seiCosmosMainnet];
-
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
-  // ...solanaChains,
-  // ...bitcoinChains,
-  ...evmChains,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-] as any;
 
 const namespaceConfig = [
   {

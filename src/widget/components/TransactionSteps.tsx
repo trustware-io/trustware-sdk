@@ -5,7 +5,7 @@ import type { TransactionStatus } from "../context/DepositContext";
 /**
  * Step configuration for the transaction progress display
  */
-export interface Step {
+interface Step {
   /** Step display label */
   label: string;
   /** Optional icon URL for the step */
@@ -258,5 +258,3 @@ export function TransactionSteps({
     </div>
   );
 }
-
-export default TransactionSteps;
