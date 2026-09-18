@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 
 import { ASSETS_BASE_URL } from "src/constants";
-import { isPowerOfTwo } from "../utils/powerOfTwo";
+import { isCrazyTime } from "../utils/crazyTime";
 
 /**
  * Hero image shown on both success screens (deposit `Success` page and swap
@@ -29,7 +29,7 @@ export function SuccessHero({
   style,
 }: SuccessHeroProps): React.ReactElement | null {
   const [failed, setFailed] = useState(false);
-  if (failed || !isPowerOfTwo(sellAmount)) return null;
+  if (failed || !isCrazyTime(sellAmount)) return null;
 
   return (
     <img
