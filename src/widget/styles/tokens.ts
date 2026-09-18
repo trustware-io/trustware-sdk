@@ -73,18 +73,6 @@ export const fontSize = {
 } as const;
 
 /**
- * Line heights
- */
-export const lineHeight = {
-  none: "1",
-  tight: "1.25",
-  snug: "1.375",
-  normal: "1.5",
-  relaxed: "1.625",
-  loose: "2",
-} as const;
-
-/**
  * Font weights
  */
 export const fontWeight = {
@@ -222,20 +210,6 @@ export const shadows = {
   md: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
   lg: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
   xl: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
-} as const;
-
-/**
- * Transition presets
- */
-export const transitions = {
-  smooth: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-  bounce: "all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
-  fast: "all 0.15s ease-out",
-  normal: "all 0.2s ease-out",
-  slow: "all 0.3s ease-out",
-  colors: "color, background-color, border-color 0.2s ease-out",
-  opacity: "opacity 0.2s ease-out",
-  transform: "transform 0.2s ease-out",
 } as const;
 
 /**

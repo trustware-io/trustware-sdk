@@ -1,1 +1,1 @@
-export { LoadingSkeleton, type LoadingSkeletonProps } from "./LoadingSkeleton";
+export { LoadingSkeleton } from "./LoadingSkeleton";

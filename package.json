@@ -175,9 +175,7 @@
     "@account-kit/smart-contracts": "^4.88.2",
     "@eslint/js": "^9.39.2",
     "@size-limit/preset-small-lib": "^12.0.0",
-    "@types/eslint__js": "^8.42.3",
     "@types/node": "^24.10.0",
-    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.1",
     "eslint": "^9.39.2",
@@ -208,7 +206,6 @@
     "widget"
   ],
   "dependencies": {
-    "@reown/appkit": "^1.8.17",
     "@reown/appkit-common": "^1.8.17",
     "@reown/appkit-universal-connector": "^1.8.17",
     "@solana/web3.js": "^1.98.4"

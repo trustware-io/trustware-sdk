@@ -139,12 +139,3 @@ export function chainParamsFromChainDef(
     ...(explorers.length > 0 ? { blockExplorerUrls: explorers } : {}),
   };
 }
-
-/** Register every EVM chain in a catalog payload that carries usable params. */
-export function registerChainParamsFromCatalog(chains: ChainDef[]): void {
-  for (const chain of chains) {
-    const params = chainParamsFromChainDef(chain);
-    if (!params) continue;
-    registerChainParams(Number(chain.chainId ?? chain.id), params);
-  }
-}

@@ -22,10 +22,8 @@ import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
 
 export type {
   Chain,
-  DepositContextValue,
   NavigationDirection,
   NavigationStep,
-  PaymentMethodType,
   ResolvedTheme,
   Token,
   TransactionStatus,
@@ -396,17 +394,3 @@ export function useDepositTransaction() {
 export function useDepositUi() {
   return useRequiredContext(DepositUiContext, "useDepositUi");
 }
-
-/**
- * Hook to access deposit context
- * @throws Error if used outside of DepositProvider
- */
-export function useDeposit(): DepositContextValue {
-  const context = useContext(DepositContext);
-  if (context === undefined) {
-    throw new Error("useDeposit must be used within a DepositProvider");
-  }
-  return context;
-}
-
-export default DepositContext;

@@ -6,7 +6,7 @@
 /**
  * All keyframe animations used by the widget
  */
-export const KEYFRAMES = `
+const KEYFRAMES = `
 /* Slide in from right (forward navigation) */
 @keyframes tw-slide-in-right {
   0% { opacity: 0; transform: translateX(1rem); }
@@ -95,7 +95,7 @@ export const KEYFRAMES = `
  * Animation CSS classes that use the keyframes
  * These can be referenced by adding className to elements
  */
-export const ANIMATION_CLASSES = `
+const ANIMATION_CLASSES = `
 /* Animation utility classes */
 .tw-animate-slide-in-right {
   animation: tw-slide-in-right 150ms ease-out;
@@ -150,21 +150,3 @@ export const ANIMATION_CLASSES = `
  * Combined keyframes and animation classes for injection
  */
 export const ALL_ANIMATION_STYLES = KEYFRAMES + ANIMATION_CLASSES;
-
-/**
- * Animation timing presets (for use with inline style animation property)
- */
-export const animationTimings = {
-  slideInRight: "tw-slide-in-right 150ms ease-out",
-  slideInLeft: "tw-slide-in-left 150ms ease-out",
-  fadeIn: "tw-fade-in 0.3s ease-out",
-  slideUp: "tw-slide-up 0.4s ease-out",
-  scaleIn: "tw-scale-in 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-  swipeComplete: "tw-swipe-complete 0.3s ease-out forwards",
-  tokenHintBounce: "tw-token-hint-bounce 0.7s ease-out",
-  tokenHintBounceX: "tw-token-hint-bounce-x 0.8s ease-out",
-  spin: "tw-spin 1s linear infinite",
-  spinSlow: "tw-spin-slow 2s linear infinite",
-  confettiFall: "tw-confetti-fall 2s ease-out forwards",
-  pulse: "tw-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-} as const;

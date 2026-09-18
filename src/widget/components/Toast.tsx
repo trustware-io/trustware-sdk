@@ -326,5 +326,3 @@ export function ToastContainer(): React.ReactElement | null {
     </div>
   );
 }
-
-export default ToastContainer;
