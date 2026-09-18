@@ -206,7 +206,6 @@
     "widget"
   ],
   "dependencies": {
-    "@reown/appkit": "^1.8.17",
     "@reown/appkit-common": "^1.8.17",
     "@reown/appkit-universal-connector": "^1.8.17",
     "@solana/web3.js": "^1.98.4"
