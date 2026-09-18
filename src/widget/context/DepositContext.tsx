@@ -99,6 +99,8 @@ const DepositTransactionContext = createContext<
       | "setErrorMessage"
       | "intentId"
       | "setIntentId"
+      | "soldAmount"
+      | "setSoldAmount"
     >
   | undefined
 >(undefined);
@@ -206,6 +208,7 @@ export function DepositProvider({
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [intentId, setIntentId] = useState<string | null>(null);
+  const [soldAmount, setSoldAmount] = useState<string | null>(null);
 
   // Payment method state (defaults to crypto)
   const [paymentMethod, setPaymentMethod] =
@@ -224,6 +227,7 @@ export function DepositProvider({
     setTransactionHash(null);
     setErrorMessage(null);
     setIntentId(null);
+    setSoldAmount(null);
     setPaymentMethod("crypto");
     reloadWalletTokens();
   }, [reloadWalletTokens, resetNavigation]);
@@ -326,8 +330,10 @@ export function DepositProvider({
       setErrorMessage,
       intentId,
       setIntentId,
+      soldAmount,
+      setSoldAmount,
     }),
-    [errorMessage, intentId, transactionHash, transactionStatus]
+    [errorMessage, intentId, soldAmount, transactionHash, transactionStatus]
   );
 
   const uiValue = useMemo(

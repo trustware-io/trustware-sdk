@@ -37,6 +37,7 @@ export function useTransactionSubmit() {
     setTransactionHash,
     setErrorMessage,
     setIntentId,
+    setSoldAmount,
   } = useDepositTransaction();
 
   const [state, setState] = useState<TransactionSubmitState>({
@@ -55,7 +56,9 @@ export function useTransactionSubmit() {
   const submitTransaction = useCallback(
     async (
       routeResult: BuildRouteResult,
-      sendOverride?: SendOverride
+      sendOverride?: SendOverride,
+      /** Source amount in token units, kept for the Success page. */
+      soldAmount?: string | null
     ): Promise<string | null> => {
       if (!routeResult?.txReq) {
         const errorMsg = "Invalid route data. Please try again.";
@@ -110,6 +113,7 @@ export function useTransactionSubmit() {
         // Update context with the transaction hash and intent ID
         setTransactionHash(hash);
         setIntentId(routeResult.intentId);
+        setSoldAmount(soldAmount ?? null);
 
         // Transition to processing step (polling will be handled by Processing page)
         setTransactionStatus("processing");
@@ -141,6 +145,7 @@ export function useTransactionSubmit() {
       setErrorMessage,
       setCurrentStep,
       setIntentId,
+      setSoldAmount,
     ]
   );
 

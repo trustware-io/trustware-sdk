@@ -93,6 +93,10 @@ export interface DepositContextValue {
   setErrorMessage: (message: string | null) => void;
   intentId: string | null;
   setIntentId: (id: string | null) => void;
+  /** Source-token amount actually sent, in token units (e.g. "0.5"). Set on
+   *  submit; the Success page needs it because `amount` may be in USD. */
+  soldAmount: string | null;
+  setSoldAmount: (amount: string | null) => void;
   paymentMethod: PaymentMethodType;
   setPaymentMethod: (method: PaymentMethodType) => void;
   resolvedTheme: ResolvedTheme;

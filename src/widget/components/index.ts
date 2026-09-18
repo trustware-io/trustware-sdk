@@ -44,5 +44,6 @@ export {
   type WidgetSecurityFooterProps,
 } from "./WidgetSecurityFooter";
 export { ErrorPage, type ErrorPageProps } from "./ErrorPage";
+export { SuccessHero } from "./SuccessHero";
 export { default as ImageLoader } from "./ImageLoader";
 export * from "./Skeletons";
