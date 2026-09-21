@@ -386,5 +386,3 @@ function mapReceiptError(err: unknown): string {
 
   return cleanedMsg || "Failed to submit transaction. Please try again.";
 }
-
-export default useTransactionPolling;

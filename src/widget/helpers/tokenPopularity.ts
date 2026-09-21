@@ -77,7 +77,7 @@ function hasPositiveBalance(balance?: string): boolean {
   return Number.isFinite(asNumber) && asNumber > 0;
 }
 
-export function isPopularToken(token: TokenPopularitySortable): boolean {
+function isPopularToken(token: TokenPopularitySortable): boolean {
   const normalizedSymbol = normalizeSymbol(token.symbol);
   const normalizedAddress = normalizeAddress(token.address);
 

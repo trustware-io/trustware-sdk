@@ -262,5 +262,3 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
     </div>
   );
 }
-
-export default Processing;

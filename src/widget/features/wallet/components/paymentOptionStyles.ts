@@ -1,6 +1,6 @@
 import type React from "react";
 
-import { colors, spacing } from "../../../styles";
+import { spacing } from "../../../styles";
 
 export const dropdownWrapperStyle: React.CSSProperties = {
   position: "relative",
@@ -11,14 +11,6 @@ export const dropdownWrapperOpenStyle: React.CSSProperties = {
   position: "relative",
   height: "2.75rem",
   zIndex: 100,
-};
-
-export const dividerRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "1rem",
-  maxWidth: "100%",
-  width: "100%",
 };
 
 export const dropdownSurfaceStyle: React.CSSProperties = {
@@ -65,11 +57,3 @@ export const walletActionIconBoxStyle: React.CSSProperties = {
 export const dividerBorderStyle: React.CSSProperties = {
   borderTop: `1px solid rgba(63, 63, 70, 0.5)`,
 };
-
-export const mutedOrDividerStyle = (
-  isDarkTheme: boolean
-): React.CSSProperties => ({
-  flex: "1",
-  height: isDarkTheme ? "0.5px" : "1px",
-  backgroundColor: colors.zinc[100],
-});

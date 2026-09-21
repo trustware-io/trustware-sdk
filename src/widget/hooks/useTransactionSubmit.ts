@@ -251,5 +251,3 @@ function mapTransactionError(err: unknown): string {
 
   return cleanedMsg || "Transaction failed. Please try again.";
 }
-
-export default useTransactionSubmit;

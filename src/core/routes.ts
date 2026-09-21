@@ -4,7 +4,6 @@ import { assertRouteDeliversValue } from "./routeValue";
 import type {
   BuildRouteResult,
   PostHookRequest,
-  RouteParams,
   RoutePlan,
   RouteSponsorship,
   Transaction,
@@ -165,18 +164,6 @@ export function isEvmTxRequest(txReq?: TxRequest | null) {
 
 export function isSerializedSolanaTxRequest(txReq?: TxRequest | null) {
   return Boolean(txReq?.data && !txReq?.to && !txReq?.target);
-}
-
-export async function buildRoute1(p: RouteParams): Promise<BuildRouteResult> {
-  const r = await rateLimitedFetch(`${apiBase()}/squid/route`, {
-    method: "POST",
-    headers: jsonHeaders(),
-    credentials: "omit",
-    body: JSON.stringify(p),
-  });
-  await assertOK(r);
-  const j = await r.json();
-  return j.data as BuildRouteResult;
 }
 
 export async function buildRoute(

@@ -73,15 +73,3 @@ class ConfigStore {
   }
 }
 export const TrustwareConfigStore = new ConfigStore();
-
-/** Convenience for non-React environments */
-export const TrustwareConfig = {
-  init: (opts: TrustwareConfigOptions) => TrustwareConfigStore.init(opts),
-  update: (patch: Partial<TrustwareConfigOptions>) =>
-    TrustwareConfigStore.update(patch),
-  get: () => TrustwareConfigStore.get(),
-  getTheme: () => TrustwareConfigStore.get().theme,
-  getMessages: () => TrustwareConfigStore.get().messages,
-  subscribe: (fn: (cfg: ResolvedTrustwareConfig) => void) =>
-    TrustwareConfigStore.subscribe(fn),
-};

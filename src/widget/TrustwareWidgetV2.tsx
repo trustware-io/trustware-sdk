@@ -366,5 +366,3 @@ export const TrustwareWidgetV2 = forwardRef<
     </WidgetAnalytics>
   );
 });
-
-export default TrustwareWidgetV2;

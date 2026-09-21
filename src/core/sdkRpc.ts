@@ -12,7 +12,7 @@ type SDKRPCEnvelope<T> = {
   error?: SDKRPCErrorPayload;
 };
 
-export class SDKRPCError extends Error {
+class SDKRPCError extends Error {
   code?: string;
   context?: Record<string, unknown>;
   status?: number;
