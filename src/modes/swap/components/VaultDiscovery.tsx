@@ -903,21 +903,34 @@ function VaultDetailView({
 }
 
 type WithdrawStatus = "idle" | "submitting" | "success" | "error";
+/** Chosen before Withdraw is tapped — where the redeemed asset goes next. */
+type WithdrawDestination = "wallet" | "swap" | "vault";
+
+const WITHDRAW_DESTINATION_OPTIONS: {
+  key: WithdrawDestination;
+  label: string;
+}[] = [
+  { key: "wallet", label: "Keep in your wallet" },
+  { key: "swap", label: "Swap to something else" },
+  { key: "vault", label: "Deposit into another vault" },
+];
 
 /**
  * The confirm screen for "Withdraw" on a position row (BVT-398 withdrawal).
  * Full-balance redeem only, back to the position's own asset on its own
- * chain — vaults.fyi's redeem action never bridges (confirmed live). Once it
- * succeeds, `onSwap`/`onVault` are the two explicit follow-ups from the
- * ticket's own ask ("withdraw to native/a stable", "withdraw and deposit
- * into a different vault") — both just put the withdrawn asset on the FROM
- * side of an ordinary route, not a special redeem-and-forward flow.
+ * chain — vaults.fyi's redeem action never bridges (confirmed live).
+ * `destination` is chosen HERE, before Withdraw is tapped, not guessed at
+ * after the fact on a success screen — "swap"/"vault" fire automatically the
+ * moment the redeem succeeds; `onSwap`/`onVault` cover the case where the
+ * user picked "wallet" but changes their mind after seeing the result.
  */
 function VaultWithdrawConfirm({
   position,
   status,
   error,
   txHash,
+  destination,
+  onDestinationChange,
   onBack,
   onConfirm,
   onSwap,
@@ -927,6 +940,8 @@ function VaultWithdrawConfirm({
   status: WithdrawStatus;
   error: string | null;
   txHash: string | null;
+  destination: WithdrawDestination;
+  onDestinationChange: (destination: WithdrawDestination) => void;
   onBack: () => void;
   onConfirm: () => void;
   onSwap: () => void;
@@ -1029,18 +1044,71 @@ function VaultWithdrawConfirm({
           valueColor="hsl(142 71% 45%)"
         />
 
-        <p
-          style={{
-            fontSize: fontSize.xs,
-            color: colors.mutedForeground,
-            marginTop: spacing[3],
-          }}
-        >
-          Withdraws your full balance from this vault back to{" "}
-          {position.asset.symbol} on {position.network.name}. To move it to
-          another chain or a different vault, do that as a separate step
-          afterward from the swap screen.
-        </p>
+        {!succeeded ? (
+          <div style={{ marginTop: spacing[3] }}>
+            <p
+              style={{
+                fontSize: fontSize.xs,
+                fontWeight: fontWeight.semibold,
+                color: colors.mutedForeground,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                marginBottom: spacing[2],
+              }}
+            >
+              Then
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: spacing[1.5],
+              }}
+            >
+              {WITHDRAW_DESTINATION_OPTIONS.map((opt) => {
+                const selected = destination === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => onDestinationChange(opt.key)}
+                    disabled={submitting}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[2],
+                      padding: `${spacing[2]} ${spacing[3]}`,
+                      borderRadius: borderRadius.lg,
+                      border: `1px solid ${selected ? colors.primary : colors.border}`,
+                      backgroundColor: selected
+                        ? "rgba(59,130,246,0.08)"
+                        : "transparent",
+                      color: colors.foreground,
+                      fontSize: fontSize.xs,
+                      fontWeight: fontWeight.medium,
+                      cursor: submitting ? "default" : "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "0.85rem",
+                        height: "0.85rem",
+                        borderRadius: "9999px",
+                        border: `2px solid ${selected ? colors.primary : colors.mutedForeground}`,
+                        backgroundColor: selected
+                          ? colors.primary
+                          : "transparent",
+                        flexShrink: 0,
+                      }}
+                    />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {status === "error" && error ? (
           <div
@@ -1213,6 +1281,12 @@ export function VaultDiscovery({
   const [withdrawStatus, setWithdrawStatus] = useState<WithdrawStatus>("idle");
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawTxHash, setWithdrawTxHash] = useState<string | null>(null);
+  // Chosen on the confirm screen BEFORE tapping Withdraw — decided up front,
+  // not guessed at after the fact. "wallet" (default) leaves the funds put
+  // and shows the usual success screen; "swap"/"vault" fire automatically
+  // the moment the redeem succeeds, skipping the success screen entirely.
+  const [withdrawDestination, setWithdrawDestination] =
+    useState<WithdrawDestination>("wallet");
 
   useEffect(() => {
     if (!walletAddress) {
@@ -1251,6 +1325,7 @@ export function VaultDiscovery({
     setWithdrawStatus("idle");
     setWithdrawError(null);
     setWithdrawTxHash(null);
+    setWithdrawDestination("wallet");
     setWithdrawingPosition(position);
   };
 
@@ -1276,7 +1351,6 @@ export function VaultDiscovery({
         lastHash = await Trustware.sendVaultRedeemTx(action);
       }
       setWithdrawTxHash(lastHash);
-      setWithdrawStatus("success");
       setPositions((prev) =>
         prev.filter(
           (p) =>
@@ -1286,6 +1360,15 @@ export function VaultDiscovery({
             )
         )
       );
+      if (withdrawDestination === "wallet") {
+        setWithdrawStatus("success");
+      } else {
+        // Destination was already decided before Withdraw was tapped —
+        // proceed straight there instead of showing a success screen the
+        // user would just have to click through.
+        setWithdrawingPosition(null);
+        onAfterWithdraw(position, withdrawDestination);
+      }
     } catch (err) {
       setWithdrawStatus("error");
       setWithdrawError(
@@ -1379,6 +1462,8 @@ export function VaultDiscovery({
         status={withdrawStatus}
         error={withdrawError}
         txHash={withdrawTxHash}
+        destination={withdrawDestination}
+        onDestinationChange={setWithdrawDestination}
         onBack={() => setWithdrawingPosition(null)}
         onConfirm={() => void handleConfirmWithdraw()}
         onSwap={() => handleAfterWithdrawClick("swap")}
