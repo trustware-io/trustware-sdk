@@ -574,7 +574,14 @@ export function SwapMode({
         setFromChain(chain);
         setSelectedVault(null);
         route.clear();
-        setStage(next === "vault" ? "earn" : "home");
+        // "vault" reopens Earn to pick the new vault; "swap" goes straight
+        // into token selection rather than landing on a blank Buy field the
+        // user then has to tap into themselves — unless the destination
+        // token is locked (merchant checkout), in which case there's
+        // nothing to pick and home is the only valid landing spot.
+        setStage(
+          next === "vault" ? "earn" : lockDestToken ? "home" : "select-to"
+        );
       };
 
       const fallbackToken: Token = {
@@ -611,7 +618,7 @@ export function SwapMode({
         })
         .catch(() => finish(fallbackToken));
     },
-    [allChains, route]
+    [allChains, route, lockDestToken]
   );
 
   const handleFlip = useCallback(() => {
