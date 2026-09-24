@@ -15,6 +15,7 @@ import {
   isSerializedSolanaTxRequest,
 } from "./routes";
 import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
+import type { VaultRedeemAction } from "./vaults";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
 
 function backendChainId(chain?: ChainDef, fallback?: number | string): string {
@@ -467,6 +468,68 @@ export async function sendRouteTransaction(
   }
 
   throw new Error("Invalid route transaction payload");
+}
+
+/**
+ * Sign and submit one vault redeem action (BVT-398 withdrawal) — the
+ * "Withdraw" button on a position row. Deliberately not routed through
+ * sendRouteTransaction: a redeem is not a route. There is no bridge, no
+ * provider, no `RouteSponsorship`, and no approvals to ensure (redeeming
+ * spends vault shares directly, never an ERC20 allowance) — vaults.fyi
+ * already baked the real, final amount into `action.tx`, so this is a plain
+ * same-chain EVM send. Still reuses `ensureWalletOnChain` for the same
+ * reason sendRouteTransaction does: a redeem signed on the wrong chain
+ * cannot be undone.
+ */
+export async function sendVaultRedeemTx(
+  action: VaultRedeemAction
+): Promise<string> {
+  const w = walletManager.wallet;
+  if (!w) throw new Error("Trustware.wallet not configured");
+  if (w.ecosystem !== "evm") {
+    throw new Error("An EVM wallet is required to redeem a vault position");
+  }
+
+  const { tx } = action;
+  const to = (tx.to ?? tx.target) as `0x${string}` | undefined;
+  if (!to) {
+    throw new Error(`Vault redeem action "${action.name}" has no target`);
+  }
+  const data = tx.data as `0x${string}`;
+  const value = tx.value ? BigInt(tx.value) : 0n;
+  const target = Number(tx.chainId);
+  if (!Number.isSafeInteger(target) || target <= 0) {
+    throw new Error(
+      `Vault redeem action "${action.name}" has an invalid chain id: ${String(tx.chainId)}`
+    );
+  }
+  await ensureWalletOnChain(w, target);
+
+  if (w.type === "eip1193") {
+    const from = (await w.getAddress()) as `0x${string}`;
+    const hexValue = value ? `0x${value.toString(16)}` : "0x0";
+    const hash = await w.request({
+      method: "eth_sendTransaction",
+      params: [
+        {
+          from,
+          to,
+          data,
+          value: hexValue,
+          chainId: `0x${target.toString(16)}`,
+        },
+      ],
+    });
+    return hash as string;
+  }
+
+  const response = await w.sendTransaction({
+    to,
+    data,
+    value,
+    chainId: target,
+  });
+  return response.hash as string;
 }
 
 export async function runTopUp(params: {

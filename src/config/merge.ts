@@ -208,6 +208,8 @@ export function resolveConfig(
     swapAllowedDestTokens:
       input.features?.swapAllowedDestTokens ??
       DEFAULT_FEATURE_FLAGS.swapAllowedDestTokens,
+    vaultDeposits:
+      input.features?.vaultDeposits ?? DEFAULT_FEATURE_FLAGS.vaultDeposits,
   };
 
   return {

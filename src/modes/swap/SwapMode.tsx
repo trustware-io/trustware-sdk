@@ -43,12 +43,14 @@ import { findWalletBalanceRow } from "./walletBalance";
 import { buildSwapPaymentParams, claimAttemptOnce } from "./analytics";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
+import { VaultDiscovery } from "./components/VaultDiscovery";
 // import { SwapWalletSelector } from "./components/SwapWalletSelector";
 import { SUPPORTED_CURRENCIES, getCurrencyMeta, fmtCurrency } from "./currency";
 import type { SwapStage, SwapTxStatus } from "./types";
 import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import type { Theme } from "src/widget/components";
+import type { VaultSummary } from "src/core/vaults";
 import { SwapWalletSelector } from "./components";
 
 const ConfettiEffect = lazy(
@@ -197,6 +199,15 @@ export function SwapMode({
   const [fromChain, setFromChain] = useState<ChainDef | null>(null);
   const [toToken, setToToken] = useState<Token | YourTokenData | null>(null);
   const [toChain, setToChain] = useState<ChainDef | null>(null);
+  // Set when the destination came from the vault picker (BVT-398), not a
+  // plain token select — carries the extra {vaultId, network} the route
+  // build needs to deposit into it instead of a wallet transfer. Cleared
+  // whenever the destination token changes by any other path, so a stale
+  // vault can never ride along with a since-changed toToken/toChain.
+  const [selectedVault, setSelectedVault] = useState<{
+    vaultId: string;
+    network: string;
+  } | null>(null);
   const [amount, setAmount] = useState("");
   const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
     "usd"
@@ -467,6 +478,7 @@ export function SwapMode({
     (token: Token | YourTokenData, chain: ChainDef) => {
       setToToken(token);
       setToChain(chain);
+      setSelectedVault(null);
       route.clear();
       setStage("home");
       emitEvent?.({
@@ -481,6 +493,67 @@ export function SwapMode({
     [route, emitEvent, fromToken, fromChain, amount]
   );
 
+  const handleSelectVault = useCallback(
+    (vault: VaultSummary) => {
+      const chain = allChains.find(
+        (c) => Number(c.chainId) === vault.network.chainId
+      );
+      // The vault's chain isn't one this deployment's own chain catalog
+      // knows — shouldn't happen for a supported network, but bail rather
+      // than land the route on the wrong chain.
+      if (!chain) return;
+
+      const finish = (token: Token) => {
+        setToToken(token);
+        setToChain(chain);
+        setSelectedVault({
+          vaultId: vault.vaultId,
+          network: vault.network.name,
+        });
+        route.clear();
+        setStage("home");
+      };
+
+      // Used if the registry lookup below can't confirm the token (network
+      // hiccup, or the asset simply isn't indexed) — vault.asset itself is
+      // always enough to build a route, just without the registry's icon/price.
+      const fallbackToken: Token = {
+        address: vault.asset.address,
+        chainId: chain.chainId,
+        symbol: vault.asset.symbol,
+        name: vault.asset.name,
+        decimals: vault.asset.decimals,
+        usdPrice: undefined,
+      };
+
+      const registry = getSharedRegistry();
+      registry
+        .tokensPage(chain.chainId, { q: vault.asset.address, limit: 5 })
+        .then((page: import("src/types/blockchain").TokenPageResult) => {
+          const normalized = vault.asset.address.toLowerCase();
+          const match = page.data.find(
+            (t) => t.address.toLowerCase() === normalized
+          );
+          finish(
+            match
+              ? {
+                  address: match.address,
+                  chainId: match.chainId,
+                  symbol: match.symbol,
+                  name: match.name,
+                  decimals: match.decimals,
+                  iconUrl: match.logoURI,
+                  logoURI: match.logoURI,
+                  usdPrice: match.usdPrice,
+                }
+              : fallbackToken
+          );
+        })
+        .catch(() => finish(fallbackToken));
+    },
+    [allChains, route]
+  );
+
   const handleFlip = useCallback(() => {
     // When dest is locked, flipping would lose the locked token — disallow it
     if (lockDestToken) return;
@@ -490,6 +563,7 @@ export function SwapMode({
     setFromChain((prev) => toChain ?? prev);
     setToToken(fromToken);
     setToChain(fromChain);
+    setSelectedVault(null);
     setAmount("");
     route.clear();
     emitEvent?.({
@@ -549,6 +623,7 @@ export function SwapMode({
       walletAddress,
       toAddress: needsDestAddress ? destAddress.trim() : walletAddress,
       slippage,
+      vault: selectedVault ?? undefined,
     });
     if (result) setStage("review");
   }, [
@@ -562,6 +637,7 @@ export function SwapMode({
     destAddress,
     route,
     slippage,
+    selectedVault,
   ]);
 
   const handleConnectAndReview = useCallback(() => {
@@ -981,6 +1057,7 @@ export function SwapMode({
       walletAddress,
       toAddress: needsDestAddress ? destAddress.trim() : walletAddress,
       slippage,
+      vault: selectedVault ?? undefined,
     };
     const t = setTimeout(() => void fetchRef.current(params), 600);
     return () => clearTimeout(t);
@@ -996,6 +1073,7 @@ export function SwapMode({
     needsDestAddress,
     destAddress,
     slippage,
+    selectedVault,
   ]);
 
   // Keep a ref with the latest fetch params so the timer can refetch without stale closures
@@ -1020,6 +1098,7 @@ export function SwapMode({
       walletAddress,
       toAddress: needsDestAddress ? destAddress.trim() : walletAddress,
       slippage,
+      vault: selectedVault ?? undefined,
     };
   }, [
     canGetQuote,
@@ -1032,6 +1111,7 @@ export function SwapMode({
     needsDestAddress,
     destAddress,
     slippage,
+    selectedVault,
   ]);
 
   // Reset countdown when a fresh quote arrives
@@ -1178,6 +1258,19 @@ export function SwapMode({
           chainsError={chainsError}
           allowedTokens={allowedDestTokens ?? undefined}
           excludeToken={fromToken ?? null}
+        />
+      </WidgetContainer>
+    );
+  }
+
+  if (stage === "earn" && features.vaultDeposits) {
+    return (
+      <WidgetContainer theme={resolvedTheme} style={style}>
+        <VaultDiscovery
+          config={features.vaultDeposits}
+          onSelect={handleSelectVault}
+          onBack={() => setStage("home")}
+          walletAddress={walletAddress}
         />
       </WidgetContainer>
     );
@@ -2639,6 +2732,102 @@ export function SwapMode({
                   zIndex: 100,
                 }}
               >
+                {/* Earn — vault deposits (BVT-398). Only once a wallet is
+                    connected (there's nothing to deposit before then) and
+                    only when the client has configured a mode. */}
+                {walletAddress && features.vaultDeposits ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettings(false);
+                      setStage("earn");
+                    }}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: spacing[2],
+                      padding: `${spacing[2.5]} ${spacing[2]}`,
+                      marginBottom: spacing[3],
+                      borderRadius: borderRadius.lg,
+                      backgroundColor: "rgba(59,130,246,0.08)",
+                      border: 0,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "1.75rem",
+                        height: "1.75rem",
+                        borderRadius: "9999px",
+                        backgroundColor: "rgba(59,130,246,0.15)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <svg
+                        style={{
+                          width: "1rem",
+                          height: "1rem",
+                          color: colors.primary,
+                        }}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+                        />
+                      </svg>
+                    </span>
+                    <span style={{ flex: 1 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: fontSize.sm,
+                          fontWeight: fontWeight.semibold,
+                          color: colors.foreground,
+                        }}
+                      >
+                        Earn
+                      </span>
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: "0.625rem",
+                          color: colors.mutedForeground,
+                        }}
+                      >
+                        Deposit into a yield vault
+                      </span>
+                    </span>
+                    <svg
+                      style={{
+                        width: "1rem",
+                        height: "1rem",
+                        color: colors.mutedForeground,
+                        flexShrink: 0,
+                      }}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m9 18 6-6-6-6"
+                      />
+                    </svg>
+                  </button>
+                ) : null}
+
                 {/* Appearance */}
                 <p
                   style={{
