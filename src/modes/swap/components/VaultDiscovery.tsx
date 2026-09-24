@@ -24,6 +24,16 @@ export interface VaultDiscoveryProps {
   onBack: () => void;
   /** Used to fetch "Your positions" (BVT-398). Omit/empty to skip that section entirely — no wallet, nothing to show a balance for. */
   walletAddress?: string | null;
+  /**
+   * Called after a successful withdrawal when the user picks a follow-up
+   * ("Swap to something else" or "Deposit into another vault") rather than
+   * plain "Done". Puts the withdrawn asset on the FROM side of a fresh swap
+   * — vaults.fyi's redeem never bridges, so it's always that same asset on
+   * that same chain (BVT-398). `"swap"` leaves Earn for the plain swap
+   * screen; `"vault"` stays here so the user can immediately pick a new
+   * vault as the destination.
+   */
+  onAfterWithdraw: (position: Position, next: "swap" | "vault") => void;
 }
 
 const usdCompactFormatter = new Intl.NumberFormat(undefined, {
@@ -897,10 +907,11 @@ type WithdrawStatus = "idle" | "submitting" | "success" | "error";
 /**
  * The confirm screen for "Withdraw" on a position row (BVT-398 withdrawal).
  * Full-balance redeem only, back to the position's own asset on its own
- * chain — vaults.fyi's redeem action never bridges (confirmed live), so
- * moving the withdrawn asset elsewhere (a different chain, a different
- * vault) is a second, ordinary step the user takes from the swap home
- * screen afterward, not something this screen does for them.
+ * chain — vaults.fyi's redeem action never bridges (confirmed live). Once it
+ * succeeds, `onSwap`/`onVault` are the two explicit follow-ups from the
+ * ticket's own ask ("withdraw to native/a stable", "withdraw and deposit
+ * into a different vault") — both just put the withdrawn asset on the FROM
+ * side of an ordinary route, not a special redeem-and-forward flow.
  */
 function VaultWithdrawConfirm({
   position,
@@ -909,6 +920,8 @@ function VaultWithdrawConfirm({
   txHash,
   onBack,
   onConfirm,
+  onSwap,
+  onVault,
 }: {
   position: Position;
   status: WithdrawStatus;
@@ -916,6 +929,8 @@ function VaultWithdrawConfirm({
   txHash: string | null;
   onBack: () => void;
   onConfirm: () => void;
+  onSwap: () => void;
+  onVault: () => void;
 }) {
   const submitting = status === "submitting";
   const succeeded = status === "success";
@@ -1075,32 +1090,91 @@ function VaultWithdrawConfirm({
       <div
         style={{ padding: spacing[4], borderTop: `1px solid ${colors.border}` }}
       >
-        <button
-          type="button"
-          onClick={succeeded ? onBack : onConfirm}
-          disabled={submitting}
-          style={{
-            width: "100%",
-            padding: `${spacing[3]} 0`,
-            borderRadius: borderRadius.lg,
-            border: 0,
-            backgroundColor: submitting ? colors.muted : colors.primary,
-            color: submitting
-              ? colors.mutedForeground
-              : colors.primaryForeground,
-            fontSize: fontSize.sm,
-            fontWeight: fontWeight.semibold,
-            cursor: submitting ? "default" : "pointer",
-          }}
-        >
-          {succeeded
-            ? "Done"
-            : submitting
+        {succeeded ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: spacing[2],
+            }}
+          >
+            <button
+              type="button"
+              onClick={onVault}
+              style={{
+                width: "100%",
+                padding: `${spacing[3]} 0`,
+                borderRadius: borderRadius.lg,
+                border: 0,
+                backgroundColor: colors.primary,
+                color: colors.primaryForeground,
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.semibold,
+                cursor: "pointer",
+              }}
+            >
+              Deposit into another vault
+            </button>
+            <button
+              type="button"
+              onClick={onSwap}
+              style={{
+                width: "100%",
+                padding: `${spacing[3]} 0`,
+                borderRadius: borderRadius.lg,
+                border: `1px solid ${colors.border}`,
+                backgroundColor: "transparent",
+                color: colors.foreground,
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.semibold,
+                cursor: "pointer",
+              }}
+            >
+              Swap to something else
+            </button>
+            <button
+              type="button"
+              onClick={onBack}
+              style={{
+                width: "100%",
+                padding: `${spacing[2]} 0`,
+                border: 0,
+                background: "none",
+                color: colors.mutedForeground,
+                fontSize: fontSize.xs,
+                fontWeight: fontWeight.medium,
+                cursor: "pointer",
+              }}
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={submitting}
+            style={{
+              width: "100%",
+              padding: `${spacing[3]} 0`,
+              borderRadius: borderRadius.lg,
+              border: 0,
+              backgroundColor: submitting ? colors.muted : colors.primary,
+              color: submitting
+                ? colors.mutedForeground
+                : colors.primaryForeground,
+              fontSize: fontSize.sm,
+              fontWeight: fontWeight.semibold,
+              cursor: submitting ? "default" : "pointer",
+            }}
+          >
+            {submitting
               ? "Confirm in wallet…"
               : status === "error"
                 ? "Try again"
                 : "Withdraw"}
-        </button>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1119,6 +1193,7 @@ export function VaultDiscovery({
   onSelect,
   onBack,
   walletAddress,
+  onAfterWithdraw,
 }: VaultDiscoveryProps): React.ReactElement {
   const [vaults, setVaults] = useState<VaultSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1219,6 +1294,17 @@ export function VaultDiscovery({
     }
   };
 
+  // Clears the confirm screen back to the list (so "vault" reopens the
+  // picker rather than staying stuck on the just-completed withdrawal) and
+  // hands the withdrawn position to the parent, which puts it on the FROM
+  // side of a fresh swap or vault deposit.
+  const handleAfterWithdrawClick = (next: "swap" | "vault") => {
+    if (!withdrawingPosition) return;
+    const position = withdrawingPosition;
+    setWithdrawingPosition(null);
+    onAfterWithdraw(position, next);
+  };
+
   useEffect(() => {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets loading/error state at the start of each fetch triggered by a config change, not a render-time value
@@ -1295,6 +1381,8 @@ export function VaultDiscovery({
         txHash={withdrawTxHash}
         onBack={() => setWithdrawingPosition(null)}
         onConfirm={() => void handleConfirmWithdraw()}
+        onSwap={() => handleAfterWithdrawClick("swap")}
+        onVault={() => handleAfterWithdrawClick("vault")}
       />
     );
   }

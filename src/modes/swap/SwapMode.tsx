@@ -50,7 +50,7 @@ import type { SwapStage, SwapTxStatus } from "./types";
 import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import type { Theme } from "src/widget/components";
-import type { VaultSummary } from "src/core/vaults";
+import type { VaultSummary, Position } from "src/core/vaults";
 import { SwapWalletSelector } from "./components";
 
 const ConfettiEffect = lazy(
@@ -531,6 +531,66 @@ export function SwapMode({
         .tokensPage(chain.chainId, { q: vault.asset.address, limit: 5 })
         .then((page: import("src/types/blockchain").TokenPageResult) => {
           const normalized = vault.asset.address.toLowerCase();
+          const match = page.data.find(
+            (t) => t.address.toLowerCase() === normalized
+          );
+          finish(
+            match
+              ? {
+                  address: match.address,
+                  chainId: match.chainId,
+                  symbol: match.symbol,
+                  name: match.name,
+                  decimals: match.decimals,
+                  iconUrl: match.logoURI,
+                  logoURI: match.logoURI,
+                  usdPrice: match.usdPrice,
+                }
+              : fallbackToken
+          );
+        })
+        .catch(() => finish(fallbackToken));
+    },
+    [allChains, route]
+  );
+
+  // After a withdrawal lands back in the wallet as the vault's own asset
+  // (BVT-398 — vaults.fyi's redeem never bridges, so it's always the same
+  // asset on the same chain the vault was on), this puts that asset on the
+  // FROM side and either reopens Earn to pick a new vault ("vault") or
+  // drops the user on the plain swap home screen to pick anything else
+  // ("swap") — the two follow-ups from the ticket's own ask (move to a
+  // different chain/stable, or into a better-APY vault), both just an
+  // ordinary route from here, not a special one.
+  const handleAfterWithdraw = useCallback(
+    (position: Position, next: "swap" | "vault") => {
+      const chain = allChains.find(
+        (c) => Number(c.chainId) === position.network.chainId
+      );
+      if (!chain) return;
+
+      const finish = (token: Token) => {
+        setFromToken(token);
+        setFromChain(chain);
+        setSelectedVault(null);
+        route.clear();
+        setStage(next === "vault" ? "earn" : "home");
+      };
+
+      const fallbackToken: Token = {
+        address: position.asset.address,
+        chainId: chain.chainId,
+        symbol: position.asset.symbol,
+        name: position.asset.name,
+        decimals: position.asset.decimals,
+        usdPrice: undefined,
+      };
+
+      const registry = getSharedRegistry();
+      registry
+        .tokensPage(chain.chainId, { q: position.asset.address, limit: 5 })
+        .then((page: import("src/types/blockchain").TokenPageResult) => {
+          const normalized = position.asset.address.toLowerCase();
           const match = page.data.find(
             (t) => t.address.toLowerCase() === normalized
           );
@@ -1270,6 +1330,7 @@ export function SwapMode({
           config={features.vaultDeposits}
           onSelect={handleSelectVault}
           onBack={() => setStage("home")}
+          onAfterWithdraw={handleAfterWithdraw}
           walletAddress={walletAddress}
         />
       </WidgetContainer>
