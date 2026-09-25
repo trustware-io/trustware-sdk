@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   colors,
   spacing,
@@ -122,6 +122,155 @@ function EarnTabs({
 }
 
 /**
+ * "All networks" (the default, `null`) or one vaults.fyi network name, as a
+ * compact dropdown next to the search input — mirrors the pill dropdowns
+ * used elsewhere in this file (EarnTabs, the withdraw destination picker)
+ * visually, but as a popover list since 20+ options don't fit as pills.
+ */
+function NetworkFilterDropdown({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (network: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedLabel =
+    value === null
+      ? "All networks"
+      : (NETWORK_FILTER_OPTIONS.find((n) => n.name === value)?.label ?? value);
+
+  // Same outside-click dismissal as the settings popover (SwapMode.tsx) —
+  // a document mousedown listener checked against a ref, not a second
+  // dismiss mechanism.
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: spacing[1],
+          height: "100%",
+          padding: `0 ${spacing[3]}`,
+          borderRadius: borderRadius.lg,
+          border: `1px solid ${colors.border}`,
+          backgroundColor: colors.background,
+          color: colors.foreground,
+          fontSize: fontSize.sm,
+          fontWeight: fontWeight.medium,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {selectedLabel}
+        <svg
+          style={{
+            width: "0.875rem",
+            height: "0.875rem",
+            color: colors.mutedForeground,
+            transform: open ? "rotate(180deg)" : undefined,
+            transition: "transform 0.15s",
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open ? (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            right: 0,
+            width: "180px",
+            maxHeight: "260px",
+            overflowY: "auto",
+            backgroundColor: colors.card,
+            border: `1px solid ${colors.border}`,
+            borderRadius: borderRadius.lg,
+            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.15)",
+            padding: spacing[1],
+            zIndex: 11,
+          }}
+        >
+          <NetworkFilterOption
+            label="All networks"
+            selected={value === null}
+            onClick={() => {
+              onChange(null);
+              setOpen(false);
+            }}
+          />
+          {NETWORK_FILTER_OPTIONS.map((n) => (
+            <NetworkFilterOption
+              key={n.name}
+              label={n.label}
+              selected={value === n.name}
+              onClick={() => {
+                onChange(n.name);
+                setOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NetworkFilterOption({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: "100%",
+        textAlign: "left",
+        padding: `${spacing[1.5]} ${spacing[2]}`,
+        borderRadius: borderRadius.md,
+        border: 0,
+        backgroundColor: selected ? colors.muted : "transparent",
+        color: colors.foreground,
+        fontSize: fontSize.sm,
+        fontWeight: selected ? fontWeight.semibold : fontWeight.medium,
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
  * Bands vaults.fyi's 0-100 reputation composite into a color + label. Bands
  * are this component's own judgment call, not something vaults.fyi defines —
  * chosen to separate "clearly fine" from "look closer" from "risky", not to
@@ -193,6 +342,44 @@ function VaultDiscoveryHeader({
       >
         {title}
       </h1>
+    </div>
+  );
+}
+
+/** Network badge + protocol/asset detail as one line — shared by the deposit and withdraw confirm screens so the two never drift apart. */
+function VaultMetaLine({
+  networkName,
+  detail,
+}: {
+  networkName: string;
+  detail: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: spacing[2],
+        marginBottom: spacing[4],
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.625rem",
+          fontWeight: fontWeight.medium,
+          color: colors.mutedForeground,
+          backgroundColor: colors.muted,
+          padding: "1px 6px",
+          borderRadius: borderRadius.sm,
+          textTransform: "capitalize",
+          flexShrink: 0,
+        }}
+      >
+        {networkName}
+      </span>
+      <span style={{ fontSize: fontSize.xs, color: colors.mutedForeground }}>
+        {detail}
+      </span>
     </div>
   );
 }
@@ -278,14 +465,11 @@ function VaultRow({
           {hasFlags ? (
             <span
               title={vault.flags[0].content}
-              style={{
-                width: "0.4rem",
-                height: "0.4rem",
-                borderRadius: "9999px",
-                backgroundColor: colors.amber[500],
-                flexShrink: 0,
-              }}
-            />
+              aria-label="This vault has an active risk flag"
+              style={{ fontSize: fontSize.xs, flexShrink: 0, lineHeight: 1 }}
+            >
+              🚩
+            </span>
           ) : null}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: spacing[1] }}>
@@ -748,6 +932,43 @@ const APY_WINDOWS: { key: keyof VaultSummary["apy"]; label: string }[] = [
   { key: "30day", label: "30d" },
 ];
 
+/**
+ * Every network vaults.fyi supports search on, as of 2026-09-25 (`name` is
+ * the exact string it expects in `allowedNetworks` and reports back on
+ * `VaultSummary.network.name` — confirmed against its `/networks` endpoint).
+ * Static rather than fetched: vaults.fyi has no browser-safe networks
+ * endpoint (same "never call vaults.fyi directly" reasoning as the rest of
+ * this file), and a new network showing up here just means an SDK release,
+ * not a runtime dependency. `label` is this component's own display
+ * name — vaults.fyi's own slugs are used as-is except "mainnet", which
+ * every other network label in this list calls by chain name, not vaults.fyi's
+ * internal one.
+ */
+const NETWORK_FILTER_OPTIONS: { name: string; label: string }[] = [
+  { name: "arbitrum", label: "Arbitrum" },
+  { name: "avalanche", label: "Avalanche" },
+  { name: "base", label: "Base" },
+  { name: "berachain", label: "Berachain" },
+  { name: "bsc", label: "BNB Chain" },
+  { name: "celo", label: "Celo" },
+  { name: "etherlink", label: "Etherlink" },
+  { name: "mainnet", label: "Ethereum" },
+  { name: "gnosis", label: "Gnosis" },
+  { name: "hyperliquid", label: "Hyperliquid" },
+  { name: "ink", label: "Ink" },
+  { name: "katana", label: "Katana" },
+  { name: "linea", label: "Linea" },
+  { name: "mega-eth", label: "MegaETH" },
+  { name: "monad", label: "Monad" },
+  { name: "optimism", label: "Optimism" },
+  { name: "plasma", label: "Plasma" },
+  { name: "polygon", label: "Polygon" },
+  { name: "robinhood", label: "Robinhood Chain" },
+  { name: "swellchain", label: "Swellchain" },
+  { name: "unichain", label: "Unichain" },
+  { name: "worldchain", label: "World Chain" },
+];
+
 function StatRow({
   label,
   value,
@@ -813,190 +1034,185 @@ function VaultDetailView({
         maxHeight: "70vh",
       }}
     >
-      <VaultDiscoveryHeader title={vault.name} onBack={onBack} />
+      <VaultDiscoveryHeader
+        title={vault.flags.length > 0 ? `🚩 ${vault.name}` : vault.name}
+        onBack={onBack}
+      />
 
-      <div style={{ flex: 1, overflow: "auto", padding: spacing[4] }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: spacing[2],
-            marginBottom: spacing[1],
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.625rem",
-              fontWeight: fontWeight.medium,
-              color: colors.mutedForeground,
-              backgroundColor: colors.muted,
-              padding: "1px 6px",
-              borderRadius: borderRadius.sm,
-              textTransform: "capitalize",
-            }}
-          >
-            {vault.network.name}
-          </span>
-        </div>
-        <p
-          style={{
-            fontSize: fontSize.xs,
-            color: colors.mutedForeground,
-            marginTop: 0,
-            marginBottom: spacing[4],
-          }}
-        >
-          {vault.protocol.displayName} · {vault.asset.symbol}
-          {hasCurator ? ` · Curated by ${vault.curator.name}` : ""}
-        </p>
-
-        {vault.flags.length > 0 ? (
-          <div
-            style={{
-              marginBottom: spacing[4],
-              padding: spacing[3],
-              borderRadius: borderRadius.lg,
-              backgroundColor: colors.amber[500] + "1a",
-              border: `1px solid ${colors.amber[500]}66`,
-            }}
-          >
-            {vault.flags.map((f, i) => (
-              <p
-                key={i}
-                style={{
-                  fontSize: fontSize.xs,
-                  color: colors.foreground,
-                  margin: i === 0 ? 0 : `${spacing[1]} 0 0`,
-                }}
-              >
-                {f.content}
-              </p>
-            ))}
-          </div>
-        ) : null}
-
-        {/* APY across every window vaults.fyi reports */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: spacing[2],
-            marginBottom: spacing[4],
-          }}
-        >
-          {APY_WINDOWS.map(({ key, label }) => (
-            <div
-              key={key}
-              style={{
-                textAlign: "center",
-                padding: spacing[2],
-                borderRadius: borderRadius.lg,
-                backgroundColor: colors.muted,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: fontSize.sm,
-                  fontWeight: fontWeight.semibold,
-                  color: colors.green[500],
-                }}
-              >
-                {formatPct(vault.apy[key].total)}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.625rem",
-                  color: colors.mutedForeground,
-                  marginTop: "2px",
-                }}
-              >
-                {label} APY
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <StatRow label="TVL" value={formatTvl(vault)} />
-        <StatRow
-          label="Reputation"
-          value={`${Math.round(vault.score.vaultScore)}/100 · ${band.label}`}
-          valueColor={band.color}
+      <div
+        style={{
+          flex: 1,
+          overflow: "auto",
+          padding: spacing[4],
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <VaultMetaLine
+          networkName={vault.network.name}
+          detail={`${vault.protocol.displayName} · ${vault.asset.symbol}${hasCurator ? ` · Curated by ${vault.curator.name}` : ""}`}
         />
 
-        {/* Sub-scores behind the reputation composite — a grid, not four
-            stacked rows, so they read as one glance-able breakdown rather
-            than a scroll of near-duplicate lines. */}
+        {/* Centered in the leftover space, same reasoning as the withdraw
+            confirm screen: a vault with no flags and few tags is short
+            enough that a fixed-height container (kept for consistent widget
+            sizing across screens) would otherwise leave a dead gap below the
+            content instead of the content just being shorter. */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: spacing[2],
-            marginTop: spacing[2],
-            marginBottom: spacing[3],
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
           }}
         >
-          {[
-            { label: "Vault TVL", value: vault.score.vaultTvlScore },
-            { label: "Protocol TVL", value: vault.score.protocolTvlScore },
-            { label: "Holder", value: vault.score.holderScore },
-            { label: "Asset", value: vault.score.assetScore },
-          ].map(({ label, value }) => (
+          {vault.flags.length > 0 ? (
             <div
-              key={label}
               style={{
-                textAlign: "center",
-                padding: spacing[2],
+                marginBottom: spacing[4],
+                padding: spacing[3],
                 borderRadius: borderRadius.lg,
-                backgroundColor: colors.muted,
+                backgroundColor: colors.amber[500] + "1a",
+                border: `1px solid ${colors.amber[500]}66`,
               }}
             >
-              <div
-                style={{
-                  fontSize: fontSize.sm,
-                  fontWeight: fontWeight.semibold,
-                  color: colors.foreground,
-                }}
-              >
-                {Math.round(value)}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.625rem",
-                  color: colors.mutedForeground,
-                  marginTop: "2px",
-                }}
-              >
-                {label}
-              </div>
+              {vault.flags.map((f, i) => (
+                <p
+                  key={i}
+                  style={{
+                    fontSize: fontSize.xs,
+                    color: colors.foreground,
+                    margin: i === 0 ? 0 : `${spacing[1]} 0 0`,
+                  }}
+                >
+                  {f.content}
+                </p>
+              ))}
             </div>
-          ))}
-        </div>
+          ) : null}
 
-        {vault.tags.length > 0 ? (
+          {/* APY across every window vaults.fyi reports */}
           <div
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: spacing[1.5],
-              marginTop: spacing[3],
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: spacing[2],
+              marginBottom: spacing[4],
             }}
           >
-            {vault.tags.map((tag) => (
-              <span
-                key={tag}
+            {APY_WINDOWS.map(({ key, label }) => (
+              <div
+                key={key}
                 style={{
-                  fontSize: "0.625rem",
-                  color: colors.mutedForeground,
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: borderRadius.full,
-                  padding: "2px 8px",
+                  textAlign: "center",
+                  padding: spacing[2],
+                  borderRadius: borderRadius.lg,
+                  backgroundColor: colors.muted,
                 }}
               >
-                {tag}
-              </span>
+                <div
+                  style={{
+                    fontSize: fontSize.sm,
+                    fontWeight: fontWeight.semibold,
+                    color: colors.green[500],
+                  }}
+                >
+                  {formatPct(vault.apy[key].total)}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.625rem",
+                    color: colors.mutedForeground,
+                    marginTop: "2px",
+                  }}
+                >
+                  {label} APY
+                </div>
+              </div>
             ))}
           </div>
-        ) : null}
+
+          <StatRow label="TVL" value={formatTvl(vault)} />
+          <StatRow
+            label="Reputation"
+            value={`${Math.round(vault.score.vaultScore)}/100 · ${band.label}`}
+            valueColor={band.color}
+          />
+
+          {/* Sub-scores behind the reputation composite — a grid, not four
+              stacked rows, so they read as one glance-able breakdown rather
+              than a scroll of near-duplicate lines. */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: spacing[2],
+              marginTop: spacing[2],
+              marginBottom: spacing[4],
+            }}
+          >
+            {[
+              { label: "Vault TVL", value: vault.score.vaultTvlScore },
+              { label: "Protocol TVL", value: vault.score.protocolTvlScore },
+              { label: "Holder", value: vault.score.holderScore },
+              { label: "Asset", value: vault.score.assetScore },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                style={{
+                  textAlign: "center",
+                  padding: spacing[2],
+                  borderRadius: borderRadius.lg,
+                  backgroundColor: colors.muted,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: fontSize.sm,
+                    fontWeight: fontWeight.semibold,
+                    color: colors.foreground,
+                  }}
+                >
+                  {Math.round(value)}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.625rem",
+                    color: colors.mutedForeground,
+                    marginTop: "2px",
+                  }}
+                >
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {vault.tags.length > 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: spacing[1.5],
+              }}
+            >
+              {vault.tags.map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: "0.625rem",
+                    color: colors.mutedForeground,
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: borderRadius.full,
+                    padding: "2px 8px",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div
@@ -1032,9 +1248,9 @@ const WITHDRAW_DESTINATION_OPTIONS: {
   key: WithdrawDestination;
   label: string;
 }[] = [
-  { key: "wallet", label: "Keep in your wallet" },
-  { key: "swap", label: "Swap to something else" },
-  { key: "vault", label: "Deposit into another vault" },
+  { key: "wallet", label: "Wallet" },
+  { key: "swap", label: "Swap" },
+  { key: "vault", label: "New vault" },
 ];
 
 /**
@@ -1086,195 +1302,168 @@ function VaultWithdrawConfirm({
         onBack={onBack}
       />
 
-      <div style={{ flex: 1, overflow: "auto", padding: spacing[4] }}>
+      <div
+        style={{
+          flex: 1,
+          overflow: "auto",
+          padding: spacing[4],
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <VaultMetaLine
+          networkName={position.network.name}
+          detail={`${position.protocol.displayName} · ${position.asset.symbol}`}
+        />
+
+        {/* Amount + destination are the only real decisions on this screen, so
+            they sit centered in the leftover space instead of pinned to the
+            top with a dead gap below once the trimmed layout left room. */}
         <div
           style={{
+            flex: 1,
             display: "flex",
-            alignItems: "center",
-            gap: spacing[2],
-            marginBottom: spacing[1],
+            flexDirection: "column",
+            justifyContent: "center",
           }}
         >
-          <span
+          <div
             style={{
-              fontSize: "0.625rem",
-              fontWeight: fontWeight.medium,
-              color: colors.mutedForeground,
+              textAlign: "center",
+              padding: spacing[4],
+              borderRadius: borderRadius.lg,
               backgroundColor: colors.muted,
-              padding: "1px 6px",
-              borderRadius: borderRadius.sm,
-              textTransform: "capitalize",
+              marginBottom: spacing[4],
             }}
           >
-            {position.network.name}
-          </span>
-        </div>
-        <p
-          style={{
-            fontSize: fontSize.xs,
-            color: colors.mutedForeground,
-            marginTop: 0,
-            marginBottom: spacing[4],
-          }}
-        >
-          {position.protocol.displayName} · {position.asset.symbol}
-        </p>
-
-        <div
-          style={{
-            textAlign: "center",
-            padding: spacing[4],
-            borderRadius: borderRadius.lg,
-            backgroundColor: colors.muted,
-            marginBottom: spacing[4],
-          }}
-        >
-          <div
-            style={{
-              fontSize: fontSize.lg,
-              fontWeight: fontWeight.semibold,
-              color: colors.foreground,
-            }}
-          >
-            {formatAssetAmount(
-              position.asset.positionValueInAsset,
-              position.asset.decimals
-            )}{" "}
-            {position.asset.symbol}
-          </div>
-          <div
-            style={{
-              fontSize: fontSize.xs,
-              color: colors.mutedForeground,
-              marginTop: spacing[1],
-            }}
-          >
-            ≈{" "}
-            {Number.isFinite(Number(position.lpToken.balanceUsd))
-              ? usdCompactFormatter.format(Number(position.lpToken.balanceUsd))
-              : "—"}
-          </div>
-        </div>
-
-        <StatRow
-          label="Returns to"
-          value={`Your wallet, on ${position.network.name}`}
-        />
-        <StatRow
-          label="Current APY"
-          value={formatPct(position.apy.total)}
-          valueColor={colors.green[500]}
-        />
-
-        {!succeeded ? (
-          <div style={{ marginTop: spacing[3] }}>
-            <p
-              style={{
-                fontSize: fontSize.xs,
-                fontWeight: fontWeight.semibold,
-                color: colors.mutedForeground,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginBottom: spacing[2],
-              }}
-            >
-              Then
-            </p>
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: spacing[1.5],
+                fontSize: fontSize.lg,
+                fontWeight: fontWeight.semibold,
+                color: colors.foreground,
               }}
             >
-              {WITHDRAW_DESTINATION_OPTIONS.map((opt) => {
-                const selected = destination === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => onDestinationChange(opt.key)}
-                    disabled={submitting}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: spacing[2],
-                      padding: `${spacing[2]} ${spacing[3]}`,
-                      borderRadius: borderRadius.lg,
-                      border: `1px solid ${selected ? colors.primary : colors.border}`,
-                      backgroundColor: selected
-                        ? colors.blue[500] + "14"
-                        : "transparent",
-                      color: colors.foreground,
-                      fontSize: fontSize.xs,
-                      fontWeight: fontWeight.medium,
-                      cursor: submitting ? "default" : "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "0.85rem",
-                        height: "0.85rem",
-                        borderRadius: "9999px",
-                        border: `2px solid ${selected ? colors.primary : colors.mutedForeground}`,
-                        backgroundColor: selected
-                          ? colors.primary
-                          : "transparent",
-                        flexShrink: 0,
-                      }}
-                    />
-                    {opt.label}
-                  </button>
-                );
-              })}
+              {formatAssetAmount(
+                position.asset.positionValueInAsset,
+                position.asset.decimals
+              )}{" "}
+              {position.asset.symbol}
+            </div>
+            <div
+              style={{
+                fontSize: fontSize.xs,
+                color: colors.mutedForeground,
+                marginTop: spacing[1],
+              }}
+            >
+              {Number.isFinite(Number(position.lpToken.balanceUsd))
+                ? `≈ ${usdCompactFormatter.format(Number(position.lpToken.balanceUsd))}`
+                : "≈ —"}
+              {" · "}
+              <span style={{ color: colors.green[500] }}>
+                {formatPct(position.apy.total)} APY
+              </span>
             </div>
           </div>
-        ) : null}
 
-        {status === "error" && error ? (
-          <div
-            style={{
-              marginTop: spacing[3],
-              padding: spacing[3],
-              borderRadius: borderRadius.lg,
-              backgroundColor: colors.red[500] + "1a",
-              border: `1px solid ${colors.red[500]}66`,
-            }}
-          >
-            <p
+          {!succeeded ? (
+            <div>
+              <p
+                style={{
+                  fontSize: fontSize.xs,
+                  fontWeight: fontWeight.semibold,
+                  color: colors.mutedForeground,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: spacing[2],
+                }}
+              >
+                Then
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: spacing[1],
+                  padding: "3px",
+                  backgroundColor: colors.muted,
+                  borderRadius: borderRadius.full,
+                }}
+              >
+                {WITHDRAW_DESTINATION_OPTIONS.map((opt) => {
+                  const selected = destination === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => onDestinationChange(opt.key)}
+                      disabled={submitting}
+                      style={{
+                        flex: 1,
+                        padding: `${spacing[1.5]} ${spacing[2]}`,
+                        borderRadius: borderRadius.full,
+                        border: 0,
+                        fontSize: fontSize.xs,
+                        fontWeight: fontWeight.semibold,
+                        cursor: submitting ? "default" : "pointer",
+                        backgroundColor: selected ? colors.card : "transparent",
+                        color: selected
+                          ? colors.foreground
+                          : colors.mutedForeground,
+                        transition: "background-color 0.15s, color 0.15s",
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {status === "error" && error ? (
+            <div
               style={{
-                fontSize: fontSize.xs,
-                color: colors.destructive,
-                margin: 0,
+                marginTop: spacing[3],
+                padding: spacing[3],
+                borderRadius: borderRadius.lg,
+                backgroundColor: colors.red[500] + "1a",
+                border: `1px solid ${colors.red[500]}66`,
               }}
             >
-              {error}
-            </p>
-          </div>
-        ) : null}
+              <p
+                style={{
+                  fontSize: fontSize.xs,
+                  color: colors.destructive,
+                  margin: 0,
+                }}
+              >
+                {error}
+              </p>
+            </div>
+          ) : null}
 
-        {succeeded && txHash ? (
-          <div
-            style={{
-              marginTop: spacing[3],
-              padding: spacing[3],
-              borderRadius: borderRadius.lg,
-              backgroundColor: colors.green[500] + "1a",
-              border: `1px solid ${colors.green[500]}66`,
-            }}
-          >
-            <p
+          {succeeded && txHash ? (
+            <div
               style={{
-                fontSize: fontSize.xs,
-                color: colors.foreground,
-                margin: 0,
+                marginTop: spacing[3],
+                padding: spacing[3],
+                borderRadius: borderRadius.lg,
+                backgroundColor: colors.green[500] + "1a",
+                border: `1px solid ${colors.green[500]}66`,
               }}
             >
-              Withdrawn. Tx: {txHash.slice(0, 10)}…{txHash.slice(-6)}
-            </p>
-          </div>
-        ) : null}
+              <p
+                style={{
+                  fontSize: fontSize.xs,
+                  color: colors.foreground,
+                  margin: 0,
+                }}
+              >
+                Withdrawn. Tx: {txHash.slice(0, 10)}…{txHash.slice(-6)}
+              </p>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div
@@ -1418,6 +1607,9 @@ export function VaultDiscovery({
   const [activeTab, setActiveTab] = useState<"discover" | "positions">(
     "discover"
   );
+  // null = "All networks" (the default) — open-mode only, applies on top of
+  // (never in place of) a deployer's own `open.allowedNetworks` restriction.
+  const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
 
   useEffect(() => {
     if (!walletAddress) {
@@ -1527,6 +1719,7 @@ export function VaultDiscovery({
     return {
       minTvl: open?.minTvl,
       minApy: open?.minApy,
+      allowedNetworks: selectedNetwork ? [selectedNetwork] : undefined,
       allowedProtocols: open?.allowedProtocols,
       disallowedProtocols: open?.disallowedProtocols,
       sortBy: "apy7day",
@@ -1575,8 +1768,8 @@ export function VaultDiscovery({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- openModeSearchParams is derived from config on every render, not independent state
-  }, [config]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openModeSearchParams is derived from config/selectedNetwork on every render, not independent state
+  }, [config, selectedNetwork]);
 
   const handleLoadMore = () => {
     if (config.mode !== "open" || nextPage === undefined || loadingMore) {
@@ -1674,10 +1867,22 @@ export function VaultDiscovery({
         ) : (
           <>
             {config.mode === "open" ? (
-              <div style={{ marginBottom: spacing[3] }}>
-                <TokenSearchInput
-                  searchQuery={searchQuery}
-                  setSearchQuery={setSearchQuery}
+              <div
+                style={{
+                  display: "flex",
+                  gap: spacing[2],
+                  marginBottom: spacing[3],
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <TokenSearchInput
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                  />
+                </div>
+                <NetworkFilterDropdown
+                  value={selectedNetwork}
+                  onChange={setSelectedNetwork}
                 />
               </div>
             ) : null}

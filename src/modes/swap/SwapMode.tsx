@@ -2698,18 +2698,52 @@ export function SwapMode({
             marginBottom: spacing[1],
           }}
         >
-          <span
+          <div
             style={{
-              padding: `${spacing[1.5]} ${spacing[3]}`,
-              borderRadius: "9999px",
-              fontSize: fontSize.sm,
-              fontWeight: fontWeight.semibold,
-              backgroundColor: "hsl(var(--tw-muted))",
-              color: colors.foreground,
+              display: "flex",
+              alignItems: "center",
+              gap: spacing[1.5],
             }}
           >
-            Swap
-          </span>
+            <span
+              style={{
+                padding: `${spacing[1.5]} ${spacing[3]}`,
+                borderRadius: "9999px",
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.semibold,
+                backgroundColor: "hsl(var(--tw-muted))",
+                color: colors.foreground,
+              }}
+            >
+              Swap
+            </span>
+
+            {/* Earn — vault deposits (BVT-398). Only once a wallet is
+                connected (there's nothing to deposit before then) and only
+                when the client has configured a mode. Moved out of the
+                settings popover so it isn't buried two taps deep. Plain
+                text, no icon — matches the Swap badge next to it exactly
+                except for color, so the two read as one tab group instead
+                of two differently-styled controls. */}
+            {walletAddress && features.vaultDeposits ? (
+              <button
+                type="button"
+                onClick={() => setStage("earn")}
+                style={{
+                  padding: `${spacing[1.5]} ${spacing[3]}`,
+                  borderRadius: "9999px",
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.semibold,
+                  backgroundColor: "rgba(59, 130, 246, 0.08)",
+                  color: colors.primary,
+                  border: 0,
+                  cursor: "pointer",
+                }}
+              >
+                Earn
+              </button>
+            ) : null}
+          </div>
 
           {/* Right side: wallet + settings gear */}
           <div
@@ -2800,102 +2834,6 @@ export function SwapMode({
                   zIndex: 100,
                 }}
               >
-                {/* Earn — vault deposits (BVT-398). Only once a wallet is
-                    connected (there's nothing to deposit before then) and
-                    only when the client has configured a mode. */}
-                {walletAddress && features.vaultDeposits ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSettings(false);
-                      setStage("earn");
-                    }}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: spacing[2],
-                      padding: `${spacing[2.5]} ${spacing[2]}`,
-                      marginBottom: spacing[3],
-                      borderRadius: borderRadius.lg,
-                      backgroundColor: "rgba(59,130,246,0.08)",
-                      border: 0,
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "1.75rem",
-                        height: "1.75rem",
-                        borderRadius: "9999px",
-                        backgroundColor: "rgba(59,130,246,0.15)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <svg
-                        style={{
-                          width: "1rem",
-                          height: "1rem",
-                          color: colors.primary,
-                        }}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
-                        />
-                      </svg>
-                    </span>
-                    <span style={{ flex: 1 }}>
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: fontSize.sm,
-                          fontWeight: fontWeight.semibold,
-                          color: colors.foreground,
-                        }}
-                      >
-                        Earn
-                      </span>
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: "0.625rem",
-                          color: colors.mutedForeground,
-                        }}
-                      >
-                        Deposit into a yield vault
-                      </span>
-                    </span>
-                    <svg
-                      style={{
-                        width: "1rem",
-                        height: "1rem",
-                        color: colors.mutedForeground,
-                        flexShrink: 0,
-                      }}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m9 18 6-6-6-6"
-                      />
-                    </svg>
-                  </button>
-                ) : null}
-
                 {/* Appearance */}
                 <p
                   style={{
