@@ -67,80 +67,56 @@ function formatAssetAmount(rawBaseUnits: string, decimals: number): string {
 }
 
 /**
- * Matches the token picker's own section labels exactly (same icon set,
- * same accent-colored text) instead of a plain gray uppercase heading —
- * this screen should read as part of the same widget, not a bolted-on one.
+ * Only rendered when there are positions to switch to — with nothing in
+ * "Your positions" there's nothing worth a tab for, so the screen falls
+ * back to showing Discover directly with no tab chrome at all.
  */
-function VaultSectionLabel({
-  children,
-  icon,
+function EarnTabs({
+  active,
+  onChange,
 }: {
-  children: React.ReactNode;
-  icon: "wallet" | "spark";
+  active: "discover" | "positions";
+  onChange: (tab: "discover" | "positions") => void;
 }) {
+  const tabs: { id: "discover" | "positions"; label: string }[] = [
+    { id: "discover", label: "Discover" },
+    { id: "positions", label: "Your positions" },
+  ];
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "center",
-        gap: "0.375rem",
-        paddingLeft: spacing[3],
-        paddingRight: spacing[3],
-        paddingTop: spacing[1],
-        paddingBottom: spacing[1],
-        marginTop: spacing[1],
-        marginBottom: spacing[1],
+        gap: spacing[1],
+        padding: "3px",
+        backgroundColor: colors.muted,
+        borderRadius: borderRadius.full,
+        marginBottom: spacing[3],
       }}
     >
-      {icon === "wallet" ? (
-        <svg
-          style={{
-            width: "0.75rem",
-            height: "0.75rem",
-            color: colors.primary,
-            flexShrink: 0,
-          }}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18-3H3m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6"
-          />
-        </svg>
-      ) : (
-        <svg
-          style={{
-            width: "0.75rem",
-            height: "0.75rem",
-            color: colors.primary,
-            flexShrink: 0,
-          }}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"
-          />
-        </svg>
-      )}
-      <span
-        style={{
-          fontSize: "0.75rem",
-          lineHeight: "1rem",
-          fontWeight: fontWeight.medium,
-          color: colors.primary,
-        }}
-      >
-        {children}
-      </span>
+      {tabs.map((t) => {
+        const selected = active === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onChange(t.id)}
+            style={{
+              flex: 1,
+              padding: `${spacing[1.5]} ${spacing[3]}`,
+              borderRadius: borderRadius.full,
+              border: 0,
+              fontSize: fontSize.xs,
+              fontWeight: fontWeight.semibold,
+              cursor: "pointer",
+              backgroundColor: selected ? colors.card : "transparent",
+              color: selected ? colors.foreground : colors.mutedForeground,
+              transition: "background-color 0.15s, color 0.15s",
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1437,6 +1413,11 @@ export function VaultDiscovery({
   // mode, which never paginates — a whitelist has no "next page").
   const [nextPage, setNextPage] = useState<number | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Discover is the default — positions is a secondary tab, only shown at
+  // all once there's something in it.
+  const [activeTab, setActiveTab] = useState<"discover" | "positions">(
+    "discover"
+  );
 
   useEffect(() => {
     if (!walletAddress) {
@@ -1669,60 +1650,10 @@ export function VaultDiscovery({
 
       <div style={{ flex: 1, overflow: "auto", padding: spacing[3] }}>
         {positions.length > 0 ? (
-          <div style={{ marginBottom: spacing[4] }}>
-            <VaultSectionLabel icon="wallet">Your positions</VaultSectionLabel>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: spacing[1],
-              }}
-            >
-              {positions.map((p) => (
-                <PositionRow
-                  key={`${p.network.name}:${p.vaultId}`}
-                  position={p}
-                  onOpen={() => handleOpenPosition(p)}
-                  onWithdraw={() => handleStartWithdraw(p)}
-                  isOpening={openingPositionId === p.vaultId}
-                />
-              ))}
-            </div>
-          </div>
+          <EarnTabs active={activeTab} onChange={setActiveTab} />
         ) : null}
 
-        {config.mode === "open" ? (
-          <div style={{ marginBottom: spacing[3] }}>
-            <TokenSearchInput
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-            />
-          </div>
-        ) : null}
-
-        {positions.length > 0 && !loading && !error ? (
-          <VaultSectionLabel icon="spark">
-            {config.mode === "open" ? "Discover vaults" : "Vaults"}
-          </VaultSectionLabel>
-        ) : null}
-
-        {loading ? (
-          <VaultListSkeleton />
-        ) : error ? (
-          <VaultStateMessage
-            title="Couldn't load vaults"
-            detail={error}
-            isError
-          />
-        ) : filteredVaults.length === 0 ? (
-          <VaultStateMessage
-            title={
-              searchQuery
-                ? `No vaults matching "${searchQuery}"`
-                : "No vaults available"
-            }
-          />
-        ) : (
+        {positions.length > 0 && activeTab === "positions" ? (
           <div
             style={{
               display: "flex",
@@ -1730,41 +1661,88 @@ export function VaultDiscovery({
               gap: spacing[1],
             }}
           >
-            {filteredVaults.map((v) => (
-              <VaultRow
-                key={`${v.network.name}:${v.vaultId}`}
-                vault={v}
-                onOpen={() => setDetailVault(v)}
+            {positions.map((p) => (
+              <PositionRow
+                key={`${p.network.name}:${p.vaultId}`}
+                position={p}
+                onOpen={() => handleOpenPosition(p)}
+                onWithdraw={() => handleStartWithdraw(p)}
+                isOpening={openingPositionId === p.vaultId}
               />
             ))}
           </div>
+        ) : (
+          <>
+            {config.mode === "open" ? (
+              <div style={{ marginBottom: spacing[3] }}>
+                <TokenSearchInput
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                />
+              </div>
+            ) : null}
+
+            {loading ? (
+              <VaultListSkeleton />
+            ) : error ? (
+              <VaultStateMessage
+                title="Couldn't load vaults"
+                detail={error}
+                isError
+              />
+            ) : filteredVaults.length === 0 ? (
+              <VaultStateMessage
+                title={
+                  searchQuery
+                    ? `No vaults matching "${searchQuery}"`
+                    : "No vaults available"
+                }
+              />
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: spacing[1],
+                }}
+              >
+                {filteredVaults.map((v) => (
+                  <VaultRow
+                    key={`${v.network.name}:${v.vaultId}`}
+                    vault={v}
+                    onOpen={() => setDetailVault(v)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {!loading && !error && nextPage !== undefined ? (
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                style={{
+                  width: "100%",
+                  marginTop: spacing[2],
+                  padding: `${spacing[2]} ${spacing[3]}`,
+                  borderRadius: borderRadius.lg,
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.card,
+                  color: colors.foreground,
+                  fontSize: fontSize.xs,
+                  fontWeight: fontWeight.medium,
+                  cursor: loadingMore ? "wait" : "pointer",
+                }}
+              >
+                {loadingMore ? "Loading more…" : "Load more vaults"}
+              </button>
+            ) : null}
+
+            {allowManualEntry ? (
+              <ManualVaultEntry onFound={setDetailVault} />
+            ) : null}
+          </>
         )}
-
-        {!loading && !error && nextPage !== undefined ? (
-          <button
-            type="button"
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-            style={{
-              width: "100%",
-              marginTop: spacing[2],
-              padding: `${spacing[2]} ${spacing[3]}`,
-              borderRadius: borderRadius.lg,
-              border: `1px solid ${colors.border}`,
-              backgroundColor: colors.card,
-              color: colors.foreground,
-              fontSize: fontSize.xs,
-              fontWeight: fontWeight.medium,
-              cursor: loadingMore ? "wait" : "pointer",
-            }}
-          >
-            {loadingMore ? "Loading more…" : "Load more vaults"}
-          </button>
-        ) : null}
-
-        {allowManualEntry ? (
-          <ManualVaultEntry onFound={setDetailVault} />
-        ) : null}
       </div>
 
       <WidgetSecurityFooter />
