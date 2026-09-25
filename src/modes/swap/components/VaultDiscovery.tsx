@@ -511,9 +511,7 @@ function PositionRow({
 
       <div
         style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          padding: `0 ${spacing[3]} ${spacing[1.5]}`,
+          padding: `0 ${spacing[3]} ${spacing[2]}`,
         }}
       >
         <button
@@ -521,12 +519,14 @@ function PositionRow({
           onClick={onWithdraw}
           disabled={isOpening}
           style={{
-            fontSize: "0.6875rem",
-            fontWeight: fontWeight.medium,
-            color: colors.mutedForeground,
-            background: "none",
-            border: 0,
-            padding: "2px 4px",
+            width: "100%",
+            padding: `${spacing[1.5]} ${spacing[3]}`,
+            borderRadius: borderRadius.md,
+            border: `1px solid ${colors.border}`,
+            backgroundColor: colors.card,
+            color: colors.foreground,
+            fontSize: fontSize.xs,
+            fontWeight: fontWeight.semibold,
             cursor: isOpening ? "default" : "pointer",
           }}
         >
