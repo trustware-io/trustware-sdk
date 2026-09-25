@@ -67,14 +67,93 @@ function formatAssetAmount(rawBaseUnits: string, decimals: number): string {
 }
 
 /**
+ * Matches the token picker's own section labels exactly (same icon set,
+ * same accent-colored text) instead of a plain gray uppercase heading —
+ * this screen should read as part of the same widget, not a bolted-on one.
+ */
+function VaultSectionLabel({
+  children,
+  icon,
+}: {
+  children: React.ReactNode;
+  icon: "wallet" | "spark";
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.375rem",
+        paddingLeft: spacing[3],
+        paddingRight: spacing[3],
+        paddingTop: spacing[1],
+        paddingBottom: spacing[1],
+        marginTop: spacing[1],
+        marginBottom: spacing[1],
+      }}
+    >
+      {icon === "wallet" ? (
+        <svg
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18-3H3m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6"
+          />
+        </svg>
+      ) : (
+        <svg
+          style={{
+            width: "0.75rem",
+            height: "0.75rem",
+            color: colors.primary,
+            flexShrink: 0,
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"
+          />
+        </svg>
+      )}
+      <span
+        style={{
+          fontSize: "0.75rem",
+          lineHeight: "1rem",
+          fontWeight: fontWeight.medium,
+          color: colors.primary,
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
+
+/**
  * Bands vaults.fyi's 0-100 reputation composite into a color + label. Bands
  * are this component's own judgment call, not something vaults.fyi defines —
  * chosen to separate "clearly fine" from "look closer" from "risky", not to
  * imply precision the underlying score doesn't have.
  */
 function scoreBand(score: number): { label: string; color: string } {
-  if (score >= 75) return { label: "Strong", color: "hsl(142 71% 45%)" };
-  if (score >= 50) return { label: "Moderate", color: "hsl(45 100% 51%)" };
+  if (score >= 75) return { label: "Strong", color: colors.green[500] };
+  if (score >= 50) return { label: "Moderate", color: colors.amber[500] };
   return { label: "Weak", color: colors.destructive };
 }
 
@@ -186,7 +265,7 @@ function VaultRow({
           width: "2.25rem",
           height: "2.25rem",
           borderRadius: "9999px",
-          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          backgroundColor: colors.blue[500] + "1a",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -227,7 +306,7 @@ function VaultRow({
                 width: "0.4rem",
                 height: "0.4rem",
                 borderRadius: "9999px",
-                backgroundColor: "hsl(45 100% 51%)",
+                backgroundColor: colors.amber[500],
                 flexShrink: 0,
               }}
             />
@@ -267,7 +346,7 @@ function VaultRow({
           style={{
             fontSize: fontSize.sm,
             fontWeight: fontWeight.medium,
-            color: "hsl(142 71% 45%)",
+            color: colors.green[500],
           }}
         >
           {formatPct(vault.apy["7day"].total)}
@@ -282,6 +361,21 @@ function VaultRow({
           7d APY
         </span>
       </div>
+
+      <svg
+        style={{
+          width: "1rem",
+          height: "1rem",
+          color: colors.mutedForeground,
+          flexShrink: 0,
+        }}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+      </svg>
     </button>
   );
 }
@@ -341,7 +435,7 @@ function PositionRow({
             width: "2.25rem",
             height: "2.25rem",
             borderRadius: "9999px",
-            backgroundColor: "rgba(34,197,94,0.1)",
+            backgroundColor: colors.green[500] + "1a",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -352,7 +446,7 @@ function PositionRow({
             style={{
               fontSize: fontSize.sm,
               fontWeight: fontWeight.semibold,
-              color: "hsl(142 71% 45%)",
+              color: colors.green[500],
             }}
           >
             {position.asset.symbol.slice(0, 2).toUpperCase()}
@@ -411,13 +505,32 @@ function PositionRow({
           <span
             style={{
               fontSize: "0.625rem",
-              color: "hsl(142 71% 45%)",
+              color: colors.green[500],
               display: "block",
             }}
           >
             {formatPct(position.apy.total)} APY
           </span>
         </div>
+
+        <svg
+          style={{
+            width: "1rem",
+            height: "1rem",
+            color: colors.mutedForeground,
+            flexShrink: 0,
+          }}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m9 18 6-6-6-6"
+          />
+        </svg>
       </button>
 
       <div
@@ -767,8 +880,8 @@ function VaultDetailView({
               marginBottom: spacing[4],
               padding: spacing[3],
               borderRadius: borderRadius.lg,
-              backgroundColor: "rgba(234,179,8,0.1)",
-              border: "1px solid rgba(234,179,8,0.4)",
+              backgroundColor: colors.amber[500] + "1a",
+              border: `1px solid ${colors.amber[500]}66`,
             }}
           >
             {vault.flags.map((f, i) => (
@@ -809,7 +922,7 @@ function VaultDetailView({
                 style={{
                   fontSize: fontSize.sm,
                   fontWeight: fontWeight.semibold,
-                  color: "hsl(142 71% 45%)",
+                  color: colors.green[500],
                 }}
               >
                 {formatPct(vault.apy[key].total)}
@@ -833,22 +946,55 @@ function VaultDetailView({
           value={`${Math.round(vault.score.vaultScore)}/100 · ${band.label}`}
           valueColor={band.color}
         />
-        <StatRow
-          label="Vault TVL score"
-          value={Math.round(vault.score.vaultTvlScore)}
-        />
-        <StatRow
-          label="Protocol TVL score"
-          value={Math.round(vault.score.protocolTvlScore)}
-        />
-        <StatRow
-          label="Holder score"
-          value={Math.round(vault.score.holderScore)}
-        />
-        <StatRow
-          label="Asset score"
-          value={Math.round(vault.score.assetScore)}
-        />
+
+        {/* Sub-scores behind the reputation composite — a grid, not four
+            stacked rows, so they read as one glance-able breakdown rather
+            than a scroll of near-duplicate lines. */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: spacing[2],
+            marginTop: spacing[2],
+            marginBottom: spacing[3],
+          }}
+        >
+          {[
+            { label: "Vault TVL", value: vault.score.vaultTvlScore },
+            { label: "Protocol TVL", value: vault.score.protocolTvlScore },
+            { label: "Holder", value: vault.score.holderScore },
+            { label: "Asset", value: vault.score.assetScore },
+          ].map(({ label, value }) => (
+            <div
+              key={label}
+              style={{
+                textAlign: "center",
+                padding: spacing[2],
+                borderRadius: borderRadius.lg,
+                backgroundColor: colors.muted,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.semibold,
+                  color: colors.foreground,
+                }}
+              >
+                {Math.round(value)}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.625rem",
+                  color: colors.mutedForeground,
+                  marginTop: "2px",
+                }}
+              >
+                {label}
+              </div>
+            </div>
+          ))}
+        </div>
 
         {vault.tags.length > 0 ? (
           <div
@@ -1041,7 +1187,7 @@ function VaultWithdrawConfirm({
         <StatRow
           label="Current APY"
           value={formatPct(position.apy.total)}
-          valueColor="hsl(142 71% 45%)"
+          valueColor={colors.green[500]}
         />
 
         {!succeeded ? (
@@ -1081,7 +1227,7 @@ function VaultWithdrawConfirm({
                       borderRadius: borderRadius.lg,
                       border: `1px solid ${selected ? colors.primary : colors.border}`,
                       backgroundColor: selected
-                        ? "rgba(59,130,246,0.08)"
+                        ? colors.blue[500] + "14"
                         : "transparent",
                       color: colors.foreground,
                       fontSize: fontSize.xs,
@@ -1116,8 +1262,8 @@ function VaultWithdrawConfirm({
               marginTop: spacing[3],
               padding: spacing[3],
               borderRadius: borderRadius.lg,
-              backgroundColor: "rgba(239,68,68,0.1)",
-              border: "1px solid rgba(239,68,68,0.4)",
+              backgroundColor: colors.red[500] + "1a",
+              border: `1px solid ${colors.red[500]}66`,
             }}
           >
             <p
@@ -1138,8 +1284,8 @@ function VaultWithdrawConfirm({
               marginTop: spacing[3],
               padding: spacing[3],
               borderRadius: borderRadius.lg,
-              backgroundColor: "rgba(34,197,94,0.1)",
-              border: "1px solid rgba(34,197,94,0.4)",
+              backgroundColor: colors.green[500] + "1a",
+              border: `1px solid ${colors.green[500]}66`,
             }}
           >
             <p
@@ -1287,6 +1433,10 @@ export function VaultDiscovery({
   // the moment the redeem succeeds, skipping the success screen entirely.
   const [withdrawDestination, setWithdrawDestination] =
     useState<WithdrawDestination>("wallet");
+  // Open-mode search pagination. undefined = no further page (or curated
+  // mode, which never paginates — a whitelist has no "next page").
+  const [nextPage, setNextPage] = useState<number | undefined>(undefined);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!walletAddress) {
@@ -1388,11 +1538,29 @@ export function VaultDiscovery({
     onAfterWithdraw(position, next);
   };
 
+  // Shared by the initial load and handleLoadMore, so the two can never
+  // drift apart on which filters a "page" is scoped to — only `page` itself
+  // varies between them.
+  const openModeSearchParams = (page?: number) => {
+    const open = config.mode === "open" ? config.open : undefined;
+    return {
+      minTvl: open?.minTvl,
+      minApy: open?.minApy,
+      allowedProtocols: open?.allowedProtocols,
+      disallowedProtocols: open?.disallowedProtocols,
+      sortBy: "apy7day",
+      sortOrder: "desc" as const,
+      perPage: 25,
+      page,
+    };
+  };
+
   useEffect(() => {
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets loading/error state at the start of each fetch triggered by a config change, not a render-time value
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets loading/error/pagination state at the start of each fetch triggered by a config change, not a render-time value
     setLoading(true);
     setError(null);
+    setNextPage(undefined);
 
     const load =
       config.mode === "curated"
@@ -1400,23 +1568,20 @@ export function VaultDiscovery({
             config.curated.map((v) =>
               getVaultDetails(v.network, v.vaultId).catch(() => null)
             )
-          ).then((results) =>
-            results.filter((v): v is VaultSummary => v !== null)
-          )
-        : searchVaults({
-            minTvl: config.open?.minTvl,
-            minApy: config.open?.minApy,
-            allowedProtocols: config.open?.allowedProtocols,
-            disallowedProtocols: config.open?.disallowedProtocols,
-            sortBy: "apy7day",
-            sortOrder: "desc",
-            perPage: 25,
-          }).then((r) => r.vaults);
+          ).then((results) => ({
+            vaults: results.filter((v): v is VaultSummary => v !== null),
+            nextPage: undefined as number | undefined,
+          }))
+        : searchVaults(openModeSearchParams()).then((r) => ({
+            vaults: r.vaults,
+            nextPage: r.nextPage,
+          }));
 
     load
       .then((result) => {
         if (cancelled) return;
-        setVaults(result);
+        setVaults(result.vaults);
+        setNextPage(result.nextPage);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -1429,7 +1594,26 @@ export function VaultDiscovery({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openModeSearchParams is derived from config on every render, not independent state
   }, [config]);
+
+  const handleLoadMore = () => {
+    if (config.mode !== "open" || nextPage === undefined || loadingMore) {
+      return;
+    }
+    setLoadingMore(true);
+    searchVaults(openModeSearchParams(nextPage))
+      .then((r) => {
+        setVaults((prev) => [...prev, ...r.vaults]);
+        setNextPage(r.nextPage);
+      })
+      .catch(() => {
+        // Non-fatal: keep what's already loaded, just stop offering more —
+        // matches the token picker's own loadMore failure handling.
+        setNextPage(undefined);
+      })
+      .finally(() => setLoadingMore(false));
+  };
 
   const filteredVaults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -1486,19 +1670,7 @@ export function VaultDiscovery({
       <div style={{ flex: 1, overflow: "auto", padding: spacing[3] }}>
         {positions.length > 0 ? (
           <div style={{ marginBottom: spacing[4] }}>
-            <p
-              style={{
-                fontSize: fontSize.xs,
-                fontWeight: fontWeight.semibold,
-                color: colors.mutedForeground,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginBottom: spacing[2],
-                paddingLeft: spacing[1],
-              }}
-            >
-              Your positions
-            </p>
+            <VaultSectionLabel icon="wallet">Your positions</VaultSectionLabel>
             <div
               style={{
                 display: "flex",
@@ -1526,6 +1698,12 @@ export function VaultDiscovery({
               setSearchQuery={setSearchQuery}
             />
           </div>
+        ) : null}
+
+        {positions.length > 0 && !loading && !error ? (
+          <VaultSectionLabel icon="spark">
+            {config.mode === "open" ? "Discover vaults" : "Vaults"}
+          </VaultSectionLabel>
         ) : null}
 
         {loading ? (
@@ -1561,6 +1739,28 @@ export function VaultDiscovery({
             ))}
           </div>
         )}
+
+        {!loading && !error && nextPage !== undefined ? (
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            style={{
+              width: "100%",
+              marginTop: spacing[2],
+              padding: `${spacing[2]} ${spacing[3]}`,
+              borderRadius: borderRadius.lg,
+              border: `1px solid ${colors.border}`,
+              backgroundColor: colors.card,
+              color: colors.foreground,
+              fontSize: fontSize.xs,
+              fontWeight: fontWeight.medium,
+              cursor: loadingMore ? "wait" : "pointer",
+            }}
+          >
+            {loadingMore ? "Loading more…" : "Load more vaults"}
+          </button>
+        ) : null}
 
         {allowManualEntry ? (
           <ManualVaultEntry onFound={setDetailVault} />
