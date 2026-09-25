@@ -8,6 +8,7 @@ import type {
   RoutePlan,
   RouteSponsorship,
   Transaction,
+  VaultDepositRequest,
 } from "../types";
 import { TrustwareConfigStore } from "src/config/store";
 import { validateRouteAddresses } from "../validation/address";
@@ -85,6 +86,13 @@ export type BuildRouteBody = {
    * compatible — omit `hooks` entirely and nothing changes.
    */
   hooks?: { postHook?: PostHookRequest };
+  /**
+   * Deposit into a vault as the route's destination action (BVT-398), in
+   * place of a hand-assembled `hooks.postHook`. Optional and backward
+   * compatible — omit entirely and nothing changes. Mutually exclusive with
+   * `hooks`; see {@link VaultDepositRequest}.
+   */
+  vault?: VaultDepositRequest;
 };
 
 /**
@@ -111,6 +119,30 @@ export function assertValidPostHook(hooks: BuildRouteBody["hooks"]) {
   } else if (!postHook.fundAmount?.trim()) {
     throw new Error(
       "hooks.postHook.fundAmount is required unless fullAmount is set."
+    );
+  }
+}
+
+/**
+ * Validates a `BuildRouteBody.vault` value before it's sent — the same
+ * fail-fast-client-side intent as {@link assertValidPostHook}. A no-op when
+ * `vault` is omitted or `hooks.postHook` isn't also set (the backend enforces
+ * the same mutual exclusivity; this just avoids the round trip).
+ */
+export function assertValidVaultRequest(body: {
+  vault?: BuildRouteBody["vault"];
+  hooks?: BuildRouteBody["hooks"];
+}) {
+  if (!body.vault) return;
+  if (!body.vault.vaultId?.trim()) {
+    throw new Error("vault.vaultId is required.");
+  }
+  if (!body.vault.network?.trim()) {
+    throw new Error("vault.network is required.");
+  }
+  if (body.hooks?.postHook) {
+    throw new Error(
+      "vault and hooks are mutually exclusive: a vault deposit builds its own postHook."
     );
   }
 }
@@ -195,6 +227,7 @@ export async function buildRoute(
     throw new Error(addressValidation.error || "Invalid route addresses.");
   }
   assertValidPostHook(body.hooks);
+  assertValidVaultRequest(body);
 
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/v1/routes/route`;
@@ -266,6 +299,7 @@ export async function buildDepositAddress(
   route: RoutePlan | undefined;
 }> {
   assertValidPostHook(body.hooks);
+  assertValidVaultRequest(body);
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/v1/routes/deposit-address`;
   const payload = {

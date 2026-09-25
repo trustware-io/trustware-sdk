@@ -229,6 +229,26 @@ export type PostHookRequest = {
   description?: string;
 };
 
+/**
+ * Deposit into a vault as the route's destination action, in place of a
+ * hand-assembled {@link PostHookRequest}. The backend resolves this into one
+ * itself via vaults.fyi (BVT-398) — you never build or see the deposit
+ * calldata. Mutually exclusive with `hooks` on {@link BuildRouteBody}: a
+ * vault deposit builds its own postHook, so sending both is ambiguous about
+ * which one should run.
+ */
+export type VaultDepositRequest = {
+  /** vaults.fyi vault identifier — its contract address. */
+  vaultId: string;
+  /**
+   * A vaults.fyi network identifier (e.g. "base"), not guaranteed to match
+   * this SDK's own chain key for the same chain — use whatever
+   * `VaultSummary.network.name` reports for a vault you got from
+   * `searchVaults`/`getVaultDetails`.
+   */
+  network: string;
+};
+
 export type RouteEstimate = {
   fromAmount?: string;
   toAmount?: string;

@@ -150,7 +150,43 @@ export type FeatureFlags = {
    * Example: `[{ address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", chainId: 1 }]`
    */
   swapAllowedDestTokens?: SwapTokenRef[];
+  /**
+   * Enables vault deposits (BVT-398) — an "Earn" entry point (shown once a
+   * wallet is connected) that lets the user pick a yield vault as the
+   * destination instead of a plain token, then forwards to the normal swap
+   * flow with the destination pre-populated to that vault's asset. Off by
+   * default; omit entirely to disable.
+   */
+  vaultDeposits?: VaultDepositsConfig;
 };
+
+/**
+ * How a client offers vault deposits (BVT-398). Two mutually exclusive
+ * modes — pick one:
+ * - `curated`: the client supplies an explicit vault whitelist. No
+ *   discovery call is made; only `getVaultDetails` is used, to display
+ *   APY/TVL for each listed vault.
+ * - `open`: the user browses vaults via `searchVaults`, bounded by the
+ *   floor filters below (an unfiltered "every vault vaults.fyi knows about"
+ *   is never what a real caller wants).
+ */
+export type VaultDepositsConfig =
+  | {
+      mode: "curated";
+      /** The client's own whitelist — must be non-empty. */
+      curated: { vaultId: string; network: string }[];
+    }
+  | {
+      mode: "open";
+      open?: {
+        minTvl?: number;
+        minApy?: number;
+        allowedProtocols?: string[];
+        disallowedProtocols?: string[];
+        /** Let the user paste a vaultId/network directly instead of picking from search results. Defaults to true. */
+        allowManualEntry?: boolean;
+      };
+    };
 
 export type ResolvedFeatureFlags = {
   tokensPagination: boolean;
@@ -160,6 +196,7 @@ export type ResolvedFeatureFlags = {
   swapDefaultDestToken: SwapTokenRef | null;
   swapLockDestToken: boolean;
   swapAllowedDestTokens: SwapTokenRef[] | null;
+  vaultDeposits: VaultDepositsConfig | null;
 };
 
 export const DEFAULT_SLIPPAGE = 1; // Default slippage percentage
@@ -242,4 +279,5 @@ export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   swapDefaultDestToken: null,
   swapLockDestToken: false,
   swapAllowedDestTokens: null,
+  vaultDeposits: null,
 };
