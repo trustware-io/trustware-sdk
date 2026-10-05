@@ -71,8 +71,16 @@ export type VaultSearchParams = {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   page?: number;
+  /** 1..VAULT_SEARCH_MAX_PER_PAGE; the backend rejects anything larger with a 400. */
   perPage?: number;
 };
+
+/**
+ * The backend's page-size cap for vault search. vaults.fyi bills 3 credits
+ * per vault returned, so the backend bounds each page; further vaults come
+ * from `nextPage`.
+ */
+export const VAULT_SEARCH_MAX_PER_PAGE = 10;
 
 export type VaultSearchResult = {
   vaults: VaultSummary[];

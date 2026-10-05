@@ -14,6 +14,7 @@ import {
   getVaultDetails,
   getVaultPositions,
   getVaultRedeemActions,
+  VAULT_SEARCH_MAX_PER_PAGE,
 } from "src/core/vaults";
 import type { VaultSummary, Position } from "src/core/vaults";
 import type { VaultDepositsConfig } from "src/types/config";
@@ -1724,7 +1725,7 @@ export function VaultDiscovery({
       disallowedProtocols: open?.disallowedProtocols,
       sortBy: "apy7day",
       sortOrder: "desc" as const,
-      perPage: 25,
+      perPage: VAULT_SEARCH_MAX_PER_PAGE,
       page,
     };
   };
