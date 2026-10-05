@@ -411,3 +411,5 @@ export function AmountSlider({
     </div>
   );
 }
+
+export default AmountSlider;

@@ -1,4 +1,4 @@
-type CurrencyCode = string;
+export type CurrencyCode = string;
 
 export interface CurrencyMeta {
   code: CurrencyCode;

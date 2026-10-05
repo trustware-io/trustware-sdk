@@ -11,14 +11,14 @@
  */
 
 /** Minimal shape of the chain objects SwapMode holds (`ChainDef`). */
-interface ChainLabelSource {
+export interface ChainLabelSource {
   networkName?: string;
   axelarChainName?: string;
   chainId?: string | number;
 }
 
 /** Minimal shape of the token objects SwapMode holds (`Token | YourTokenData`). */
-interface TokenLabelSource {
+export interface TokenLabelSource {
   symbol?: string;
 }
 

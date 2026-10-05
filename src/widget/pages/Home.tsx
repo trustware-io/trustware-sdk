@@ -326,3 +326,5 @@ export function Home({ style: _style }: HomeProps): React.ReactElement {
     </div>
   );
 }
+
+export default Home;

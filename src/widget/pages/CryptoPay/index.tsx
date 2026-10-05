@@ -393,3 +393,5 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     </div>
   );
 }
+
+export default CryptoPay;

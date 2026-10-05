@@ -54,3 +54,5 @@ export function Error({ style: _style }: ErrorProps): React.ReactElement {
     />
   );
 }
+
+export default Error;

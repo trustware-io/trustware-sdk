@@ -1,1 +1,4 @@
-export { TokenSwipePill } from "../../../components/TokenSwipePill";
+export {
+  TokenSwipePill,
+  type TokenSwipePillProps,
+} from "../../../components/TokenSwipePill";

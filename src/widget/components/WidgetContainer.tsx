@@ -84,3 +84,5 @@ export function WidgetContainer({
     </>
   );
 }
+
+export default WidgetContainer;

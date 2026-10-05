@@ -424,3 +424,5 @@ function mapErrorToMessage(err: unknown): string {
 
   return "Unable to calculate route. Please try again.";
 }
+
+export default useRouteBuilder;

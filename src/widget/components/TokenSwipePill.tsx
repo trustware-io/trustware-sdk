@@ -654,3 +654,5 @@ export function TokenSwipePill({
     </div>
   );
 }
+
+export default TokenSwipePill;

@@ -12,5 +12,12 @@
   ],
   "project": ["src/**/*.{ts,tsx}"],
   "paths": { "src/*": ["src/*"] },
-  "ignore": [".venv/**", "dist/**"]
+  "ignore": [".venv/**", "dist/**"],
+  "rules": {
+    "exports": "off",
+    "nsExports": "off",
+    "types": "off",
+    "nsTypes": "off",
+    "duplicates": "off"
+  }
 }

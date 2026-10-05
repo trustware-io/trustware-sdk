@@ -63,3 +63,5 @@ export function LoadingSkeleton({
     </div>
   );
 }
+
+export default LoadingSkeleton;

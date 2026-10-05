@@ -1,1 +1,4 @@
-export { AmountInputDisplay } from "../../../components/AmountInputDisplay";
+export {
+  AmountInputDisplay,
+  type AmountInputDisplayProps,
+} from "../../../components/AmountInputDisplay";

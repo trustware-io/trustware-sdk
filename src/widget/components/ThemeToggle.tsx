@@ -4,7 +4,7 @@ import { colors } from "../styles";
 /**
  * Resolved theme type (not 'system')
  */
-type ResolvedTheme = "light" | "dark";
+export type ResolvedTheme = "light" | "dark";
 
 export interface ThemeToggleProps {
   /** Current resolved theme */
@@ -98,3 +98,5 @@ export function ThemeToggle({
     </button>
   );
 }
+
+export default ThemeToggle;

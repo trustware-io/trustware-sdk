@@ -105,3 +105,5 @@ export function CircularProgress({
     </div>
   );
 }
+
+export default CircularProgress;

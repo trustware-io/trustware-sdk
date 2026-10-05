@@ -167,3 +167,5 @@ export function AmountInputDisplay({
     </div>
   );
 }
+
+export default AmountInputDisplay;

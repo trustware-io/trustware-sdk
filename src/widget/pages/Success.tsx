@@ -103,3 +103,5 @@ export function Success({ style }: SuccessProps): React.ReactElement {
     </div>
   );
 }
+
+export default Success;
