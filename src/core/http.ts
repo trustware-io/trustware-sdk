@@ -19,6 +19,24 @@ export function jsonHeaders(extra?: Record<string, string>): HeadersInit {
   return { ...h, ...(extra || {}) };
 }
 
+/**
+ * A non-2xx response from the Trustware API. `status` lets callers branch on
+ * the response class without parsing the message, which stays
+ * `HTTP <status>: <server message>` for anything that displays it.
+ */
+export class HttpError extends Error {
+  public readonly status: number;
+  /** The envelope's `error` field, or the status text when there is none. */
+  public readonly serverMessage: string;
+
+  constructor(status: number, serverMessage: string) {
+    super(`HTTP ${status}: ${serverMessage}`);
+    this.name = "HttpError";
+    this.status = status;
+    this.serverMessage = serverMessage;
+  }
+}
+
 export async function assertOK(r: Response) {
   if (r.ok) return;
   let msg = r.statusText;
@@ -28,17 +46,7 @@ export async function assertOK(r: Response) {
   } catch {
     // response body not JSON, use statusText
   }
-  throw new Error(`HTTP ${r.status}: ${msg}`);
-}
-
-/**
- * True when err is an assertOK rejection for an HTTP 404. Status pollers use
- * this to stop immediately on "resource doesn't exist" — since the backend
- * returns 200 {"status":"pending"} for a pre-receipt intent, a 404 can never
- * resolve by retrying.
- */
-export function isNotFoundError(err: unknown): boolean {
-  return err instanceof Error && err.message.startsWith("HTTP 404");
+  throw new HttpError(r.status, msg);
 }
 
 /** GET /api/v1/sdk/validate */

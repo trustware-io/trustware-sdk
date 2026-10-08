@@ -534,7 +534,7 @@ export function useTransactionActionModel({
             },
             eip1193Request: (args) => wallet.request(args),
           });
-          return result.userOpHash;
+          return { hash: result.userOpHash, receipt: result.receipt };
         } catch (e) {
           const msg = String((e as Error)?.message ?? e).toLowerCase();
           wasRejected =

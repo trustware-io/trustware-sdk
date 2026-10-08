@@ -2129,6 +2129,16 @@ export function SwapMode({
           error={mapError(execution.errorMessage)}
           onTryAgain={() => setStage("review")}
           onStartOver={handleReset}
+          txHash={execution.txHash}
+          explorerUrl={
+            execution.txHash
+              ? buildExplorerUrl(
+                  execution.txHash,
+                  fromChain,
+                  execution.pollingTx?.fromChainTxUrl ?? null
+                )
+              : null
+          }
         />
       </WidgetContainer>
     );
