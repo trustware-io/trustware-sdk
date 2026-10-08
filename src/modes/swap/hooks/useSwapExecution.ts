@@ -2,9 +2,9 @@
 import { useCallback, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
-import { submitReceipt, submitStepReceipt, getStatus } from "src/core/routes";
-import { isNotFoundError } from "src/core/http";
-import { describeTransactionFailure } from "src/core/failure";
+import { submitStepReceipt } from "src/core/routes";
+import { trackIntent, type ReceiptReport } from "src/core/intentTracking";
+import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
   approvalSatisfied,
   ensureWalletOnChain,
@@ -22,9 +22,6 @@ import {
 import type { BuildRouteResult, ChainDef, Transaction } from "src/types";
 import type { SwapTxStatus } from "../types";
 
-const FAST_POLL_MS = 1500;
-const SLOW_POLL_MS = 2500;
-const TIMEOUT_MS = 5 * 60 * 1000;
 // How long to avoid the SA path after a transient failure before retrying.
 const SA_COOLDOWN_MS = 30_000;
 
@@ -114,84 +111,47 @@ export function useSwapExecution(fromChain: ChainDef | null) {
   // 0 = always available. Set to Date.now() + SA_COOLDOWN_MS on transient failure.
   const saFailedUntilRef = useRef(0);
 
-  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef(false);
-  const pollCountRef = useRef(0);
+  const trackingRef = useRef<AbortController | null>(null);
 
-  const clearPolling = useCallback(() => {
-    abortRef.current = true;
-    if (pollingRef.current) clearTimeout(pollingRef.current);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    pollingRef.current = null;
-    timeoutRef.current = null;
+  const stopTracking = useCallback(() => {
+    trackingRef.current?.abort();
+    trackingRef.current = null;
   }, []);
 
-  const startPolling = useCallback(
+  const startTracking = useCallback(
     (
-      intentIdVal: string,
+      receipt: ReceiptReport,
       onSuccess: () => void,
       onError: (msg: string) => void
     ) => {
-      clearPolling();
-      abortRef.current = false;
-      pollCountRef.current = 0;
+      stopTracking();
+      const controller = new AbortController();
+      trackingRef.current = controller;
 
-      timeoutRef.current = setTimeout(() => {
-        if (abortRef.current) return;
-        clearPolling();
-        const msg =
-          "Transaction is taking longer than expected. Please check your block explorer.";
+      void trackIntent(receipt, {
+        signal: controller.signal,
+        onUpdate: (raw) => {
+          const tx = normalizeTx(raw);
+          setState((p) => ({
+            ...p,
+            pollingTx: tx,
+            ...(tx.status === "bridging" ? { txStatus: "bridging" } : {}),
+          }));
+        },
+      }).then((outcome) => {
+        if (outcome.kind === "aborted") return;
+        trackingRef.current = null;
+        if (outcome.kind === "success") {
+          setState((p) => ({ ...p, txStatus: "success" }));
+          onSuccess();
+          return;
+        }
+        const msg = describeTrackingFailure(outcome);
         setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
         onError(msg);
-      }, TIMEOUT_MS);
-
-      const poll = async () => {
-        if (abortRef.current) return;
-        try {
-          const tx = normalizeTx(await getStatus(intentIdVal));
-          if (abortRef.current) return;
-          setState((p) => ({ ...p, pollingTx: tx }));
-          if (tx.status === "success") {
-            clearPolling();
-            setState((p) => ({ ...p, txStatus: "success" }));
-            onSuccess();
-            return;
-          }
-          if (tx.status === "failed") {
-            clearPolling();
-            const msg = describeTransactionFailure(tx);
-            setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
-            onError(msg);
-            return;
-          }
-          if (tx.status === "bridging") {
-            setState((p) => ({ ...p, txStatus: "bridging" }));
-          }
-        } catch (err) {
-          if (abortRef.current) return;
-          // 404 = intent doesn't exist; retrying can never succeed. The
-          // pre-receipt window is a 200 {"status":"pending"}, not a 404.
-          if (isNotFoundError(err)) {
-            clearPolling();
-            const msg = "Transaction session expired. Please try again.";
-            setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
-            onError(msg);
-            return;
-          }
-          /* transient error — keep retrying */
-        }
-
-        if (abortRef.current) return;
-        pollCountRef.current += 1;
-        const interval =
-          pollCountRef.current <= 10 ? FAST_POLL_MS : SLOW_POLL_MS;
-        pollingRef.current = setTimeout(poll, interval);
-      };
-
-      poll();
+      });
     },
-    [clearPolling]
+    [stopTracking]
   );
 
   // Check allowance upfront so the review button shows the right label before execute() is called.
@@ -308,11 +268,16 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         return;
       }
 
+      // Clear the previous attempt's transaction: the error screen links
+      // txHash, and a rejection here must not point at the last swap.
       setState((p) => ({
         ...p,
         isSubmitting: true,
         txStatus: "confirming",
         errorMessage: null,
+        txHash: null,
+        intentId: null,
+        pollingTx: null,
       }));
 
       const wallet = Trustware.getWallet();
@@ -406,7 +371,6 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             eip1193Request: (args) => wallet!.request(args),
           });
 
-          // submitReceipt is called inside sendRouteAsUserOperation
           setState((p) => ({
             ...p,
             isSubmitting: false,
@@ -415,7 +379,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             txStatus: "processing",
             allowanceStatus: "sufficient",
           }));
-          startPolling(result.intentId, onSuccess, onError);
+          startTracking(result.receipt, onSuccess, onError);
           return;
         } catch (err) {
           if (isUserRejection(err)) {
@@ -637,13 +601,11 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         );
 
         // The hash is the point of no return: the swap is on-chain and the
-        // screen must reflect that immediately. Reporting the receipt is a
-        // separate, best-effort concern — `rateLimitedFetch` has no request
-        // timeout and will sit out a server-directed 429 wait, so awaiting it
-        // here pinned the progress ring at "confirming" while the transaction
-        // was already confirming on-chain. Fire it alongside the poll instead;
-        // the status endpoint answers 200 {"status":"pending"} in the
-        // pre-receipt window, so polling first is safe.
+        // screen must reflect that immediately, before the receipt is
+        // delivered — `rateLimitedFetch` has no request timeout and will sit
+        // out a server-directed 429 wait, so awaiting the receipt here pinned
+        // the progress ring at "confirming" while the transaction was already
+        // confirming on-chain. The tracker delivers it in the background.
         setState((p) => ({
           ...p,
           isSubmitting: false,
@@ -652,9 +614,11 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           txStatus: "processing",
         }));
 
-        startPolling(routeResult.intentId, onSuccess, onError);
-
-        void submitReceipt(routeResult.intentId, hash).catch(() => {});
+        startTracking(
+          { intentId: routeResult.intentId, txHash: hash },
+          onSuccess,
+          onError
+        );
       } catch (err) {
         const msg = mapTxError(err);
         setState((p) => ({
@@ -666,7 +630,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         onError(msg);
       }
     },
-    [fromChain, startPolling]
+    [fromChain, startTracking]
   );
 
   const resetSmartAccountFailure = useCallback(() => {
@@ -674,7 +638,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
   }, []);
 
   const reset = useCallback(() => {
-    clearPolling();
+    stopTracking();
     saFailedUntilRef.current = 0;
     setState({
       txStatus: "idle",
@@ -685,7 +649,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       isSubmitting: false,
       allowanceStatus: "unknown",
     });
-  }, [clearPolling]);
+  }, [stopTracking]);
 
   return { ...state, execute, reset, checkAllowance, resetSmartAccountFailure };
 }

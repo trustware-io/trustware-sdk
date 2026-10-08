@@ -1,8 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getStatus } from "../../core/routes";
-import { isNotFoundError } from "../../core/http";
-import { describeTransactionFailure } from "../../core/failure";
+import { trackIntent, type ReceiptReport } from "../../core/intentTracking";
+import { describeTrackingFailure } from "../lib/trackingFailure";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -14,38 +13,20 @@ import { Trustware } from "../../core";
 import { useGTMTracker } from "../../hooks";
 
 /**
- * Polling interval in milliseconds - faster for better UX
- * Initial polls are faster, then slows down for efficiency
- */
-const FAST_POLL_INTERVAL_MS = 1500;
-const NORMAL_POLL_INTERVAL_MS = 2500;
-
-/**
- * Timeout duration in milliseconds (5 minutes as per spec)
- */
-const POLL_TIMEOUT_MS = 5 * 60 * 1000;
-
-/**
  * Transaction polling state
  */
 export type TransactionPollingState = {
-  /** Whether polling is currently active */
+  /** Whether tracking is currently running */
   isPolling: boolean;
-  /** The latest transaction status from the API */
-  apiStatus: Transaction["status"] | null;
-  /** Error message if polling failed */
-  error: string | null;
-  /** The full transaction data from the API */
+  /** The latest status payload from the API */
   transaction: Transaction | null;
-  /** Whether the receipt has been submitted */
-  receiptSubmitted: boolean;
 };
 
 /**
- * Hook for monitoring transaction status after submission.
- * Handles receipt submission and status polling with bridge phase detection.
+ * Hook for tracking a submitted transaction: delivers its receipt and polls
+ * the intent's status until it is terminal (see trackIntent).
  *
- * @returns Transaction polling state and control functions
+ * @returns Transaction polling state and the function that starts tracking
  */
 export function useTransactionPolling() {
   const { setCurrentStep } = useDepositNavigation();
@@ -63,219 +44,65 @@ export function useTransactionPolling() {
 
   const [state, setState] = useState<TransactionPollingState>({
     isPolling: false,
-    apiStatus: null,
-    error: null,
     transaction: null,
-    receiptSubmitted: false,
   });
 
-  // Refs for cleanup and timeout tracking
-  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef(false);
-  const startTimeRef = useRef<number>(0);
-  const pollCountRef = useRef<number>(0);
+  const trackingRef = useRef<AbortController | null>(null);
 
-  /**
-   * Clear all timers and stop polling
-   */
-  const clearPolling = useCallback(() => {
-    abortRef.current = true;
-    if (pollingRef.current) {
-      clearTimeout(pollingRef.current);
-      pollingRef.current = null;
-    }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+  const stopTracking = useCallback(() => {
+    trackingRef.current?.abort();
+    trackingRef.current = null;
   }, []);
 
   /**
-   * Start monitoring a transaction by polling status.
-   * Note: Receipt submission is handled by useTransactionSubmit.
+   * Start tracking a transaction.
    *
-   * @param intentId - The route intent ID from buildRoute
-   * @param _txHash - The transaction hash (unused, kept for API compatibility)
+   * @param receipt - The receipt for the transaction the wallet sent
    */
   const startPolling = useCallback(
-    async (intentId: string, _txHash?: string) => {
-      // Clear any existing polling
-      clearPolling();
-      abortRef.current = false;
-      startTimeRef.current = Date.now();
-      pollCountRef.current = 0;
+    (receipt: ReceiptReport) => {
+      stopTracking();
+      const controller = new AbortController();
+      trackingRef.current = controller;
 
-      setState({
-        isPolling: true,
-        apiStatus: null,
-        error: null,
-        transaction: null,
-        receiptSubmitted: true, // Receipt already submitted by useTransactionSubmit
-      });
+      setState({ isPolling: true, transaction: null });
 
-      try {
-        // Set up the 5-minute timeout
-        timeoutRef.current = setTimeout(() => {
-          if (abortRef.current) return;
+      void trackIntent(receipt, {
+        signal: controller.signal,
+        onUpdate: (tx) => {
+          setState((prev) => ({ ...prev, transaction: tx }));
+          if (tx.status === "bridging") setTransactionStatus("bridging");
+        },
+      }).then((outcome) => {
+        if (outcome.kind === "aborted") return;
+        trackingRef.current = null;
+        setState((prev) => ({ ...prev, isPolling: false }));
 
-          const timeoutError =
-            "Transaction is taking longer than expected. Please check your wallet or block explorer for status.";
+        if (outcome.kind === "success") {
+          setTransactionStatus("success");
+          setCurrentStep("success");
+          trackEvent("payment_completed", {
+            from_chain:
+              selectedChain?.networkName ??
+              selectedChain?.axelarChainName ??
+              selectedChain?.chainId ??
+              "unknown",
+            from_token: selectedToken?.symbol ?? "unknown",
+            to_chain: destinationConfig?.routes?.toChain ?? "unknown",
+            to_token: destinationConfig?.routes?.toToken ?? "unknown",
+            domain: window.origin,
+          });
+          emitSuccess?.(outcome.transaction);
+          return;
+        }
 
-          setState((prev) => ({
-            ...prev,
-            isPolling: false,
-            error: timeoutError,
-          }));
-
-          setErrorMessage(timeoutError);
-          setTransactionStatus("error");
-          setCurrentStep("error");
-        }, POLL_TIMEOUT_MS);
-
-        // Step 3: Start polling loop
-        const poll = async () => {
-          if (abortRef.current) {
-            return;
-          }
-
-          try {
-            const tx = await getStatus(intentId);
-
-            // Check if aborted after async call
-            if (abortRef.current) return;
-
-            // Update state with latest transaction data
-            setState((prev) => ({
-              ...prev,
-              apiStatus: tx.status,
-              transaction: tx,
-            }));
-
-            // Handle terminal states
-            if (tx.status === "success") {
-              clearPolling();
-              setState((prev) => ({
-                ...prev,
-                isPolling: false,
-              }));
-              setTransactionStatus("success");
-              setCurrentStep("success");
-
-              trackEvent("payment_completed", {
-                from_chain:
-                  selectedChain?.networkName ??
-                  selectedChain?.axelarChainName ??
-                  selectedChain?.chainId ??
-                  "unknown",
-                from_token: selectedToken?.symbol ?? "unknown",
-                to_chain: destinationConfig?.routes?.toChain ?? "unknown",
-                to_token: destinationConfig?.routes?.toToken ?? "unknown",
-                domain: window.origin,
-              });
-
-              emitSuccess?.(tx);
-              return;
-            }
-
-            if (tx.status === "failed") {
-              const failError = describeTransactionFailure(tx);
-              clearPolling();
-              setState((prev) => ({
-                ...prev,
-                isPolling: false,
-                error: failError,
-              }));
-              setErrorMessage(failError);
-              setTransactionStatus("error");
-              setCurrentStep("error");
-              return;
-            }
-
-            // Handle bridging phase
-            if (tx.status === "bridging") {
-              setTransactionStatus("bridging");
-            }
-
-            // Schedule next poll if not terminal
-            // Use faster polling for first 10 polls, then slow down
-            pollCountRef.current += 1;
-            const pollInterval =
-              pollCountRef.current <= 10
-                ? FAST_POLL_INTERVAL_MS
-                : NORMAL_POLL_INTERVAL_MS;
-            pollingRef.current = setTimeout(poll, pollInterval);
-          } catch (err) {
-            if (abortRef.current) return;
-
-            // A 404 means the intent doesn't exist — retrying can never
-            // succeed, so stop now instead of burning the full timeout.
-            // (Pre-receipt intents are 200 {"status":"pending"}, not 404.)
-            if (isNotFoundError(err)) {
-              clearPolling();
-              const notFoundError =
-                "Transaction session expired. Please try again.";
-              setState((prev) => ({
-                ...prev,
-                isPolling: false,
-                error: notFoundError,
-              }));
-              setErrorMessage(notFoundError);
-              setTransactionStatus("error");
-              setCurrentStep("error");
-              return;
-            }
-
-            // Check if we've been polling for too long (soft timeout check)
-            const elapsed = Date.now() - startTimeRef.current;
-            if (elapsed > POLL_TIMEOUT_MS) {
-              clearPolling();
-              const timeoutError =
-                "Transaction monitoring timed out. Please check your wallet or block explorer.";
-              setState((prev) => ({
-                ...prev,
-                isPolling: false,
-                error: timeoutError,
-              }));
-              setErrorMessage(timeoutError);
-              setTransactionStatus("error");
-              setCurrentStep("error");
-              return;
-            }
-
-            // Retry after interval (use same adaptive timing)
-            pollCountRef.current += 1;
-            const retryInterval =
-              pollCountRef.current <= 10
-                ? FAST_POLL_INTERVAL_MS
-                : NORMAL_POLL_INTERVAL_MS;
-            pollingRef.current = setTimeout(poll, retryInterval);
-          }
-        };
-
-        // Start first poll
-        poll();
-      } catch (err) {
-        if (abortRef.current) return;
-
-        const errorMessage = mapReceiptError(err);
-        clearPolling();
-
-        setState({
-          isPolling: false,
-          apiStatus: null,
-          error: errorMessage,
-          transaction: null,
-          receiptSubmitted: false,
-        });
-
-        setErrorMessage(errorMessage);
+        setErrorMessage(describeTrackingFailure(outcome));
         setTransactionStatus("error");
         setCurrentStep("error");
-      }
+      });
     },
     [
-      clearPolling,
+      stopTracking,
       destinationConfig?.routes.toChain,
       destinationConfig?.routes.toToken,
       emitSuccess,
@@ -290,101 +117,20 @@ export function useTransactionPolling() {
     ]
   );
 
-  /**
-   * Stop polling manually
-   */
-  const stopPolling = useCallback(() => {
-    clearPolling();
-    setState((prev) => ({
-      ...prev,
-      isPolling: false,
-    }));
-  }, [clearPolling]);
-
-  /**
-   * Reset the polling state
-   */
-  const resetPolling = useCallback(() => {
-    clearPolling();
-    setState({
-      isPolling: false,
-      apiStatus: null,
-      error: null,
-      transaction: null,
-      receiptSubmitted: false,
-    });
-  }, [clearPolling]);
-
   // Cleanup on unmount only - use ref to avoid dependency issues
-  const clearPollingRef = useRef(clearPolling);
-  clearPollingRef.current = clearPolling;
+  const stopTrackingRef = useRef(stopTracking);
+  stopTrackingRef.current = stopTracking;
 
   useEffect(() => {
     return () => {
-      clearPollingRef.current();
+      stopTrackingRef.current();
     };
   }, []); // Empty deps - only run cleanup on actual unmount
 
   return {
     ...state,
     startPolling,
-    stopPolling,
-    resetPolling,
   };
-}
-
-/**
- * Maps receipt submission errors to user-friendly messages
- */
-function mapReceiptError(err: unknown): string {
-  if (!err) {
-    return "Failed to submit transaction receipt. Please try again.";
-  }
-
-  const msg =
-    err instanceof Error
-      ? err.message
-      : typeof err === "string"
-        ? err
-        : String(err);
-
-  const msgLower = msg.toLowerCase();
-
-  // Network/API errors
-  if (
-    msgLower.includes("network") ||
-    msgLower.includes("fetch") ||
-    msgLower.includes("connection")
-  ) {
-    return "Network error while submitting transaction. Please check your connection.";
-  }
-
-  // Rate limiting
-  if (msgLower.includes("rate limit") || msgLower.includes("429")) {
-    return "Too many requests. Please wait a moment and try again.";
-  }
-
-  // Invalid intent
-  if (msgLower.includes("intent") || msgLower.includes("not found")) {
-    return "Transaction session expired. Please try again.";
-  }
-
-  // Already submitted
-  if (msgLower.includes("duplicate") || msgLower.includes("already")) {
-    return "Transaction already submitted. Monitoring status...";
-  }
-
-  // Return cleaned message
-  const cleanedMsg = msg
-    .replace(/^error:\s*/i, "")
-    .replace(/^err:\s*/i, "")
-    .trim();
-
-  if (cleanedMsg.length > 150) {
-    return cleanedMsg.substring(0, 147) + "...";
-  }
-
-  return cleanedMsg || "Failed to submit transaction. Please try again.";
 }
 
 export default useTransactionPolling;
