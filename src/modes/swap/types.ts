@@ -3,6 +3,7 @@ export type SwapStage =
   | "select-from"
   | "select-to"
   | "connect-wallet"
+  | "earn"
   | "review"
   | "processing"
   | "success"

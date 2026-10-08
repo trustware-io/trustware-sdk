@@ -32,6 +32,8 @@ export function useSwapRoute() {
       walletAddress: string;
       toAddress?: string;
       slippage?: number;
+      /** Deposit into this vault instead of a plain transfer (BVT-398) — set by SwapMode's vault picker, cleared whenever the destination token is changed manually. */
+      vault?: { vaultId: string; network: string };
     }): Promise<BuildRouteResult | null> => {
       const { fromToken, fromChain, toToken, toChain, amount, walletAddress } =
         params;
@@ -65,6 +67,7 @@ export function useSwapRoute() {
           fromAddress: walletAddress,
           toAddress: params.toAddress ?? walletAddress,
           slippage,
+          vault: params.vault,
         });
 
         if (abortRef.current) return null;
