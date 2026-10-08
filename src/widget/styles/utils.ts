@@ -1,38 +1,6 @@
-import React from "react";
+import type { StyleObject } from "../lib/utils";
 
-/**
- * Style object type for inline styles
- */
-export type StyleObject = React.CSSProperties;
-
-/**
- * Style input can be a style object, false, null, or undefined (for conditional styles)
- */
-export type StyleInput = StyleObject | false | null | undefined;
-
-/**
- * Merges multiple style objects into one.
- * Falsy values are filtered out, allowing conditional styles.
- *
- * @example
- * ```tsx
- * // Basic usage
- * <div style={mergeStyles({ padding: '1rem' }, { backgroundColor: 'red' })} />
- *
- * // Conditional styles
- * <div style={mergeStyles(
- *   { padding: '1rem' },
- *   isActive && { backgroundColor: 'blue' },
- *   isDisabled && { opacity: 0.5 }
- * )} />
- * ```
- */
-export function mergeStyles(...styles: StyleInput[]): StyleObject {
-  return styles.reduce<StyleObject>((acc, style) => {
-    if (!style) return acc;
-    return { ...acc, ...style };
-  }, {});
-}
+export { mergeStyles, type StyleInput, type StyleObject } from "../lib/utils";
 
 /**
  * Creates a style object with a single property.

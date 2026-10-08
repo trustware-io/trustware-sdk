@@ -71,45 +71,6 @@ export function HomePaymentOptions({
       </div>
 
       {/* removed only temporary */}
-      {/*
-      <div style={dividerRowStyle}>
-        <div style={mutedOrDividerStyle(isDarkTheme)} />
-        <span
-          style={{
-            fontSize: fontSize.xs,
-            color: colors.zinc[500],
-            userSelect: "none",
-          }}
-        >
-          Or
-        </span>
-        <div style={mutedOrDividerStyle(isDarkTheme)} />
-      </div>
-
-      <div
-        style={
-          isFiatDropdownOpen ? dropdownWrapperOpenStyle : dropdownWrapperStyle
-        }
-        ref={fiatDropdownRef}
-      >
-        <PaymentDropdownButton
-          icon={<FiatPaymentIcon />}
-          isOpen={isFiatDropdownOpen}
-          label="Pay with fiat"
-          onClick={() => {
-            setIsFiatDropdownOpen(!isFiatDropdownOpen);
-            setIsCryptoDropdownOpen(false);
-          }}
-        />
-
-        {isFiatDropdownOpen ? (
-          <FiatPaymentDropdownContent
-            fiatOptions={fiatOptions}
-            handleFiatSelect={handleFiatSelect}
-          />
-        ) : null}
-      </div>
-      */}
     </div>
   );
 }
