@@ -87,7 +87,15 @@ jobs:
         # though libnpmpublish depends on it (^5.0.0), which breaks
         # `publish --provenance` with MODULE_NOT_FOUND. Drop the extra -p once
         # npm bundles it again.
-        run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --tag staging --provenance
+        #
+        # --tag latest, not --tag staging: this package only ever holds staging
+        # builds, so `latest` is the newest staging build. Publishing under a
+        # `staging` tag left `latest` stuck on the 0.0.0 placeholder, which is
+        # what npmjs.com shows and what a bare `npm i` installs. The tag must be
+        # explicit: npm refuses to apply `latest` implicitly to a prerelease.
+        # Only one tag can be set here because trusted publishing (OIDC)
+        # authorizes `npm publish` alone, not `npm dist-tag`.
+        run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --tag latest --provenance
 
       # Staging release notes show every commit since the last production tag,
       # giving a running preview of what's heading to prod next.
@@ -235,7 +243,7 @@ jobs:
               CHANNEL_LABEL="staging"
               PKG="@trustware/sdk-staging"
               EMOJI=":construction:"
-              INSTALL="npm i ${PKG}@staging"
+              INSTALL="npm i ${PKG}@latest"
               ;;
             *)
               CHANNEL_LABEL="production"
