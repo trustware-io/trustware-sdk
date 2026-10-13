@@ -534,7 +534,9 @@ export function useTransactionActionModel({
             },
             eip1193Request: (args) => wallet.request(args),
           });
-          return result.userOpHash;
+          // The on-chain hash, not the userOpHash: explorers index only the
+          // former, and the error screen links there.
+          return { hash: result.receipt.txHash, receipt: result.receipt };
         } catch (e) {
           const msg = String((e as Error)?.message ?? e).toLowerCase();
           wasRejected =

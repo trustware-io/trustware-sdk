@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import type { ReceiptReport } from "src/core/intentTracking";
 
 import type {
   ChainDef,
@@ -91,8 +92,10 @@ export interface DepositContextValue {
   setTransactionHash: (hash: string | null) => void;
   errorMessage: string | null;
   setErrorMessage: (message: string | null) => void;
-  intentId: string | null;
-  setIntentId: (id: string | null) => void;
+  /** What the Processing page tracks; set once the wallet has sent the
+   *  transaction. */
+  receipt: ReceiptReport | null;
+  setReceipt: (receipt: ReceiptReport | null) => void;
   paymentMethod: PaymentMethodType;
   setPaymentMethod: (method: PaymentMethodType) => void;
   resolvedTheme: ResolvedTheme;

@@ -1,5 +1,6 @@
 import type { Chain } from "viem";
 import { submitReceipt } from "../core/routes";
+import type { ReceiptReport } from "../core/intentTracking";
 import type { BuildRouteResult } from "../types";
 import { createTrustwareSmartAccountClient } from "./client";
 import { isPaymasterUnavailable, extractFeeRequirement } from "./fee-utils";
@@ -118,6 +119,14 @@ export type SendRouteAsUserOperationResult = {
    *  the inclusion wait timed out (the UserOp may still land later). */
   txHash?: string;
   intentId: string;
+  /**
+   * The receipt this function already sent once, best-effort. Callers that
+   * track the swap pass it to the widget's intent tracker, which re-sends it
+   * until the backend records the transaction; duplicates are safe because
+   * each send is keyed by tx hash. The one-shot send stays so callers that
+   * ignore this field keep today's behaviour (BVT-261).
+   */
+  receipt: ReceiptReport;
 };
 
 export async function sendRouteAsUserOperation(
@@ -578,29 +587,30 @@ export async function sendRouteAsUserOperation(
   //
   // Undo: a throw here propagates out of sendRouteAsUserOperation, which the
   // swap caller reads as "SA path failed" and answers by re-sending the very
-  // same route down the EOA path. Losing the receipt costs backend
-  // attribution; re-sending costs the user a second swap.
+  // same route down the EOA path. A lost receipt is recoverable — the
+  // returned `receipt` lets the caller's tracker re-send it; re-sending the
+  // route costs the user a second swap.
   //
   // Delay: the caller only advances its progress screen and starts polling
   // once this function resolves, and `rateLimitedFetch` has no request timeout
   // and sits out a server-directed 429 wait — so awaiting the receipt stalls
   // the UI on a transaction that is already on-chain.
   //
-  // Hence fire-and-forget. The try/catch still earns its place: the arguments
-  // are evaluated eagerly, so getSponsorshipRequestId() can throw
-  // synchronously, before there is a promise to attach .catch to.
-  try {
-    void submitReceipt(
-      intentId,
-      txHash,
-      getSponsorshipRequestId(),
-      eoaAddress
-    ).catch((err) => {
-      console.debug("[send] receipt submission failed (non-fatal)", err);
-    });
-  } catch (err) {
+  // Hence fire-and-forget.
+  const receipt: ReceiptReport = {
+    intentId,
+    txHash,
+    sponsorshipRequestId: getSponsorshipRequestId(),
+    eoaAddress,
+  };
+  void submitReceipt(
+    receipt.intentId,
+    receipt.txHash,
+    receipt.sponsorshipRequestId,
+    receipt.eoaAddress
+  ).catch((err) => {
     console.debug("[send] receipt submission failed (non-fatal)", err);
-  }
+  });
 
-  return { userOpHash, txHash, intentId };
+  return { userOpHash, txHash, intentId, receipt };
 }

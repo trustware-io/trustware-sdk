@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useMemo } from "react";
 import { useTrustware } from "../../provider";
 import type { ChainDef } from "../../types";
+import type { ReceiptReport } from "../../core/intentTracking";
 import {
   type Chain,
   type DepositContextValue,
@@ -97,8 +98,8 @@ const DepositTransactionContext = createContext<
       | "setTransactionHash"
       | "errorMessage"
       | "setErrorMessage"
-      | "intentId"
-      | "setIntentId"
+      | "receipt"
+      | "setReceipt"
     >
   | undefined
 >(undefined);
@@ -205,7 +206,7 @@ export function DepositProvider({
     useState<TransactionStatus>("idle");
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [intentId, setIntentId] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<ReceiptReport | null>(null);
 
   // Payment method state (defaults to crypto)
   const [paymentMethod, setPaymentMethod] =
@@ -223,7 +224,7 @@ export function DepositProvider({
     setTransactionStatus("idle");
     setTransactionHash(null);
     setErrorMessage(null);
-    setIntentId(null);
+    setReceipt(null);
     setPaymentMethod("crypto");
     reloadWalletTokens();
   }, [reloadWalletTokens, resetNavigation]);
@@ -324,10 +325,10 @@ export function DepositProvider({
       setTransactionHash,
       errorMessage,
       setErrorMessage,
-      intentId,
-      setIntentId,
+      receipt,
+      setReceipt,
     }),
-    [errorMessage, intentId, transactionHash, transactionStatus]
+    [errorMessage, receipt, transactionHash, transactionStatus]
   );
 
   const uiValue = useMemo(

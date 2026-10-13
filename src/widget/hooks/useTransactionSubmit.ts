@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { Trustware } from "../../core";
-import { submitReceipt } from "../../core/routes";
+import type { ReceiptReport } from "../../core/intentTracking";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -21,7 +21,11 @@ export type TransactionSubmitState = {
   error: string | null;
 };
 
-type SendOverride = (routeResult: BuildRouteResult) => Promise<string>;
+/** A send path other than the plain wallet transaction (the smart-account
+ *  UserOp). `hash` is what the widget displays; `receipt` is what it tracks. */
+type SendOverride = (
+  routeResult: BuildRouteResult
+) => Promise<{ hash: string; receipt: ReceiptReport }>;
 
 /**
  * Hook for submitting transactions to the wallet.
@@ -36,7 +40,7 @@ export function useTransactionSubmit() {
     setTransactionStatus,
     setTransactionHash,
     setErrorMessage,
-    setIntentId,
+    setReceipt,
   } = useDepositTransaction();
 
   const [state, setState] = useState<TransactionSubmitState>({
@@ -81,23 +85,20 @@ export function useTransactionSubmit() {
 
       try {
         let hash: string;
+        let receipt: ReceiptReport;
 
         if (sendOverride) {
-          // Smart-account path: sendOverride (sendRouteAsUserOperation) already
-          // submits the receipt internally, so we skip the submitReceipt call.
-          hash = await sendOverride(routeResult);
+          ({ hash, receipt } = await sendOverride(routeResult));
         } else {
-          // Standard EOA path.
+          // Standard EOA path. The Processing page's tracker delivers the
+          // receipt; awaiting it here would hold this screen on a
+          // transaction that is already on-chain.
           const fallbackChainId = selectedChain?.chainId;
           hash = await Trustware.sendRouteTransaction(
             routeResult,
             Number(fallbackChainId)
           );
-          try {
-            await submitReceipt(routeResult.intentId, hash);
-          } catch {
-            // Non-fatal: the backend status poller will eventually pick it up.
-          }
+          receipt = { intentId: routeResult.intentId, txHash: hash };
         }
 
         // Transaction was signed and submitted
@@ -107,11 +108,10 @@ export function useTransactionSubmit() {
           error: null,
         });
 
-        // Update context with the transaction hash and intent ID
         setTransactionHash(hash);
-        setIntentId(routeResult.intentId);
+        setReceipt(receipt);
 
-        // Transition to processing step (polling will be handled by Processing page)
+        // Transition to processing step (tracking is handled by Processing page)
         setTransactionStatus("processing");
         setCurrentStep("processing");
 
@@ -140,7 +140,7 @@ export function useTransactionSubmit() {
       setTransactionHash,
       setErrorMessage,
       setCurrentStep,
-      setIntentId,
+      setReceipt,
     ]
   );
 
