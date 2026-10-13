@@ -43,6 +43,8 @@ export function describeTrackingFailure(outcome: TrackingFailure): string {
       return TRACKING_RECEIPT_REJECTED.message;
     case "timed_out":
       return outcome.recorded ? STILL_RUNNING : TRACKING_NOT_CONFIRMED.message;
+    case "crashed":
+      return TRACKING_NOT_CONFIRMED.message;
     default: {
       const unhandled: never = outcome;
       throw new Error(

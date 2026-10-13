@@ -37,6 +37,12 @@ export type IntentTrackingOutcome =
    * attempt failed transiently and the backend is not tracking the swap.
    */
   | { kind: "timed_out"; recorded: boolean }
+  /**
+   * Tracking threw an error no transport failure produces: a bug, or a
+   * backend reply the SDK cannot parse. Only trackIntent returns this, after
+   * logging the error. The transaction may still be on-chain.
+   */
+  | { kind: "crashed"; error: unknown }
   /** The caller's signal fired. */
   | { kind: "aborted" };
 
@@ -91,11 +97,26 @@ export type TrackIntentOptions = {
  * submitReceipt keys each request by tx hash and the backend answers 409 once
  * it holds a transaction for the intent.
  */
-export function trackIntent(
+export async function trackIntent(
   report: ReceiptReport,
   options: TrackIntentOptions
 ): Promise<IntentTrackingOutcome> {
-  return runIntentTracking(report, options, systemClock);
+  // Callers run tracking detached from any await, so a rejection here would
+  // reach nothing but the unhandled-rejection log while the progress screen
+  // waits forever. As an outcome it goes through the same exhaustive switch
+  // that routes every other ending to the error screen.
+  try {
+    return await runIntentTracking(report, options, systemClock);
+  } catch (error) {
+    console.error("[Trustware] intent tracking crashed", {
+      intentId: report.intentId,
+      txHash: report.txHash,
+      error,
+    });
+    return options.signal.aborted
+      ? { kind: "aborted" }
+      : { kind: "crashed", error };
+  }
 }
 
 type ReceiptState =
@@ -109,12 +130,15 @@ type ReceiptAttempt =
   | { kind: "intent_not_found" }
   | { kind: "transient"; error: unknown; serverWaitMs: number };
 
+/** runIntentTracking rejects on a crash; only trackIntent makes it an outcome. */
+type TrackingRunOutcome = Exclude<IntentTrackingOutcome, { kind: "crashed" }>;
+
 /** Exported for tests, which substitute a virtual clock. */
 export async function runIntentTracking(
   report: ReceiptReport,
   { signal, onUpdate }: TrackIntentOptions,
   clock: TrackingClock
-): Promise<IntentTrackingOutcome> {
+): Promise<TrackingRunOutcome> {
   if (signal.aborted) return { kind: "aborted" };
 
   // Ends the loop and every pending sleep however tracking finishes, so no
@@ -125,7 +149,7 @@ export async function runIntentTracking(
 
   let receipt: ReceiptState = { kind: "due", failures: 0, dueAt: clock.now() };
 
-  const loop = async (): Promise<IntentTrackingOutcome | null> => {
+  const loop = async (): Promise<TrackingRunOutcome | null> => {
     let polls = 0;
     while (!stop.signal.aborted) {
       if (receipt.kind === "due" && clock.now() >= receipt.dueAt) {
@@ -204,7 +228,7 @@ export async function runIntentTracking(
 
   const timedOut = clock
     .sleep(TRACKING_TIMEOUT_MS, stop.signal)
-    .then((): IntentTrackingOutcome | null =>
+    .then((): TrackingRunOutcome | null =>
       stop.signal.aborted
         ? null
         : { kind: "timed_out", recorded: receipt.kind === "recorded" }

@@ -42,6 +42,16 @@ describe("describeTrackingFailure", () => {
     );
   });
 
+  it("tells the user a crashed tracker never confirmed the transaction", () => {
+    assert.equal(
+      describeTrackingFailure({
+        kind: "crashed",
+        error: new SyntaxError("Unexpected token < in JSON"),
+      }),
+      "Your transaction was sent, but Trustware couldn't confirm it. Check its status in your block explorer before trying again."
+    );
+  });
+
   it("keeps the session-expired message for an unknown intent", () => {
     assert.equal(
       describeTrackingFailure({ kind: "intent_not_found" }),
@@ -76,6 +86,15 @@ describe("mapError on tracking failures", () => {
   it("returns the authored error for an unrecorded timeout", () => {
     assert.deepEqual(
       mapError(describeTrackingFailure({ kind: "timed_out", recorded: false })),
+      TRACKING_NOT_CONFIRMED
+    );
+  });
+
+  it("returns the authored error for a crashed tracker", () => {
+    assert.deepEqual(
+      mapError(
+        describeTrackingFailure({ kind: "crashed", error: new RangeError() })
+      ),
       TRACKING_NOT_CONFIRMED
     );
   });

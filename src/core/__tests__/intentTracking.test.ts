@@ -2,6 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   runIntentTracking,
+  trackIntent,
   TRACKING_TIMEOUT_MS,
   type IntentTrackingOutcome,
   type ReceiptReport,
@@ -564,6 +565,114 @@ describe("trackIntent: bugs are not retried", () => {
       ),
       { name: "RangeError" }
     );
+  });
+});
+
+// trackIntent runs on the real clock. Every case below crashes on the first
+// request, before any timer could matter.
+describe("trackIntent: a crash ends tracking instead of hanging it", () => {
+  it("returns crashed when submitReceipt fails with an error no transport produces", async () => {
+    const backend = installBackend(virtualClock(), {
+      receipt: ["bug"],
+      status: [pending],
+    });
+
+    const outcome = await trackIntent(REPORT, {
+      signal: new AbortController().signal,
+      onUpdate: () => {},
+    });
+
+    assert.ok(outcome.kind === "crashed");
+    assert.ok(outcome.error instanceof RangeError);
+    assert.equal(outcome.error.message, "not a transport failure");
+    assert.deepEqual(
+      backend.calls.map((c) => c.kind),
+      ["receipt"]
+    );
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0][0], "[Trustware] intent tracking crashed");
+    assert.deepEqual(errors[0][1], {
+      intentId: INTENT_ID,
+      txHash: TX_HASH,
+      error: outcome.error,
+    });
+  });
+
+  it("returns crashed when a status read fails with an error no transport produces", async () => {
+    const backend = installBackend(virtualClock(), {
+      receipt: [accepted],
+      status: ["bug"],
+    });
+
+    const outcome = await trackIntent(REPORT, {
+      signal: new AbortController().signal,
+      onUpdate: () => {},
+    });
+
+    assert.ok(outcome.kind === "crashed");
+    assert.ok(outcome.error instanceof RangeError);
+    assert.deepEqual(
+      backend.calls.map((c) => c.kind),
+      ["receipt", "status"]
+    );
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0][0], "[Trustware] intent tracking crashed");
+  });
+
+  it("returns crashed when onUpdate throws", async () => {
+    installBackend(virtualClock(), {
+      receipt: [accepted],
+      status: [withStatus("bridging")],
+    });
+    const thrown = new Error("setState after unmount");
+
+    const outcome = await trackIntent(REPORT, {
+      signal: new AbortController().signal,
+      onUpdate: () => {
+        throw thrown;
+      },
+    });
+
+    assert.deepEqual(outcome, { kind: "crashed", error: thrown });
+  });
+
+  // An abort and a throw in the same tick: the rejection wins the race, so
+  // the caller that aborted must still read "aborted", not an error screen.
+  it("returns aborted when the caller aborted as the crash surfaced", async () => {
+    installBackend(virtualClock(), {
+      receipt: [accepted],
+      status: [withStatus("bridging")],
+    });
+    const controller = new AbortController();
+
+    const outcome = await trackIntent(REPORT, {
+      signal: controller.signal,
+      onUpdate: () => {
+        controller.abort();
+        throw new Error("setState after unmount");
+      },
+    });
+
+    assert.deepEqual(outcome, { kind: "aborted" });
+    // Still logged: an abort does not make the bug go away.
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0][0], "[Trustware] intent tracking crashed");
+  });
+
+  it("passes a run's own outcome through unchanged", async () => {
+    installBackend(virtualClock(), {
+      receipt: [accepted],
+      status: [withStatus("success")],
+    });
+
+    const outcome = await trackIntent(REPORT, {
+      signal: new AbortController().signal,
+      onUpdate: () => {},
+    });
+
+    assert.ok(outcome.kind === "success");
+    assert.equal(outcome.transaction.status, "success");
+    assert.equal(errors.length, 0);
   });
 });
 
