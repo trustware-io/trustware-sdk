@@ -374,7 +374,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           setState((p) => ({
             ...p,
             isSubmitting: false,
-            txHash: result.txHash ?? result.userOpHash,
+            txHash: result.receipt.txHash,
             intentId: result.intentId,
             txStatus: "processing",
             allowanceStatus: "sufficient",
