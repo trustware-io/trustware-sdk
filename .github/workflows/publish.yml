@@ -32,6 +32,12 @@ jobs:
     if: contains(github.ref_name, '-staging.')
     runs-on: ubuntu-latest
     environment: npm-staging
+    # One staging publish at a time, so the version check below still holds
+    # when `npm publish` runs. GitHub keeps at most one run queued: a third tag
+    # pushed while one runs and one waits cancels the waiting one.
+    concurrency:
+      group: publish-staging
+      cancel-in-progress: false
     # Re-exported so notify-slack can drop the same notes that go on the
     # GitHub Release into the Slack message, instead of only linking to them.
     outputs:
@@ -55,6 +61,16 @@ jobs:
       # every command. Strip it.
       - name: Strip deprecated always-auth from npmrc
         run: sed -i '/^always-auth=/d' "$HOME/.npmrc" || true
+
+      # The publish below sets `--tag latest` explicitly, which skips npm's own
+      # refusal to move `latest` backward. A run for an older tag that starts
+      # after a newer one published must fail here instead.
+      - name: Refuse to move latest backward
+        run: |
+          set -euo pipefail
+          npm run test:publish-guard
+          PUBLISHED=$(npm view @trustware/sdk-staging versions --json)
+          node scripts/assert-version-advances.mjs "${GITHUB_REF_NAME#v}" "$PUBLISHED"
 
       - name: Install dependencies
         run: npm ci

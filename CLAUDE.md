@@ -45,6 +45,13 @@ newest staging build. It used to publish under a `staging` dist-tag, which
 left `latest` on the 0.0.0 placeholder that npmjs.com and a bare `npm i`
 resolve to.
 
+An explicit `--tag latest` skips npm's own refusal to move `latest` backward,
+so `publish-staging` runs one at a time (`concurrency: publish-staging`) and
+fails before building when its version is not above every published one
+(`scripts/assert-version-advances.mjs`, tested by `npm run test:publish-guard`).
+A staging tag below the newest published build will never publish; cut a new
+one instead.
+
 ### Automated release (recommended)
 
 Use the **Release** workflow (`.github/workflows/release.yml`) — GitHub Actions → Release → Run workflow → enter version (e.g. `1.1.8` or `1.1.8-staging.1`). It picks the branch from the version pattern, runs `npm version`, commits, pushes the branch, and pushes the tag. The tag push triggers `publish.yml`.
