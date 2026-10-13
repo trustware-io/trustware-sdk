@@ -38,7 +38,12 @@ Publishing is **tag-driven**. Branch pushes never publish — pushing a version 
 | Tag                | Package                  | Dist-tag  | Environment      |
 | ------------------ | ------------------------ | --------- | ---------------- |
 | `v1.2.3`           | `@trustware/sdk`         | `latest`  | `npm-production` |
-| `v1.2.3-staging.5` | `@trustware/sdk-staging` | `staging` | `npm-staging`    |
+| `v1.2.3-staging.5` | `@trustware/sdk-staging` | `latest`  | `npm-staging`    |
+
+`@trustware/sdk-staging` holds only staging builds, so its `latest` is the
+newest staging build. It used to publish under a `staging` dist-tag, which
+left `latest` on the 0.0.0 placeholder that npmjs.com and a bare `npm i`
+resolve to.
 
 ### Automated release (recommended)
 
