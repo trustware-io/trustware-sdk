@@ -4,31 +4,33 @@ import {
   canonicalRouteToken,
   SOLANA_NATIVE_ROUTE_TOKEN,
 } from "src/core/routes";
+import { NATIVE_SOLANA } from "src/utils/chains";
 
 const USDC_SOLANA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-const NATIVE_SOLANA_ALIAS = "So11111111111111111111111111111111111111111";
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
 describe("canonicalRouteToken", () => {
-  // The token list returns native SOL as the EVM sentinel. The wSOL mint is a
-  // distinct SPL token the caller may not hold — sending it for a native-SOL
-  // swap routes against a balance that doesn't exist. The backend translates
-  // the sentinel into each provider's own native-SOL spelling for a Solana
-  // leg (LiFi/Relay: the System Program id; Squid: the sentinel itself).
+  // The routing API's adapters understand native SOL only as the EVM
+  // sentinel: Relay and LiFi translate it to the System Program id, Squid
+  // and Khalani use it as is.
+  it("sends native SOL to the routing API as the EVM sentinel", () => {
+    assert.equal(SOLANA_NATIVE_ROUTE_TOKEN, NATIVE_EVM);
+  });
+
   it("maps every native-SOL spelling to the EVM sentinel", () => {
     for (const chain of ["solana", "solana-mainnet-beta", "1151111081099710"]) {
+      assert.equal(
+        canonicalRouteToken(NATIVE_SOLANA, chain),
+        SOLANA_NATIVE_ROUTE_TOKEN
+      );
       assert.equal(
         canonicalRouteToken(NATIVE_EVM, chain),
         SOLANA_NATIVE_ROUTE_TOKEN
       );
       assert.equal(
         canonicalRouteToken(NATIVE_EVM.toUpperCase(), chain),
-        SOLANA_NATIVE_ROUTE_TOKEN
-      );
-      assert.equal(
-        canonicalRouteToken(NATIVE_SOLANA_ALIAS, chain),
         SOLANA_NATIVE_ROUTE_TOKEN
       );
       assert.equal(
@@ -49,6 +51,10 @@ describe("canonicalRouteToken", () => {
       canonicalRouteToken(NATIVE_EVM, 1151111081099710),
       SOLANA_NATIVE_ROUTE_TOKEN
     );
+    assert.equal(
+      canonicalRouteToken(NATIVE_SOLANA, 1151111081099710),
+      SOLANA_NATIVE_ROUTE_TOKEN
+    );
     assert.equal(canonicalRouteToken(NATIVE_EVM, 8453), NATIVE_EVM);
     assert.equal(
       canonicalRouteToken(USDC_SOLANA, 1151111081099710),
@@ -56,11 +62,19 @@ describe("canonicalRouteToken", () => {
     );
   });
 
-  it("leaves the mint alone when it is already canonical", () => {
+  it("leaves the sentinel alone when it is already canonical", () => {
     assert.equal(
       canonicalRouteToken(SOLANA_NATIVE_ROUTE_TOKEN, "solana"),
       SOLANA_NATIVE_ROUTE_TOKEN
     );
+  });
+
+  // `So1111…111` was a placeholder the SDK once invented for native SOL. It
+  // is not an address, nothing outside the SDK emits it, and it is no longer
+  // read as native.
+  it("does not read the retired So1111…111 placeholder as native SOL", () => {
+    const placeholder = "So11111111111111111111111111111111111111111";
+    assert.equal(canonicalRouteToken(placeholder, "solana"), placeholder);
   });
 
   it("passes SPL mints through untouched", () => {
@@ -90,7 +104,7 @@ describe("canonicalRouteToken", () => {
     assert.equal(canonicalRouteToken("usei", "cosmos"), "usei");
   });
 
-  it("defaults a missing Solana token to the mint, and stays empty elsewhere", () => {
+  it("defaults a missing Solana token to native SOL, and stays empty elsewhere", () => {
     assert.equal(
       canonicalRouteToken(undefined, "solana"),
       SOLANA_NATIVE_ROUTE_TOKEN

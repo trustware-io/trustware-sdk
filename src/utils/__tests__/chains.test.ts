@@ -19,6 +19,25 @@ const SOLANA_CHAIN_REFS = ["solana", "solana-mainnet-beta", "1151111081099710"];
 const EVM_CHAIN_REFS = ["evm", "8453"];
 const UNTYPED_CHAIN_REFS = [undefined, null, ""];
 
+describe("native asset addresses", () => {
+  it("are the System Program id for SOL and the sentinel for EVM", () => {
+    assert.equal(NATIVE_SOLANA, "11111111111111111111111111111111");
+    assert.equal(NATIVE_EVM, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+    assert.equal(
+      EVM_ZERO_ADDRESS,
+      "0x0000000000000000000000000000000000000000"
+    );
+  });
+
+  it("no longer read the retired So1111…111 placeholder as native SOL", () => {
+    const placeholder = "So11111111111111111111111111111111111111111";
+    for (const chain of SOLANA_CHAIN_REFS) {
+      assert.equal(isNativeTokenAddress(placeholder, chain), false);
+      assert.equal(normalizeAddress(placeholder, chain), placeholder);
+    }
+  });
+});
+
 describe("normalizeAddress", () => {
   it("folds every native spelling on a Solana chain onto NATIVE_SOLANA", () => {
     for (const chain of SOLANA_CHAIN_REFS) {

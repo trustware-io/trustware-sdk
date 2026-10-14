@@ -19,27 +19,25 @@ import {
 } from "../utils/chains";
 
 /**
- * The EVM native-asset sentinel, reused as the wire representation of native
- * SOL. This is NOT the wrapped-SOL mint (`So1111…112`) — wSOL is a distinct
- * SPL token you only hold once you've wrapped, and sending its mint for a
- * native-SOL swap routes against a balance the caller doesn't have. The
- * backend already translates this sentinel into each provider's own
- * native-SOL spelling for a Solana leg (LiFi/Relay: the Solana System
- * Program id `1111…1111`; Squid: the sentinel itself, per Squid's own docs)
- * — see `lifiTokenAddress`/`relayTokenAddress` in iluvatar.
+ * How the routing API spells native SOL: the EVM native sentinel, its
+ * native-asset name on every chain. Inside the SDK native SOL is
+ * `NATIVE_SOLANA`, the System Program id. The backend's Relay and LiFi
+ * adapters translate the sentinel to that id, and Squid and Khalani take the
+ * sentinel as is (see `relayTokenAddress`, `lifiTokenAddress`,
+ * `khalaniTokenAddress` in iluvatar). Sending the System Program id instead
+ * would reach Squid and Khalani as an unknown SPL mint.
+ *
+ * Never the wrapped-SOL mint (`So1111…112`): wSOL is a separate SPL token you
+ * only hold once you've wrapped, and routing it for a native-SOL swap spends
+ * a balance the caller doesn't have.
  */
 export const SOLANA_NATIVE_ROUTE_TOKEN = NATIVE_EVM;
 
 /**
- * Normalizes how a chain's native asset is named on the wire.
- *
- * Token registries describe native SOL two different ways — the EVM
- * sentinel `0xEeee…` (what the token list returns) and `So1111…111` (a
- * placeholder alias, not a real mint). Neither is the wrapped-SOL mint, and
- * providers expect the sentinel, not wSOL, for a native-SOL leg — so pin it
- * here rather than passing whichever spelling the selected token happened to
- * carry. Non-Solana chains are untouched: the EVM sentinel is exactly right
- * there.
+ * Names a token the way the routing API expects. On a Solana chain every
+ * native-SOL spelling becomes `SOLANA_NATIVE_ROUTE_TOKEN` and an SPL mint
+ * passes through trimmed. Other chains pass through untouched: the EVM
+ * sentinel is already right there.
  */
 export function canonicalRouteToken(
   address: string | undefined,

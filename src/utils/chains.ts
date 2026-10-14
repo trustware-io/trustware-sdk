@@ -1,7 +1,13 @@
 import type { ChainDef, ChainType } from "../types";
 
 export const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-export const NATIVE_SOLANA = "So11111111111111111111111111111111111111111";
+/**
+ * Native SOL: the Solana System Program id. It names the native asset of
+ * every Solana-VM chain (Eclipse's ETH too), and it's the address the token
+ * catalog and the Relay/LiFi routers use. Not to be confused with wrapped
+ * SOL (`So1111…112`), a separate SPL token.
+ */
+export const NATIVE_SOLANA = "11111111111111111111111111111111";
 export const EVM_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 /** Solana mainnet-beta as the routing backend identifies it numerically. */
@@ -87,6 +93,8 @@ export function getNativeTokenAddress(chainType?: ChainType | null) {
     : NATIVE_EVM;
 }
 
+/** The catalog's Squid record and the routing wire both spell native SOL
+ *  with the EVM sentinel. */
 function isSolanaNativeTokenAlias(trimmedAddress: string) {
   return (
     trimmedAddress === NATIVE_SOLANA ||
