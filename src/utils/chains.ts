@@ -93,13 +93,16 @@ export function getNativeTokenAddress(chainType?: ChainType | null) {
     : NATIVE_EVM;
 }
 
-/** The catalog's Squid record and the routing wire both spell native SOL
- *  with the EVM sentinel. */
-function isSolanaNativeTokenAlias(trimmedAddress: string) {
-  return (
-    trimmedAddress === NATIVE_SOLANA ||
-    trimmedAddress.toLowerCase() === NATIVE_EVM
-  );
+/**
+ * The EVM sentinel and zero address name the native asset on every chain:
+ * some EVM chains list their native asset at the zero address, and the
+ * catalog's Squid record and the routing wire spell native SOL with the
+ * sentinel. A Solana chain also has its own native address.
+ */
+function isNativeSpelling(trimmedAddress: string, type: ChainType | undefined) {
+  const lower = trimmedAddress.toLowerCase();
+  if (lower === NATIVE_EVM || lower === EVM_ZERO_ADDRESS) return true;
+  return type === "solana" && trimmedAddress === NATIVE_SOLANA;
 }
 
 const HEX_ADDRESS = /^0x[0-9a-f]+$/i;
@@ -108,10 +111,10 @@ const HEX_ADDRESS = /^0x[0-9a-f]+$/i;
  * The comparison key for a token address on a chain: two addresses name the
  * same token exactly when their keys are equal.
  *
- * Case is meaningless in a hex EVM address but significant in a Base58 SPL
- * mint, so only the former is folded. On a Solana chain every spelling of the
- * native asset maps to `NATIVE_SOLANA`. With no chain type to go on, the
- * address format is self-describing: hex folds, anything else stays exact.
+ * Every spelling of the native asset maps to the chain's native address.
+ * Otherwise, case is meaningless in a hex EVM address but significant in a
+ * Base58 SPL mint, so only the former is folded. With no chain type to go on,
+ * the address format is self-describing: hex folds, anything else stays exact.
  */
 export function normalizeAddress(
   address: string,
@@ -119,9 +122,8 @@ export function normalizeAddress(
 ): string {
   const trimmed = address.trim();
   const type = normalizeChainType(chainType);
-  if (type === "solana") {
-    return isSolanaNativeTokenAlias(trimmed) ? NATIVE_SOLANA : trimmed;
-  }
+  if (isNativeSpelling(trimmed, type)) return getNativeTokenAddress(type);
+  if (type === "solana") return trimmed;
   if (type) return trimmed.toLowerCase();
   return HEX_ADDRESS.test(trimmed) ? trimmed.toLowerCase() : trimmed;
 }
@@ -140,19 +142,14 @@ export function tokenIdentityKey(
   return `${normalizeChainKey(chainId)}:${normalizeAddress(address, chainType)}`;
 }
 
-/**
- * Whether the address names the chain's native asset rather than a token
- * contract or mint. The EVM zero address counts on every chain: some EVM
- * chains list their native asset there instead of at the sentinel.
- */
+/** Whether the address names the chain's native asset rather than a token
+ *  contract or mint. */
 export function isNativeTokenAddress(
   address: string | null | undefined,
   chainType?: ChainType | null
 ): boolean {
   if (!address) return false;
-  const key = normalizeAddress(address, chainType);
   return (
-    key === normalizeAddress(getNativeTokenAddress(chainType), chainType) ||
-    key === EVM_ZERO_ADDRESS
+    normalizeAddress(address, chainType) === getNativeTokenAddress(chainType)
   );
 }

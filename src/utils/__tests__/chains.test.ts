@@ -58,6 +58,19 @@ describe("normalizeAddress", () => {
     }
   });
 
+  it("folds the EVM zero address onto each chain's native address", () => {
+    for (const chain of SOLANA_CHAIN_REFS) {
+      assert.equal(normalizeAddress(EVM_ZERO_ADDRESS, chain), NATIVE_SOLANA);
+    }
+    for (const chain of [...EVM_CHAIN_REFS, ...UNTYPED_CHAIN_REFS]) {
+      assert.equal(normalizeAddress(EVM_ZERO_ADDRESS, chain), NATIVE_EVM);
+      assert.equal(
+        normalizeAddress(` ${EVM_ZERO_ADDRESS} `, chain),
+        NATIVE_EVM
+      );
+    }
+  });
+
   it("keeps an SPL mint byte-exact on a Solana chain", () => {
     for (const chain of SOLANA_CHAIN_REFS) {
       assert.equal(normalizeAddress(USDC_SOLANA, chain), USDC_SOLANA);
@@ -151,6 +164,13 @@ describe("tokenIdentityKey", () => {
     assert.equal(
       tokenIdentityKey(8453, USDC_BASE, "evm"),
       `8453:${USDC_BASE.toLowerCase()}`
+    );
+  });
+
+  it("gives the sentinel and the zero address one key on EVM", () => {
+    assert.equal(
+      tokenIdentityKey(8453, EVM_ZERO_ADDRESS, "evm"),
+      tokenIdentityKey(8453, NATIVE_EVM, "evm")
     );
   });
 
