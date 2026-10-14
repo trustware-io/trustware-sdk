@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import type { ChainDef } from "../../../../types";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
 import { colors, fontWeight, spacing, borderRadius } from "../../../styles";
+import { visibleTokenRows } from "../tokenListRows";
 import { AvailableTokenListItem } from "./AvailableTokenListItem";
 import { TokenSearchInput } from "./TokenSearchInput";
 import { TokenSelectorStateView } from "./TokenSelectorStateView";
@@ -98,7 +99,18 @@ function TokenSectionLabel({
   );
 }
 
-const INITIAL_TOKEN_LIMIT = 50;
+const showAllButtonStyle: React.CSSProperties = {
+  marginTop: spacing[2],
+  marginLeft: spacing[2],
+  marginRight: spacing[2],
+  padding: `${spacing[2]} ${spacing[3]}`,
+  borderRadius: borderRadius.lg,
+  border: `1px solid ${colors.border}`,
+  backgroundColor: colors.card,
+  color: colors.foreground,
+  cursor: "pointer",
+  fontSize: "0.8125rem",
+};
 
 export function TokenSelectorPanel({
   filteredTokens,
@@ -115,18 +127,21 @@ export function TokenSelectorPanel({
   tokensError,
 }: TokenSelectorPanelProps): React.ReactElement {
   const [showAll, setShowAll] = useState(false);
+  const [showAllWalletTokens, setShowAllWalletTokens] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination when chain or search changes
     setShowAll(false);
+    setShowAllWalletTokens(false);
   }, [selectedChain, searchQuery]);
 
   const hasWalletTokens = filteredWalletTokens.length > 0;
   const hasPopularTokens = filteredTokens.length > 0;
-  const visibleTokens =
-    showAll || filteredTokens.length <= INITIAL_TOKEN_LIMIT
-      ? filteredTokens
-      : filteredTokens.slice(0, INITIAL_TOKEN_LIMIT);
+  const catalogRows = visibleTokenRows(filteredTokens, showAll);
+  const walletRows = visibleTokenRows(
+    filteredWalletTokens,
+    showAllWalletTokens
+  );
 
   return (
     <div
@@ -187,13 +202,22 @@ export function TokenSelectorPanel({
             {hasWalletTokens && (
               <>
                 <TokenSectionLabel icon="wallet">Your tokens</TokenSectionLabel>
-                {filteredWalletTokens.map((token, i) => (
+                {walletRows.visible.map((token, i) => (
                   <WalletTokenListItem
                     key={`${token.address}-${i}`}
                     token={token}
                     onSelect={onSelectWalletToken}
                   />
                 ))}
+                {walletRows.hidden > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllWalletTokens(true)}
+                    style={showAllButtonStyle}
+                  >
+                    Show all {filteredWalletTokens.length} of your tokens
+                  </button>
+                ) : null}
               </>
             )}
 
@@ -211,29 +235,18 @@ export function TokenSelectorPanel({
                 <TokenSectionLabel icon="spark">
                   Popular tokens
                 </TokenSectionLabel>
-                {visibleTokens.map((token, i) => (
+                {catalogRows.visible.map((token, i) => (
                   <AvailableTokenListItem
                     key={`${token.address}-${i}`}
                     token={token}
                     onSelect={onSelectToken}
                   />
                 ))}
-                {!showAll && filteredTokens.length > INITIAL_TOKEN_LIMIT ? (
+                {catalogRows.hidden > 0 ? (
                   <button
                     type="button"
                     onClick={() => setShowAll(true)}
-                    style={{
-                      marginTop: spacing[2],
-                      marginLeft: spacing[2],
-                      marginRight: spacing[2],
-                      padding: `${spacing[2]} ${spacing[3]}`,
-                      borderRadius: borderRadius.lg,
-                      border: `1px solid ${colors.border}`,
-                      backgroundColor: colors.card,
-                      color: colors.foreground,
-                      cursor: "pointer",
-                      fontSize: "0.8125rem",
-                    }}
+                    style={showAllButtonStyle}
                   >
                     Show all {filteredTokens.length} tokens
                   </button>

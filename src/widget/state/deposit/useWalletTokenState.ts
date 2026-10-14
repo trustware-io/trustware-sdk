@@ -19,6 +19,7 @@ import {
 } from "../../../utils/chains";
 
 import type { Token, YourTokenData } from "./types";
+import { sortWalletTokensByValue } from "./walletBalances";
 import { useWalletInfo } from "src/wallets";
 
 type WalletTokenStateArgs = {
@@ -209,9 +210,7 @@ function applyWalletTokenState({
   tokens: ReturnType<typeof useTokens>["tokens"];
 }) {
   const updatedTokens = mapWalletTokens(balances, chains, tokens);
-  const sortedTokens = updatedTokens.sort(
-    (a, b) => Number(b.balance) - Number(a.balance)
-  );
+  const sortedTokens = sortWalletTokensByValue(updatedTokens);
 
   setYourWalletTokens(sortedTokens);
 

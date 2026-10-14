@@ -344,6 +344,12 @@ working when a balance is unknown; the token's balance shows as unavailable,
 never as 0. Swap mode reads balances from the loaded wallet rows
 (`findWalletBalanceRow`) and does not fetch per pick.
 
+The rows are ordered by USD value, then unpriced tokens by amount
+(`sortWalletTokensByValue`). Raw balances can't be compared across tokens
+with different decimals, so don't sort by them. Both picker lists show 50
+rows before "Show all" (`visibleTokenRows`). A large wallet lists hundreds
+of supported tokens on one chain.
+
 ### WalletConnect Integration
 
 WalletConnect uses `@reown/appkit-universal-connector` (`@reown/appkit*` ^1.8.x), configured in `src/config/walletconnect.ts` (defines the Solana CAIP network + Universal Connector). A built-in project ID ships in `src/constants`; override via `config.walletConnect.projectId`.
