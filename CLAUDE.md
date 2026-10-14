@@ -299,7 +299,34 @@ home → select-token → crypto-pay → processing → success | error
 - `src/errors/` — `TrustwareError.ts` + `errorCodes.ts` (`INVALID_CONFIG`, `INVALID_API_KEY`, `WALLET_NOT_CONNECTED`, `BRIDGE_FAILED`, `NETWORK_ERROR`, `INPUT_ERROR`, `UNKNOWN_ERROR`).
 - `src/events/events.ts` — `TrustwareEvent` union (`error`, `transaction_started`, `transaction_success`, `wallet_connected`, `token_page_loaded/error`, `balance_stream_chunk/fallback`, `swap_route_changed`), surfaced via `config.onEvent`.
 - `src/validation/address.ts` — `validateAddressForChain`, `validateRouteAddresses`.
-- `src/utils/chains.ts` — chain key/type normalization. `src/logos/` — bundled logo asset.
+- `src/utils/chains.ts` — chain key/type normalization and native-asset address identity. `src/logos/` — bundled logo asset.
+
+### Native asset addresses
+
+Native SOL is the Solana System Program id, `11111111111111111111111111111111`
+(`NATIVE_SOLANA`). The same id names the native asset of every Solana-VM
+chain, Eclipse's ETH included. EVM chains use the sentinel
+`0xeeee…eeee` (`NATIVE_EVM`).
+
+- `src/utils/chains.ts` is the only module that defines these. Compare token
+  addresses with its `normalizeAddress`, and ask "is this the native asset?"
+  with its `isNativeTokenAddress`. Don't add a second copy anywhere, and don't
+  compare token addresses with a bare `toLowerCase()`: Base58 mints are
+  case-sensitive.
+- The token catalog lists native SOL twice: once at the System Program id
+  (Relay) and once at the EVM sentinel (Squid, the record with the logo and
+  price). The registry rewrites the sentinel to `NATIVE_SOLANA` as it loads
+  the catalog, so everything past the registry sees one spelling.
+- On the routing wire (`buildRoute`, `buildDepositAddress`),
+  `canonicalRouteToken` sends native SOL as the EVM sentinel. That's the
+  routing API's native-asset convention for every chain. Its Relay and LiFi
+  adapters translate the sentinel to the System Program id, and Squid and
+  Khalani take the sentinel as it is. Sending the System Program id directly
+  would reach Squid and Khalani as an unknown SPL mint.
+- `So11111111111111111111111111111111111111111` is not an address. The SDK
+  once invented it as a native-SOL placeholder and nothing external emits
+  it, so don't bring it back. `So1111…112` is wrapped SOL, a separate SPL
+  token.
 
 ### WalletConnect Integration
 
