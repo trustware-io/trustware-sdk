@@ -7,6 +7,7 @@ import {
   borderRadius,
 } from "src/widget/styles";
 import { getSharedRegistry } from "src/core/registryClient";
+import { mapTokenDefToToken } from "src/core/useTokens";
 import { useTokens } from "src/widget/hooks";
 import {
   ChainSelectorPanel,
@@ -86,25 +87,8 @@ export function SwapTokenSelect({
     Promise.all(
       tokensForChain.map((ref) =>
         registry
-          .tokensPage(localChain.chainId, { q: ref.address, limit: 5 })
-          .then((page: import("src/types/blockchain").TokenPageResult) => {
-            const norm = ref.address.toLowerCase();
-            const match = page.data.find(
-              (t) => t.address.toLowerCase() === norm
-            );
-            if (!match) return null;
-            const token: Token = {
-              address: match.address,
-              chainId: match.chainId,
-              symbol: match.symbol,
-              name: match.name,
-              decimals: match.decimals,
-              iconUrl: match.logoURI,
-              logoURI: match.logoURI,
-              usdPrice: match.usdPrice,
-            };
-            return token;
-          })
+          .lookupToken(localChain.chainId, ref.address)
+          .then((match) => (match ? mapTokenDefToToken(match) : null))
           .catch(() => null)
       )
     ).then((results) => {

@@ -24,6 +24,7 @@ import {
 } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
 import { isSerializedSolanaTxRequest } from "src/core/routes";
+import { mapTokenDefToToken } from "src/core/useTokens";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
@@ -306,8 +307,8 @@ export function SwapMode({
     [otherChains, allowedDestChainIds]
   );
 
-  // Resolve the default dest token by querying the registry directly for the exact address.
-  // We use tokensPage(chainId, { q: address, limit: 1 }) so we never depend on pagination order.
+  // Resolve the default dest token by looking its address up in the registry,
+  // so it never depends on pagination order.
   const allChains = useMemo(
     () => [...popularChains, ...otherChains],
     [popularChains, otherChains]
@@ -321,27 +322,13 @@ export function SwapMode({
     );
     if (!chain) return;
 
-    const registry = getSharedRegistry();
-    registry
-      .tokensPage(chain.chainId, { q: defaultDestRef.address, limit: 5 })
-      .then((page: import("src/types/blockchain").TokenPageResult) => {
+    getSharedRegistry()
+      .lookupToken(chain.chainId, defaultDestRef.address)
+      .then((match) => {
         if (destInitialized.current) return;
-        const normalizedAddr = defaultDestRef.address.toLowerCase();
-        const match = page.data.find(
-          (t) => t.address.toLowerCase() === normalizedAddr
-        );
         if (!match) return;
         destInitialized.current = true;
-        setToToken({
-          address: match.address,
-          chainId: match.chainId,
-          symbol: match.symbol,
-          name: match.name,
-          decimals: match.decimals,
-          iconUrl: match.logoURI,
-          logoURI: match.logoURI,
-          usdPrice: match.usdPrice,
-        });
+        setToToken(mapTokenDefToToken(match));
         setToChain(chain);
       })
       .catch(() => {
@@ -522,29 +509,11 @@ export function SwapMode({
         usdPrice: undefined,
       };
 
-      const registry = getSharedRegistry();
-      registry
-        .tokensPage(chain.chainId, { q: vault.asset.address, limit: 5 })
-        .then((page: import("src/types/blockchain").TokenPageResult) => {
-          const normalized = vault.asset.address.toLowerCase();
-          const match = page.data.find(
-            (t) => t.address.toLowerCase() === normalized
-          );
-          finish(
-            match
-              ? {
-                  address: match.address,
-                  chainId: match.chainId,
-                  symbol: match.symbol,
-                  name: match.name,
-                  decimals: match.decimals,
-                  iconUrl: match.logoURI,
-                  logoURI: match.logoURI,
-                  usdPrice: match.usdPrice,
-                }
-              : fallbackToken
-          );
-        })
+      getSharedRegistry()
+        .lookupToken(chain.chainId, vault.asset.address)
+        .then((match) =>
+          finish(match ? mapTokenDefToToken(match) : fallbackToken)
+        )
         .catch(() => finish(fallbackToken));
     },
     [allChains, route]
@@ -589,29 +558,11 @@ export function SwapMode({
         usdPrice: undefined,
       };
 
-      const registry = getSharedRegistry();
-      registry
-        .tokensPage(chain.chainId, { q: position.asset.address, limit: 5 })
-        .then((page: import("src/types/blockchain").TokenPageResult) => {
-          const normalized = position.asset.address.toLowerCase();
-          const match = page.data.find(
-            (t) => t.address.toLowerCase() === normalized
-          );
-          finish(
-            match
-              ? {
-                  address: match.address,
-                  chainId: match.chainId,
-                  symbol: match.symbol,
-                  name: match.name,
-                  decimals: match.decimals,
-                  iconUrl: match.logoURI,
-                  logoURI: match.logoURI,
-                  usdPrice: match.usdPrice,
-                }
-              : fallbackToken
-          );
-        })
+      getSharedRegistry()
+        .lookupToken(chain.chainId, position.asset.address)
+        .then((match) =>
+          finish(match ? mapTokenDefToToken(match) : fallbackToken)
+        )
         .catch(() => finish(fallbackToken));
     },
     [allChains, route, lockDestToken]

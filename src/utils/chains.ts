@@ -127,6 +127,20 @@ export function normalizeAddress(
 }
 
 /**
+ * One key per token: two tokens are the same exactly when their chains match
+ * and their addresses normalize equal. `chainType` must be the token's own
+ * chain type; inferring it from a bare chain id misreads Solana-VM chains
+ * with numeric ids, Eclipse among them, as EVM.
+ */
+export function tokenIdentityKey(
+  chainId: string | number,
+  address: string,
+  chainType: ChainType | null | undefined
+): string {
+  return `${normalizeChainKey(chainId)}:${normalizeAddress(address, chainType)}`;
+}
+
+/**
  * Whether the address names the chain's native asset rather than a token
  * contract or mint. The EVM zero address counts on every chain: some EVM
  * chains list their native asset there instead of at the sentinel.

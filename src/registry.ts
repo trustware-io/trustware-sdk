@@ -1,15 +1,18 @@
 import { TrustwareConfigStore } from "./config/store";
 import type {
   ChainDef,
+  ChainType,
   TokenDef,
   TokenPageOptions,
   TokenPageResult,
 } from "./types/";
 import {
   getNativeTokenAddress,
+  isNativeTokenAddress,
   normalizeAddress,
   normalizeChainKey,
   normalizeChainType,
+  tokenIdentityKey,
 } from "./utils/chains";
 import {
   chainParamsFromChainDef,
@@ -30,10 +33,6 @@ function getChainAliases(chain: ChainDef): string[] {
     chain.networkName,
   ];
   return values.map((value) => normalizeChainKey(value)).filter(Boolean);
-}
-
-function tokenKey(token: TokenDef): string {
-  return `${normalizeChainKey(token.chainId)}:${token.address.toLowerCase()}`;
 }
 
 function parseTokenPage(payload: unknown): TokenPageResult {
@@ -63,13 +62,6 @@ function parseTokenPage(payload: unknown): TokenPageResult {
         info?.hasNextPage ?? parsed.hasNextPage ?? Boolean(info?.nextCursor),
       nextCursor: info?.nextCursor ?? parsed.nextCursor,
     },
-  };
-}
-
-function normalizeToken(token: TokenDef): TokenDef {
-  return {
-    ...token,
-    chainId: token.chainId,
   };
 }
 
@@ -175,24 +167,58 @@ export class Registry {
     }
   }
 
+  private chainTypeOf(chainRef: string | number): ChainType | undefined {
+    return normalizeChainType(this.chain(chainRef) ?? String(chainRef));
+  }
+
+  private tokenKey(token: TokenDef): string {
+    return tokenIdentityKey(
+      token.chainId,
+      token.address,
+      this.chainTypeOf(token.chainId)
+    );
+  }
+
+  /**
+   * Parses one catalog response into the SDK's token identity. Every native
+   * spelling becomes the chain's own native address, so native SOL is always
+   * `NATIVE_SOLANA` past this point.
+   *
+   * The catalog lists a token once per spelling its providers use: native
+   * SOL comes as Squid's sentinel record (with logo and price) and Relay's
+   * System Program record (with neither). They are one token, so this keeps
+   * the first record per identity, as the backend's own dedupe does. Squid
+   * leads the full list, and a search page sorts the sentinel ahead of the
+   * System Program id, so the complete record is the one kept.
+   */
+  private canonicalCatalog(tokens: TokenDef[]): TokenDef[] {
+    const byKey = new Map<string, TokenDef>();
+    for (const token of tokens) {
+      if (token?.chainId == null) continue;
+      const chainType = this.chainTypeOf(token.chainId);
+      const canonical = isNativeTokenAddress(token.address, chainType)
+        ? { ...token, address: getNativeTokenAddress(chainType) }
+        : token;
+      const key = this.tokenKey(canonical);
+      if (!byKey.has(key)) byKey.set(key, canonical);
+    }
+    return Array.from(byKey.values());
+  }
+
   private storeTokenForAlias(chainKey: string, token: TokenDef) {
-    const key = tokenKey(token);
     const existingByKey = this._tokensByChainKey.get(chainKey) ?? new Map();
-    existingByKey.set(key, token);
+    existingByKey.set(this.tokenKey(token), token);
     this._tokensByChainKey.set(chainKey, existingByKey);
     this._tokensByChain.set(chainKey, Array.from(existingByKey.values()));
   }
 
   private storeToken(token: TokenDef) {
-    const chainRef = token?.chainId;
-    if (chainRef == null) return;
-    const normalized = normalizeToken(token);
-    const resolvedChain = this.chain(chainRef);
+    const resolvedChain = this.chain(token.chainId);
     const aliases = resolvedChain
       ? getChainAliases(resolvedChain)
-      : [normalizeChainKey(chainRef)];
+      : [normalizeChainKey(token.chainId)];
     for (const alias of aliases) {
-      this.storeTokenForAlias(alias, normalized);
+      this.storeTokenForAlias(alias, token);
     }
   }
 
@@ -215,19 +241,16 @@ export class Registry {
   }
 
   private batchStoreTokens(tokensArr: TokenDef[]) {
-    for (const token of tokensArr) {
-      const chainRef = token?.chainId;
-      if (chainRef == null) continue;
-      const normalized = normalizeToken(token);
-      const resolvedChain = this.chain(chainRef);
+    for (const token of this.canonicalCatalog(tokensArr)) {
+      const resolvedChain = this.chain(token.chainId);
       const aliases = resolvedChain
         ? getChainAliases(resolvedChain)
-        : [normalizeChainKey(chainRef)];
-      const key = tokenKey(normalized);
+        : [normalizeChainKey(token.chainId)];
+      const key = this.tokenKey(token);
       for (const alias of aliases) {
         const existingByKey =
           this._tokensByChainKey.get(alias) ?? new Map<string, TokenDef>();
-        existingByKey.set(key, normalized);
+        existingByKey.set(key, token);
         this._tokensByChainKey.set(alias, existingByKey);
       }
     }
@@ -316,7 +339,7 @@ export class Registry {
     const unique = new Map<string, TokenDef>();
     for (const list of this._tokensByChain.values()) {
       for (const token of list) {
-        unique.set(tokenKey(token), token);
+        unique.set(this.tokenKey(token), token);
       }
     }
     return Array.from(unique.values());
@@ -375,17 +398,12 @@ export class Registry {
       }
 
       const parsed = parseTokenPage(await res.json());
-      const deduped = new Map<string, TokenDef>();
-      for (const token of parsed.data) {
-        const normalized = normalizeToken(token);
-        this.storeToken(normalized);
-        deduped.set(tokenKey(normalized), normalized);
+      const data = this.canonicalCatalog(parsed.data);
+      for (const token of data) {
+        this.storeToken(token);
       }
 
-      const result = {
-        data: Array.from(deduped.values()),
-        pageInfo: parsed.pageInfo,
-      };
+      const result = { data, pageInfo: parsed.pageInfo };
 
       this._pageCache.set(cacheKey, { ...result, storedAt: Date.now() });
       this.prunePageCache();
@@ -418,12 +436,39 @@ export class Registry {
   }
 
   findToken(chainRef: string | number, address: string): TokenDef | undefined {
-    const chain = this.chain(chainRef);
-    const chainType = normalizeChainType(chain);
-    const normalizedAddress = normalizeAddress(address, chainType);
-    return this.tokens(chainRef).find((token) => {
-      return normalizeAddress(token.address, chainType) === normalizedAddress;
+    return this.findIn(this.tokens(chainRef), chainRef, address);
+  }
+
+  /**
+   * The catalog's record for one token address, fetched if it isn't loaded.
+   * Matches by token identity, so any native spelling finds the native
+   * record and a Base58 mint matches only its exact case.
+   */
+  async lookupToken(
+    chainRef: string | number,
+    address: string
+  ): Promise<TokenDef | undefined> {
+    if (!this.config.features.tokensPagination) {
+      await this.ensureLoaded();
+      return this.findToken(chainRef, address);
+    }
+    const page = await this.tokensPage(chainRef, {
+      q: address.trim(),
+      limit: 5,
     });
+    return this.findIn(page.data, chainRef, address);
+  }
+
+  private findIn(
+    tokens: TokenDef[],
+    chainRef: string | number,
+    address: string
+  ): TokenDef | undefined {
+    const chainType = this.chainTypeOf(chainRef);
+    const wanted = normalizeAddress(address, chainType);
+    return tokens.find(
+      (token) => normalizeAddress(token.address, chainType) === wanted
+    );
   }
 
   resolveToken(

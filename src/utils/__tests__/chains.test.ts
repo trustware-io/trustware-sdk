@@ -7,6 +7,7 @@ import {
   NATIVE_EVM,
   NATIVE_SOLANA,
   normalizeAddress,
+  tokenIdentityKey,
 } from "src/utils/chains";
 import { mulberry32 } from "src/__tests__/seededRandom";
 
@@ -138,6 +139,45 @@ describe("isNativeTokenAddress", () => {
       assert.equal(isNativeTokenAddress(address, "solana"), false);
       assert.equal(isNativeTokenAddress(address, undefined), false);
     }
+  });
+});
+
+describe("tokenIdentityKey", () => {
+  it("joins the normalized chain id and the normalized address", () => {
+    assert.equal(
+      tokenIdentityKey(" Solana-Mainnet-Beta ", NATIVE_EVM, "solana"),
+      `solana-mainnet-beta:${NATIVE_SOLANA}`
+    );
+    assert.equal(
+      tokenIdentityKey(8453, USDC_BASE, "evm"),
+      `8453:${USDC_BASE.toLowerCase()}`
+    );
+  });
+
+  it("gives every native-SOL spelling one key, and mints their own", () => {
+    const native = tokenIdentityKey("solana", NATIVE_SOLANA, "solana");
+    assert.equal(tokenIdentityKey("solana", NATIVE_EVM, "solana"), native);
+    assert.notEqual(tokenIdentityKey("solana", WSOL_MINT, "solana"), native);
+    assert.notEqual(
+      tokenIdentityKey("solana", USDC_SOLANA, "solana"),
+      tokenIdentityKey("solana", USDC_SOLANA.toLowerCase(), "solana")
+    );
+  });
+
+  // Eclipse's chain id is all digits, which on its own reads as EVM. Its
+  // ChainDef says Solana, and that is the type that must reach the key.
+  it("folds case only when the given chain type allows it", () => {
+    assert.notEqual(
+      tokenIdentityKey("9286185", USDC_SOLANA, "solana"),
+      tokenIdentityKey("9286185", USDC_SOLANA.toLowerCase(), "solana")
+    );
+  });
+
+  it("never matches the same address on two chains", () => {
+    assert.notEqual(
+      tokenIdentityKey("1", USDC_BASE, "evm"),
+      tokenIdentityKey("8453", USDC_BASE, "evm")
+    );
   });
 });
 

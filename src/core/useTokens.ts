@@ -1,12 +1,18 @@
 import { useState, useEffect, useMemo, startTransition } from "react";
 import { getSharedRegistry } from "./registryClient";
-import type { TokenDef } from "../types";
+import type { ChainType, TokenDef } from "../types";
 // import type { Token } from "../widget/context/DepositContext";
 import { Token } from "../widget/state/deposit/types";
 import { useChains } from "./useChains";
 import { sortTokensByPopularity } from "../widget/helpers/tokenPopularity";
 import { TrustwareConfigStore } from "../config/store";
-import { EVM_ZERO_ADDRESS, NATIVE_EVM, NATIVE_SOLANA } from "../utils/chains";
+import {
+  EVM_ZERO_ADDRESS,
+  NATIVE_EVM,
+  NATIVE_SOLANA,
+  normalizeChainType,
+  tokenIdentityKey,
+} from "../utils/chains";
 import featuredAssetsData from "../widget/data/featuredAssets.json";
 
 type FeaturedEntry = { symbol: string; address: string };
@@ -48,7 +54,7 @@ export interface UseTokensResult {
   isLoadingMore: boolean;
 }
 
-function mapTokenDefToToken(tokenDef: TokenDef): Token {
+export function mapTokenDefToToken(tokenDef: TokenDef): Token {
   return {
     address: tokenDef.address,
     chainId: tokenDef.chainId,
@@ -62,10 +68,16 @@ function mapTokenDefToToken(tokenDef: TokenDef): Token {
   };
 }
 
-function dedupeTokens(tokens: Token[]): Token[] {
+/** Keeps each token's first record, like the registry does within a page:
+ *  a later page of the same search is no fresher than an earlier one. */
+function dedupeTokens(
+  tokens: Token[],
+  chainType: ChainType | undefined
+): Token[] {
   const byKey = new Map<string, Token>();
   for (const token of tokens) {
-    byKey.set(`${token.chainId}:${token.address.toLowerCase()}`, token);
+    const key = tokenIdentityKey(token.chainId, token.address, chainType);
+    if (!byKey.has(key)) byKey.set(key, token);
   }
   return Array.from(byKey.values());
 }
@@ -208,8 +220,12 @@ export function useTokens(
       const filtered = page.data.filter((item) =>
         chainMap.has(item.chainId.toString())
       );
+      const chainType = normalizeChainType(chainMap.get(chainId.toString()));
       setTokens((current) =>
-        dedupeTokens([...current, ...filtered.map(mapTokenDefToToken)])
+        dedupeTokens(
+          [...current, ...filtered.map(mapTokenDefToToken)],
+          chainType
+        )
       );
       setNextCursor(page.pageInfo.nextCursor);
       setHasNextPage(page.pageInfo.hasNextPage);
