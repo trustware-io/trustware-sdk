@@ -15,6 +15,8 @@ import {
   useSelectTokenModel,
 } from "src/widget/features/token-selection";
 import { WidgetSecurityFooter } from "src/widget/components";
+import { normalizeChainType } from "src/utils/chains";
+import { onlyAllowedTokens, withoutToken } from "../tokenFilters";
 import type { ChainDef } from "src/types";
 import type { SwapTokenRef } from "src/types/config";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
@@ -150,40 +152,23 @@ export function SwapTokenSelect({
     yourWalletTokens,
   });
 
-  // Wallet tokens: filter by allowlist if active
-  const allowedSet = useMemo(() => {
-    if (!allowedTokens || allowedTokens.length === 0) return null;
-    return new Set(
-      allowedTokens.map((t) => `${t.chainId}:${t.address.toLowerCase()}`)
-    );
-  }, [allowedTokens]);
+  const chainType = normalizeChainType(localChain);
 
-  const filteredWalletTokens = useMemo(() => {
-    if (!allowedSet) return rawWalletTokens;
-    return rawWalletTokens.filter((t) =>
-      allowedSet.has(`${Number(t.chainId)}:${t.address.toLowerCase()}`)
-    );
-  }, [rawWalletTokens, allowedSet]);
+  // The pinned catalog list is already the allowlist; wallet rows are not.
+  const filteredWalletTokens = useMemo(
+    () => onlyAllowedTokens(rawWalletTokens, allowedTokens, chainType),
+    [rawWalletTokens, allowedTokens, chainType]
+  );
 
-  // Exclusion: remove the counterpart token (same address + same chain) so you
-  // can't swap a token to itself on the same chain.
-  const excludeKey = excludeToken
-    ? `${Number(excludeToken.chainId)}:${excludeToken.address.toLowerCase()}`
-    : null;
+  const visibleTokens = useMemo(
+    () => withoutToken(filteredTokens, excludeToken ?? null, chainType),
+    [filteredTokens, excludeToken, chainType]
+  );
 
-  const visibleTokens = useMemo(() => {
-    if (!excludeKey) return filteredTokens;
-    return filteredTokens.filter(
-      (t) => `${Number(t.chainId)}:${t.address.toLowerCase()}` !== excludeKey
-    );
-  }, [filteredTokens, excludeKey]);
-
-  const visibleWalletTokens = useMemo(() => {
-    if (!excludeKey) return filteredWalletTokens;
-    return filteredWalletTokens.filter(
-      (t) => `${Number(t.chainId)}:${t.address.toLowerCase()}` !== excludeKey
-    );
-  }, [filteredWalletTokens, excludeKey]);
+  const visibleWalletTokens = useMemo(
+    () => withoutToken(filteredWalletTokens, excludeToken ?? null, chainType),
+    [filteredWalletTokens, excludeToken, chainType]
+  );
 
   return (
     <div
