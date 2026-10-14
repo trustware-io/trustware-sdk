@@ -15,12 +15,10 @@ import {
 } from "../../../context/DepositContext";
 import { useTransactionSubmit } from "../../../hooks";
 import {
-  getNativeTokenAddress,
   isNativeTokenAddress,
-  isZeroAddrLike,
   normalizeAddress,
   normalizeChainKey,
-} from "../../../helpers/chainHelpers";
+} from "../../../../utils/chains";
 import { divRoundDown } from "../../../../utils";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
 import { useGTMTracker } from "../../../../hooks";
@@ -42,16 +40,6 @@ type CachedFeeData = {
   gasPrice?: bigint;
   maxFeePerGas?: bigint;
 };
-
-function normalizeTokenAddressForCompare(
-  chain: ChainDef,
-  addr?: string
-): string {
-  const chainType = (chain.type ?? chain.chainType ?? "").toLowerCase();
-  const value = (addr ?? "").trim();
-  if (chainType === "solana") return value;
-  return value.toLowerCase();
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -130,17 +118,8 @@ export function useTransactionActionModel({
 
   const isNativeSelected = useMemo(() => {
     const address = selectedToken?.address;
-
-    return (
-      isNativeTokenAddress(address, chainType) ||
-      isZeroAddrLike(address, chainType) ||
-      normalizeTokenAddressForCompare(selectedChain as ChainDef, address) ===
-        normalizeTokenAddressForCompare(
-          selectedChain as ChainDef,
-          getNativeTokenAddress(chainType)
-        )
-    );
-  }, [chainType, selectedChain, selectedToken?.address]);
+    return !address || isNativeTokenAddress(address, chainType);
+  }, [chainType, selectedToken?.address]);
 
   const spender = useMemo(() => {
     const txReq = routeResult?.txReq;

@@ -16,8 +16,6 @@ import {
   registerChainParams,
 } from "./wallets/chainParams";
 
-export const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-
 const PAGE_CACHE_TTL_MS = 5 * 60 * 1000;
 const PAGE_CACHE_LIMIT = 100;
 
@@ -446,7 +444,7 @@ export class Registry {
       (nativeSymbol && s.toUpperCase() === nativeSymbol) ||
       ["ETH", "MATIC", "AVAX", "BNB", "SOL", "NATIVE"].includes(s.toUpperCase())
     ) {
-      return chainType === "solana" ? nativeAddress : NATIVE;
+      return nativeAddress;
     }
 
     const hit = this.tokens(chainRef).find((token) => {

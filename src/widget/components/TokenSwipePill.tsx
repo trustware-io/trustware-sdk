@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 import type { Token, Chain, YourTokenData } from "../context/DepositContext";
-import { normalizeAddress } from "../helpers/chainHelpers";
+import { normalizeAddress } from "../../utils/chains";
 import { ImageLoader } from "./";
 
 export interface TokenSwipePillProps {

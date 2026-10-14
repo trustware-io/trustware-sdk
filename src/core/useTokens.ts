@@ -6,7 +6,7 @@ import { Token } from "../widget/state/deposit/types";
 import { useChains } from "./useChains";
 import { sortTokensByPopularity } from "../widget/helpers/tokenPopularity";
 import { TrustwareConfigStore } from "../config/store";
-import { NATIVE_EVM, NATIVE_SOLANA } from "../widget/helpers/chainHelpers";
+import { EVM_ZERO_ADDRESS, NATIVE_EVM, NATIVE_SOLANA } from "../utils/chains";
 import featuredAssetsData from "../widget/data/featuredAssets.json";
 
 type FeaturedEntry = { symbol: string; address: string };
@@ -22,7 +22,7 @@ const BASE_NATIVE_ADDRESSES = new Set([
   NATIVE_EVM.toLowerCase(),
   NATIVE_SOLANA.toLowerCase(),
   // Some EVM chains (e.g. ZKsync) use the zero address for the native token
-  "0x0000000000000000000000000000000000000000",
+  EVM_ZERO_ADDRESS,
 ]);
 
 const DEFAULT_PAGE_LIMIT = 100;

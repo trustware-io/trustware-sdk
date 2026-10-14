@@ -11,7 +11,7 @@ import {
   normalizeChainKey,
   normalizeAddress,
   normalizeChainType,
-} from "../../../helpers/chainHelpers";
+} from "../../../../utils/chains";
 import { resolveChainLabel } from "../../../../utils";
 
 type UseSelectTokenModelArgs = {

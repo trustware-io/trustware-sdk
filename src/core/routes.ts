@@ -13,10 +13,10 @@ import type {
 import { TrustwareConfigStore } from "src/config/store";
 import { validateRouteAddresses } from "../validation/address";
 import {
-  isSolanaNativeTokenAlias,
+  isNativeTokenAddress,
   NATIVE_EVM,
   normalizeChainType,
-} from "../widget/helpers/chainHelpers";
+} from "../utils/chains";
 
 /**
  * The EVM native-asset sentinel, reused as the wire representation of native
@@ -53,14 +53,10 @@ export function canonicalRouteToken(
   );
   if (chainType !== "solana") return address ?? "";
   if (!address) return SOLANA_NATIVE_ROUTE_TOKEN;
-  const trimmed = address.trim();
-  if (
-    isSolanaNativeTokenAlias(trimmed) ||
-    trimmed === "0x0000000000000000000000000000000000000000"
-  ) {
+  if (isNativeTokenAddress(address, chainType)) {
     return SOLANA_NATIVE_ROUTE_TOKEN;
   }
-  return trimmed;
+  return address.trim();
 }
 
 export type BuildRouteBody = {

@@ -11,12 +11,12 @@ import {
 } from "../../../core/balances";
 import { useChains, useTokens } from "../../hooks";
 import { TrustwareConfigStore } from "../../../config/store";
+import { canonicalTokenAddressForChain } from "../../helpers/chainHelpers";
 import {
-  canonicalTokenAddressForChain,
   getNativeTokenAddress,
   normalizeChainKey,
   normalizeChainType,
-} from "../../helpers/chainHelpers";
+} from "../../../utils/chains";
 
 import type { Token, YourTokenData } from "./types";
 import { useWalletInfo } from "src/wallets";

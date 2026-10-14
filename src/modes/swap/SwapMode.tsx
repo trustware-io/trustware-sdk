@@ -29,12 +29,8 @@ import { useWalletSessionState } from "src/widget/state/deposit/useWalletSession
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
 import { useChains } from "src/widget/hooks";
 import { rawToDecimal } from "src/widget/helpers/tokenAmount";
-import {
-  normalizeChainType,
-  isNativeTokenAddress,
-  isZeroAddrLike,
-  needsErc20Approval,
-} from "src/widget/helpers/chainHelpers";
+import { needsErc20Approval } from "src/widget/helpers/chainHelpers";
+import { isNativeTokenAddress, normalizeChainType } from "src/utils/chains";
 import { useTrustwareConfig, useGTMTracker } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
@@ -3288,11 +3284,7 @@ export function SwapMode({
                       const decimals = fromToken?.decimals ?? 18;
                       const isNative =
                         !!fromToken &&
-                        (isNativeTokenAddress(
-                          fromToken.address,
-                          fromChainType ?? ""
-                        ) ||
-                          isZeroAddrLike(fromToken.address, fromChainType));
+                        isNativeTokenAddress(fromToken.address, fromChainType);
                       // Compute spendable amount — leave a fee reserve for gas tokens
                       // SOL: fixed 0.01 SOL (fees + rent-exempt buffer; % is unsafe at low balances)
                       // EVM native: 0.5% (ETH fees are variable so % is appropriate)

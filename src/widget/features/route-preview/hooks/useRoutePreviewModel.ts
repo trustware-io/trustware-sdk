@@ -9,7 +9,7 @@ import {
 import {
   normalizeChainKey,
   getNativeTokenAddress,
-} from "../../../helpers/chainHelpers";
+} from "../../../../utils/chains";
 import type { ChainDef } from "../../../../types";
 
 type UseRoutePreviewModelArgs = {
