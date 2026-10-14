@@ -13,6 +13,7 @@ import {
   ChainSelectorPanel,
   TokenSelectorPanel,
   useSelectTokenModel,
+  type CatalogPickBalance,
 } from "src/widget/features/token-selection";
 import { WidgetSecurityFooter } from "src/widget/components";
 import { normalizeChainType } from "src/utils/chains";
@@ -43,7 +44,12 @@ interface SwapTokenSelectProps {
    * the sides, so the caller hides it only when that flip isn't allowed.
    */
   excludeToken: { address: string; chainId: string | number } | null;
+  /** Why a chain's wallet balances are missing, or null when they loaded. */
+  walletBalanceErrorFor: (chain: ChainDef | null) => string | null;
 }
+
+// Swap mode reads balances from the loaded wallet rows, never per pick.
+const NO_PICK_BALANCE_FETCH: CatalogPickBalance = { fetch: false };
 
 export function SwapTokenSelect({
   side,
@@ -58,6 +64,7 @@ export function SwapTokenSelect({
   chainsError,
   allowedTokens,
   excludeToken,
+  walletBalanceErrorFor,
 }: SwapTokenSelectProps): React.ReactElement {
   const [localChain, setLocalChain] = useState<ChainDef | null>(initialChain);
 
@@ -138,6 +145,7 @@ export function SwapTokenSelect({
     isChainSelected,
   } = useSelectTokenModel({
     goBack: onBack,
+    pickBalance: NO_PICK_BALANCE_FETCH,
     searchQuery,
     selectedChain: localChain,
     setSelectedChain: setLocalChain,
@@ -258,6 +266,7 @@ export function SwapTokenSelect({
           setSearchQuery={setSearchQuery}
           tokensError={tokensError}
           walletAddress={walletAddress}
+          walletBalanceError={walletBalanceErrorFor(localChain)}
         />
       </div>
 

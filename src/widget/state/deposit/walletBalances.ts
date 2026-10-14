@@ -1,4 +1,6 @@
+import type { ChainDef, WalletAddressBalanceWrapper } from "../../../types";
 import { normalizeChainKey } from "../../../utils/chains";
+import { validateAddressForChain } from "../../../validation/address";
 import { rawToDecimal } from "../../helpers/tokenAmount";
 import type { YourTokenData } from "./types";
 
@@ -44,4 +46,28 @@ function identityOrder(a: YourTokenData, b: YourTokenData): number {
   const left = `${normalizeChainKey(a.chainId)}:${a.address}`;
   const right = `${normalizeChainKey(b.chainId)}:${b.address}`;
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * The chains whose balances failed to load for this address, keyed by
+ * normalized chain id. Chains the address can't hold tokens on (EVM chains
+ * for a Solana wallet) report an error as well, but nothing failed there, so
+ * only chains the address is valid on are kept.
+ */
+export function walletBalanceErrors(
+  results: readonly WalletAddressBalanceWrapper[],
+  chains: readonly ChainDef[],
+  address: string
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const result of results) {
+    if (!result.error) continue;
+    const key = normalizeChainKey(result.chain_id);
+    const chain = chains.find(
+      (candidate) => normalizeChainKey(candidate.chainId) === key
+    );
+    if (!chain || !validateAddressForChain(address, chain).isValid) continue;
+    errors[key] = result.error;
+  }
+  return errors;
 }

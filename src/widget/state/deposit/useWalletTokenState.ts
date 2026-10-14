@@ -19,7 +19,7 @@ import {
 } from "../../../utils/chains";
 
 import type { Token, YourTokenData } from "./types";
-import { sortWalletTokensByValue } from "./walletBalances";
+import { sortWalletTokensByValue, walletBalanceErrors } from "./walletBalances";
 import { useWalletInfo } from "src/wallets";
 
 type WalletTokenStateArgs = {
@@ -39,6 +39,15 @@ export function useWalletTokenState({
 }: WalletTokenStateArgs) {
   const [yourWalletTokens, setYourWalletTokens] = useState<YourTokenData[]>([]);
   const [yourWalletTokensLoading, setYourWalletTokensLoading] = useState(false);
+  // Why a chain's rows are missing: the whole load failing, or the backend
+  // reporting a chain the address is valid on as failed. See CLAUDE.md
+  // "Wallet balances".
+  const [balanceLoadFailure, setBalanceLoadFailure] = useState<string | null>(
+    null
+  );
+  const [chainBalanceErrors, setChainBalanceErrors] = useState<
+    Record<string, string>
+  >({});
   const [walletTokensReloadNonce, setWalletTokensReloadNonce] = useState(0);
   const lastLoadedWalletRef = useRef<string | null>(null);
   const { tokens } = useTokens(null);
@@ -71,6 +80,8 @@ export function useWalletTokenState({
 
       if (!walletAddress) {
         lastLoadedWalletRef.current = null;
+        setBalanceLoadFailure(null);
+        setChainBalanceErrors({});
       }
       return;
     }
@@ -82,6 +93,8 @@ export function useWalletTokenState({
     }
 
     let cancelled = false;
+    setBalanceLoadFailure(null);
+    setChainBalanceErrors({});
 
     async function loadWalletTokens(isRetry = false): Promise<boolean> {
       try {
@@ -92,16 +105,19 @@ export function useWalletTokenState({
             ReturnType<typeof getBalancesByAddress>
           > = [];
           let isupdated = false;
-          for await (const chunk of getBalancesByAddressStream(
-            // currentWalletAddress
-            getCurrentWalletAddress(currentWalletAddress) ?? ""
-          )) {
+          const streamAddress =
+            getCurrentWalletAddress(currentWalletAddress) ?? "";
+          for await (const chunk of getBalancesByAddressStream(streamAddress)) {
             if (cancelled) {
               return false;
             }
             accumulatedBalances = mergeWalletBalanceChunks(
               accumulatedBalances,
               chunk
+            );
+            setBalanceLoadFailure(null);
+            setChainBalanceErrors(
+              walletBalanceErrors(accumulatedBalances, chains, streamAddress)
             );
 
             const updatedTokens = applyWalletTokenState({
@@ -124,6 +140,10 @@ export function useWalletTokenState({
           if (cancelled) {
             return false;
           }
+          setBalanceLoadFailure(null);
+          setChainBalanceErrors(
+            walletBalanceErrors(balances, chains, currentWalletAddress)
+          );
           const updatedTokens = applyWalletTokenState({
             balances,
             chains,
@@ -138,9 +158,12 @@ export function useWalletTokenState({
 
           return isupdated;
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setYourWalletTokens([]);
+          setBalanceLoadFailure(
+            error instanceof Error ? error.message : String(error)
+          );
         }
         return false;
       } finally {
@@ -181,12 +204,38 @@ export function useWalletTokenState({
     setWalletTokensReloadNonce((prev) => prev + 1);
   };
 
+  /** Why this chain's balances are missing, or null when they loaded. */
+  const walletBalanceErrorFor = useCallback(
+    (chain: ChainDef | null): string | null => {
+      if (!chain) return null;
+      return (
+        balanceLoadFailure ??
+        chainBalanceErrors[normalizeChainKey(chain.chainId)] ??
+        null
+      );
+    },
+    [balanceLoadFailure, chainBalanceErrors]
+  );
+
+  /** Records a chain's balance failure seen outside the wallet load. */
+  const reportWalletBalanceError = useCallback(
+    (chain: ChainDef, message: string) => {
+      setChainBalanceErrors((current) => ({
+        ...current,
+        [normalizeChainKey(chain.chainId)]: message,
+      }));
+    },
+    []
+  );
+
   return {
     yourWalletTokens,
     setYourWalletTokens,
     reloadWalletTokens,
     yourWalletTokensLoading,
     setYourWalletTokensLoading,
+    walletBalanceErrorFor,
+    reportWalletBalanceError,
   };
 }
 

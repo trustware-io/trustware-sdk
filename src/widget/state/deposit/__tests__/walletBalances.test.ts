@@ -1,8 +1,10 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import type { ChainDef, WalletAddressBalanceWrapper } from "src/types";
 import type { YourTokenData } from "src/widget/state/deposit/types";
 import {
   sortWalletTokensByValue,
+  walletBalanceErrors,
   walletTokenUsdValue,
 } from "src/widget/state/deposit/walletBalances";
 import { NATIVE_SOLANA } from "src/utils/chains";
@@ -116,5 +118,61 @@ describe("sortWalletTokensByValue", () => {
         );
       }
     }
+  });
+});
+
+describe("walletBalanceErrors", () => {
+  const SOLANA = {
+    chainId: "solana-mainnet-beta",
+    chainType: "solana",
+  } as ChainDef;
+  const BASE = { chainId: "8453", chainType: "evm" } as ChainDef;
+  const BITCOIN = { chainId: "bitcoin", chainType: "bitcoin" } as ChainDef;
+  const CHAINS = [SOLANA, BASE, BITCOIN];
+  const SOLANA_WALLET = "6pWgr6Y4RJ57BDUcRnrhyAUFs2jYiwx864SLoxpju5Ys";
+  const EVM_WALLET = "0xa5cc6f03b19b7528d34e19c7cdb918bdbe6ccbf1";
+
+  const result = (
+    chain_id: string,
+    error: string | null
+  ): WalletAddressBalanceWrapper => ({
+    chain_id,
+    balances: [],
+    count: 0,
+    error,
+    source: "fallback",
+  });
+  // The backend answers a failed chain with one of three fixed messages
+  // (iluvatar services/balances/public_errors.go). It also reports chains
+  // the address can't exist on as failed, which the widget must not show.
+  const RESULTS = [
+    result("solana-mainnet-beta", "balance lookup timed out"),
+    result("8453", "balance lookup failed"),
+    result("bitcoin", "invalid address for chain"),
+    result("42161", "balance lookup failed"),
+    result("137", null),
+  ];
+
+  it("keeps only failures on chains a Solana wallet can hold tokens on", () => {
+    assert.deepEqual(walletBalanceErrors(RESULTS, CHAINS, SOLANA_WALLET), {
+      "solana-mainnet-beta": "balance lookup timed out",
+    });
+  });
+
+  it("keeps only failures on chains an EVM wallet can hold tokens on", () => {
+    assert.deepEqual(walletBalanceErrors(RESULTS, CHAINS, EVM_WALLET), {
+      "8453": "balance lookup failed",
+    });
+  });
+
+  it("is empty when every chain loaded", () => {
+    assert.deepEqual(
+      walletBalanceErrors(
+        [result("solana-mainnet-beta", null)],
+        CHAINS,
+        SOLANA_WALLET
+      ),
+      {}
+    );
   });
 });

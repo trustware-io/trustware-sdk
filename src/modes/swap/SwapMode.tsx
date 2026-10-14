@@ -139,6 +139,9 @@ function truncateDecimal(n: number, dp: number): string {
   return s.includes(".") ? s.replace(/\.?0+$/, "") || "0" : s;
 }
 
+// The buy picker lists no wallet tokens, so it has no balances to fail.
+const noWalletBalances = () => null;
+
 // A layout effect commits before any pending promise callback can run; React
 // 18 warns when one renders on the server, where it would do nothing anyway.
 const useCommitEffect =
@@ -417,13 +420,14 @@ export function SwapMode({
   );
 
   // Fetch wallet balances for the "sell" selector only
-  const { yourWalletTokens, reloadWalletTokens } = useWalletTokenState({
-    walletAddress,
-    selectedChain: fromChain,
-    setSelectedChain: setFromChainStable,
-    selectedToken: fromToken,
-    setSelectedToken: setFromTokenStable,
-  });
+  const { yourWalletTokens, reloadWalletTokens, walletBalanceErrorFor } =
+    useWalletTokenState({
+      walletAddress,
+      selectedChain: fromChain,
+      setSelectedChain: setFromChainStable,
+      selectedToken: fromToken,
+      setSelectedToken: setFromTokenStable,
+    });
 
   // Route state — only populated when user explicitly requests a quote
   const route = useSwapRoute();
@@ -1369,6 +1373,7 @@ export function SwapMode({
           chainsLoading={chainsLoading}
           chainsError={chainsError}
           excludeToken={hiddenFromSellPicker(sides, swapRules)}
+          walletBalanceErrorFor={walletBalanceErrorFor}
         />
       </WidgetContainer>
     );
@@ -1390,6 +1395,7 @@ export function SwapMode({
           chainsError={chainsError}
           allowedTokens={allowedDestTokens ?? undefined}
           excludeToken={null}
+          walletBalanceErrorFor={noWalletBalances}
         />
       </WidgetContainer>
     );

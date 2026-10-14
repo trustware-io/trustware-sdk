@@ -103,6 +103,9 @@ export interface DepositContextValue {
   setYourWalletTokens: Dispatch<SetStateAction<YourTokenData[]>>;
   yourWalletTokens: YourTokenData[];
   yourWalletTokensLoading: boolean;
+  /** Why a chain's wallet balances are missing, or null when they loaded. */
+  walletBalanceErrorFor: (chain: ChainDef | null) => string | null;
+  reportWalletBalanceError: (chain: ChainDef, message: string) => void;
   amountInputMode: "usd" | "token";
   setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
   WalletConnect: () => Promise<void>;

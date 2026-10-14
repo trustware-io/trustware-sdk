@@ -341,8 +341,10 @@ error for, is shown in the picker ("Couldn't load your Solana balances:
 <reason>") and never swallowed: an empty "Your tokens" must mean the wallet
 holds nothing listed, not that loading broke. Picking a catalog token keeps
 working when a balance is unknown; the token's balance shows as unavailable,
-never as 0. Swap mode reads balances from the loaded wallet rows
-(`findWalletBalanceRow`) and does not fetch per pick.
+never as 0. `knownTokenBalance` returns null for it, so the amount screen
+skips the balance check and hides the slider instead of refusing every
+amount as over a balance of 0. Swap mode reads balances from the loaded
+wallet rows (`findWalletBalanceRow`) and does not fetch per pick.
 
 The rows are ordered by USD value, then unpriced tokens by amount
 (`sortWalletTokensByValue`). Raw balances can't be compared across tokens

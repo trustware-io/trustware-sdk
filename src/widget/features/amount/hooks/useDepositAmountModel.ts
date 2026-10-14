@@ -18,6 +18,19 @@ type UseDepositAmountModelArgs = {
   maxAmountUsd?: number | null;
 };
 
+/**
+ * The selected token's balance in whole tokens, or null when it is unknown:
+ * a catalog pick whose balance fetch failed carries no balance. Unknown is
+ * never read as 0, which would refuse every amount as over the balance.
+ */
+export function knownTokenBalance(
+  token: Token | YourTokenData | null
+): number | null {
+  if (!token || token.balance === undefined) return null;
+  const normalized = Number(rawToDecimal(token.balance, token.decimals ?? 18));
+  return Number.isFinite(normalized) ? normalized : 0;
+}
+
 type AmountComputation = {
   fromAmountWei: bigint | null;
   tokenAmount: string | null;
@@ -48,13 +61,10 @@ export function useDepositAmountModel({
     Number.isFinite(tokenPriceUSD) &&
     tokenPriceUSD > 0;
 
-  const normalizedTokenBalance = useMemo(() => {
-    if (!selectedToken?.balance) return 0;
-    const normalized = Number(
-      rawToDecimal(selectedToken.balance, selectedToken.decimals ?? 18)
-    );
-    return Number.isFinite(normalized) ? normalized : 0;
-  }, [selectedToken?.balance, selectedToken?.decimals]);
+  const normalizedTokenBalance = useMemo(
+    () => knownTokenBalance(selectedToken),
+    [selectedToken]
+  );
 
   useEffect(() => {
     if (fixedFromAmountString) return;
@@ -171,6 +181,7 @@ export function useDepositAmountModel({
     }
 
     if (
+      normalizedTokenBalance !== null &&
       requestedTokenAmount > 0 &&
       requestedTokenAmount - normalizedTokenBalance > BALANCE_TOLERANCE
     ) {
@@ -210,7 +221,10 @@ export function useDepositAmountModel({
 
   const parsedAmount = parseFloat(fixedFromAmountString ?? amount) || 0;
 
+  // With the balance unknown there is no ceiling to offer, so the slider and
+  // its Max button stay hidden.
   const maxTokenAmount = useMemo(() => {
+    if (normalizedTokenBalance === null) return undefined;
     const cap = Math.min(normalizedTokenBalance, 10000);
     const token = selectedToken as YourTokenData | null;
     const isSolNative =
@@ -222,7 +236,7 @@ export function useDepositAmountModel({
   }, [normalizedTokenBalance, selectedToken]);
 
   const maxUsdAmount = useMemo(() => {
-    if (!hasUsdPrice) return undefined;
+    if (!hasUsdPrice || maxTokenAmount === undefined) return undefined;
     return Math.min(maxTokenAmount * tokenPriceUSD, 10000);
   }, [hasUsdPrice, maxTokenAmount, tokenPriceUSD]);
 

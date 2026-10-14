@@ -27,4 +27,7 @@ export {
   type WalletTokenListItemProps,
 } from "./components/WalletTokenListItem";
 export { useOrderedWalletTokens } from "./hooks/useOrderedWalletTokens";
-export { useSelectTokenModel } from "./hooks/useSelectTokenModel";
+export {
+  useSelectTokenModel,
+  type CatalogPickBalance,
+} from "./hooks/useSelectTokenModel";

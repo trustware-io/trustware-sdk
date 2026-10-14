@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import type { ChainDef } from "../../../../types";
+import { resolveChainLabel } from "../../../../utils";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
 import { colors, fontWeight, spacing, borderRadius } from "../../../styles";
 import { visibleTokenRows } from "../tokenListRows";
@@ -23,6 +24,34 @@ export interface TokenSelectorPanelProps {
   setSearchQuery: (value: string) => void;
   tokensError: string | null;
   walletAddress: string | null;
+  /** Why the selected chain's wallet balances are missing, or null. */
+  walletBalanceError: string | null;
+}
+
+function WalletBalanceNotice({
+  chain,
+  error,
+}: {
+  chain: ChainDef;
+  error: string;
+}) {
+  return (
+    <div
+      role="status"
+      style={{
+        margin: `${spacing[1]} ${spacing[2]}`,
+        padding: `${spacing[2]} ${spacing[3]}`,
+        borderRadius: borderRadius.lg,
+        border: `1px solid ${colors.destructive}`,
+        color: colors.destructive,
+        fontSize: "0.75rem",
+        lineHeight: 1.4,
+        overflowWrap: "anywhere",
+      }}
+    >
+      Couldn&apos;t load your {resolveChainLabel(chain)} balances: {error}
+    </div>
+  );
 }
 
 function TokenSectionLabel({
@@ -125,6 +154,7 @@ export function TokenSelectorPanel({
   selectedChain,
   setSearchQuery,
   tokensError,
+  walletBalanceError,
 }: TokenSelectorPanelProps): React.ReactElement {
   const [showAll, setShowAll] = useState(false);
   const [showAllWalletTokens, setShowAllWalletTokens] = useState(false);
@@ -198,6 +228,13 @@ export function TokenSelectorPanel({
           />
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
+            {walletBalanceError ? (
+              <WalletBalanceNotice
+                chain={selectedChain}
+                error={walletBalanceError}
+              />
+            ) : null}
+
             {/* Your tokens */}
             {hasWalletTokens && (
               <>
