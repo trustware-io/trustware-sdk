@@ -333,6 +333,17 @@ chain, Eclipse's ETH included. EVM chains use the sentinel
   it, so don't bring it back. `So1111…112` is wrapped SOL, a separate SPL
   token.
 
+### Wallet balances
+
+The token picker's "Your tokens" rows come from one wallet-balance load
+(`useWalletTokenState`). A failed load, or a chain the backend reports an
+error for, is shown in the picker ("Couldn't load your Solana balances:
+<reason>") and never swallowed: an empty "Your tokens" must mean the wallet
+holds nothing listed, not that loading broke. Picking a catalog token keeps
+working when a balance is unknown; the token's balance shows as unavailable,
+never as 0. Swap mode reads balances from the loaded wallet rows
+(`findWalletBalanceRow`) and does not fetch per pick.
+
 ### WalletConnect Integration
 
 WalletConnect uses `@reown/appkit-universal-connector` (`@reown/appkit*` ^1.8.x), configured in `src/config/walletconnect.ts` (defines the Solana CAIP network + Universal Connector). A built-in project ID ships in `src/constants`; override via `config.walletConnect.projectId`.
