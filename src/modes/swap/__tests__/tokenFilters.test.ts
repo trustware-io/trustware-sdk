@@ -1,6 +1,10 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { onlyAllowedTokens, withoutToken } from "src/modes/swap/tokenFilters";
+import {
+  isAllowedToken,
+  onlyAllowedTokens,
+  withoutToken,
+} from "src/modes/swap/tokenFilters";
 import { EVM_ZERO_ADDRESS, NATIVE_EVM, NATIVE_SOLANA } from "src/utils/chains";
 
 const SOLANA = "solana-mainnet-beta";
@@ -99,6 +103,26 @@ describe("withoutToken", () => {
 
   it("keeps everything when the other side holds nothing", () => {
     assert.deepEqual(withoutToken(SOLANA_LIST, null, "solana"), SOLANA_LIST);
+  });
+});
+
+describe("isAllowedToken", () => {
+  const allowed = [{ chainId: SOLANA, address: NATIVE_EVM }, USDC_BASE];
+
+  it("allows a listed token, natives by any spelling", () => {
+    assert.equal(isAllowedToken(SOL, allowed, "solana"), true);
+    assert.equal(isAllowedToken(USDC_BASE, allowed, "evm"), true);
+  });
+
+  it("refuses a token the list doesn't name", () => {
+    assert.equal(isAllowedToken(WSOL, allowed, "solana"), false);
+    assert.equal(isAllowedToken(ETH_BASE, allowed, "evm"), false);
+  });
+
+  it("allows every token without a list", () => {
+    for (const none of [null, undefined, []]) {
+      assert.equal(isAllowedToken(WSOL, none, "solana"), true);
+    }
   });
 });
 

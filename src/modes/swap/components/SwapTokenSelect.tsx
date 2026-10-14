@@ -38,8 +38,11 @@ interface SwapTokenSelectProps {
    * We fetch them directly by address so pagination order never matters.
    */
   allowedTokens?: SwapTokenRef[];
-  /** Token that must not appear in the list (prevents swapping a token to itself on the same chain). */
-  excludeToken?: { address: string; chainId: string | number } | null;
+  /**
+   * A token to leave out of the list. Picking the other side's token flips
+   * the sides, so the caller hides it only when that flip isn't allowed.
+   */
+  excludeToken: { address: string; chainId: string | number } | null;
 }
 
 export function SwapTokenSelect({
@@ -159,12 +162,12 @@ export function SwapTokenSelect({
   );
 
   const visibleTokens = useMemo(
-    () => withoutToken(filteredTokens, excludeToken ?? null, chainType),
+    () => withoutToken(filteredTokens, excludeToken, chainType),
     [filteredTokens, excludeToken, chainType]
   );
 
   const visibleWalletTokens = useMemo(
-    () => withoutToken(filteredWalletTokens, excludeToken ?? null, chainType),
+    () => withoutToken(filteredWalletTokens, excludeToken, chainType),
     [filteredWalletTokens, excludeToken, chainType]
   );
 

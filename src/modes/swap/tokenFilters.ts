@@ -32,16 +32,22 @@ export function withoutToken<T extends TokenRef>(
 /** Keeps the tokens a host's allowlist names, or all of them without one. */
 export function onlyAllowedTokens<T extends TokenRef>(
   tokens: T[],
-  allowed: readonly TokenRef[] | undefined,
+  allowed: readonly TokenRef[] | null | undefined,
   chainType: ChainType | undefined
 ): T[] {
-  if (!allowed || allowed.length === 0) return tokens;
-  const allowedKeys = new Set(
-    allowed.map((token) =>
-      tokenIdentityKey(token.chainId, token.address, chainType)
-    )
-  );
-  return tokens.filter((token) =>
-    allowedKeys.has(tokenIdentityKey(token.chainId, token.address, chainType))
+  return tokens.filter((token) => isAllowedToken(token, allowed, chainType));
+}
+
+/** Whether a host's allowlist names this token; every token is allowed
+ *  without one. */
+export function isAllowedToken(
+  token: TokenRef,
+  allowed: readonly TokenRef[] | null | undefined,
+  chainType: ChainType | undefined
+): boolean {
+  if (!allowed || allowed.length === 0) return true;
+  const key = tokenIdentityKey(token.chainId, token.address, chainType);
+  return allowed.some(
+    (entry) => tokenIdentityKey(entry.chainId, entry.address, chainType) === key
   );
 }

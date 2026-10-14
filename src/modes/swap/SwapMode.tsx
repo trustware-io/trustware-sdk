@@ -26,6 +26,13 @@ import { getSharedRegistry } from "src/core/registryClient";
 import { isSerializedSolanaTxRequest } from "src/core/routes";
 import { mapTokenDefToToken } from "src/core/useTokens";
 import { chainForRef, chainsWithRefs } from "./tokenRefs";
+import {
+  canFlip,
+  flipSides,
+  pickToken,
+  type DestRules,
+  type SwapSides,
+} from "./sides";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
@@ -427,8 +434,50 @@ export function SwapMode({
     [amountInputMode, amount, currencyRate, forexRates, route]
   );
 
+  const sides = useMemo<SwapSides<Token | YourTokenData>>(
+    () => ({
+      from: { token: fromToken, chain: fromChain },
+      to: { token: toToken, chain: toChain },
+    }),
+    [fromToken, fromChain, toToken, toChain]
+  );
+  const destRules = useMemo<DestRules>(
+    () => ({
+      lockDestToken: !!lockDestToken,
+      allowedDestTokens: allowedDestTokens ?? null,
+    }),
+    [lockDestToken, allowedDestTokens]
+  );
+  const flipAllowed = canFlip(sides, destRules);
+
+  const commitFlip = useCallback(
+    (next: SwapSides<Token | YourTokenData>) => {
+      setFromToken(next.from.token);
+      setFromChain(next.from.chain);
+      setToToken(next.to.token);
+      setToChain(next.to.chain);
+      setSelectedVault(null);
+      setAmount("");
+      route.clear();
+      emitEvent?.({
+        type: "swap_route_changed",
+        fromChain: String(next.from.chain?.chainId ?? ""),
+        fromToken: next.from.token?.address ?? "",
+        toChain: String(next.to.chain?.chainId ?? ""),
+        toToken: next.to.token?.address ?? "",
+      });
+    },
+    [route, emitEvent]
+  );
+
   const handleSelectFromToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
+      const picked = pickToken(sides, "from", { token, chain }, destRules);
+      if (picked.flipped) {
+        commitFlip(picked.sides);
+        setStage("home");
+        return;
+      }
       setFromToken(token);
       setFromChain(chain);
       route.clear();
@@ -448,11 +497,17 @@ export function SwapMode({
         ...(amount ? { amount } : {}),
       });
     },
-    [route, emitEvent, toToken, toChain, amount]
+    [route, emitEvent, toToken, toChain, amount, sides, destRules, commitFlip]
   );
 
   const handleSelectToToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
+      const picked = pickToken(sides, "to", { token, chain }, destRules);
+      if (picked.flipped) {
+        commitFlip(picked.sides);
+        setStage("home");
+        return;
+      }
       setToToken(token);
       setToChain(chain);
       setSelectedVault(null);
@@ -467,7 +522,16 @@ export function SwapMode({
         ...(amount ? { amount } : {}),
       });
     },
-    [route, emitEvent, fromToken, fromChain, amount]
+    [
+      route,
+      emitEvent,
+      fromToken,
+      fromChain,
+      amount,
+      sides,
+      destRules,
+      commitFlip,
+    ]
   );
 
   const handleSelectVault = useCallback(
@@ -563,25 +627,12 @@ export function SwapMode({
   );
 
   const handleFlip = useCallback(() => {
-    // When dest is locked, flipping would lose the locked token — disallow it
-    if (lockDestToken) return;
-    const newFrom = toToken ?? fromToken;
-    const newFromChain = toChain ?? fromChain;
-    setFromToken((prev) => toToken ?? prev);
-    setFromChain((prev) => toChain ?? prev);
-    setToToken(fromToken);
-    setToChain(fromChain);
-    setSelectedVault(null);
-    setAmount("");
-    route.clear();
-    emitEvent?.({
-      type: "swap_route_changed",
-      fromChain: String(newFromChain?.chainId ?? ""),
-      fromToken: newFrom?.address ?? "",
-      toChain: String(fromChain?.chainId ?? ""),
-      toToken: fromToken?.address ?? "",
-    });
-  }, [lockDestToken, fromToken, fromChain, toToken, toChain, route, emitEvent]);
+    // The button is disabled whenever the flip isn't allowed.
+    if (!flipAllowed) {
+      throw new Error("Flip button pressed while flipping is disabled");
+    }
+    commitFlip(flipSides(sides));
+  }, [flipAllowed, sides, commitFlip]);
 
   const fromChainType = normalizeChainType(fromChain);
   const toChainType = normalizeChainType(toChain);
@@ -1244,7 +1295,7 @@ export function SwapMode({
           otherChains={otherChains}
           chainsLoading={chainsLoading}
           chainsError={chainsError}
-          excludeToken={toToken ?? null}
+          excludeToken={flipAllowed ? null : toToken}
         />
       </WidgetContainer>
     );
@@ -1265,7 +1316,7 @@ export function SwapMode({
           chainsLoading={chainsLoading}
           chainsError={chainsError}
           allowedTokens={allowedDestTokens ?? undefined}
-          excludeToken={fromToken ?? null}
+          excludeToken={null}
         />
       </WidgetContainer>
     );
@@ -3403,7 +3454,7 @@ export function SwapMode({
         <div style={{ position: "relative", height: 0, zIndex: 10 }}>
           <button
             onClick={handleFlip}
-            disabled={lockDestToken}
+            disabled={!flipAllowed}
             style={{
               position: "absolute",
               left: "50%",
@@ -3417,8 +3468,8 @@ export function SwapMode({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: lockDestToken ? "default" : "pointer",
-              opacity: lockDestToken ? 0.4 : 1,
+              cursor: flipAllowed ? "pointer" : "default",
+              opacity: flipAllowed ? 1 : 0.4,
             }}
           >
             <svg
