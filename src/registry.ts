@@ -9,6 +9,7 @@ import type {
 import {
   getNativeTokenAddress,
   isNativeTokenAddress,
+  NATIVE_EVM,
   normalizeAddress,
   normalizeChainKey,
   normalizeChainType,
@@ -452,11 +453,24 @@ export class Registry {
       await this.ensureLoaded();
       return this.findToken(chainRef, address);
     }
-    const page = await this.tokensPage(chainRef, {
-      q: address.trim(),
-      limit: 5,
-    });
-    return this.findIn(page.data, chainRef, address);
+    for (const query of this.searchSpellings(chainRef, address)) {
+      const page = await this.tokensPage(chainRef, { q: query, limit: 5 });
+      const found = this.findIn(page.data, chainRef, address);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  /**
+   * The search text that can find an address. The server matches text, and
+   * the catalog files a native asset under the EVM sentinel when Squid lists
+   * it (the complete record) and under the chain's own native address when
+   * only Relay or LiFi does, so a native lookup tries both, sentinel first.
+   */
+  private searchSpellings(chainRef: string | number, address: string) {
+    const chainType = this.chainTypeOf(chainRef);
+    if (!isNativeTokenAddress(address, chainType)) return [address.trim()];
+    return Array.from(new Set([NATIVE_EVM, getNativeTokenAddress(chainType)]));
   }
 
   private findIn(

@@ -248,15 +248,31 @@ describe("Registry.lookupToken", () => {
     describe(`with tokensPagination ${tokensPagination}`, () => {
       beforeEach(() => initConfig(tokensPagination));
 
-      it("finds native SOL by either spelling", async () => {
-        backend = fakeBackend(CATALOG);
-        for (const spelling of [NATIVE_EVM, NATIVE_SOLANA]) {
-          const registry = new Registry(BASE_URL);
-          const found = await registry.lookupToken(SOLANA, spelling);
-          assert.equal(found?.address, NATIVE_SOLANA, spelling);
-          assert.equal(found?.symbol, "SOL", spelling);
-        }
-      });
+      // The catalog as it is today (both records), once the backend merges
+      // them (Squid's only), and if Squid ever drops Solana (Relay's only).
+      const catalogs = {
+        "both records": CATALOG,
+        "Squid's record only": CATALOG.filter((t) => t !== SOL_RELAY),
+        "Relay's record only": CATALOG.filter((t) => t !== SOL_SQUID),
+      };
+      const expected = {
+        "both records": { ...SOL_SQUID, address: NATIVE_SOLANA },
+        "Squid's record only": { ...SOL_SQUID, address: NATIVE_SOLANA },
+        "Relay's record only": SOL_RELAY,
+      };
+      for (const [name, catalog] of Object.entries(catalogs)) {
+        it(`finds native SOL by either spelling with ${name}`, async () => {
+          backend = fakeBackend(catalog);
+          for (const spelling of [NATIVE_EVM, NATIVE_SOLANA]) {
+            const registry = new Registry(BASE_URL);
+            assert.deepEqual(
+              await registry.lookupToken(SOLANA, spelling),
+              expected[name as keyof typeof expected],
+              spelling
+            );
+          }
+        });
+      }
 
       it("matches a mint only in its exact case", async () => {
         backend = fakeBackend(CATALOG);
@@ -294,14 +310,43 @@ describe("Registry.lookupToken", () => {
     });
   }
 
-  it("searches the paginated endpoint by the address as given", async () => {
+  function searchQueries(requests: string[]) {
+    return requests
+      .map((url) => new URL(url).searchParams.get("q"))
+      .filter((query): query is string => query !== null);
+  }
+
+  it("searches for a mint by the address as given, trimmed", async () => {
     initConfig(true);
     backend = fakeBackend(CATALOG);
-    const registry = new Registry(BASE_URL);
-    await registry.lookupToken(SOLANA, ` ${NATIVE_EVM} `);
+    await new Registry(BASE_URL).lookupToken(SOLANA, ` ${MINT_LOWER.address} `);
+    assert.deepEqual(searchQueries(backend.requests), [MINT_LOWER.address]);
+  });
 
-    const search = backend.requests.find((url) => url.includes("q="));
-    assert.ok(search, "expected a search request");
-    assert.equal(new URL(search).searchParams.get("q"), NATIVE_EVM);
+  it("stops at the sentinel when it finds native SOL there", async () => {
+    initConfig(true);
+    backend = fakeBackend(CATALOG);
+    await new Registry(BASE_URL).lookupToken(SOLANA, NATIVE_SOLANA);
+    assert.deepEqual(searchQueries(backend.requests), [NATIVE_EVM]);
+  });
+
+  it("tries the System Program id when the sentinel finds nothing", async () => {
+    initConfig(true);
+    backend = fakeBackend(CATALOG.filter((t) => t !== SOL_SQUID));
+    await new Registry(BASE_URL).lookupToken(SOLANA, NATIVE_EVM);
+    assert.deepEqual(searchQueries(backend.requests), [
+      NATIVE_EVM,
+      NATIVE_SOLANA,
+    ]);
+  });
+
+  it("searches only the sentinel for an EVM native token", async () => {
+    initConfig(true);
+    backend = fakeBackend(CATALOG);
+    await new Registry(BASE_URL).lookupToken(
+      BASE,
+      "0x0000000000000000000000000000000000000000"
+    );
+    assert.deepEqual(searchQueries(backend.requests), [NATIVE_EVM]);
   });
 });

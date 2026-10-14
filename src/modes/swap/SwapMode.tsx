@@ -25,6 +25,7 @@ import {
 import { getSharedRegistry } from "src/core/registryClient";
 import { isSerializedSolanaTxRequest } from "src/core/routes";
 import { mapTokenDefToToken } from "src/core/useTokens";
+import { chainForRef, chainsWithRefs } from "./tokenRefs";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
@@ -284,27 +285,22 @@ export function SwapMode({
   // When allowedDestTokens is set, restrict the "to" chain selector to only chains that
   // have at least one allowed destination token. Client-side filter only — no extra fetches,
   // no impact on deposit mode or the "from" selector.
-  const allowedDestChainIds = useMemo(() => {
-    if (!allowedDestTokens || allowedDestTokens.length === 0) return null;
-    return new Set(allowedDestTokens.map((t) => t.chainId));
-  }, [allowedDestTokens]);
+  const hasDestAllowlist = !!allowedDestTokens && allowedDestTokens.length > 0;
 
   const toPopularChains = useMemo(
     () =>
-      allowedDestChainIds
-        ? popularChains.filter((c) =>
-            allowedDestChainIds.has(Number(c.chainId))
-          )
+      hasDestAllowlist
+        ? chainsWithRefs(popularChains, allowedDestTokens)
         : popularChains,
-    [popularChains, allowedDestChainIds]
+    [popularChains, hasDestAllowlist, allowedDestTokens]
   );
 
   const toOtherChains = useMemo(
     () =>
-      allowedDestChainIds
-        ? otherChains.filter((c) => allowedDestChainIds.has(Number(c.chainId)))
+      hasDestAllowlist
+        ? chainsWithRefs(otherChains, allowedDestTokens)
         : otherChains,
-    [otherChains, allowedDestChainIds]
+    [otherChains, hasDestAllowlist, allowedDestTokens]
   );
 
   // Resolve the default dest token by looking its address up in the registry,
@@ -317,9 +313,7 @@ export function SwapMode({
   useEffect(() => {
     if (!defaultDestRef || destInitialized.current || allChains.length === 0)
       return;
-    const chain = allChains.find(
-      (c) => Number(c.chainId) === defaultDestRef.chainId
-    );
+    const chain = chainForRef(allChains, defaultDestRef);
     if (!chain) return;
 
     getSharedRegistry()

@@ -161,7 +161,10 @@ type TrustwareConfigOptions =
 
   Use `features.swapDefaultDestToken` / `features.swapLockDestToken` /
   `features.swapAllowedDestTokens` to steer the destination token selection (see
-  `FeatureFlags` in `src/types/config.ts`).
+  `FeatureFlags` in `src/types/config.ts`). Each token is `{ address, chainId }`,
+  where `chainId` is the chain's id in the routes catalog: a number for EVM chains,
+  or the catalog's string id otherwise. Native SOL, for example, is
+  `{ chainId: "solana-mainnet-beta", address: "11111111111111111111111111111111" }`.
 
   > The older `features: { swapMode: true }` flag (combined with a `routes` object) still
   > works and is treated as equivalent to `mode: "swap"`, but is deprecated in favor of the

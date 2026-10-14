@@ -17,6 +17,7 @@ import {
 import { WidgetSecurityFooter } from "src/widget/components";
 import { normalizeChainType } from "src/utils/chains";
 import { onlyAllowedTokens, withoutToken } from "../tokenFilters";
+import { refsOnChain } from "../tokenRefs";
 import type { ChainDef } from "src/types";
 import type { SwapTokenRef } from "src/types/config";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
@@ -71,10 +72,7 @@ export function SwapTokenSelect({
       return;
     }
 
-    const chainIdNum = Number(localChain.chainId);
-    const tokensForChain = allowedTokens.filter(
-      (t) => t.chainId === chainIdNum
-    );
+    const tokensForChain = refsOnChain(allowedTokens, localChain);
     if (tokensForChain.length === 0) {
       setPinnedTokens([]);
       return;
