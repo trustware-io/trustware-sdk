@@ -309,10 +309,11 @@ chain, Eclipse's ETH included. EVM chains use the sentinel
 `0xeeee…eeee` (`NATIVE_EVM`).
 
 - `src/utils/chains.ts` is the only module that defines these. Compare token
-  addresses with its `normalizeAddress`, and ask "is this the native asset?"
-  with its `isNativeTokenAddress`. Don't add a second copy anywhere, and don't
-  compare token addresses with a bare `toLowerCase()`: Base58 mints are
-  case-sensitive.
+  addresses with its `normalizeAddress`, key a token with `tokenIdentityKey`,
+  and ask "is this the native asset?" with `isNativeTokenAddress`. Don't add
+  a second copy anywhere, and don't compare token addresses with a bare
+  `toLowerCase()`: Base58 mints are case-sensitive. To find the catalog
+  record for an address, use `Registry.lookupToken`.
 - The token catalog lists native SOL twice: once at the System Program id
   (Relay) and once at the EVM sentinel (Squid, the record with the logo and
   price). The registry rewrites the sentinel to `NATIVE_SOLANA` as it loads
