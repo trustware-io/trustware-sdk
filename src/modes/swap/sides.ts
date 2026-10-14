@@ -19,10 +19,16 @@ export type SwapSides<T extends TokenLike> = {
 /** A picked token always arrives with the chain it was picked on. */
 export type PickedToken<T extends TokenLike> = { token: T; chain: ChainDef };
 
-/** What the host lets onto the buy side. */
-export type DestRules = {
+/** What the host and the current selection allow on each side. */
+export type SwapRules = {
   lockDestToken: boolean;
   allowedDestTokens: readonly SwapTokenRef[] | null;
+  /**
+   * The buy side is a vault deposit of its token. Selling that same token
+   * into the vault is a real route, so here, and only here, both sides may
+   * hold one token.
+   */
+  depositsIntoVault: boolean;
 };
 
 export type PickResult<T extends TokenLike> = {
@@ -30,21 +36,23 @@ export type PickResult<T extends TokenLike> = {
   flipped: boolean;
 };
 
-function identityOf<T extends TokenLike>(side: PickedToken<T>): string {
-  return tokenIdentityKey(
-    side.chain.chainId,
-    side.token.address,
-    normalizeChainType(side.chain)
-  );
-}
-
-function holds<T extends TokenLike>(
-  side: SwapSide<T>,
-  picked: PickedToken<T>
+/** Whether two sides hold the same token on the same chain. */
+export function isSameToken<T extends TokenLike>(
+  a: SwapSide<T>,
+  b: SwapSide<T>
 ): boolean {
-  if (!side.token || !side.chain) return false;
+  if (!a.token || !a.chain || !b.token || !b.chain) return false;
   return (
-    identityOf({ token: side.token, chain: side.chain }) === identityOf(picked)
+    tokenIdentityKey(
+      a.chain.chainId,
+      a.token.address,
+      normalizeChainType(a.chain)
+    ) ===
+    tokenIdentityKey(
+      b.chain.chainId,
+      b.token.address,
+      normalizeChainType(b.chain)
+    )
   );
 }
 
@@ -55,7 +63,7 @@ function holds<T extends TokenLike>(
  */
 export function canBecomeDest<T extends TokenLike>(
   side: SwapSide<T>,
-  rules: DestRules
+  rules: SwapRules
 ): boolean {
   if (rules.lockDestToken) return false;
   if (!side.token) return true;
@@ -69,7 +77,7 @@ export function canBecomeDest<T extends TokenLike>(
 /** Whether the sides may trade places, which moves the sell token to buy. */
 export function canFlip<T extends TokenLike>(
   sides: SwapSides<T>,
-  rules: DestRules
+  rules: SwapRules
 ): boolean {
   return canBecomeDest(sides.from, rules);
 }
@@ -89,22 +97,50 @@ export function flipSides<T extends TokenLike>(
 }
 
 /**
+ * The buy token, when the sell picker has to hide it: picking it there would
+ * neither flip the sides nor be a valid sell token. Null when it can stay.
+ */
+export function hiddenFromSellPicker<T extends TokenLike>(
+  sides: SwapSides<T>,
+  rules: SwapRules
+): T | null {
+  if (rules.depositsIntoVault || canFlip(sides, rules)) return null;
+  return sides.to.token;
+}
+
+/**
+ * A sell token the widget chose on its own, such as the wallet's largest
+ * balance, or null when it would repeat the buy token outside a vault
+ * deposit. Unlike a user's pick it never flips the sides: the buy token was
+ * chosen deliberately and an automatic pick must not displace it.
+ */
+export function automaticSellToken<T extends TokenLike>(
+  candidate: SwapSide<T>,
+  to: SwapSide<T>,
+  rules: SwapRules
+): T | null {
+  if (!rules.depositsIntoVault && isSameToken(candidate, to)) return null;
+  return candidate.token;
+}
+
+/**
  * The sides after the user picks a token for one of them. Picking the token
  * the other side holds trades the sides, as the flip button does, instead of
- * swapping a token into itself.
+ * swapping a token into itself. Selling a vault's own asset into it is the
+ * exception: that just sets the sell token.
  *
- * The sell picker only offers the buy token when the flip is allowed, and the
- * buy picker only offers tokens allowed on the buy side, so a flip that
- * breaks the rules here is a bug in the picker.
+ * The sell picker hides the buy token whenever neither applies, and the buy
+ * picker only offers tokens allowed on the buy side, so a pick that breaks
+ * the rules here is a bug in the picker.
  */
 export function pickToken<T extends TokenLike>(
   sides: SwapSides<T>,
   side: "from" | "to",
   picked: PickedToken<T>,
-  rules: DestRules
+  rules: SwapRules
 ): PickResult<T> {
   if (side === "from") {
-    if (!holds(sides.to, picked)) {
+    if (!isSameToken(sides.to, picked) || rules.depositsIntoVault) {
       return { sides: { ...sides, from: picked }, flipped: false };
     }
     if (!canFlip(sides, rules)) {
@@ -117,7 +153,7 @@ export function pickToken<T extends TokenLike>(
     return { sides: { from: picked, to: sides.from }, flipped: true };
   }
 
-  if (!holds(sides.from, picked)) {
+  if (!isSameToken(sides.from, picked)) {
     return { sides: { ...sides, to: picked }, flipped: false };
   }
   if (!canBecomeDest(picked, rules)) {

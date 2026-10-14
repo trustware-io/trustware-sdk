@@ -2,11 +2,14 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { ChainDef } from "src/types";
 import {
+  automaticSellToken,
   canBecomeDest,
   canFlip,
   flipSides,
+  hiddenFromSellPicker,
+  isSameToken,
   pickToken,
-  type DestRules,
+  type SwapRules,
   type SwapSides,
 } from "src/modes/swap/sides";
 import { NATIVE_EVM, NATIVE_SOLANA } from "src/utils/chains";
@@ -42,12 +45,17 @@ const USDC_BASE: T = {
   symbol: "USDC",
 };
 
-const OPEN: DestRules = { lockDestToken: false, allowedDestTokens: null };
-const LOCKED: DestRules = { lockDestToken: true, allowedDestTokens: null };
-const ONLY_BASE_USDC: DestRules = {
+const OPEN: SwapRules = {
   lockDestToken: false,
+  allowedDestTokens: null,
+  depositsIntoVault: false,
+};
+const LOCKED: SwapRules = { ...OPEN, lockDestToken: true };
+const ONLY_BASE_USDC: SwapRules = {
+  ...OPEN,
   allowedDestTokens: [{ chainId: 8453, address: USDC_BASE.address }],
 };
+const VAULT: SwapRules = { ...OPEN, depositsIntoVault: true };
 
 function sides(
   from: [T | null, ChainDef | null],
@@ -118,6 +126,143 @@ describe("pickToken on the sell side", () => {
         }
       );
     }
+  });
+
+  // BVT-398's "move to a better vault": the vault's own asset on the sell
+  // side, deposited into a vault for that asset.
+  it("sells a vault's own asset into it without flipping", () => {
+    const start = sides([ETH_BASE, BASE], [USDC_BASE, BASE]);
+    for (const rules of [VAULT, { ...VAULT, lockDestToken: true }]) {
+      assert.deepEqual(
+        pickToken(start, "from", { token: USDC_BASE, chain: BASE }, rules),
+        { sides: sides([USDC_BASE, BASE], [USDC_BASE, BASE]), flipped: false }
+      );
+    }
+  });
+});
+
+describe("hiddenFromSellPicker", () => {
+  const start = sides([ETH_BASE, BASE], [USDC_BASE, BASE]);
+
+  it("hides nothing when picking the buy token would flip", () => {
+    assert.equal(hiddenFromSellPicker(start, OPEN), null);
+  });
+
+  it("hides the buy token when the flip is refused", () => {
+    assert.equal(hiddenFromSellPicker(start, LOCKED), USDC_BASE);
+    assert.equal(hiddenFromSellPicker(start, ONLY_BASE_USDC), USDC_BASE);
+  });
+
+  it("hides nothing during a vault deposit, where the asset is a valid sell", () => {
+    assert.equal(
+      hiddenFromSellPicker(start, { ...VAULT, lockDestToken: true }),
+      null
+    );
+  });
+
+  // The picker and pickToken must agree, or a visible row could throw.
+  it("hides exactly the buy tokens pickToken refuses", () => {
+    const held: [T | null, ChainDef | null][] = [
+      [null, null],
+      [null, BASE],
+      [SOL, SOLANA],
+      [ETH_BASE, BASE],
+      [USDC_BASE, BASE],
+    ];
+    const allRules: SwapRules[] = [];
+    for (const lockDestToken of [false, true]) {
+      for (const allowedDestTokens of [
+        null,
+        ONLY_BASE_USDC.allowedDestTokens,
+      ]) {
+        for (const depositsIntoVault of [false, true]) {
+          allRules.push({
+            lockDestToken,
+            allowedDestTokens,
+            depositsIntoVault,
+          });
+        }
+      }
+    }
+    for (const from of held) {
+      for (const to of held) {
+        if (!to[0] || !to[1]) continue;
+        const start = sides(from, to);
+        const buy = { token: to[0], chain: to[1] };
+        for (const rules of allRules) {
+          let refused = false;
+          try {
+            pickToken(start, "from", buy, rules);
+          } catch {
+            refused = true;
+          }
+          assert.equal(
+            hiddenFromSellPicker(start, rules) !== null,
+            refused,
+            `${JSON.stringify({ from: from[0]?.symbol, to: to[0].symbol, rules })}`
+          );
+        }
+      }
+    }
+  });
+});
+
+describe("automaticSellToken", () => {
+  it("keeps a candidate that differs from the buy token", () => {
+    assert.equal(
+      automaticSellToken(
+        { token: SOL, chain: SOLANA },
+        { token: USDC_BASE, chain: BASE },
+        OPEN
+      ),
+      SOL
+    );
+  });
+
+  // The wallet test behind this: Buy held SOL, the wallet connected, and its
+  // largest balance (SOL) became the sell token too: "1 SOL = 1 SOL".
+  it("drops a candidate that repeats the buy token, whichever spelling", () => {
+    for (const buy of [SOL, SOL_AS_SENTINEL]) {
+      assert.equal(
+        automaticSellToken(
+          { token: SOL, chain: SOLANA },
+          { token: buy, chain: SOLANA },
+          OPEN
+        ),
+        null
+      );
+    }
+  });
+
+  it("keeps a candidate that repeats a vault's own asset", () => {
+    assert.equal(
+      automaticSellToken(
+        { token: USDC_BASE, chain: BASE },
+        { token: USDC_BASE, chain: BASE },
+        VAULT
+      ),
+      USDC_BASE
+    );
+  });
+
+  it("keeps a candidate when the buy side is empty", () => {
+    assert.equal(
+      automaticSellToken(
+        { token: SOL, chain: SOLANA },
+        { token: null, chain: null },
+        OPEN
+      ),
+      SOL
+    );
+  });
+});
+
+describe("isSameToken", () => {
+  it("is false when either side is empty or chainless", () => {
+    const sol = { token: SOL, chain: SOLANA };
+    assert.equal(isSameToken(sol, { token: null, chain: SOLANA }), false);
+    assert.equal(isSameToken(sol, { token: SOL, chain: null }), false);
+    assert.equal(isSameToken({ token: null, chain: null }, sol), false);
   });
 });
 
@@ -213,8 +358,8 @@ describe("canFlip", () => {
 
 describe("canBecomeDest", () => {
   it("matches an allowlisted native token by any spelling", () => {
-    const rules: DestRules = {
-      lockDestToken: false,
+    const rules: SwapRules = {
+      ...OPEN,
       allowedDestTokens: [
         { chainId: "solana-mainnet-beta", address: NATIVE_EVM },
       ],

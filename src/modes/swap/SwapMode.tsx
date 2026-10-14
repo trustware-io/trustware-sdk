@@ -3,6 +3,7 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,10 +28,12 @@ import { isSerializedSolanaTxRequest } from "src/core/routes";
 import { mapTokenDefToToken } from "src/core/useTokens";
 import { chainForRef, chainsWithRefs } from "./tokenRefs";
 import {
+  automaticSellToken,
   canFlip,
   flipSides,
+  hiddenFromSellPicker,
   pickToken,
-  type DestRules,
+  type SwapRules,
   type SwapSides,
 } from "./sides";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
@@ -39,7 +42,11 @@ import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenStat
 import { useChains } from "src/widget/hooks";
 import { rawToDecimal } from "src/widget/helpers/tokenAmount";
 import { needsErc20Approval } from "src/widget/helpers/chainHelpers";
-import { isNativeTokenAddress, normalizeChainType } from "src/utils/chains";
+import {
+  isNativeTokenAddress,
+  normalizeChainKey,
+  normalizeChainType,
+} from "src/utils/chains";
 import { useTrustwareConfig, useGTMTracker } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
@@ -130,6 +137,26 @@ function truncateDecimal(n: number, dp: number): string {
   const s = truncated.toFixed(dp);
   // Strip trailing zeros after decimal
   return s.includes(".") ? s.replace(/\.?0+$/, "") || "0" : s;
+}
+
+// A layout effect commits before any pending promise callback can run; React
+// 18 warns when one renders on the server, where it would do nothing anyway.
+const useCommitEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** The chain a token sits on: a wallet row carries it, a catalog token only
+ *  names its chain id. */
+function chainOfToken(
+  token: Token | YourTokenData,
+  chains: readonly ChainDef[]
+): ChainDef | null {
+  if ("chainData" in token && token.chainData) return token.chainData;
+  return (
+    chains.find(
+      (chain) =>
+        normalizeChainKey(chain.chainId) === normalizeChainKey(token.chainId)
+    ) ?? null
+  );
 }
 
 function scaleFontSize(str: string): string {
@@ -316,6 +343,21 @@ export function SwapMode({
     () => [...popularChains, ...otherChains],
     [popularChains, otherChains]
   );
+  // Automatic picks land in async callbacks, so they read the current sides
+  // and rules through this ref, refreshed on every render below.
+  const automaticPickContext = useRef<{
+    sides: SwapSides<Token | YourTokenData>;
+    rules: SwapRules;
+    chains: readonly ChainDef[];
+  } | null>(null);
+  const currentPickContext = () => {
+    const context = automaticPickContext.current;
+    if (!context) {
+      throw new Error("A swap token arrived before the sides were set up");
+    }
+    return context;
+  };
+
   const destInitialized = useRef(false);
   useEffect(() => {
     if (!defaultDestRef || destInitialized.current || allChains.length === 0)
@@ -329,8 +371,20 @@ export function SwapMode({
         if (destInitialized.current) return;
         if (!match) return;
         destInitialized.current = true;
-        setToToken(mapTokenDefToToken(match));
+        const dest = mapTokenDefToToken(match);
+        setToToken(dest);
         setToChain(chain);
+        // The host's buy token wins over a sell token that repeats it.
+        const { rules, chains } = currentPickContext();
+        setFromToken((current) =>
+          current
+            ? automaticSellToken(
+                { token: current, chain: chainOfToken(current, chains) },
+                { token: dest, chain },
+                rules
+              )
+            : null
+        );
       })
       .catch(() => {
         /* non-fatal — user can still pick manually */
@@ -341,11 +395,22 @@ export function SwapMode({
   const { walletAddress, walletStatus, connectWallet } =
     useWalletSessionState();
 
-  // Stable setters so useWalletTokenState's load effect deps don't change on every render
-  const setFromTokenStable = useCallback(
-    (t: Token | YourTokenData | null) => setFromToken(t),
-    []
-  );
+  // Stable setters so useWalletTokenState's load effect deps don't change on every render.
+  // The wallet's own pick (its largest balance) must not repeat the buy token.
+  const setFromTokenStable = useCallback((t: Token | YourTokenData | null) => {
+    if (!t) {
+      setFromToken(null);
+      return;
+    }
+    const { sides, rules, chains } = currentPickContext();
+    setFromToken(
+      automaticSellToken(
+        { token: t, chain: chainOfToken(t, chains) },
+        sides.to,
+        rules
+      )
+    );
+  }, []);
   const setFromChainStable = useCallback(
     (c: ChainDef | null) => setFromChain(c),
     []
@@ -441,14 +506,22 @@ export function SwapMode({
     }),
     [fromToken, fromChain, toToken, toChain]
   );
-  const destRules = useMemo<DestRules>(
+  const swapRules = useMemo<SwapRules>(
     () => ({
       lockDestToken: !!lockDestToken,
       allowedDestTokens: allowedDestTokens ?? null,
+      depositsIntoVault: selectedVault !== null,
     }),
-    [lockDestToken, allowedDestTokens]
+    [lockDestToken, allowedDestTokens, selectedVault]
   );
-  const flipAllowed = canFlip(sides, destRules);
+  const flipAllowed = canFlip(sides, swapRules);
+  useCommitEffect(() => {
+    automaticPickContext.current = {
+      sides,
+      rules: swapRules,
+      chains: allChains,
+    };
+  }, [sides, swapRules, allChains]);
 
   const commitFlip = useCallback(
     (next: SwapSides<Token | YourTokenData>) => {
@@ -472,7 +545,7 @@ export function SwapMode({
 
   const handleSelectFromToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
-      const picked = pickToken(sides, "from", { token, chain }, destRules);
+      const picked = pickToken(sides, "from", { token, chain }, swapRules);
       if (picked.flipped) {
         commitFlip(picked.sides);
         setStage("home");
@@ -497,12 +570,12 @@ export function SwapMode({
         ...(amount ? { amount } : {}),
       });
     },
-    [route, emitEvent, toToken, toChain, amount, sides, destRules, commitFlip]
+    [route, emitEvent, toToken, toChain, amount, sides, swapRules, commitFlip]
   );
 
   const handleSelectToToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
-      const picked = pickToken(sides, "to", { token, chain }, destRules);
+      const picked = pickToken(sides, "to", { token, chain }, swapRules);
       if (picked.flipped) {
         commitFlip(picked.sides);
         setStage("home");
@@ -529,7 +602,7 @@ export function SwapMode({
       fromChain,
       amount,
       sides,
-      destRules,
+      swapRules,
       commitFlip,
     ]
   );
@@ -1295,7 +1368,7 @@ export function SwapMode({
           otherChains={otherChains}
           chainsLoading={chainsLoading}
           chainsError={chainsError}
-          excludeToken={flipAllowed ? null : toToken}
+          excludeToken={hiddenFromSellPicker(sides, swapRules)}
         />
       </WidgetContainer>
     );
