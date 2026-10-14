@@ -12,9 +12,8 @@ const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
 describe("canonicalRouteToken", () => {
-  // The routing API's adapters understand native SOL only as the EVM
-  // sentinel: Relay and LiFi translate it to the System Program id, Squid
-  // and Khalani use it as is.
+  // Every routing adapter understands the EVM sentinel as native SOL;
+  // iluvatar's Squid adapter doesn't understand the System Program id.
   it("sends native SOL to the routing API as the EVM sentinel", () => {
     assert.equal(SOLANA_NATIVE_ROUTE_TOKEN, NATIVE_EVM);
   });

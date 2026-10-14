@@ -21,11 +21,9 @@ import {
 /**
  * How the routing API spells native SOL: the EVM native sentinel, its
  * native-asset name on every chain. Inside the SDK native SOL is
- * `NATIVE_SOLANA`, the System Program id. The backend's Relay and LiFi
- * adapters translate the sentinel to that id, and Squid and Khalani take the
- * sentinel as is (see `relayTokenAddress`, `lifiTokenAddress`,
- * `khalaniTokenAddress` in iluvatar). Sending the System Program id instead
- * would reach Squid and Khalani as an unknown SPL mint.
+ * `NATIVE_SOLANA`, the System Program id. Relay, LiFi and Khalani accept
+ * either spelling, but iluvatar's Squid adapter translates only the sentinel
+ * and would pass the System Program id through as a mint.
  *
  * Never the wrapped-SOL mint (`So1111…112`): wSOL is a separate SPL token you
  * only hold once you've wrapped, and routing it for a native-SOL swap spends

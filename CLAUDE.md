@@ -320,10 +320,12 @@ chain, Eclipse's ETH included. EVM chains use the sentinel
   the catalog, so everything past the registry sees one spelling.
 - On the routing wire (`buildRoute`, `buildDepositAddress`),
   `canonicalRouteToken` sends native SOL as the EVM sentinel. That's the
-  routing API's native-asset convention for every chain. Its Relay and LiFi
-  adapters translate the sentinel to the System Program id, and Squid and
-  Khalani take the sentinel as it is. Sending the System Program id directly
-  would reach Squid and Khalani as an unknown SPL mint.
+  routing API's native-asset convention for every chain. Relay, LiFi and
+  Khalani quote identically with either spelling (checked against a local
+  backend on 2026-10-14, SOL to and from Base and SOL to USDC on Solana).
+  Squid is the exception: its adapter translates only the sentinel and would
+  pass the System Program id through as a mint. Squid's Solana support was
+  under maintenance then, so the sentinel stays until that is verified.
 - `So11111111111111111111111111111111111111111` is not an address. The SDK
   once invented it as a native-SOL placeholder and nothing external emits
   it, so don't bring it back. `So1111…112` is wrapped SOL, a separate SPL
