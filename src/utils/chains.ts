@@ -142,6 +142,33 @@ export function tokenIdentityKey(
   return `${normalizeChainKey(chainId)}:${normalizeAddress(address, chainType)}`;
 }
 
+/** A token as far as its identity goes. */
+export type TokenRef = { chainId: string | number; address: string };
+
+/**
+ * `tokens` minus every token in `excluded`, compared by `tokenIdentityKey`,
+ * in their original order. `chainType` is the type of the one chain both
+ * lists are on; a token from any other chain can't match because the chain is
+ * part of the key.
+ */
+export function withoutTokens<T extends TokenRef>(
+  tokens: readonly T[],
+  excluded: readonly TokenRef[],
+  chainType: ChainType | undefined
+): T[] {
+  const excludedKeys = new Set(
+    excluded.map((token) =>
+      tokenIdentityKey(token.chainId, token.address, chainType)
+    )
+  );
+  return tokens.filter(
+    (token) =>
+      !excludedKeys.has(
+        tokenIdentityKey(token.chainId, token.address, chainType)
+      )
+  );
+}
+
 /** Whether the address names the chain's native asset rather than a token
  *  contract or mint. */
 export function isNativeTokenAddress(

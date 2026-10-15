@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 import type { ChainDef } from "../../../../types";
 import { resolveChainLabel } from "../../../../utils";
+import { normalizeChainType, withoutTokens } from "../../../../utils/chains";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
 import { colors, fontWeight, spacing, borderRadius } from "../../../styles";
 import { visibleTokenRows } from "../tokenListRows";
@@ -165,9 +166,22 @@ export function TokenSelectorPanel({
     setShowAllWalletTokens(false);
   }, [selectedChain, searchQuery]);
 
+  // A token the wallet holds is listed once, under Your tokens with its
+  // balance. Matching against the search-filtered wallet list means a token
+  // only leaves Popular tokens when Your tokens shows it.
+  const popularTokens = useMemo(
+    () =>
+      withoutTokens(
+        filteredTokens,
+        filteredWalletTokens,
+        normalizeChainType(selectedChain)
+      ),
+    [filteredTokens, filteredWalletTokens, selectedChain]
+  );
+
   const hasWalletTokens = filteredWalletTokens.length > 0;
-  const hasPopularTokens = filteredTokens.length > 0;
-  const catalogRows = visibleTokenRows(filteredTokens, showAll);
+  const hasPopularTokens = popularTokens.length > 0;
+  const catalogRows = visibleTokenRows(popularTokens, showAll);
   const walletRows = visibleTokenRows(
     filteredWalletTokens,
     showAllWalletTokens
@@ -285,7 +299,7 @@ export function TokenSelectorPanel({
                     onClick={() => setShowAll(true)}
                     style={showAllButtonStyle}
                   >
-                    Show all {filteredTokens.length} tokens
+                    Show all {popularTokens.length} tokens
                   </button>
                 ) : hasNextPage ? (
                   <button

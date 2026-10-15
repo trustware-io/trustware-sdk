@@ -8,6 +8,7 @@ import {
   NATIVE_SOLANA,
   normalizeAddress,
   tokenIdentityKey,
+  withoutTokens,
 } from "src/utils/chains";
 import { mulberry32 } from "src/__tests__/seededRandom";
 
@@ -351,5 +352,210 @@ describe("normalizeAddress properties", () => {
         );
       }
     }
+  });
+});
+
+describe("withoutTokens", () => {
+  const SOLANA = "solana-mainnet-beta";
+  const BASE = "8453";
+  const SOL = { chainId: SOLANA, address: NATIVE_SOLANA, symbol: "SOL" };
+  const WSOL = { chainId: SOLANA, address: WSOL_MINT, symbol: "WSOL" };
+  const USDC_SOL = { chainId: SOLANA, address: USDC_SOLANA, symbol: "USDC" };
+  const JUP = {
+    chainId: SOLANA,
+    address: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+    symbol: "JUP",
+  };
+  const ETH_BASE = { chainId: BASE, address: NATIVE_EVM, symbol: "ETH" };
+  const USDC_BASE_TOKEN = {
+    chainId: BASE,
+    address: USDC_BASE.toLowerCase(),
+    symbol: "USDC",
+  };
+  const SOLANA_LIST = [SOL, WSOL, USDC_SOL];
+  const BASE_LIST = [ETH_BASE, USDC_BASE_TOKEN];
+
+  describe("hiding wallet tokens from the catalog", () => {
+    it("drops every token the wallet lists and keeps the rest in order", () => {
+      const catalog = [SOL, USDC_SOL, WSOL, JUP];
+      assert.deepEqual(withoutTokens(catalog, [USDC_SOL, SOL], "solana"), [
+        WSOL,
+        JUP,
+      ]);
+    });
+
+    it("drops native SOL whichever spelling the catalog carries", () => {
+      for (const address of [NATIVE_SOLANA, NATIVE_EVM, EVM_ZERO_ADDRESS]) {
+        assert.deepEqual(
+          withoutTokens([{ ...SOL, address }, WSOL], [SOL], "solana"),
+          [WSOL],
+          address
+        );
+      }
+    });
+
+    it("keeps a mint whose wallet spelling differs only in case", () => {
+      const twin = {
+        ...USDC_SOL,
+        address: "EpjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      };
+      assert.deepEqual(
+        withoutTokens(SOLANA_LIST, [twin], "solana"),
+        SOLANA_LIST
+      );
+    });
+
+    it("drops an EVM token whatever case the wallet uses", () => {
+      assert.deepEqual(
+        withoutTokens(
+          BASE_LIST,
+          [{ chainId: 8453, address: USDC_BASE }],
+          "evm"
+        ),
+        [ETH_BASE]
+      );
+    });
+
+    it("keeps the catalog as it is for an empty wallet", () => {
+      assert.deepEqual(withoutTokens(SOLANA_LIST, [], "solana"), SOLANA_LIST);
+    });
+
+    it("leaves the catalog empty when the wallet holds every token", () => {
+      assert.deepEqual(withoutTokens(SOLANA_LIST, SOLANA_LIST, "solana"), []);
+    });
+  });
+
+  // The swap counterpart filter, ported from the single-token withoutToken.
+  describe("hiding the swap counterpart", () => {
+    it("hides native SOL from Sell when Buy holds it, whichever spelling", () => {
+      for (const address of [NATIVE_SOLANA, NATIVE_EVM, EVM_ZERO_ADDRESS]) {
+        assert.deepEqual(
+          withoutTokens(SOLANA_LIST, [{ chainId: SOLANA, address }], "solana"),
+          [WSOL, USDC_SOL],
+          address
+        );
+      }
+    });
+
+    it("hides the counterpart when the list carries the sentinel spelling", () => {
+      const sentinelSol = { ...SOL, address: NATIVE_EVM };
+      assert.deepEqual(withoutTokens([sentinelSol, WSOL], [SOL], "solana"), [
+        WSOL,
+      ]);
+    });
+
+    it("hides an SPL token only in its exact case", () => {
+      assert.deepEqual(withoutTokens(SOLANA_LIST, [USDC_SOL], "solana"), [
+        SOL,
+        WSOL,
+      ]);
+      assert.deepEqual(
+        withoutTokens(
+          SOLANA_LIST,
+          [{ ...USDC_SOL, address: USDC_SOL.address.toLowerCase() }],
+          "solana"
+        ),
+        SOLANA_LIST
+      );
+    });
+
+    it("hides EVM native whether it's given as the sentinel or zero address", () => {
+      assert.deepEqual(
+        withoutTokens(
+          BASE_LIST,
+          [{ chainId: BASE, address: EVM_ZERO_ADDRESS }],
+          "evm"
+        ),
+        [USDC_BASE_TOKEN]
+      );
+    });
+
+    it("keeps everything when the counterpart is on another chain", () => {
+      assert.deepEqual(
+        withoutTokens(SOLANA_LIST, [ETH_BASE], "solana"),
+        SOLANA_LIST
+      );
+      assert.deepEqual(
+        withoutTokens(BASE_LIST, [{ ...USDC_BASE_TOKEN, chainId: "1" }], "evm"),
+        BASE_LIST
+      );
+    });
+  });
+
+  // Excluded tokens are respelled (hex case, native spelling) the way a wallet
+  // row and a catalog row can differ, so the property exercises identity
+  // matching and not plain string equality.
+  it("removes exactly the excluded identities and keeps the rest in order", () => {
+    const respell = (random: Random, address: string, chainType: string) => {
+      if (
+        normalizeAddress(address, chainType) ===
+        getNativeTokenAddress(chainType)
+      ) {
+        return pickFrom(random, [
+          NATIVE_EVM,
+          EVM_ZERO_ADDRESS,
+          chainType === "solana" ? NATIVE_SOLANA : NATIVE_EVM,
+        ]);
+      }
+      return address.startsWith("0x") ? randomCase(random, address) : address;
+    };
+    let removedSomething = 0;
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const random = mulberry32(seed);
+      const chainType = pickFrom(random, ["solana", "evm"]);
+      const chainId = chainType === "solana" ? SOLANA : BASE;
+      const address = () =>
+        chainType === "solana"
+          ? pickFrom(random, [() => randomMint(random), () => NATIVE_SOLANA])()
+          : pickFrom(random, [
+              () => randomHexAddress(random),
+              () => NATIVE_EVM,
+            ])();
+      const tokens = Array.from(
+        { length: 1 + Math.floor(random() * 12) },
+        (_, i) => ({
+          chainId,
+          address: address(),
+          symbol: `T${i}`,
+        })
+      );
+      const excluded = tokens
+        .filter(() => random() < 0.4)
+        .map((token) => ({
+          chainId,
+          address: respell(random, token.address, chainType),
+        }));
+      if (random() < 0.5) excluded.push({ chainId, address: address() });
+
+      const result = withoutTokens(tokens, excluded, chainType);
+      // Identity spelled out from the rules rather than via tokenIdentityKey:
+      // native spellings are one token, hex ignores case, mints are exact.
+      const identity = (value: string) => {
+        const lower = value.toLowerCase();
+        if (lower === NATIVE_EVM || lower === EVM_ZERO_ADDRESS) return "native";
+        if (chainType === "solana")
+          return value === NATIVE_SOLANA ? "native" : value;
+        return lower;
+      };
+      const excludedIdentities = new Set(
+        excluded.map((token) => identity(token.address))
+      );
+      const expected = tokens.filter(
+        (token) => !excludedIdentities.has(identity(token.address))
+      );
+      assert.deepEqual(result, expected, `seed ${seed}`);
+      for (const token of result) {
+        assert.ok(
+          tokens.includes(token),
+          `seed ${seed}: returned a token it wasn't given`
+        );
+      }
+      removedSomething += tokens.length - result.length;
+    }
+    // Guards against vacuity: the respelled exclusions must actually match.
+    assert.ok(
+      removedSomething > SEEDS / 2,
+      `only ${removedSomething} tokens removed across ${SEEDS} seeds`
+    );
   });
 });

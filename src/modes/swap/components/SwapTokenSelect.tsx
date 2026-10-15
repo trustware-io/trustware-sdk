@@ -16,8 +16,8 @@ import {
   type CatalogPickBalance,
 } from "src/widget/features/token-selection";
 import { WidgetSecurityFooter } from "src/widget/components";
-import { normalizeChainType } from "src/utils/chains";
-import { onlyAllowedTokens, withoutToken } from "../tokenFilters";
+import { normalizeChainType, withoutTokens } from "src/utils/chains";
+import { onlyAllowedTokens } from "../tokenFilters";
 import { refsOnChain } from "../tokenRefs";
 import type { ChainDef } from "src/types";
 import type { SwapTokenRef } from "src/types/config";
@@ -169,14 +169,20 @@ export function SwapTokenSelect({
     [rawWalletTokens, allowedTokens, chainType]
   );
 
+  // The other side's token is hidden so a token can't be swapped into itself.
+  const counterpart = useMemo(
+    () => (excludeToken ? [excludeToken] : []),
+    [excludeToken]
+  );
+
   const visibleTokens = useMemo(
-    () => withoutToken(filteredTokens, excludeToken, chainType),
-    [filteredTokens, excludeToken, chainType]
+    () => withoutTokens(filteredTokens, counterpart, chainType),
+    [filteredTokens, counterpart, chainType]
   );
 
   const visibleWalletTokens = useMemo(
-    () => withoutToken(filteredWalletTokens, excludeToken, chainType),
-    [filteredWalletTokens, excludeToken, chainType]
+    () => withoutTokens(filteredWalletTokens, counterpart, chainType),
+    [filteredWalletTokens, counterpart, chainType]
   );
 
   return (
