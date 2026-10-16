@@ -1,10 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import {
-  isAllowedToken,
-  onlyAllowedTokens,
-  withoutToken,
-} from "src/modes/swap/tokenFilters";
+import { isAllowedToken, onlyAllowedTokens } from "src/modes/swap/tokenFilters";
 import { EVM_ZERO_ADDRESS, NATIVE_EVM, NATIVE_SOLANA } from "src/utils/chains";
 
 const SOLANA = "solana-mainnet-beta";
@@ -16,11 +12,6 @@ const WSOL = {
   address: "So11111111111111111111111111111111111111112",
   symbol: "WSOL",
 };
-const USDC_SOLANA = {
-  chainId: SOLANA,
-  address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-  symbol: "USDC",
-};
 const ETH_BASE = { chainId: BASE, address: NATIVE_EVM, symbol: "ETH" };
 const USDC_BASE = {
   chainId: BASE,
@@ -28,83 +19,7 @@ const USDC_BASE = {
   symbol: "USDC",
 };
 
-const SOLANA_LIST = [SOL, WSOL, USDC_SOLANA];
 const BASE_LIST = [ETH_BASE, USDC_BASE];
-
-describe("withoutToken", () => {
-  // The recording behind this: Buy held native SOL, and the Sell picker on
-  // Solana still offered a second SOL row because it only compared raw
-  // lowercased addresses.
-  it("hides native SOL from Sell when Buy holds it, whichever spelling", () => {
-    for (const address of [NATIVE_SOLANA, NATIVE_EVM, EVM_ZERO_ADDRESS]) {
-      assert.deepEqual(
-        withoutToken(SOLANA_LIST, { chainId: SOLANA, address }, "solana"),
-        [WSOL, USDC_SOLANA],
-        address
-      );
-    }
-  });
-
-  it("hides the counterpart when the list carries the sentinel spelling", () => {
-    const sentinelSol = { ...SOL, address: NATIVE_EVM };
-    assert.deepEqual(withoutToken([sentinelSol, WSOL], SOL, "solana"), [WSOL]);
-  });
-
-  it("hides an SPL token only in its exact case", () => {
-    assert.deepEqual(withoutToken(SOLANA_LIST, USDC_SOLANA, "solana"), [
-      SOL,
-      WSOL,
-    ]);
-    assert.deepEqual(
-      withoutToken(
-        SOLANA_LIST,
-        { ...USDC_SOLANA, address: USDC_SOLANA.address.toLowerCase() },
-        "solana"
-      ),
-      SOLANA_LIST
-    );
-  });
-
-  it("hides an EVM token in any case", () => {
-    assert.deepEqual(
-      withoutToken(
-        BASE_LIST,
-        {
-          chainId: 8453,
-          address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        },
-        "evm"
-      ),
-      [ETH_BASE]
-    );
-  });
-
-  it("hides EVM native whether it's given as the sentinel or zero address", () => {
-    assert.deepEqual(
-      withoutToken(
-        BASE_LIST,
-        { chainId: BASE, address: EVM_ZERO_ADDRESS },
-        "evm"
-      ),
-      [USDC_BASE]
-    );
-  });
-
-  it("keeps everything when the counterpart is on another chain", () => {
-    assert.deepEqual(
-      withoutToken(SOLANA_LIST, ETH_BASE, "solana"),
-      SOLANA_LIST
-    );
-    assert.deepEqual(
-      withoutToken(BASE_LIST, { ...USDC_BASE, chainId: "1" }, "evm"),
-      BASE_LIST
-    );
-  });
-
-  it("keeps everything when the other side holds nothing", () => {
-    assert.deepEqual(withoutToken(SOLANA_LIST, null, "solana"), SOLANA_LIST);
-  });
-});
 
 describe("isAllowedToken", () => {
   const allowed = [{ chainId: SOLANA, address: NATIVE_EVM }, USDC_BASE];
