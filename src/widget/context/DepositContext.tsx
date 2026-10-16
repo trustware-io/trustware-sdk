@@ -60,6 +60,8 @@ const DepositWalletContext = createContext<
       | "yourWalletTokens"
       | "setYourWalletTokens"
       | "yourWalletTokensLoading"
+      | "walletBalanceErrorFor"
+      | "reportWalletBalanceError"
       | "WalletConnect"
       | "disconnectWalletConnect"
       | "setWalletType"
@@ -193,6 +195,8 @@ export function DepositProvider({
     setYourWalletTokens,
     reloadWalletTokens,
     yourWalletTokensLoading,
+    walletBalanceErrorFor,
+    reportWalletBalanceError,
   } = useWalletTokenState({
     walletAddress: walletAddress ?? fallbackAddress ?? null,
     selectedChain,
@@ -260,6 +264,8 @@ export function DepositProvider({
       yourWalletTokens,
       setYourWalletTokens,
       yourWalletTokensLoading,
+      walletBalanceErrorFor,
+      reportWalletBalanceError,
       walletConnectAddress,
       WalletConnect,
       disconnectWalletConnect,
@@ -285,6 +291,8 @@ export function DepositProvider({
       walletType,
       yourWalletTokens,
       yourWalletTokensLoading,
+      walletBalanceErrorFor,
+      reportWalletBalanceError,
       selectedNamespace,
       setSelectedNamespace,
       wcStatus,

@@ -14,11 +14,9 @@ import {
 import { getEVMAllowance } from "src/core/sdkRpc";
 import {
   isEvmAddress,
-  isNativeTokenAddress,
-  isZeroAddrLike,
   needsErc20Approval,
-  normalizeChainType,
 } from "src/widget/helpers/chainHelpers";
+import { isNativeTokenAddress, normalizeChainType } from "src/utils/chains";
 import type { BuildRouteResult, ChainDef, Transaction } from "src/types";
 import type { SwapTxStatus } from "../types";
 
@@ -288,9 +286,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       const spender = (txReq.to ?? txReq.target) as `0x${string}` | undefined;
       const chainType = normalizeChainType(fromChain);
       const isNative =
-        !fromTokenAddress ||
-        isNativeTokenAddress(fromTokenAddress, chainType) ||
-        isZeroAddrLike(fromTokenAddress, chainType);
+        !fromTokenAddress || isNativeTokenAddress(fromTokenAddress, chainType);
       const fromAmountWei = BigInt(
         routeResult.route?.estimate?.fromAmount ?? "0"
       );

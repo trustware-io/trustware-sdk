@@ -1,9 +1,8 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { NATIVE_EVM, NATIVE_SOLANA } from "src/utils/chains";
 import {
   isEvmAddress,
-  NATIVE_EVM,
-  NATIVE_SOLANA,
   needsErc20Approval,
 } from "src/widget/helpers/chainHelpers";
 
@@ -17,6 +16,7 @@ describe("needsErc20Approval", () => {
   it("requires approval for an EVM ERC20", () => {
     assert.equal(needsErc20Approval(USDC_BASE, "evm"), true);
     assert.equal(needsErc20Approval(USDC_BASE, "8453"), true);
+    assert.equal(needsErc20Approval(USDC_BASE, undefined), true);
   });
 
   it("never requires approval for an SPL token", () => {
@@ -34,6 +34,12 @@ describe("needsErc20Approval", () => {
     );
     // Solana registries alias native SOL to the EVM native sentinel.
     assert.equal(needsErc20Approval(NATIVE_EVM, "solana"), false);
+    // Neither EVM native spelling is a contract, whatever the chain type.
+    assert.equal(needsErc20Approval(NATIVE_EVM, undefined), false);
+    assert.equal(
+      needsErc20Approval("0x0000000000000000000000000000000000000000", null),
+      false
+    );
   });
 
   it("never requires approval on a non-EVM chain", () => {

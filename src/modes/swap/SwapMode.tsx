@@ -3,6 +3,7 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -24,17 +25,28 @@ import {
 } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
 import { isSerializedSolanaTxRequest } from "src/core/routes";
+import { mapTokenDefToToken } from "src/core/useTokens";
+import { chainForRef, chainsWithRefs } from "./tokenRefs";
+import {
+  automaticSellToken,
+  canFlip,
+  flipSides,
+  hiddenFromSellPicker,
+  pickToken,
+  type SwapRules,
+  type SwapSides,
+} from "./sides";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
 import { useChains } from "src/widget/hooks";
 import { rawToDecimal } from "src/widget/helpers/tokenAmount";
+import { needsErc20Approval } from "src/widget/helpers/chainHelpers";
 import {
-  normalizeChainType,
   isNativeTokenAddress,
-  isZeroAddrLike,
-  needsErc20Approval,
-} from "src/widget/helpers/chainHelpers";
+  normalizeChainKey,
+  normalizeChainType,
+} from "src/utils/chains";
 import { useTrustwareConfig, useGTMTracker } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
@@ -125,6 +137,29 @@ function truncateDecimal(n: number, dp: number): string {
   const s = truncated.toFixed(dp);
   // Strip trailing zeros after decimal
   return s.includes(".") ? s.replace(/\.?0+$/, "") || "0" : s;
+}
+
+// The buy picker lists no wallet tokens, so it has no balances to fail.
+const noWalletBalances = () => null;
+
+// A layout effect commits before any pending promise callback can run; React
+// 18 warns when one renders on the server, where it would do nothing anyway.
+const useCommitEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** The chain a token sits on: a wallet row carries it, a catalog token only
+ *  names its chain id. */
+function chainOfToken(
+  token: Token | YourTokenData,
+  chains: readonly ChainDef[]
+): ChainDef | null {
+  if ("chainData" in token && token.chainData) return token.chainData;
+  return (
+    chains.find(
+      (chain) =>
+        normalizeChainKey(chain.chainId) === normalizeChainKey(token.chainId)
+    ) ?? null
+  );
 }
 
 function scaleFontSize(str: string): string {
@@ -287,66 +322,72 @@ export function SwapMode({
   // When allowedDestTokens is set, restrict the "to" chain selector to only chains that
   // have at least one allowed destination token. Client-side filter only — no extra fetches,
   // no impact on deposit mode or the "from" selector.
-  const allowedDestChainIds = useMemo(() => {
-    if (!allowedDestTokens || allowedDestTokens.length === 0) return null;
-    return new Set(allowedDestTokens.map((t) => t.chainId));
-  }, [allowedDestTokens]);
+  const hasDestAllowlist = !!allowedDestTokens && allowedDestTokens.length > 0;
 
   const toPopularChains = useMemo(
     () =>
-      allowedDestChainIds
-        ? popularChains.filter((c) =>
-            allowedDestChainIds.has(Number(c.chainId))
-          )
+      hasDestAllowlist
+        ? chainsWithRefs(popularChains, allowedDestTokens)
         : popularChains,
-    [popularChains, allowedDestChainIds]
+    [popularChains, hasDestAllowlist, allowedDestTokens]
   );
 
   const toOtherChains = useMemo(
     () =>
-      allowedDestChainIds
-        ? otherChains.filter((c) => allowedDestChainIds.has(Number(c.chainId)))
+      hasDestAllowlist
+        ? chainsWithRefs(otherChains, allowedDestTokens)
         : otherChains,
-    [otherChains, allowedDestChainIds]
+    [otherChains, hasDestAllowlist, allowedDestTokens]
   );
 
-  // Resolve the default dest token by querying the registry directly for the exact address.
-  // We use tokensPage(chainId, { q: address, limit: 1 }) so we never depend on pagination order.
+  // Resolve the default dest token by looking its address up in the registry,
+  // so it never depends on pagination order.
   const allChains = useMemo(
     () => [...popularChains, ...otherChains],
     [popularChains, otherChains]
   );
+  // Automatic picks land in async callbacks, so they read the current sides
+  // and rules through this ref, refreshed on every render below.
+  const automaticPickContext = useRef<{
+    sides: SwapSides<Token | YourTokenData>;
+    rules: SwapRules;
+    chains: readonly ChainDef[];
+  } | null>(null);
+  const currentPickContext = () => {
+    const context = automaticPickContext.current;
+    if (!context) {
+      throw new Error("A swap token arrived before the sides were set up");
+    }
+    return context;
+  };
+
   const destInitialized = useRef(false);
   useEffect(() => {
     if (!defaultDestRef || destInitialized.current || allChains.length === 0)
       return;
-    const chain = allChains.find(
-      (c) => Number(c.chainId) === defaultDestRef.chainId
-    );
+    const chain = chainForRef(allChains, defaultDestRef);
     if (!chain) return;
 
-    const registry = getSharedRegistry();
-    registry
-      .tokensPage(chain.chainId, { q: defaultDestRef.address, limit: 5 })
-      .then((page: import("src/types/blockchain").TokenPageResult) => {
+    getSharedRegistry()
+      .lookupToken(chain.chainId, defaultDestRef.address)
+      .then((match) => {
         if (destInitialized.current) return;
-        const normalizedAddr = defaultDestRef.address.toLowerCase();
-        const match = page.data.find(
-          (t) => t.address.toLowerCase() === normalizedAddr
-        );
         if (!match) return;
         destInitialized.current = true;
-        setToToken({
-          address: match.address,
-          chainId: match.chainId,
-          symbol: match.symbol,
-          name: match.name,
-          decimals: match.decimals,
-          iconUrl: match.logoURI,
-          logoURI: match.logoURI,
-          usdPrice: match.usdPrice,
-        });
+        const dest = mapTokenDefToToken(match);
+        setToToken(dest);
         setToChain(chain);
+        // The host's buy token wins over a sell token that repeats it.
+        const { rules, chains } = currentPickContext();
+        setFromToken((current) =>
+          current
+            ? automaticSellToken(
+                { token: current, chain: chainOfToken(current, chains) },
+                { token: dest, chain },
+                rules
+              )
+            : null
+        );
       })
       .catch(() => {
         /* non-fatal — user can still pick manually */
@@ -357,24 +398,36 @@ export function SwapMode({
   const { walletAddress, walletStatus, connectWallet } =
     useWalletSessionState();
 
-  // Stable setters so useWalletTokenState's load effect deps don't change on every render
-  const setFromTokenStable = useCallback(
-    (t: Token | YourTokenData | null) => setFromToken(t),
-    []
-  );
+  // Stable setters so useWalletTokenState's load effect deps don't change on every render.
+  // The wallet's own pick (its largest balance) must not repeat the buy token.
+  const setFromTokenStable = useCallback((t: Token | YourTokenData | null) => {
+    if (!t) {
+      setFromToken(null);
+      return;
+    }
+    const { sides, rules, chains } = currentPickContext();
+    setFromToken(
+      automaticSellToken(
+        { token: t, chain: chainOfToken(t, chains) },
+        sides.to,
+        rules
+      )
+    );
+  }, []);
   const setFromChainStable = useCallback(
     (c: ChainDef | null) => setFromChain(c),
     []
   );
 
   // Fetch wallet balances for the "sell" selector only
-  const { yourWalletTokens, reloadWalletTokens } = useWalletTokenState({
-    walletAddress,
-    selectedChain: fromChain,
-    setSelectedChain: setFromChainStable,
-    selectedToken: fromToken,
-    setSelectedToken: setFromTokenStable,
-  });
+  const { yourWalletTokens, reloadWalletTokens, walletBalanceErrorFor } =
+    useWalletTokenState({
+      walletAddress,
+      selectedChain: fromChain,
+      setSelectedChain: setFromChainStable,
+      selectedToken: fromToken,
+      setSelectedToken: setFromTokenStable,
+    });
 
   // Route state — only populated when user explicitly requests a quote
   const route = useSwapRoute();
@@ -450,8 +503,58 @@ export function SwapMode({
     [amountInputMode, amount, currencyRate, forexRates, route]
   );
 
+  const sides = useMemo<SwapSides<Token | YourTokenData>>(
+    () => ({
+      from: { token: fromToken, chain: fromChain },
+      to: { token: toToken, chain: toChain },
+    }),
+    [fromToken, fromChain, toToken, toChain]
+  );
+  const swapRules = useMemo<SwapRules>(
+    () => ({
+      lockDestToken: !!lockDestToken,
+      allowedDestTokens: allowedDestTokens ?? null,
+      depositsIntoVault: selectedVault !== null,
+    }),
+    [lockDestToken, allowedDestTokens, selectedVault]
+  );
+  const flipAllowed = canFlip(sides, swapRules);
+  useCommitEffect(() => {
+    automaticPickContext.current = {
+      sides,
+      rules: swapRules,
+      chains: allChains,
+    };
+  }, [sides, swapRules, allChains]);
+
+  const commitFlip = useCallback(
+    (next: SwapSides<Token | YourTokenData>) => {
+      setFromToken(next.from.token);
+      setFromChain(next.from.chain);
+      setToToken(next.to.token);
+      setToChain(next.to.chain);
+      setSelectedVault(null);
+      setAmount("");
+      route.clear();
+      emitEvent?.({
+        type: "swap_route_changed",
+        fromChain: String(next.from.chain?.chainId ?? ""),
+        fromToken: next.from.token?.address ?? "",
+        toChain: String(next.to.chain?.chainId ?? ""),
+        toToken: next.to.token?.address ?? "",
+      });
+    },
+    [route, emitEvent]
+  );
+
   const handleSelectFromToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
+      const picked = pickToken(sides, "from", { token, chain }, swapRules);
+      if (picked.flipped) {
+        commitFlip(picked.sides);
+        setStage("home");
+        return;
+      }
       setFromToken(token);
       setFromChain(chain);
       route.clear();
@@ -471,11 +574,17 @@ export function SwapMode({
         ...(amount ? { amount } : {}),
       });
     },
-    [route, emitEvent, toToken, toChain, amount]
+    [route, emitEvent, toToken, toChain, amount, sides, swapRules, commitFlip]
   );
 
   const handleSelectToToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
+      const picked = pickToken(sides, "to", { token, chain }, swapRules);
+      if (picked.flipped) {
+        commitFlip(picked.sides);
+        setStage("home");
+        return;
+      }
       setToToken(token);
       setToChain(chain);
       setSelectedVault(null);
@@ -490,7 +599,16 @@ export function SwapMode({
         ...(amount ? { amount } : {}),
       });
     },
-    [route, emitEvent, fromToken, fromChain, amount]
+    [
+      route,
+      emitEvent,
+      fromToken,
+      fromChain,
+      amount,
+      sides,
+      swapRules,
+      commitFlip,
+    ]
   );
 
   const handleSelectVault = useCallback(
@@ -526,29 +644,11 @@ export function SwapMode({
         usdPrice: undefined,
       };
 
-      const registry = getSharedRegistry();
-      registry
-        .tokensPage(chain.chainId, { q: vault.asset.address, limit: 5 })
-        .then((page: import("src/types/blockchain").TokenPageResult) => {
-          const normalized = vault.asset.address.toLowerCase();
-          const match = page.data.find(
-            (t) => t.address.toLowerCase() === normalized
-          );
-          finish(
-            match
-              ? {
-                  address: match.address,
-                  chainId: match.chainId,
-                  symbol: match.symbol,
-                  name: match.name,
-                  decimals: match.decimals,
-                  iconUrl: match.logoURI,
-                  logoURI: match.logoURI,
-                  usdPrice: match.usdPrice,
-                }
-              : fallbackToken
-          );
-        })
+      getSharedRegistry()
+        .lookupToken(chain.chainId, vault.asset.address)
+        .then((match) =>
+          finish(match ? mapTokenDefToToken(match) : fallbackToken)
+        )
         .catch(() => finish(fallbackToken));
     },
     [allChains, route]
@@ -593,54 +693,23 @@ export function SwapMode({
         usdPrice: undefined,
       };
 
-      const registry = getSharedRegistry();
-      registry
-        .tokensPage(chain.chainId, { q: position.asset.address, limit: 5 })
-        .then((page: import("src/types/blockchain").TokenPageResult) => {
-          const normalized = position.asset.address.toLowerCase();
-          const match = page.data.find(
-            (t) => t.address.toLowerCase() === normalized
-          );
-          finish(
-            match
-              ? {
-                  address: match.address,
-                  chainId: match.chainId,
-                  symbol: match.symbol,
-                  name: match.name,
-                  decimals: match.decimals,
-                  iconUrl: match.logoURI,
-                  logoURI: match.logoURI,
-                  usdPrice: match.usdPrice,
-                }
-              : fallbackToken
-          );
-        })
+      getSharedRegistry()
+        .lookupToken(chain.chainId, position.asset.address)
+        .then((match) =>
+          finish(match ? mapTokenDefToToken(match) : fallbackToken)
+        )
         .catch(() => finish(fallbackToken));
     },
     [allChains, route, lockDestToken]
   );
 
   const handleFlip = useCallback(() => {
-    // When dest is locked, flipping would lose the locked token — disallow it
-    if (lockDestToken) return;
-    const newFrom = toToken ?? fromToken;
-    const newFromChain = toChain ?? fromChain;
-    setFromToken((prev) => toToken ?? prev);
-    setFromChain((prev) => toChain ?? prev);
-    setToToken(fromToken);
-    setToChain(fromChain);
-    setSelectedVault(null);
-    setAmount("");
-    route.clear();
-    emitEvent?.({
-      type: "swap_route_changed",
-      fromChain: String(newFromChain?.chainId ?? ""),
-      fromToken: newFrom?.address ?? "",
-      toChain: String(fromChain?.chainId ?? ""),
-      toToken: fromToken?.address ?? "",
-    });
-  }, [lockDestToken, fromToken, fromChain, toToken, toChain, route, emitEvent]);
+    // The button is disabled whenever the flip isn't allowed.
+    if (!flipAllowed) {
+      throw new Error("Flip button pressed while flipping is disabled");
+    }
+    commitFlip(flipSides(sides));
+  }, [flipAllowed, sides, commitFlip]);
 
   const fromChainType = normalizeChainType(fromChain);
   const toChainType = normalizeChainType(toChain);
@@ -1303,7 +1372,8 @@ export function SwapMode({
           otherChains={otherChains}
           chainsLoading={chainsLoading}
           chainsError={chainsError}
-          excludeToken={toToken ?? null}
+          excludeToken={hiddenFromSellPicker(sides, swapRules)}
+          walletBalanceErrorFor={walletBalanceErrorFor}
         />
       </WidgetContainer>
     );
@@ -1324,7 +1394,8 @@ export function SwapMode({
           chainsLoading={chainsLoading}
           chainsError={chainsError}
           allowedTokens={allowedDestTokens ?? undefined}
-          excludeToken={fromToken ?? null}
+          excludeToken={null}
+          walletBalanceErrorFor={noWalletBalances}
         />
       </WidgetContainer>
     );
@@ -3288,11 +3359,7 @@ export function SwapMode({
                       const decimals = fromToken?.decimals ?? 18;
                       const isNative =
                         !!fromToken &&
-                        (isNativeTokenAddress(
-                          fromToken.address,
-                          fromChainType ?? ""
-                        ) ||
-                          isZeroAddrLike(fromToken.address, fromChainType));
+                        isNativeTokenAddress(fromToken.address, fromChainType);
                       // Compute spendable amount — leave a fee reserve for gas tokens
                       // SOL: fixed 0.01 SOL (fees + rent-exempt buffer; % is unsafe at low balances)
                       // EVM native: 0.5% (ETH fees are variable so % is appropriate)
@@ -3466,7 +3533,7 @@ export function SwapMode({
         <div style={{ position: "relative", height: 0, zIndex: 10 }}>
           <button
             onClick={handleFlip}
-            disabled={lockDestToken}
+            disabled={!flipAllowed}
             style={{
               position: "absolute",
               left: "50%",
@@ -3480,8 +3547,8 @@ export function SwapMode({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: lockDestToken ? "default" : "pointer",
-              opacity: lockDestToken ? 0.4 : 1,
+              cursor: flipAllowed ? "pointer" : "default",
+              opacity: flipAllowed ? 1 : 0.4,
             }}
           >
             <svg

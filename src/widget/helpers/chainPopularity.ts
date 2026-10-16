@@ -1,5 +1,5 @@
 import chainPopularityMap from "../data/chainPopularity.json";
-import { normalizeChainKey } from "./chainHelpers";
+import { normalizeChainKey } from "../../utils/chains";
 
 type ChainPopularityLookup = Record<string, number>;
 

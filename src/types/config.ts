@@ -115,12 +115,18 @@ export type ResolvedTrustwareConfig = {
   onEvent?: (event: TrustwareEvent) => void;
 };
 
-/** A token identified by contract address + chain ID. Used for swap mode configuration. */
+/** A token identified by address + chain ID. Used for swap mode configuration. */
 export type SwapTokenRef = {
-  /** EVM contract address (or native placeholder, e.g. "0xeeee...") */
+  /**
+   * An EVM contract, an SPL mint, or the chain's native address: `0xeeee…`
+   * on EVM chains, `11111111111111111111111111111111` for native SOL.
+   */
   address: string;
-  /** Numeric chain ID, e.g. 8453 for Base */
-  chainId: number;
+  /**
+   * The chain's id as the routes catalog lists it: a number for EVM chains
+   * (8453 for Base), the catalog's string id otherwise ("solana-mainnet-beta").
+   */
+  chainId: number | string;
 };
 
 export type FeatureFlags = {

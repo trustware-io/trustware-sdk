@@ -13,6 +13,7 @@ import { colors, fontSize, spacing } from "../../../styles";
 import {
   amountSectionContainerStyle,
   amountSliderContainerStyle,
+  balanceRowStyle,
   tokenPickerContainerStyle,
 } from "./cryptoPayAmountStyles";
 import { AmountBalanceRow } from "./AmountBalanceRow";
@@ -38,7 +39,8 @@ export interface CryptoPayAmountSectionProps {
   isFixedAmount: boolean;
   isGasSponsored?: boolean;
   isLoadingRoute: boolean;
-  normalizedTokenBalance: number;
+  /** Null when the balance couldn't be read. */
+  normalizedTokenBalance: number | null;
   relayFeeUsd?: number;
   orderedTokens: YourTokenData[];
   parsedAmount: number;
@@ -113,7 +115,7 @@ export function CryptoPayAmountSection({
         />
       ) : null}
 
-      {selectedToken?.balance ? (
+      {selectedToken && normalizedTokenBalance !== null ? (
         <AmountBalanceRow
           amountInputMode={amountInputMode}
           effectiveSliderMax={effectiveSliderMax}
@@ -124,6 +126,16 @@ export function CryptoPayAmountSection({
           selectedTokenSymbol={selectedToken.symbol}
           tokenPriceUSD={tokenPriceUSD}
         />
+      ) : selectedToken && walletAddress ? (
+        // The balance couldn't be read; never show it as 0. The token
+        // picker names the reason.
+        <div role="status" style={balanceRowStyle}>
+          <span
+            style={{ fontSize: fontSize.sm, color: colors.mutedForeground }}
+          >
+            Balance unavailable
+          </span>
+        </div>
       ) : null}
 
       {selectedToken && yourWalletTokensLength > 0 ? (

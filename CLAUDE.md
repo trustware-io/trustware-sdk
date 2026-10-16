@@ -292,6 +292,8 @@ home → select-token → crypto-pay → processing → success | error
 ### Other Subsystems
 
 - `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, `analytics.ts` (GA4 payload builder + once-per-attempt guard), hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
+  - Picking the token the other side already holds flips the two sides, the same as the flip button (`sides.ts`). A flip is refused when it would put a token on the buy side the host forbids (`swapLockDestToken`, or a token outside `swapAllowedDestTokens`). In that case the flip button is disabled and the sell picker hides the buy token.
+  - Both sides hold the same token only during a vault deposit: selling a vault's own asset into it is a real route (BVT-398's "move to a better vault"), so with a vault selected that pick just sets the sell token. Automatic picks (the wallet's largest balance on connect, the host's default buy token) never put one token on both sides outside a vault deposit; they leave the sell side empty instead.
 - `src/smart-account/` — ERC-4337 path: `createTrustwareSmartAccountClient`, `sendRouteAsUserOperation`, `permit2.ts` (`PERMIT2`, `randomPermit2Nonce`), `uniswap.ts`, `fee-utils.ts`.
 - `src/identity/` — multi-chain wallet identity resolution (address ↔ chain normalization, used by `Trustware.getIdentity()`/`resolveAddressForChain`).
 - `src/wallets/` — detection + connection (`detect.ts`, `connect.ts`, `manager.ts` (`walletManager`), `adapters.ts`, `bridges.ts` (wagmi bridge), `eipWallets.ts`, `solana.ts`, `deepLink.ts`, `metadata.ts`). `eipWallets.ts` exports `useEIP1193` and `useWagmi` — plain adapter factories, **not** React hooks, despite the `use` prefix. **Do not rename them**: the names are the published API (docs.trustware.io and host integrations import them by name). The prefix means `react-hooks/rules-of-hooks` flags host call sites inside `useMemo`/`useEffect`; hosts silence it with an eslint-disable comment.
@@ -299,7 +301,56 @@ home → select-token → crypto-pay → processing → success | error
 - `src/errors/` — `TrustwareError.ts` + `errorCodes.ts` (`INVALID_CONFIG`, `INVALID_API_KEY`, `WALLET_NOT_CONNECTED`, `BRIDGE_FAILED`, `NETWORK_ERROR`, `INPUT_ERROR`, `UNKNOWN_ERROR`).
 - `src/events/events.ts` — `TrustwareEvent` union (`error`, `transaction_started`, `transaction_success`, `wallet_connected`, `token_page_loaded/error`, `balance_stream_chunk/fallback`, `swap_route_changed`), surfaced via `config.onEvent`.
 - `src/validation/address.ts` — `validateAddressForChain`, `validateRouteAddresses`.
-- `src/utils/chains.ts` — chain key/type normalization. `src/logos/` — bundled logo asset.
+- `src/utils/chains.ts` — chain key/type normalization and native-asset address identity. `src/logos/` — bundled logo asset.
+
+### Native asset addresses
+
+Native SOL is the Solana System Program id, `11111111111111111111111111111111`
+(`NATIVE_SOLANA`). The same id names the native asset of every Solana-VM
+chain, Eclipse's ETH included. EVM chains use the sentinel
+`0xeeee…eeee` (`NATIVE_EVM`).
+
+- `src/utils/chains.ts` is the only module that defines these. Compare token
+  addresses with its `normalizeAddress`, key a token with `tokenIdentityKey`,
+  and ask "is this the native asset?" with `isNativeTokenAddress`. Don't add
+  a second copy anywhere, and don't compare token addresses with a bare
+  `toLowerCase()`: Base58 mints are case-sensitive. To find the catalog
+  record for an address, use `Registry.lookupToken`.
+- The token catalog lists native SOL twice: once at the System Program id
+  (Relay) and once at the EVM sentinel (Squid, the record with the logo and
+  price). The registry rewrites the sentinel to `NATIVE_SOLANA` as it loads
+  the catalog, so everything past the registry sees one spelling.
+- On the routing wire (`buildRoute`, `buildDepositAddress`),
+  `canonicalRouteToken` sends native SOL as the EVM sentinel. That's the
+  routing API's native-asset convention for every chain. Relay, LiFi and
+  Khalani quote identically with either spelling (checked against a local
+  backend on 2026-10-14, SOL to and from Base and SOL to USDC on Solana).
+  Squid is the exception: its adapter translates only the sentinel and would
+  pass the System Program id through as a mint. Squid's Solana support was
+  under maintenance then, so the sentinel stays until that is verified.
+- `So11111111111111111111111111111111111111111` is not an address. The SDK
+  once invented it as a native-SOL placeholder and nothing external emits
+  it, so don't bring it back. `So1111…112` is wrapped SOL, a separate SPL
+  token.
+
+### Wallet balances
+
+The token picker's "Your tokens" rows come from one wallet-balance load
+(`useWalletTokenState`). A failed load, or a chain the backend reports an
+error for, is shown in the picker ("Couldn't load your Solana balances:
+<reason>") and never swallowed: an empty "Your tokens" must mean the wallet
+holds nothing listed, not that loading broke. Picking a catalog token keeps
+working when a balance is unknown; the token's balance shows as unavailable,
+never as 0. `knownTokenBalance` returns null for it, so the amount screen
+skips the balance check and hides the slider instead of refusing every
+amount as over a balance of 0. Swap mode reads balances from the loaded
+wallet rows (`findWalletBalanceRow`) and does not fetch per pick.
+
+The rows are ordered by USD value, then unpriced tokens by amount
+(`sortWalletTokensByValue`). Raw balances can't be compared across tokens
+with different decimals, so don't sort by them. Both picker lists show 50
+rows before "Show all" (`visibleTokenRows`). A large wallet lists hundreds
+of supported tokens on one chain.
 
 ### WalletConnect Integration
 

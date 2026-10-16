@@ -4,9 +4,8 @@ import type { ChainDef } from "../types";
 import {
   canonicalChainKeyForLink,
   canonicalSeiChainKey,
-  normalizeChainKey,
-  normalizeChainType,
 } from "src/widget/helpers/chainHelpers";
+import { normalizeChainKey, normalizeChainType } from "src/utils/chains";
 import { resolveChainLabel } from "src/utils";
 
 export interface UseChainsResult {
