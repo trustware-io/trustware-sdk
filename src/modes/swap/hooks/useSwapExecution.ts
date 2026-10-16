@@ -4,10 +4,14 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
 import { submitStepReceipt } from "src/core/routes";
 import {
-  sendReviewedRoute,
+  sendSignableRoute,
   type BuiltRoute,
   type MaterialRouteChange,
 } from "src/core/signTimeRoute";
+import {
+  prepareConfirmedSend,
+  type PAYMENT_INITIATED,
+} from "src/widget/lib/confirmedSend";
 import { trackIntent, type ReceiptReport } from "src/core/intentTracking";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
@@ -265,10 +269,14 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       onError: (msg: string) => void,
       /** A Solana route rebuilt at sign time came back materially worse.
        *  Nothing was sent; `rebuilt` needs the user's review. */
-      onRouteChanged: (rebuilt: BuiltRoute, change: MaterialRouteChange) => void
+      onRouteChanged: (
+        rebuilt: BuiltRoute,
+        change: MaterialRouteChange
+      ) => void,
+      /** Something is about to be sent: report `payment_initiated` here. */
+      onSendStarting: (event: typeof PAYMENT_INITIATED) => void
     ) => {
-      const routeResult = reviewed.result;
-      if (!routeResult?.txReq) {
+      if (!reviewed.result?.txReq) {
         const msg = "Invalid route data. Please try again.";
         setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
         onError(msg);
@@ -286,6 +294,29 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         intentId: null,
         pollingTx: null,
       }));
+
+      // Rebuilds a Solana route right before signing; its blockhash may
+      // have expired while the user read the review screen.
+      let decision: Awaited<ReturnType<typeof prepareConfirmedSend>>;
+      try {
+        decision = await prepareConfirmedSend(reviewed, onSendStarting);
+      } catch (err) {
+        const msg = mapTxError(err);
+        setState((p) => ({
+          ...p,
+          isSubmitting: false,
+          txStatus: "error",
+          errorMessage: msg,
+        }));
+        onError(msg);
+        return;
+      }
+      if (decision.kind === "route_changed") {
+        setState((p) => ({ ...p, isSubmitting: false, txStatus: "idle" }));
+        onRouteChanged(decision.rebuilt, decision.change);
+        return;
+      }
+      const routeResult = decision.route;
 
       const wallet = Trustware.getWallet();
       const txReq = routeResult.txReq;
@@ -599,14 +630,9 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           await requireActiveAddress(wallet, walletAddress as string);
         }
 
-        const sent = await sendReviewedRoute(reviewed, numericChainId, {
+        const sent = await sendSignableRoute(routeResult, numericChainId, {
           approvalsEnsured: ownsApprovals,
         });
-        if (sent.kind === "route_changed") {
-          setState((p) => ({ ...p, isSubmitting: false, txStatus: "idle" }));
-          onRouteChanged(sent.rebuilt, sent.change);
-          return;
-        }
 
         // The hash is the point of no return: the swap is on-chain and the
         // screen must reflect that immediately, before the receipt is

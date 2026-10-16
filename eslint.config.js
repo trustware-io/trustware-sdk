@@ -54,8 +54,9 @@ export default tseslint.config(
     },
   },
 
-  // Widget flows build routes with buildRouteForReview and send them with
-  // sendReviewedRoute (src/core/signTimeRoute.ts). That chokepoint rebuilds a
+  // Widget flows build routes with buildRouteForReview, clear them for
+  // signing with prepareConfirmedSend (routeForSigning), and send them with
+  // sendSignableRoute (src/core/signTimeRoute.ts). That path rebuilds a
   // Solana route right before signing, since the reviewed transaction's
   // blockhash may have expired. Calling the raw functions skips it.
   {
@@ -66,7 +67,8 @@ export default tseslint.config(
         {
           object: "Trustware",
           property: "sendRouteTransaction",
-          message: "Send a reviewed route with sendReviewedRoute.",
+          message:
+            "Clear a confirmed route with prepareConfirmedSend, then send it with sendSignableRoute.",
         },
         {
           object: "Trustware",
@@ -81,7 +83,8 @@ export default tseslint.config(
             {
               group: ["**/core/tx", "src/core/tx"],
               importNames: ["sendRouteTransaction"],
-              message: "Send a reviewed route with sendReviewedRoute.",
+              message:
+                "Clear a confirmed route with prepareConfirmedSend, then send it with sendSignableRoute.",
             },
             {
               group: ["**/core/routes", "src/core/routes"],
@@ -89,6 +92,24 @@ export default tseslint.config(
               message: "Build a route for review with buildRouteForReview.",
             },
           ],
+        },
+      ],
+    },
+  },
+
+  // payment_initiated is reported only by prepareConfirmedSend
+  // (src/widget/lib/confirmedSend.ts), once something is about to be sent.
+  // Reporting it at confirm counted a confirm that went back to review.
+  {
+    files: ["src/widget/**/*.{ts,tsx}", "src/modes/**/*.{ts,tsx}"],
+    ignores: ["src/widget/lib/confirmedSend.ts", "**/__tests__/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value='payment_initiated']",
+          message:
+            "Report payment_initiated through prepareConfirmedSend's onSendStarting.",
         },
       ],
     },

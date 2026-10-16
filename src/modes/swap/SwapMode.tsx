@@ -809,13 +809,6 @@ export function SwapMode({
       domain: window.origin,
     });
 
-    // One event per confirmation. handleExecute is re-entrant for as long as it
-    // takes the "processing" stage to unmount the Swap button, so a double-tap
-    // would otherwise count the same route twice.
-    if (claimAttemptOnce(initiatedAttemptRef, reviewed.result)) {
-      trackEvent("payment_initiated", paymentParams);
-    }
-
     setRouteChangeNotice(null);
     setStage("processing");
     const fromTokenAddress =
@@ -849,6 +842,15 @@ export function SwapMode({
         route.adoptRebuiltRoute(rebuilt);
         setRouteChangeNotice({ route: rebuilt, change });
         setStage("review");
+      },
+      (event) => {
+        // One event per send. A confirm that goes back to review sends
+        // nothing, so it reports nothing. handleExecute is re-entrant for as
+        // long as it takes the "processing" stage to unmount the Swap
+        // button, so a double-tap would otherwise count the same route twice.
+        if (claimAttemptOnce(initiatedAttemptRef, reviewed.result)) {
+          trackEvent(event, paymentParams);
+        }
       }
     );
   }, [

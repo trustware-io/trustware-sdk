@@ -27,6 +27,7 @@ import type {
   MaterialRouteChange,
 } from "../../../../core/signTimeRoute";
 import { ROUTE_CHANGED_TITLE } from "../../../lib/routeChange";
+import type { PAYMENT_INITIATED } from "../../../lib/confirmedSend";
 
 type UseTransactionActionModelArgs = {
   actionErrorMessage: string | null;
@@ -476,7 +477,10 @@ export function useTransactionActionModel({
     if (!builtRoute || !routeResult) {
       return;
     }
-    trackEvent("payment_initiated", {
+    // Snapshot now: the event describes what the user confirmed. It's sent
+    // only once something is about to be sent, so a confirm that goes back
+    // to review (a worse Solana rebuild) reports nothing.
+    const paymentParams = {
       from_chain:
         selectedChain?.networkName ??
         selectedChain?.axelarChainName ??
@@ -485,7 +489,9 @@ export function useTransactionActionModel({
       to_chain: destinationConfig?.routes.toChain,
       to_token: destinationConfig?.routes.toToken,
       domain: window.origin,
-    });
+    };
+    const reportPaymentInitiated = (event: typeof PAYMENT_INITIATED) =>
+      trackEvent(event, paymentParams);
 
     // Silent smart-account sponsored path. Conditions: sponsorship present,
     // wallet is EIP-1193 EVM, ERC-20 token, numeric chain ID available, and
@@ -543,7 +549,11 @@ export function useTransactionActionModel({
         }
       };
 
-      const outcome = await submitTransaction(builtRoute, sendOverride);
+      const outcome = await submitTransaction(
+        builtRoute,
+        reportPaymentInitiated,
+        sendOverride
+      );
       if (outcome.kind === "failed" && !wasRejected) {
         // Non-rejection failure: mark as failed so the next retry uses EOA.
         setSmartAccountFailed(true);
@@ -551,7 +561,7 @@ export function useTransactionActionModel({
       return;
     }
 
-    const outcome = await submitTransaction(builtRoute);
+    const outcome = await submitTransaction(builtRoute, reportPaymentInitiated);
     if (outcome.kind === "route_changed") {
       onRouteRebuilt(outcome.rebuilt);
       setRouteChange((previous) => ({

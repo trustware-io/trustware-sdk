@@ -148,32 +148,59 @@ export type ReviewedRouteSend =
     };
 
 /**
- * Send the route the user confirmed. Every widget send goes through here.
- *
- * An EVM route is sent as reviewed. A Solana route is rebuilt from its own
- * request first, because the reviewed transaction's blockhash may already
- * have expired. A failed rebuild throws and nothing is sent. A materially
- * worse rebuild comes back as `route_changed`, unsent. Otherwise the rebuilt
- * route is signed straight away.
+ * A route cleared for signing: the reviewed route on EVM, a fresh rebuild
+ * within the reviewed bounds on Solana. The brand makes `routeForSigning`
+ * the only way to get one, so `sendSignableRoute` can't be handed a stale
+ * Solana route.
  */
-export async function sendReviewedRoute(
-  reviewed: BuiltRoute,
+export type SignableRoute = BuildRouteResult & {
+  readonly [signableRouteBrand]: true;
+};
+declare const signableRouteBrand: unique symbol;
+
+export type SigningDecision =
+  | { kind: "ready"; route: SignableRoute }
+  | {
+      /** Nothing may be sent. The caller shows `rebuilt` for review. */
+      kind: "route_changed";
+      rebuilt: BuiltRoute;
+      change: MaterialRouteChange;
+    };
+
+/**
+ * Decide what to sign for a route the user just confirmed.
+ *
+ * An EVM route is signed as reviewed. A Solana route is rebuilt from its own
+ * request first, because the reviewed transaction's blockhash may already
+ * have expired; a failed rebuild throws. A materially worse rebuild comes
+ * back as `route_changed`.
+ */
+export async function routeForSigning(
+  reviewed: BuiltRoute
+): Promise<SigningDecision> {
+  if (!isSerializedSolanaTxRequest(reviewed.result.txReq)) {
+    // The brand exists only in the type system; this and the Solana branch
+    // below are its only constructors.
+    return { kind: "ready", route: reviewed.result as SignableRoute };
+  }
+  const slippageBps = acceptedSlippageBps(reviewed.request);
+  const rebuilt = await buildRouteForReview(reviewed.request);
+  const change = findMaterialRouteChange(
+    reviewed.result,
+    rebuilt.result,
+    slippageBps
+  );
+  if (change) return { kind: "route_changed", rebuilt, change };
+  return { kind: "ready", route: rebuilt.result as SignableRoute };
+}
+
+/** Sign and send a route `routeForSigning` cleared. Sign it straight away:
+ *  a Solana route's blockhash starts expiring when it's built. */
+export async function sendSignableRoute(
+  route: SignableRoute,
   fallbackChainId?: number | string,
   options?: SendRouteTransactionOptions
-): Promise<ReviewedRouteSend> {
-  let route = reviewed.result;
-  if (isSerializedSolanaTxRequest(reviewed.result.txReq)) {
-    const slippageBps = acceptedSlippageBps(reviewed.request);
-    const rebuilt = await buildRouteForReview(reviewed.request);
-    const change = findMaterialRouteChange(
-      reviewed.result,
-      rebuilt.result,
-      slippageBps
-    );
-    if (change) return { kind: "route_changed", rebuilt, change };
-    route = rebuilt.result;
-  }
-
+): Promise<Extract<ReviewedRouteSend, { kind: "sent" }>> {
   const hash = await sendRouteTransaction(route, fallbackChainId, options);
   return {
     kind: "sent",
@@ -181,4 +208,18 @@ export async function sendReviewedRoute(
     receipt: { intentId: route.intentId, txHash: hash },
     route,
   };
+}
+
+/**
+ * Send the route the user confirmed: `routeForSigning`, then
+ * `sendSignableRoute`. The public form of what the widget does.
+ */
+export async function sendReviewedRoute(
+  reviewed: BuiltRoute,
+  fallbackChainId?: number | string,
+  options?: SendRouteTransactionOptions
+): Promise<ReviewedRouteSend> {
+  const decision = await routeForSigning(reviewed);
+  if (decision.kind === "route_changed") return decision;
+  return sendSignableRoute(decision.route, fallbackChainId, options);
 }

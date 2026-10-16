@@ -266,6 +266,13 @@ dashboards outside this repo:
 | Event               | Deposit                                                   | Swap                                        |
 | ------------------- | --------------------------------------------------------- | ------------------------------------------- |
 | `payment_initiated` | `features/transaction/hooks/useTransactionActionModel.ts` | `modes/swap/SwapMode.tsx` (`handleExecute`) |
+
+`payment_initiated` fires once per send, not per confirm: both flows pass
+a callback to `prepareConfirmedSend`, which runs it only when the route is
+cleared for signing. A confirm whose Solana rebuild comes back materially
+worse goes back to review and reports nothing. ESLint allows the literal
+`"payment_initiated"` only in `src/widget/lib/confirmedSend.ts`
+(`PAYMENT_INITIATED`).
 | `payment_completed` | `widget/hooks/useTransactionPolling.ts`                   | `modes/swap/SwapMode.tsx` (`onSuccess`)     |
 
 Both carry `from_chain`, `from_token`, `to_chain`, `to_token`, `domain`. Deposit
@@ -311,11 +318,16 @@ Rules that follow from it:
 
 - One core chokepoint does the rebuild for every widget flow (deposit and
   swap), keyed on `isSerializedSolanaTxRequest`, so no flow can send a
-  reviewed Solana route by forgetting a step. It is `sendReviewedRoute` in
-  `src/core/signTimeRoute.ts`. ESLint forbids `sendRouteTransaction` and
-  `buildRoute` under `src/widget/` and `src/modes/`, so a widget flow can
-  only build with `buildRouteForReview` and send with `sendReviewedRoute`.
-  The smart-account send override is EVM-only and bypasses it.
+  reviewed Solana route by forgetting a step. It lives in
+  `src/core/signTimeRoute.ts`: `routeForSigning` decides what to sign
+  (rebuilding a Solana route) and returns a branded `SignableRoute`, which
+  is the only thing `sendSignableRoute` accepts. `sendReviewedRoute` is the
+  two in one call, for hosts. Widget flows call `prepareConfirmedSend`
+  (`src/widget/lib/confirmedSend.ts`), which wraps `routeForSigning`, and
+  then send through `sendSignableRoute` or the smart-account override, so
+  the override also only ever gets a cleared route. ESLint forbids
+  `sendRouteTransaction` and `buildRoute` under `src/widget/` and
+  `src/modes/`.
 - The rebuild repeats the exact request that built the reviewed route, so
   a route always travels with its request: `BuiltRoute` pairs them, and
   only `buildRouteForReview` can make one.

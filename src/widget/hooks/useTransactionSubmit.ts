@@ -2,10 +2,14 @@
 import { useCallback, useState } from "react";
 import type { ReceiptReport } from "../../core/intentTracking";
 import {
-  sendReviewedRoute,
+  sendSignableRoute,
   type BuiltRoute,
   type MaterialRouteChange,
 } from "../../core/signTimeRoute";
+import {
+  prepareConfirmedSend,
+  type PAYMENT_INITIATED,
+} from "../lib/confirmedSend";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -27,8 +31,7 @@ export type TransactionSubmitState = {
 
 /** A send path other than the plain wallet transaction (the smart-account
  *  UserOp). `hash` is what the widget displays; `receipt` is what it tracks.
- *  EVM only: it signs the reviewed route without the sign-time rebuild a
- *  Solana route needs. */
+ *  It gets the route `routeForSigning` cleared, like the plain path. */
 type SendOverride = (
   routeResult: BuildRouteResult
 ) => Promise<{ hash: string; receipt: ReceiptReport }>;
@@ -75,6 +78,8 @@ export function useTransactionSubmit() {
   const submitTransaction = useCallback(
     async (
       reviewed: BuiltRoute,
+      /** Something is about to be sent: report `payment_initiated` here. */
+      onSendStarting: (event: typeof PAYMENT_INITIATED) => void,
       sendOverride?: SendOverride
     ): Promise<SubmitOutcome> => {
       const routeResult = reviewed.result;
@@ -101,26 +106,29 @@ export function useTransactionSubmit() {
       setTransactionStatus("confirming");
 
       try {
+        // Rebuilds a Solana route right before signing; its blockhash may
+        // have expired while the user read Confirm Deposit.
+        const decision = await prepareConfirmedSend(reviewed, onSendStarting);
+        if (decision.kind === "route_changed") {
+          setState({ isSubmitting: false, txHash: null, error: null });
+          setTransactionStatus("idle");
+          return decision;
+        }
+
         let hash: string;
         let receipt: ReceiptReport;
 
         if (sendOverride) {
-          ({ hash, receipt } = await sendOverride(routeResult));
+          ({ hash, receipt } = await sendOverride(decision.route));
         } else {
           // Standard EOA path. The Processing page's tracker delivers the
           // receipt; awaiting it here would hold this screen on a
           // transaction that is already on-chain.
           const fallbackChainId = selectedChain?.chainId;
-          const sent = await sendReviewedRoute(
-            reviewed,
+          ({ hash, receipt } = await sendSignableRoute(
+            decision.route,
             Number(fallbackChainId)
-          );
-          if (sent.kind === "route_changed") {
-            setState({ isSubmitting: false, txHash: null, error: null });
-            setTransactionStatus("idle");
-            return sent;
-          }
-          ({ hash, receipt } = sent);
+          ));
         }
 
         // Transaction was signed and submitted
