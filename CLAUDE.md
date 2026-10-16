@@ -289,6 +289,57 @@ home → select-token → crypto-pay → processing → success | error
 
 `goBack()` pops the history stack; `resetNavigation()` returns to `home`.
 
+### Solana routes are built at sign time
+
+Ruling (2026-10-16): when a route's transaction is Solana, the SDK builds
+the route again right before it asks the wallet to sign. It doesn't sign
+the route the user reviewed. If it can't produce a fresh transaction, it
+fails loudly and sends nothing.
+
+Why: `execution.transaction.data` on a Solana route is a serialized v0
+transaction whose recent blockhash is valid for roughly 60–90 s, and the
+backend mints it when the route is built. The user can sit on the review
+screen for any length of time, and `sendSerializedTransaction`
+(`src/wallets/solana.ts`) sends with `skipPreflight: true`, so an expired
+transaction is accepted by the wallet and then dropped by the network
+without a trace. Real-wallet testing on 2026-10-16 lost two Mayan swaps
+this way (30 s and 2 min between build and sign). EVM transactions carry no
+expiry, so EVM routes are sent as reviewed.
+
+Rules that follow from it:
+
+- One core chokepoint does the rebuild for every widget flow (deposit and
+  swap), keyed on `isSerializedSolanaTxRequest`, so no flow can send a
+  reviewed Solana route by forgetting a step.
+- The rebuild repeats the exact request that built the reviewed route, so
+  a route always travels with its request.
+- A rebuild that comes back materially worse stops and goes back to review
+  with the rebuilt amounts shown. It is never sent silently. Material means
+  the rebuilt `toAmount` is below the reviewed `toAmount` less the slippage
+  the user accepted for that request, or the rebuilt `fromAmount` is above
+  the reviewed one. A change inside those bounds is sent without
+  re-review.
+- Each build issues its own intent. The receipt and status tracking follow
+  the route that was actually signed. The reviewed route's intent is never
+  reported as sent; it stays an ordinary abandoned intent.
+- A failed rebuild is an error. Nothing is sent, and the stale route is
+  never sent as a fallback.
+- The SDK never rewrites a transaction's blockhash. Some Solana paths carry
+  server signatures over the message, and a new blockhash would invalidate
+  them.
+- `skipPreflight: true` stays. It isn't what lets a transaction expire;
+  the delay between build and sign is.
+- A `lastValidBlockHeight` on the route response (if the backend adds one)
+  is not relied on.
+
+Swap mode already rebuilt at confirm before this ruling (af5e6ee), but it
+fell back to the stale route when the rebuild failed, and it sent a worse
+rebuild without re-review. Deposit mode never rebuilt. Direct
+`Trustware.sendRouteTransaction` callers are outside the widget flows. They
+hold only a `BuildRouteResult`, not its request, and the function returns a
+bare hash, so fixing them needs a public API change that is pending
+sign-off.
+
 ### Other Subsystems
 
 - `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, `analytics.ts` (GA4 payload builder + once-per-attempt guard), hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
