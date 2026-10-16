@@ -216,6 +216,7 @@ If you run `npm run build` without the env var, the SDK will call production API
 - **REST** (`core/routes.ts`, `core/balances.ts`): `buildRoute`, `buildDepositAddress`, `submitReceipt`, `submitStepReceipt`, `getStatus`, `pollStatus`, `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
   - `buildRoute` takes a full `BuildRouteBody` — `fromChain`, `toChain`, `fromToken`, `toToken`, `fromAmount`, `fromAddress`, `toAddress` are all **required**; it does not fall back to the provider config. `fromAmount` is in the source token's smallest unit (`fromAmountUsd` carries the USD figure). Optional `hooks.postHook` does bridge-and-call; `buildRoute`/`buildDepositAddress` run `assertValidPostHook` on it internally. That helper is defined in `src/core/routes.ts` and re-exported from both the package root and `./core`, so hosts can validate a hook before building.
   - There is **no** `getQuote` — the estimate comes back on the route (`route.route?.estimate`, `route.finalExchangeRate`).
+  - `buildRouteForReview` / `sendReviewedRoute` (`core/signTimeRoute.ts`) are the review-then-send pair: they rebuild a Solana route right before signing. See "Solana routes are built at sign time".
   - The status wire payload is entirely snake_case while `Transaction` is camelCase. `getStatus` runs `normalizeStatusPayload` (`src/core/routes.ts`) to map every field onto the camelCase names the type advertises, keeping the raw wire keys alongside them. Before 1.1.11 it mapped only `request_id`/`provider_request_id`, so `sourceTxHash`/`destTxHash`/`intentId` read `undefined` everywhere except swap mode, which re-mapped four of them itself in `normalizeTx`.
 - **Validation**: `validateAddressForChain`, `validateRouteAddresses`.
 - **Data hooks** (`core/useChains.ts`, `core/useTokens.ts`): `useChains`, `useTokens`.
@@ -342,11 +343,29 @@ Rules that follow from it:
 
 Swap mode already rebuilt at confirm before this ruling (af5e6ee), but it
 fell back to the stale route when the rebuild failed, and it sent a worse
-rebuild without re-review. Deposit mode never rebuilt. Direct
-`Trustware.sendRouteTransaction` callers are outside the widget flows. They
-hold only a `BuildRouteResult`, not its request, and the function returns a
-bare hash, so fixing them needs a public API change that is pending
-sign-off.
+rebuild without re-review. Deposit mode never rebuilt.
+
+**Host API (signed off 2026-10-16).** `sendRouteTransaction` can't apply
+the rule for a host: it gets only a `BuildRouteResult`, not the request that
+built it, and returns a bare hash, so it can't rebuild or report the new
+intent. The user approved exposing the widget's pair instead, exactly as
+follows, with `sendRouteTransaction` unchanged:
+
+- `Trustware.buildRouteForReview(request)` and
+  `Trustware.sendReviewedRoute(reviewed, chainId?, options?)`, also exported
+  by name from `@trustware/sdk/core`. `options` is
+  `SendRouteTransactionOptions`.
+- The types `BuiltRoute`, `ReviewedRouteSend` and `MaterialRouteChange`,
+  exported from `@trustware/sdk/core`. They are not re-exported from the
+  package root.
+
+Hosts that send Solana routes should build with `buildRouteForReview` and
+send with `sendReviewedRoute`. A host that holds a route while the user
+reads it and then calls `sendRouteTransaction` can send an expired
+transaction that the network drops without an error. `sendReviewedRoute`
+returns `sent` with the receipt to submit, which names the rebuilt intent,
+or `route_changed` with the rebuilt route to show for review. For an EVM
+route the pair behaves like `buildRoute` plus `sendRouteTransaction`.
 
 ### Other Subsystems
 

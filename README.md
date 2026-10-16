@@ -338,6 +338,47 @@ const tx = await Trustware.runTopUp({ fromAmount: "25000000" });
 console.log(tx.status, tx.destTxHash);
 ```
 
+#### Review, then send (required for Solana routes)
+
+A Solana route's transaction carries a blockhash that expires about a minute
+after the route is built. If you show the route to the user and send it with
+`sendRouteTransaction` after they confirm, the transaction may already be
+expired, and the network drops it without an error. Build with
+`buildRouteForReview` and send with `sendReviewedRoute` instead. On a Solana
+route, `sendReviewedRoute` builds the route again from the same request right
+before the wallet signs. On an EVM route it sends the route you reviewed.
+
+```ts
+import { Trustware } from "@trustware/sdk";
+
+const reviewed = await Trustware.buildRouteForReview({
+  fromChain: "solana-mainnet-beta",
+  fromToken: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC on Solana
+  toChain: "8453",
+  toToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
+  fromAmount: "25000000",
+  fromAddress: await Trustware.getAddress(),
+  toAddress: "0xDestination...",
+  slippage: 0.5, // required for a Solana route: it bounds the rebuild
+});
+console.log(reviewed.result.route?.estimate); // show this to the user
+
+// After the user confirms:
+const sent = await Trustware.sendReviewedRoute(reviewed);
+if (sent.kind === "route_changed") {
+  // Nothing was sent: the rebuilt route gives less than the slippage allows,
+  // or spends more. Show sent.rebuilt for review, and when the user confirms
+  // again, pass it to sendReviewedRoute.
+} else {
+  await Trustware.submitReceipt(sent.receipt.intentId, sent.receipt.txHash);
+}
+```
+
+Report the receipt from `sent.receipt`, not from the route you reviewed: a
+Solana rebuild has its own intent. A failed rebuild throws, and nothing is
+sent. The types `BuiltRoute`, `ReviewedRouteSend` and `MaterialRouteChange`
+are exported from `@trustware/sdk/core`.
+
 See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 
 ## Common Config Examples
@@ -404,6 +445,7 @@ Trustware.setDestinationAddress("0xDestination...");
 
 - `buildRoute`, `buildDepositAddress` — build a route, or an address to deposit into.
 - `submitReceipt`, `submitStepReceipt`, `sendRouteTransaction`, `runTopUp` — execution.
+- `buildRouteForReview`, `sendReviewedRoute` — build a route for the user to review, then send it, rebuilding a Solana route right before signing.
 - `getStatus`, `pollStatus` — read a transaction through to a terminal state.
 - `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
 - `useChains`, `useTokens` — React hooks over the chain and token registries.
