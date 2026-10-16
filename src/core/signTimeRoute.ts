@@ -26,10 +26,9 @@ export type BuiltRoute = {
 declare const builtRouteBrand: unique symbol;
 
 export async function buildRouteForReview(
-  request: BuildRouteBody,
-  signal?: AbortSignal
+  request: BuildRouteBody
 ): Promise<BuiltRoute> {
-  const result = await buildRoute(request, signal);
+  const result = await buildRoute(request);
   // The brand exists only in the type system; this is its one constructor.
   return { request, result } as BuiltRoute;
 }

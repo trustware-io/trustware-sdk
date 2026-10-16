@@ -9,6 +9,11 @@ import type { BuildRouteBody } from "src/core/routes";
 import { isRouteError } from "src/core/routeError";
 import { TrustwareConfigStore } from "src/config/store";
 import { walletManager } from "src/wallets/";
+import {
+  Trustware,
+  buildRouteForReview as coreBuildRouteForReview,
+  sendReviewedRoute as coreSendReviewedRoute,
+} from "src/core";
 import type { RouteEstimate, WalletInterFaceAPI } from "src/types";
 
 const SOLANA = "solana-mainnet-beta";
@@ -433,5 +438,75 @@ describe("sendReviewedRoute", () => {
       txHash: `0x${"e".repeat(64)}`,
     });
     assert.equal(outcome.route, reviewed.result);
+  });
+});
+
+// What a host sees: the pair on the public facade, the wallet attached the
+// way hosts attach one.
+describe("Trustware.sendReviewedRoute (host API)", () => {
+  const realFetch = globalThis.fetch;
+  let events: Event[];
+
+  beforeEach(() => {
+    TrustwareConfigStore.init({
+      apiKey: "test-key",
+      routes: { toChain: 8453, toToken: "USDC" },
+    });
+    events = [];
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("exposes the same functions on the facade and as named ./core exports", () => {
+    assert.equal(Trustware.buildRouteForReview, buildRouteForReview);
+    assert.equal(Trustware.sendReviewedRoute, sendReviewedRoute);
+    assert.equal(coreBuildRouteForReview, buildRouteForReview);
+    assert.equal(coreSendReviewedRoute, sendReviewedRoute);
+  });
+
+  it("rebuilds a host's Solana route before the wallet signs, and reports the rebuilt intent", async () => {
+    globalThis.fetch = stubBackend(events, [
+      reviewedSolanaReply,
+      rebuiltSolanaReply({ ...REVIEWED_ESTIMATE, toAmount: "989000" }),
+    ]) as typeof fetch;
+    Trustware.useWallet(solanaWallet(events));
+
+    const reviewed = await Trustware.buildRouteForReview(SOLANA_REQUEST);
+    const outcome = await Trustware.sendReviewedRoute(reviewed);
+
+    assert.deepEqual(
+      events.map((e) => e.kind),
+      ["build", "build", "sign"]
+    );
+    assert.deepEqual(events[1], events[0], "the same request, built again");
+    assert.deepEqual(events[2], { kind: "sign", data: REBUILT_SOLANA_TX });
+    assert.equal(outcome.kind, "sent");
+    if (outcome.kind !== "sent") return;
+    assert.deepEqual(outcome.receipt, {
+      intentId: "intent-rebuilt",
+      txHash: "solana-signature-1",
+    });
+  });
+
+  it("hands a host a materially worse rebuild for review without signing", async () => {
+    globalThis.fetch = stubBackend(events, [
+      reviewedSolanaReply,
+      rebuiltSolanaReply({ ...REVIEWED_ESTIMATE, toAmount: "985049" }),
+    ]) as typeof fetch;
+    Trustware.useWallet(solanaWallet(events));
+
+    const reviewed = await Trustware.buildRouteForReview(SOLANA_REQUEST);
+    const outcome = await Trustware.sendReviewedRoute(reviewed);
+
+    assert.deepEqual(
+      events.map((e) => e.kind),
+      ["build", "build"]
+    );
+    assert.equal(outcome.kind, "route_changed");
+    if (outcome.kind !== "route_changed") return;
+    assert.equal(outcome.change.kind, "output_below_accepted_slippage");
+    assert.equal(outcome.rebuilt.result.intentId, "intent-rebuilt");
   });
 });
