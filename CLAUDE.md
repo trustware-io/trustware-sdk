@@ -342,7 +342,14 @@ Rules that follow from it:
   amounts and a relabelled swipe.
 - Each build issues its own intent. The receipt and status tracking follow
   the route that was actually signed. The reviewed route's intent is never
-  reported as sent; it stays an ordinary abandoned intent.
+  reported as sent; it stays an ordinary abandoned intent. The SDK can't
+  retire it: checked 2026-10-16 against quicklinks_v1 `origin/staging`
+  (9ee84dc1), the SDK's `/route-intent` API has only `receipt`,
+  `steps/:index/receipt` and `status`, and `intent_status` has no cancelled
+  or superseded value. The status poller's `HasSupersedingIntent` is
+  server-internal and covers only orphaned EVM approve steps. Retiring the
+  reviewed intent needs a backend endpoint first, so each Solana confirm
+  leaves one extra `created` intent.
 - A failed rebuild is an error. Nothing is sent, and the stale route is
   never sent as a fallback.
 - The SDK never rewrites a transaction's blockhash. Some Solana paths carry
