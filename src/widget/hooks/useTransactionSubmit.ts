@@ -1,7 +1,11 @@
 "use client";
 import { useCallback, useState } from "react";
-import { Trustware } from "../../core";
 import type { ReceiptReport } from "../../core/intentTracking";
+import {
+  sendReviewedRoute,
+  type BuiltRoute,
+  type MaterialRouteChange,
+} from "../../core/signTimeRoute";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -22,10 +26,25 @@ export type TransactionSubmitState = {
 };
 
 /** A send path other than the plain wallet transaction (the smart-account
- *  UserOp). `hash` is what the widget displays; `receipt` is what it tracks. */
+ *  UserOp). `hash` is what the widget displays; `receipt` is what it tracks.
+ *  EVM only: it signs the reviewed route without the sign-time rebuild a
+ *  Solana route needs. */
 type SendOverride = (
   routeResult: BuildRouteResult
 ) => Promise<{ hash: string; receipt: ReceiptReport }>;
+
+/** How a submission ended. */
+export type SubmitOutcome =
+  | { kind: "sent"; hash: string }
+  /** The error is already on the error screen. */
+  | { kind: "failed" }
+  /** A Solana route rebuilt at sign time came back materially worse.
+   *  Nothing was sent and the widget stays on the review screen. */
+  | {
+      kind: "route_changed";
+      rebuilt: BuiltRoute;
+      change: MaterialRouteChange;
+    };
 
 /**
  * Hook for submitting transactions to the wallet.
@@ -50,17 +69,15 @@ export function useTransactionSubmit() {
   });
 
   /**
-   * Submit a transaction to the wallet for signing.
+   * Submit the reviewed route to the wallet for signing.
    * Updates context state throughout the flow.
-   *
-   * @param routeResult - The built route result from useRouteBuilder
-   * @returns The transaction hash if successful, null if failed
    */
   const submitTransaction = useCallback(
     async (
-      routeResult: BuildRouteResult,
+      reviewed: BuiltRoute,
       sendOverride?: SendOverride
-    ): Promise<string | null> => {
+    ): Promise<SubmitOutcome> => {
+      const routeResult = reviewed.result;
       if (!routeResult?.txReq) {
         const errorMsg = "Invalid route data. Please try again.";
         setState({
@@ -71,7 +88,7 @@ export function useTransactionSubmit() {
         setErrorMessage(errorMsg);
         setTransactionStatus("error");
         setCurrentStep("error");
-        return null;
+        return { kind: "failed" };
       }
 
       setState({
@@ -94,11 +111,16 @@ export function useTransactionSubmit() {
           // receipt; awaiting it here would hold this screen on a
           // transaction that is already on-chain.
           const fallbackChainId = selectedChain?.chainId;
-          hash = await Trustware.sendRouteTransaction(
-            routeResult,
+          const sent = await sendReviewedRoute(
+            reviewed,
             Number(fallbackChainId)
           );
-          receipt = { intentId: routeResult.intentId, txHash: hash };
+          if (sent.kind === "route_changed") {
+            setState({ isSubmitting: false, txHash: null, error: null });
+            setTransactionStatus("idle");
+            return sent;
+          }
+          ({ hash, receipt } = sent);
         }
 
         // Transaction was signed and submitted
@@ -115,7 +137,7 @@ export function useTransactionSubmit() {
         setTransactionStatus("processing");
         setCurrentStep("processing");
 
-        return hash;
+        return { kind: "sent", hash };
       } catch (err) {
         // Map error to user-friendly message
         const errorMsg = mapTransactionError(err);
@@ -131,7 +153,7 @@ export function useTransactionSubmit() {
         setTransactionStatus("error");
         setCurrentStep("error");
 
-        return null;
+        return { kind: "failed" };
       }
     },
     [

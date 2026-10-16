@@ -54,6 +54,46 @@ export default tseslint.config(
     },
   },
 
+  // Widget flows build routes with buildRouteForReview and send them with
+  // sendReviewedRoute (src/core/signTimeRoute.ts). That chokepoint rebuilds a
+  // Solana route right before signing, since the reviewed transaction's
+  // blockhash may have expired. Calling the raw functions skips it.
+  {
+    files: ["src/widget/**/*.{ts,tsx}", "src/modes/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "Trustware",
+          property: "sendRouteTransaction",
+          message: "Send a reviewed route with sendReviewedRoute.",
+        },
+        {
+          object: "Trustware",
+          property: "buildRoute",
+          message: "Build a route for review with buildRouteForReview.",
+        },
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/core/tx", "src/core/tx"],
+              importNames: ["sendRouteTransaction"],
+              message: "Send a reviewed route with sendReviewedRoute.",
+            },
+            {
+              group: ["**/core/routes", "src/core/routes"],
+              importNames: ["buildRoute"],
+              message: "Build a route for review with buildRouteForReview.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   {
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
     ...tseslint.configs.disableTypeChecked,

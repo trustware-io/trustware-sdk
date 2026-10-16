@@ -18,6 +18,9 @@ export interface CryptoPaySwipeSectionProps {
   isReadingAllowance: boolean;
   isWalletConnected: boolean;
   needsApproval: boolean;
+  /** Set when a confirmed route went back to review after its sign-time
+   *  rebuild came back materially worse. */
+  routeChangedLabel: string | null;
   selectedToken: YourTokenData | null;
   swipeResetKey: string | number;
 }
@@ -33,6 +36,7 @@ export function CryptoPaySwipeSection({
   isReadingAllowance,
   isWalletConnected,
   needsApproval,
+  routeChangedLabel,
   selectedToken,
   swipeResetKey,
 }: CryptoPaySwipeSectionProps): React.ReactElement {
@@ -48,7 +52,7 @@ export function CryptoPaySwipeSection({
             ? "Checking allowance..."
             : needsApproval
               ? "Swipe to approve"
-              : "Swipe to confirm";
+              : (routeChangedLabel ?? "Swipe to confirm");
 
   // The swipe label is a button, not an error page, so it gets the mapped
   // title. What this replaces only rewrote a message that was *exactly* the

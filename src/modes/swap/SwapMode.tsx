@@ -18,13 +18,13 @@ import {
 } from "src/widget/styles";
 import { mergeStyles } from "src/widget/lib/utils";
 import { mapError } from "src/widget/lib/mapError";
+import { describeRouteChange } from "src/widget/lib/routeChange";
 import {
   WidgetContainer,
   WidgetSecurityFooter,
   ErrorPage,
 } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
-import { isSerializedSolanaTxRequest } from "src/core/routes";
 import { mapTokenDefToToken } from "src/core/useTokens";
 import { chainForRef, chainsWithRefs } from "./tokenRefs";
 import {
@@ -63,6 +63,7 @@ import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import type { Theme } from "src/widget/components";
 import type { VaultSummary, Position } from "src/core/vaults";
+import type { BuiltRoute, MaterialRouteChange } from "src/core/signTimeRoute";
 import { SwapWalletSelector } from "./components";
 
 const ConfettiEffect = lazy(
@@ -266,6 +267,13 @@ export function SwapMode({
   const quoteTimestampRef = useRef<number | null>(null);
   const [quoteLoadingMsgIdx, setQuoteLoadingMsgIdx] = useState(0);
   const [quoteLoadingMsgVisible, setQuoteLoadingMsgVisible] = useState(true);
+  // Set when a Solana route rebuilt at sign time came back materially worse.
+  // Shown only while `route` is still the route on review: a quote refresh
+  // replaces it, and the notice would then describe a route that's gone.
+  const [routeChangeNotice, setRouteChangeNotice] = useState<{
+    route: BuiltRoute;
+    change: MaterialRouteChange;
+  } | null>(null);
   const latestFetchParamsRef = useRef<
     Parameters<ReturnType<typeof useSwapRoute>["fetch"]>[0] | null
   >(null);
@@ -786,7 +794,8 @@ export function SwapMode({
   }, []);
 
   const handleExecute = useCallback(async () => {
-    if (!route.data) return;
+    const reviewed = route.built;
+    if (!reviewed) return;
 
     // Snapshot the pair now: the completion callback fires minutes later, and
     // the swap that completed is the one the user confirmed here, not whatever
@@ -803,30 +812,21 @@ export function SwapMode({
     // One event per confirmation. handleExecute is re-entrant for as long as it
     // takes the "processing" stage to unmount the Swap button, so a double-tap
     // would otherwise count the same route twice.
-    if (claimAttemptOnce(initiatedAttemptRef, route.data)) {
+    if (claimAttemptOnce(initiatedAttemptRef, reviewed.result)) {
       trackEvent("payment_initiated", paymentParams);
     }
 
+    setRouteChangeNotice(null);
     setStage("processing");
     const fromTokenAddress =
       fromToken?.address ?? (fromToken as { address?: string })?.address;
     const fromTokenDecimals = fromToken?.decimals ?? undefined;
 
-    // Solana blockhashes expire in ~60-90s and a quote can sit on the review
-    // screen for nearly the full QUOTE_TTL window before the user confirms —
-    // rebuild right before signing so the wallet gets a transaction with a
-    // fresh blockhash instead of one that may already be expired.
-    let routeToSend = route.data;
-    if (
-      isSerializedSolanaTxRequest(routeToSend.txReq) &&
-      latestFetchParamsRef.current
-    ) {
-      const fresh = await route.fetch(latestFetchParamsRef.current);
-      if (fresh) routeToSend = fresh;
-    }
-
+    // A Solana route is rebuilt inside execute (sendReviewedRoute) right
+    // before the wallet signs, since the reviewed transaction's blockhash may
+    // have expired while the user read the review screen.
     await execution.execute(
-      routeToSend,
+      reviewed,
       fromTokenAddress,
       fromTokenDecimals,
       walletAddress ?? undefined,
@@ -838,13 +838,18 @@ export function SwapMode({
         // not: a late poll from a superseded attempt resolving into this
         // closure. A genuine retry always rebuilds the route (the error
         // screen's only exit clears it), so it is a new object and reports.
-        if (claimAttemptOnce(completedAttemptRef, routeToSend)) {
+        if (claimAttemptOnce(completedAttemptRef, reviewed.result)) {
           trackEvent("payment_completed", paymentParams);
         }
         setCompletedAt(new Date());
         setStage("success");
       },
-      () => setStage("error")
+      () => setStage("error"),
+      (rebuilt, change) => {
+        route.adoptRebuiltRoute(rebuilt);
+        setRouteChangeNotice({ route: rebuilt, change });
+        setStage("review");
+      }
     );
   }, [
     route,
@@ -2706,6 +2711,23 @@ export function SwapMode({
                 />
               )}
             </div>
+          )}
+
+          {routeChangeNotice && routeChangeNotice.route === route.built && (
+            <p
+              role="alert"
+              style={{
+                marginTop: spacing[5],
+                padding: spacing[3],
+                borderRadius: borderRadius.lg,
+                backgroundColor: colors.amber[500] + "1a",
+                border: `1px solid ${colors.amber[500]}66`,
+                fontSize: fontSize.xs,
+                color: colors.foreground,
+              }}
+            >
+              {describeRouteChange(routeChangeNotice.change)}
+            </p>
           )}
 
           {/* ── Action area — structured for future additions ── */}

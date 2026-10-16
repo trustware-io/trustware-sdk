@@ -126,7 +126,8 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     destinationConfig,
     isLoadingRoute,
     estimatedReceive,
-    routeResult,
+    builtRoute,
+    adoptRebuiltRoute,
     routePrerequisiteError,
     routeError: routeBuilderError,
   } = useRoutePreviewModel({
@@ -150,13 +151,15 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     isReadingAllowance,
     isWalletConnected,
     needsApproval,
+    routeChangedLabel,
     swipeResetKey,
   } = useTransactionActionModel({
     actionErrorMessage,
     amountWei,
     isLoadingRoute,
     parsedAmount,
-    routeResult,
+    builtRoute,
+    onRouteRebuilt: adoptRebuiltRoute,
     selectedChain,
     selectedToken,
     walletAddress,
@@ -172,6 +175,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     yourWalletTokens,
   });
 
+  const routeResult = builtRoute?.result ?? null;
   const { emitError } = useTrustware();
   const readySelectedToken = isReady ? (selectedToken as YourTokenData) : null;
 
@@ -379,6 +383,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                           : false
                     }
                     needsApproval={needsApproval}
+                    routeChangedLabel={routeChangedLabel}
                     selectedToken={readySelectedToken}
                     swipeResetKey={swipeResetKey}
                   />

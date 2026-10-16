@@ -3,6 +3,11 @@ import { useCallback, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
 import { submitStepReceipt } from "src/core/routes";
+import {
+  sendReviewedRoute,
+  type BuiltRoute,
+  type MaterialRouteChange,
+} from "src/core/signTimeRoute";
 import { trackIntent, type ReceiptReport } from "src/core/intentTracking";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
@@ -251,14 +256,18 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
   const execute = useCallback(
     async (
-      routeResult: BuildRouteResult,
+      reviewed: BuiltRoute,
       fromTokenAddress: string | undefined,
       fromTokenDecimals: number | undefined,
       walletAddress: string | undefined,
       maxApproval: boolean,
       onSuccess: () => void,
-      onError: (msg: string) => void
+      onError: (msg: string) => void,
+      /** A Solana route rebuilt at sign time came back materially worse.
+       *  Nothing was sent; `rebuilt` needs the user's review. */
+      onRouteChanged: (rebuilt: BuiltRoute, change: MaterialRouteChange) => void
     ) => {
+      const routeResult = reviewed.result;
       if (!routeResult?.txReq) {
         const msg = "Invalid route data. Please try again.";
         setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
@@ -590,11 +599,14 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           await requireActiveAddress(wallet, walletAddress as string);
         }
 
-        const hash = await Trustware.sendRouteTransaction(
-          routeResult,
-          numericChainId,
-          { approvalsEnsured: ownsApprovals }
-        );
+        const sent = await sendReviewedRoute(reviewed, numericChainId, {
+          approvalsEnsured: ownsApprovals,
+        });
+        if (sent.kind === "route_changed") {
+          setState((p) => ({ ...p, isSubmitting: false, txStatus: "idle" }));
+          onRouteChanged(sent.rebuilt, sent.change);
+          return;
+        }
 
         // The hash is the point of no return: the swap is on-chain and the
         // screen must reflect that immediately, before the receipt is
@@ -605,16 +617,12 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         setState((p) => ({
           ...p,
           isSubmitting: false,
-          txHash: hash,
-          intentId: routeResult.intentId,
+          txHash: sent.hash,
+          intentId: sent.receipt.intentId,
           txStatus: "processing",
         }));
 
-        startTracking(
-          { intentId: routeResult.intentId, txHash: hash },
-          onSuccess,
-          onError
-        );
+        startTracking(sent.receipt, onSuccess, onError);
       } catch (err) {
         const msg = mapTxError(err);
         setState((p) => ({

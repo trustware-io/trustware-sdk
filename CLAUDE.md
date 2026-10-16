@@ -219,7 +219,7 @@ If you run `npm run build` without the env var, the SDK will call production API
   - The status wire payload is entirely snake_case while `Transaction` is camelCase. `getStatus` runs `normalizeStatusPayload` (`src/core/routes.ts`) to map every field onto the camelCase names the type advertises, keeping the raw wire keys alongside them. Before 1.1.11 it mapped only `request_id`/`provider_request_id`, so `sourceTxHash`/`destTxHash`/`intentId` read `undefined` everywhere except swap mode, which re-mapped four of them itself in `normalizeTx`.
 - **Validation**: `validateAddressForChain`, `validateRouteAddresses`.
 - **Data hooks** (`core/useChains.ts`, `core/useTokens.ts`): `useChains`, `useTokens`.
-- **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`. `runTopUp({ fromAmount, ... })` resolves the rest from config, sends, submits the receipt, and polls — it resolves to the `Transaction` that `pollStatus` returns (read `sourceTxHash`/`destTxHash`; there is no `txHash` field).
+- **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`. `runTopUp` builds and sends in one go, so its Solana transaction is already fresh. Widget flows don't call `sendRouteTransaction` directly; they go through `core/signTimeRoute.ts` (see "Solana routes are built at sign time"). `runTopUp({ fromAmount, ... })` resolves the rest from config, sends, submits the receipt, and polls — it resolves to the `Transaction` that `pollStatus` returns (read `sourceTxHash`/`destTxHash`; there is no `txHash` field).
 
 There is **no** event-emitter on the facade (`Trustware.on` does not exist). Events reach the host through `config.onEvent`.
 
@@ -310,15 +310,23 @@ Rules that follow from it:
 
 - One core chokepoint does the rebuild for every widget flow (deposit and
   swap), keyed on `isSerializedSolanaTxRequest`, so no flow can send a
-  reviewed Solana route by forgetting a step.
+  reviewed Solana route by forgetting a step. It is `sendReviewedRoute` in
+  `src/core/signTimeRoute.ts`. ESLint forbids `sendRouteTransaction` and
+  `buildRoute` under `src/widget/` and `src/modes/`, so a widget flow can
+  only build with `buildRouteForReview` and send with `sendReviewedRoute`.
+  The smart-account send override is EVM-only and bypasses it.
 - The rebuild repeats the exact request that built the reviewed route, so
-  a route always travels with its request.
+  a route always travels with its request: `BuiltRoute` pairs them, and
+  only `buildRouteForReview` can make one.
 - A rebuild that comes back materially worse stops and goes back to review
   with the rebuilt amounts shown. It is never sent silently. Material means
   the rebuilt `toAmount` is below the reviewed `toAmount` less the slippage
   the user accepted for that request, or the rebuilt `fromAmount` is above
   the reviewed one. A change inside those bounds is sent without
-  re-review.
+  re-review. `findMaterialRouteChange` holds the definition; the floor is
+  rounded up to a whole base unit. Swap mode returns to its review screen
+  with a notice, and deposit mode stays on Confirm Deposit with the rebuilt
+  amounts and a relabelled swipe.
 - Each build issues its own intent. The receipt and status tracking follow
   the route that was actually signed. The reviewed route's intent is never
   reported as sent; it stays an ordinary abandoned intent.
