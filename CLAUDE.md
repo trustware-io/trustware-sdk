@@ -468,6 +468,77 @@ its own 503 `RPC_CALL_FAILED`, which the contract doesn't call transient),
 a validity read with any other code, or a rebroadcast refused with any
 other code.
 
+### Solana: one automatic re-sign when signing took too long
+
+Ruling (2026-10-16): when the user takes so long to sign that the
+transaction's blockhash has expired, the SDK rebuilds the route and asks
+the wallet to sign once more, automatically, instead of failing.
+
+Why: on 2026-10-16 the sign-then-send flow above worked end to end on
+mainnet (transaction `5UikQ2…4Ph`, signed in 4 s, 0.826662 USDC landed).
+But block height advances about 4.77 per second, so a blockhash lives
+only about 31 s, and a 42 s signature failed its first send with
+`BlockhashNotFound`. Rebuilding at confirm can't help with time spent in
+the wallet; only a fresh build after signing can.
+
+The rules:
+
+- After the wallet returns the signed bytes and before the first send,
+  the SDK checks `blockhash-valid` on the transaction's own blockhash.
+- If that reads invalid, or the first send answers 409
+  `BLOCKHASH_NOT_FOUND` (backend, being added: "Solana transaction's
+  blockhash is no longer valid; rebuild and sign again", with
+  `context.signature`, `context.blockhash` and `context.error`), nothing
+  was sent. The SDK rebuilds through the same sign-time path
+  (`buildRoute` with the same request) and runs the same material-change
+  check. A material change goes back to review, as it does at confirm.
+  Otherwise the wallet is asked to sign the rebuilt route, with a message
+  for the second prompt: "That took a little long, so we refreshed the
+  route. Please approve again."
+- Exactly one automatic retry per confirm. If the second signature has
+  also expired, the send fails with the exact "expired before inclusion"
+  error. It never loops, and never asks a third time.
+- The receipt is posted only for the transaction actually sent. The first
+  route's intent stays an ordinary abandoned one.
+- `payment_initiated` still fires once per actual send: the retry belongs
+  to the same confirm and doesn't report again.
+- The code constant for `BLOCKHASH_NOT_FOUND` sits beside
+  `ALREADY_PROCESSED` in `SDK_RPC_CODES` until the backend lands it.
+
+Where it has to live: the rebuild needs the reviewed `BuiltRoute` (core,
+`src/core/signTimeRoute.ts`), but the expiry is found inside the wallet
+adapter's `sendSerializedTransaction` (`src/wallets/solana.ts`), which
+`sendRouteTransaction` calls with only the transaction bytes. So the
+adapter reports "expired before the first send" as a distinct internal
+error, and the core send step catches it once, rebuilds, and sends again.
+Both widget flows and `sendReviewedRoute` go through that step.
+
+**Pending sign-off (2026-10-16), not implemented.** Telling a host about
+the second prompt changes the public surface beyond what was approved for
+`sendReviewedRoute`, so it waits for approval. Proposed:
+
+```ts
+// @trustware/sdk/core
+type SendReviewedRouteOptions = SendRouteTransactionOptions & {
+  /** Called once, after the route was rebuilt and before the wallet is
+   *  asked to sign it again. Show `message` with the second prompt. */
+  onRetry?: (retry: SigningRetry) => void;
+};
+type SigningRetry = {
+  reason: "blockhash_expired_before_send" | "blockhash_not_found_on_send";
+  message: string; // "That took a little long, so we refreshed the route. Please approve again."
+  route: BuildRouteResult; // the rebuilt route about to be signed
+};
+sendReviewedRoute(reviewed, chainId?, options?: SendReviewedRouteOptions)
+```
+
+`SendReviewedRouteOptions` and `SigningRetry` would be exported from
+`@trustware/sdk/core` beside `BuiltRoute`. A host that passes no `onRetry`
+still gets the retry, just without a message. `ReviewedRouteSend` doesn't
+change. The alternative, a `signing_retry` member of the `TrustwareEvent`
+union delivered through `config.onEvent`, is also a public change, and it
+reaches a host that never called `sendReviewedRoute` directly.
+
 ### Other Subsystems
 
 - `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, `analytics.ts` (GA4 payload builder + once-per-attempt guard), hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
