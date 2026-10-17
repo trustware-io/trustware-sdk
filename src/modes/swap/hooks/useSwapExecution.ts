@@ -59,6 +59,9 @@ export type SwapExecutionState = {
   pollingTx: Transaction | null;
   isSubmitting: boolean;
   allowanceStatus: AllowanceStatus;
+  /** Set while the wallet is asked to sign a second time because signing
+   *  outlasted the Solana blockhash. Shown with that prompt. */
+  signingRetryMessage: string | null;
 };
 
 function isUserRejection(err: unknown): boolean {
@@ -112,6 +115,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     pollingTx: null,
     isSubmitting: false,
     allowanceStatus: "unknown",
+    signingRetryMessage: null,
   });
 
   // Wall-clock time after which the SA path is available again.
@@ -293,6 +297,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         txHash: null,
         intentId: null,
         pollingTx: null,
+        signingRetryMessage: null,
       }));
 
       // Rebuilds a Solana route right before signing; its blockhash may
@@ -630,9 +635,26 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           await requireActiveAddress(wallet, walletAddress as string);
         }
 
-        const sent = await sendSignableRoute(routeResult, numericChainId, {
-          approvalsEnsured: ownsApprovals,
-        });
+        const sent = await sendSignableRoute(
+          reviewed,
+          routeResult,
+          numericChainId,
+          {
+            approvalsEnsured: ownsApprovals,
+            onRetry: (retry) =>
+              setState((p) => ({ ...p, signingRetryMessage: retry.message })),
+          }
+        );
+        if (sent.kind === "route_changed") {
+          setState((p) => ({
+            ...p,
+            isSubmitting: false,
+            txStatus: "idle",
+            signingRetryMessage: null,
+          }));
+          onRouteChanged(sent.rebuilt, sent.change);
+          return;
+        }
 
         // The hash is the point of no return: the swap is on-chain and the
         // screen must reflect that immediately, before the receipt is
@@ -646,6 +668,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           txHash: sent.hash,
           intentId: sent.receipt.intentId,
           txStatus: "processing",
+          signingRetryMessage: null,
         }));
 
         startTracking(sent.receipt, onSuccess, onError);
@@ -656,6 +679,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           isSubmitting: false,
           txStatus: "error",
           errorMessage: msg,
+          signingRetryMessage: null,
         }));
         onError(msg);
       }
@@ -678,6 +702,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       pollingTx: null,
       isSubmitting: false,
       allowanceStatus: "unknown",
+      signingRetryMessage: null,
     });
   }, [stopTracking]);
 

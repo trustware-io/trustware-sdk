@@ -60,11 +60,18 @@ expectIncludes(
 );
 expectIncludes(
   "src/core/index.ts",
-  'export type {\n  BuiltRoute,\n  ReviewedRouteSend,\n  MaterialRouteChange,\n} from "./signTimeRoute";'
+  'export type {\n  BuiltRoute,\n  ReviewedRouteSend,\n  MaterialRouteChange,\n  SendReviewedRouteOptions,\n  SigningRetry,\n} from "./signTimeRoute";'
 );
 expectIncludes("src/core/index.ts", "  buildRouteForReview,\n");
 expectIncludes("src/core/index.ts", "  sendReviewedRoute,\n");
-for (const name of ["BuiltRoute", "ReviewedRouteSend", "MaterialRouteChange"]) {
+// Signed off 2026-10-16: the onRetry option for the Solana re-sign.
+for (const name of [
+  "BuiltRoute",
+  "ReviewedRouteSend",
+  "MaterialRouteChange",
+  "SendReviewedRouteOptions",
+  "SigningRetry",
+]) {
   expectExcludes("src/index.ts", name);
 }
 

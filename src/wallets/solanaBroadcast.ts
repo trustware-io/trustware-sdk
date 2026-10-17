@@ -31,6 +31,38 @@ export type SignedSolanaTransaction = {
 
 export type SolanaTxStatus = Pick<SolanaTxStatusResponse, "status" | "err">;
 
+function expiredBeforeInclusion(signature: string, blockhash: string): string {
+  return (
+    `Solana transaction ${signature} expired before inclusion: its ` +
+    `blockhash ${blockhash} is no longer valid and the network never ` +
+    `included it.`
+  );
+}
+
+/**
+ * The signed transaction's blockhash expired before the first send, so
+ * nothing was sent: signing took too long. The core send step catches this
+ * once and rebuilds (`sendSignableRoute`); anything else reports its
+ * message, the exact "expired before inclusion" error.
+ */
+export class SolanaExpiredBeforeSendError extends Error {
+  readonly reason:
+    "blockhash_expired_before_send" | "blockhash_not_found_on_send";
+  readonly signature: string;
+  readonly blockhash: string;
+
+  constructor(
+    reason: SolanaExpiredBeforeSendError["reason"],
+    { signature, blockhash }: SignedSolanaTransaction
+  ) {
+    super(expiredBeforeInclusion(signature, blockhash));
+    this.name = "SolanaExpiredBeforeSendError";
+    this.reason = reason;
+    this.signature = signature;
+    this.blockhash = blockhash;
+  }
+}
+
 /** The proxy calls the loop makes, as a seam for tests. */
 export type SolanaBroadcastIO = {
   send(serialized: string, skipPreflight: boolean): Promise<void>;
@@ -98,11 +130,26 @@ export async function broadcastUntilSettled(
 ): Promise<string> {
   const { serialized, signature } = signed;
 
+  // Signing can outlast the blockhash (about 31 s). Sending a transaction
+  // already known to be expired only wastes the send.
+  if ((await readValidity(io, signed, "before_send")) === "invalid") {
+    throw new SolanaExpiredBeforeSendError(
+      "blockhash_expired_before_send",
+      signed
+    );
+  }
+
   // Preflighted, so a transaction that can't succeed fails here with the
   // simulation's error rather than being rebroadcast until it expires.
   try {
     await io.send(serialized, false);
   } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.BLOCKHASH_NOT_FOUND)) {
+      throw new SolanaExpiredBeforeSendError(
+        "blockhash_not_found_on_send",
+        signed
+      );
+    }
     if (!hasSDKRPCCode(err, SDK_RPC_CODES.ALREADY_PROCESSED)) {
       throw new Error(
         `Solana transaction ${signature} was not sent: ${describeRpcError(err)}.`
@@ -128,7 +175,7 @@ export async function broadcastUntilSettled(
       }
     }
 
-    const validity = await readValidity(io, signed);
+    const validity = await readValidity(io, signed, "in_flight");
     if (validity === "invalid") return settleAfterExpiry(signed, io);
 
     await io.sleep(REBROADCAST_INTERVAL_MS);
@@ -143,17 +190,29 @@ export async function broadcastUntilSettled(
  */
 async function readValidity(
   io: SolanaBroadcastIO,
-  { signature, blockhash }: SignedSolanaTransaction
+  { signature, blockhash }: SignedSolanaTransaction,
+  phase: "before_send" | "in_flight"
 ): Promise<"valid" | "invalid" | "unknown"> {
   try {
     return (await io.blockhashValid(blockhash)) ? "valid" : "invalid";
   } catch (err) {
     if (hasSDKRPCCode(err, SDK_RPC_CODES.RPC_CALL_FAILED)) {
+      // Before the first send, an unknown answer sends anyway: the
+      // preflight answers BLOCKHASH_NOT_FOUND for an expired blockhash.
       console.warn(
         `Couldn't check the blockhash of Solana transaction ${signature}, ` +
-          `checking again next round: ${describeRpcError(err)}`
+          (phase === "before_send"
+            ? "sending anyway"
+            : "checking again next round") +
+          `: ${describeRpcError(err)}`
       );
       return "unknown";
+    }
+    if (phase === "before_send") {
+      throw new Error(
+        `Couldn't check the blockhash of Solana transaction ${signature} ` +
+          `before sending it: ${describeRpcError(err)}. Nothing was sent.`
+      );
     }
     throw unknownOutcome(signature, err);
   }
@@ -202,11 +261,7 @@ async function settleAfterExpiry(
       case "failed":
         throw landedWithError(signature, status);
       case "not_found":
-        throw new Error(
-          `Solana transaction ${signature} expired before inclusion: its ` +
-            `blockhash ${blockhash} is no longer valid and the network never ` +
-            `included it.`
-        );
+        throw new Error(expiredBeforeInclusion(signature, blockhash));
       case "pending":
         await io.sleep(REBROADCAST_INTERVAL_MS);
         break;

@@ -45,6 +45,8 @@ export type {
   BuiltRoute,
   ReviewedRouteSend,
   MaterialRouteChange,
+  SendReviewedRouteOptions,
+  SigningRetry,
 } from "./signTimeRoute";
 import {
   searchVaults,

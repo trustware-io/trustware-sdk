@@ -171,6 +171,9 @@ export const SDK_RPC_CODES = {
   /** 409 from `send-serialized`: the cluster already processed this
    *  transaction, so an earlier copy landed. */
   ALREADY_PROCESSED: "ALREADY_PROCESSED",
+  /** 409 from `send-serialized`: the transaction's blockhash has expired,
+   *  so it was not sent. Rebuild and sign again. */
+  BLOCKHASH_NOT_FOUND: "BLOCKHASH_NOT_FOUND",
   /** 503 from `send-serialized`: the RPC refused or couldn't take it. */
   BROADCAST_FAILED: "BROADCAST_FAILED",
   /** 503 from `tx-status` and `blockhash-valid`: the RPC call failed. */

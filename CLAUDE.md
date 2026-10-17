@@ -21,6 +21,7 @@ npm run validate          # Full validation (typecheck + lint:strict + format:ch
 npm run test:unit         # Unit tests (scripts/run-unit-tests.mjs)
 npm run test:widget-smoke # Builds, then runs the widget flow smoke test
 npm run check:surface     # Assert the public export surface hasn't drifted
+npm run check:host-types  # After a build: typecheck scripts/host-types against dist
 npm run size              # Report gzipped size per entry point
 npm run size:check        # Same, but fails when an entry exceeds its budget
 ```
@@ -321,7 +322,8 @@ Rules that follow from it:
   reviewed Solana route by forgetting a step. It lives in
   `src/core/signTimeRoute.ts`: `routeForSigning` decides what to sign
   (rebuilding a Solana route) and returns a branded `SignableRoute`, which
-  is the only thing `sendSignableRoute` accepts. `sendReviewedRoute` is the
+  is the only route `sendSignableRoute` accepts, beside the reviewed
+  `BuiltRoute` it rebuilds from if signing outlasts the blockhash. `sendReviewedRoute` is the
   two in one call, for hosts. Widget flows call `prepareConfirmedSend`
   (`src/widget/lib/confirmedSend.ts`), which wraps `routeForSigning`, and
   then send through `sendSignableRoute` or the smart-account override, so
@@ -513,6 +515,19 @@ adapter's `sendSerializedTransaction` (`src/wallets/solana.ts`), which
 adapter reports "expired before the first send" as a distinct internal
 error, and the core send step catches it once, rebuilds, and sends again.
 Both widget flows and `sendReviewedRoute` go through that step.
+
+In the code: `broadcastUntilSettled` (`src/wallets/solanaBroadcast.ts`)
+checks validity before the first send and throws
+`SolanaExpiredBeforeSendError` (its message is the exact "expired before
+inclusion" text) on an invalid answer or `BLOCKHASH_NOT_FOUND`.
+`sendSignableRoute(reviewed, route, chainId?, options?)` catches it once,
+reruns `routeForSigning(reviewed)`, calls `onRetry` with
+`SIGNING_RETRY_MESSAGE`, and sends the rebuild. A second one propagates.
+Deposit shows the message under the swipe (`CryptoPaySwipeSection`), swap
+on its processing screen. `payment_initiated` fires only from
+`prepareConfirmedSend`, which runs before the first prompt, so the retry
+can't report again. `npm run check:host-types` typechecks the host example
+in `scripts/host-types/` against the built typings.
 
 **Host API (signed off 2026-10-16, exactly as proposed).**
 

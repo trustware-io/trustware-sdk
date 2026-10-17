@@ -74,7 +74,7 @@ describe("prepareConfirmedSend", () => {
     const second = await prepareConfirmedSend(first.rebuilt, announce);
     assert.equal(second.kind, "ready");
     if (second.kind !== "ready") return;
-    await sendSignableRoute(second.route, SOLANA);
+    await sendSignableRoute(first.rebuilt, second.route, SOLANA);
 
     assert.deepEqual(
       events.map((e) => e.kind),
@@ -94,7 +94,7 @@ describe("prepareConfirmedSend", () => {
     const decision = await prepareConfirmedSend(reviewed, announce);
     assert.equal(decision.kind, "ready");
     if (decision.kind !== "ready") return;
-    await sendSignableRoute(decision.route, SOLANA);
+    await sendSignableRoute(reviewed, decision.route, SOLANA);
 
     assert.deepEqual(
       events.map((e) => e.kind),
@@ -136,7 +136,9 @@ describe("prepareConfirmedSend", () => {
     assert.equal(decision.kind, "ready");
     if (decision.kind !== "ready") return;
     assert.equal(decision.route, reviewed.result);
-    await sendSignableRoute(decision.route, 8453, { approvalsEnsured: true });
+    await sendSignableRoute(reviewed, decision.route, 8453, {
+      approvalsEnsured: true,
+    });
 
     assert.deepEqual(
       events.map((e) => e.kind),

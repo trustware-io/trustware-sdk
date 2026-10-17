@@ -80,7 +80,8 @@ export function useTransactionActionModel({
     inflight?: Promise<CachedFeeData>;
   }>({});
 
-  const { isSubmitting, submitTransaction } = useTransactionSubmit();
+  const { isSubmitting, signingRetryMessage, submitTransaction } =
+    useTransactionSubmit();
   const { trackEvent } = useGTMTracker();
 
   const destinationConfig = (() => {
@@ -692,6 +693,7 @@ export function useTransactionActionModel({
     isWalletConnected,
     needsApproval,
     routeChangedLabel,
+    signingRetryMessage,
     swipeResetKey,
   };
 }

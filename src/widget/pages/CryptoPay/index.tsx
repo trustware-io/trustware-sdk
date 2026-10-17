@@ -152,6 +152,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     isWalletConnected,
     needsApproval,
     routeChangedLabel,
+    signingRetryMessage,
     swipeResetKey,
   } = useTransactionActionModel({
     actionErrorMessage,
@@ -384,6 +385,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                     }
                     needsApproval={needsApproval}
                     routeChangedLabel={routeChangedLabel}
+                    signingRetryMessage={signingRetryMessage}
                     selectedToken={readySelectedToken}
                     swipeResetKey={swipeResetKey}
                   />

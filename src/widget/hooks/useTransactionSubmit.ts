@@ -70,6 +70,11 @@ export function useTransactionSubmit() {
     txHash: null,
     error: null,
   });
+  // Shown while the wallet is asked to sign a second time because signing
+  // outlasted the Solana blockhash.
+  const [signingRetryMessage, setSigningRetryMessage] = useState<string | null>(
+    null
+  );
 
   /**
    * Submit the reviewed route to the wallet for signing.
@@ -101,6 +106,7 @@ export function useTransactionSubmit() {
         txHash: null,
         error: null,
       });
+      setSigningRetryMessage(null);
 
       // Set context to confirming state (waiting for wallet signature)
       setTransactionStatus("confirming");
@@ -125,10 +131,19 @@ export function useTransactionSubmit() {
           // receipt; awaiting it here would hold this screen on a
           // transaction that is already on-chain.
           const fallbackChainId = selectedChain?.chainId;
-          ({ hash, receipt } = await sendSignableRoute(
+          const sent = await sendSignableRoute(
+            reviewed,
             decision.route,
-            Number(fallbackChainId)
-          ));
+            Number(fallbackChainId),
+            { onRetry: (retry) => setSigningRetryMessage(retry.message) }
+          );
+          if (sent.kind === "route_changed") {
+            setState({ isSubmitting: false, txHash: null, error: null });
+            setSigningRetryMessage(null);
+            setTransactionStatus("idle");
+            return sent;
+          }
+          ({ hash, receipt } = sent);
         }
 
         // Transaction was signed and submitted
@@ -183,10 +198,12 @@ export function useTransactionSubmit() {
       txHash: null,
       error: null,
     });
+    setSigningRetryMessage(null);
   }, []);
 
   return {
     ...state,
+    signingRetryMessage,
     submitTransaction,
     resetSubmit,
   };

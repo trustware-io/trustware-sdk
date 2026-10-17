@@ -7,6 +7,7 @@ import {
   type BuildRouteBody,
 } from "./routes";
 import { sendRouteTransaction, type SendRouteTransactionOptions } from "./tx";
+import { SolanaExpiredBeforeSendError } from "../wallets/solanaBroadcast";
 
 /**
  * A route together with the exact request that built it.
@@ -194,19 +195,61 @@ export async function routeForSigning(
   return { kind: "ready", route: rebuilt.result as SignableRoute };
 }
 
-/** Sign and send a route `routeForSigning` cleared. Sign it straight away:
- *  a Solana route's blockhash starts expiring when it's built. */
+/** What `onRetry` hands a host just before the second wallet prompt. */
+export type SigningRetry = {
+  reason: "blockhash_expired_before_send" | "blockhash_not_found_on_send";
+  message: string;
+  /** The rebuilt route about to be signed. */
+  route: BuildRouteResult;
+};
+
+export type SendReviewedRouteOptions = SendRouteTransactionOptions & {
+  /** Called once, after the route was rebuilt and before the wallet is
+   *  asked to sign it again. Show `message` with the second prompt. */
+  onRetry?: (retry: SigningRetry) => void;
+};
+
+/** The text every flow shows with the second prompt. */
+export const SIGNING_RETRY_MESSAGE =
+  "That took a little long, so we refreshed the route. Please approve again.";
+
+/**
+ * Sign and send a route `routeForSigning` cleared for `reviewed`.
+ *
+ * If signing outlasted the Solana blockhash, nothing was sent, so the route
+ * is rebuilt from `reviewed`'s request, checked for a material change
+ * against what the user reviewed, and signed once more after `onRetry`.
+ * Exactly once: a second expiry throws its "expired before inclusion"
+ * error, and the wallet is never asked a third time.
+ */
 export async function sendSignableRoute(
+  reviewed: BuiltRoute,
   route: SignableRoute,
   fallbackChainId?: number | string,
-  options?: SendRouteTransactionOptions
-): Promise<Extract<ReviewedRouteSend, { kind: "sent" }>> {
-  const hash = await sendRouteTransaction(route, fallbackChainId, options);
+  options: SendReviewedRouteOptions = {}
+): Promise<ReviewedRouteSend> {
+  const { onRetry, ...sendOptions } = options;
+  let signing = route;
+  let hash: string;
+  try {
+    hash = await sendRouteTransaction(signing, fallbackChainId, sendOptions);
+  } catch (err) {
+    if (!(err instanceof SolanaExpiredBeforeSendError)) throw err;
+    const decision = await routeForSigning(reviewed);
+    if (decision.kind === "route_changed") return decision;
+    signing = decision.route;
+    onRetry?.({
+      reason: err.reason,
+      message: SIGNING_RETRY_MESSAGE,
+      route: signing,
+    });
+    hash = await sendRouteTransaction(signing, fallbackChainId, sendOptions);
+  }
   return {
     kind: "sent",
     hash,
-    receipt: { intentId: route.intentId, txHash: hash },
-    route,
+    receipt: { intentId: signing.intentId, txHash: hash },
+    route: signing,
   };
 }
 
@@ -217,9 +260,9 @@ export async function sendSignableRoute(
 export async function sendReviewedRoute(
   reviewed: BuiltRoute,
   fallbackChainId?: number | string,
-  options?: SendRouteTransactionOptions
+  options?: SendReviewedRouteOptions
 ): Promise<ReviewedRouteSend> {
   const decision = await routeForSigning(reviewed);
   if (decision.kind === "route_changed") return decision;
-  return sendSignableRoute(decision.route, fallbackChainId, options);
+  return sendSignableRoute(reviewed, decision.route, fallbackChainId, options);
 }

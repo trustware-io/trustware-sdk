@@ -1540,6 +1540,23 @@ export function SwapMode({
             {title}
           </h1>
 
+          {execution.signingRetryMessage && (
+            <p
+              role="status"
+              style={{
+                marginBottom: spacing[5],
+                padding: spacing[3],
+                borderRadius: borderRadius.lg,
+                backgroundColor: colors.amber[500] + "1a",
+                border: `1px solid ${colors.amber[500]}66`,
+                fontSize: fontSize.xs,
+                color: colors.foreground,
+              }}
+            >
+              {execution.signingRetryMessage}
+            </p>
+          )}
+
           {/* Progress card */}
           <div
             style={{

@@ -11,6 +11,7 @@ import { SDKRPCError, SDK_RPC_CODES } from "src/core/sdkRpc";
 import {
   REBROADCAST_INTERVAL_MS,
   broadcastUntilSettled,
+  SolanaExpiredBeforeSendError,
   readSignedSolanaTransaction,
   type SignedSolanaTransaction,
   type SolanaBroadcastIO,
@@ -30,6 +31,7 @@ type Step =
   | { kind: "send"; skipPreflight: boolean }
   | { kind: "status"; answer: SolanaTxStatus["status"] }
   | { kind: "valid"; answer: Validity }
+  | { kind: "precheck"; answer: Validity }
   | { kind: "sleep"; ms: number };
 
 /** A validity read: the proxy's answer, or its 503 RPC_CALL_FAILED. */
@@ -45,15 +47,18 @@ const rpcCallFailed = () =>
 /**
  * A scripted proxy. `statuses` and `validity` are consumed in order, and
  * every call lands in `log`, so a test reads the exact sequence. Running
- * out of script is a test bug and throws.
+ * out of script is a test bug and throws. The first validity read is the
+ * check before the first send, answered by `precheck`.
  */
 function scriptedIO(
   statuses: SolanaTxStatus[],
   validity: Validity[],
-  sendErrors: (unknown | null)[] = []
+  sendErrors: (unknown | null)[] = [],
+  precheck: Validity = true
 ): { io: SolanaBroadcastIO; log: Step[] } {
   const log: Step[] = [];
   let sends = 0;
+  let prechecked = false;
   const io: SolanaBroadcastIO = {
     async send(serialized, skipPreflight) {
       assert.equal(serialized, SIGNED.serialized, "same bytes every send");
@@ -70,6 +75,12 @@ function scriptedIO(
     },
     async blockhashValid(blockhash) {
       assert.equal(blockhash, SIGNED.blockhash);
+      if (!prechecked) {
+        prechecked = true;
+        log.push({ kind: "precheck", answer: precheck });
+        if (precheck === "rpc_call_failed") throw rpcCallFailed();
+        return precheck;
+      }
       const answer = validity.shift();
       if (answer === undefined) throw new Error("script ran out of validity");
       log.push({ kind: "valid", answer });
@@ -121,7 +132,9 @@ function kinds(log: Step[]) {
         ? `status:${step.answer}`
         : step.kind === "valid"
           ? `valid:${step.answer}`
-          : "sleep"
+          : step.kind === "precheck"
+            ? `precheck:${step.answer}`
+            : "sleep"
   );
 }
 
@@ -135,6 +148,7 @@ describe("broadcastUntilSettled", () => {
     assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
 
     assert.deepEqual(kinds(log), [
+      "precheck:true",
       "send",
       "status:not_found",
       "valid:true",
@@ -166,7 +180,7 @@ describe("broadcastUntilSettled", () => {
   it("returns without rebroadcasting when the first status is a success", async () => {
     const { io, log } = scriptedIO([success], []);
     assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
-    assert.deepEqual(kinds(log), ["send", "status:success"]);
+    assert.deepEqual(kinds(log), ["precheck:true", "send", "status:success"]);
   });
 
   it("treats an already-processed rebroadcast as a copy that landed", async () => {
@@ -177,6 +191,7 @@ describe("broadcastUntilSettled", () => {
     );
     assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
     assert.deepEqual(kinds(log), [
+      "precheck:true",
       "send",
       "status:not_found",
       "valid:true",
@@ -202,6 +217,7 @@ describe("broadcastUntilSettled", () => {
       );
       assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
       assert.deepEqual(kinds(log), [
+        "precheck:true",
         "send",
         "status:not_found",
         "valid:true",
@@ -245,6 +261,7 @@ describe("broadcastUntilSettled", () => {
       );
       assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
       assert.deepEqual(kinds(log), [
+        "precheck:true",
         "send",
         "status:not_found",
         "valid:rpc_call_failed",
@@ -276,6 +293,7 @@ describe("broadcastUntilSettled", () => {
       message: `Solana transaction ${SIGNED.signature} failed on chain: {"InstructionError":[2,{"Custom":6001}]}.`,
     });
     assert.deepEqual(kinds(log), [
+      "precheck:true",
       "send",
       "status:not_found",
       "valid:true",
@@ -291,6 +309,7 @@ describe("broadcastUntilSettled", () => {
       message: EXPIRED,
     });
     assert.deepEqual(kinds(log), [
+      "precheck:true",
       "send",
       "status:not_found",
       "valid:false",
@@ -302,6 +321,7 @@ describe("broadcastUntilSettled", () => {
     const { io, log } = scriptedIO([notFound, success], [false]);
     assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
     assert.deepEqual(kinds(log), [
+      "precheck:true",
       "send",
       "status:not_found",
       "valid:false",
@@ -316,6 +336,7 @@ describe("broadcastUntilSettled", () => {
     );
     assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
     assert.deepEqual(kinds(log), [
+      "precheck:true",
       "send",
       "status:pending",
       "valid:false",
@@ -347,7 +368,7 @@ describe("broadcastUntilSettled", () => {
     await assert.rejects(broadcastUntilSettled(SIGNED, io), {
       message: `Solana transaction ${SIGNED.signature} was not sent: Failed to broadcast Solana transaction: Transaction simulation failed: Attempt to debit an account but found no record of a prior credit..`,
     });
-    assert.deepEqual(kinds(log), ["send"]);
+    assert.deepEqual(kinds(log), ["precheck:true", "send"]);
   });
 
   it("fails naming the signature when a status read fails, since it may still land", async () => {
@@ -365,12 +386,74 @@ describe("broadcastUntilSettled", () => {
   it("fails naming the signature when a validity read fails without a documented code", async () => {
     const io: SolanaBroadcastIO = {
       ...scriptedIO([notFound], []).io,
-      blockhashValid: async () => {
-        throw new SDKRPCError("HTTP 503: Service Unavailable");
-      },
+      blockhashValid: (() => {
+        let calls = 0;
+        return async () => {
+          if (calls++ === 0) return true;
+          throw new SDKRPCError("HTTP 503: Service Unavailable");
+        };
+      })(),
     };
     await assert.rejects(broadcastUntilSettled(SIGNED, io), {
       message: `Couldn't confirm Solana transaction ${SIGNED.signature}: HTTP 503: Service Unavailable. It may still land, so check a block explorer before trying again.`,
+    });
+  });
+
+  it("checks the blockhash before the first send, and sends nothing when it has expired", async () => {
+    const { io, log } = scriptedIO([], [], [], false);
+    await assert.rejects(broadcastUntilSettled(SIGNED, io), (err) => {
+      assert.ok(err instanceof SolanaExpiredBeforeSendError);
+      assert.equal(err.reason, "blockhash_expired_before_send");
+      assert.equal(err.signature, SIGNED.signature);
+      assert.equal(err.blockhash, SIGNED.blockhash);
+      assert.equal(err.message, EXPIRED);
+      return true;
+    });
+    assert.deepEqual(kinds(log), ["precheck:false"]);
+  });
+
+  it("reports BLOCKHASH_NOT_FOUND on the first send as expired before sending", async () => {
+    const blockhashNotFound = new SDKRPCError(
+      "Solana transaction's blockhash is no longer valid; rebuild and sign again",
+      {
+        code: SDK_RPC_CODES.BLOCKHASH_NOT_FOUND,
+        status: 409,
+        context: {
+          blockhash: SIGNED.blockhash,
+          error: "Blockhash not found",
+          signature: SIGNED.signature,
+        },
+      }
+    );
+    const { io, log } = scriptedIO([], [], [blockhashNotFound]);
+    await assert.rejects(broadcastUntilSettled(SIGNED, io), (err) => {
+      assert.ok(err instanceof SolanaExpiredBeforeSendError);
+      assert.equal(err.reason, "blockhash_not_found_on_send");
+      assert.equal(err.message, EXPIRED);
+      return true;
+    });
+    assert.deepEqual(kinds(log), ["precheck:true", "send"]);
+  });
+
+  it("sends anyway when the check before sending answers 503 RPC_CALL_FAILED", async () => {
+    const { io, log } = scriptedIO([success], [], [], "rpc_call_failed");
+    assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+    assert.deepEqual(kinds(log), [
+      "precheck:rpc_call_failed",
+      "send",
+      "status:success",
+    ]);
+  });
+
+  it("sends nothing when the check before sending fails without a documented code", async () => {
+    const io: SolanaBroadcastIO = {
+      ...scriptedIO([], []).io,
+      blockhashValid: async () => {
+        throw new SDKRPCError("HTTP 500: Internal Server Error");
+      },
+    };
+    await assert.rejects(broadcastUntilSettled(SIGNED, io), {
+      message: `Couldn't check the blockhash of Solana transaction ${SIGNED.signature} before sending it: HTTP 500: Internal Server Error. Nothing was sent.`,
     });
   });
 
@@ -453,7 +536,7 @@ describe("broadcastUntilSettled, over generated chains", () => {
       // the last read is what decided.
       assert.equal(statuses.length + validity.length, 0, `run ${run}`);
       const reads = log.filter((s) => s.kind !== "send" && s.kind !== "sleep");
-      assert.equal(reads.length, scriptLength, `run ${run}`);
+      assert.equal(reads.length, scriptLength + 1, `run ${run} (+1 precheck)`);
       const last = log.at(-1);
       assert.ok(last?.kind === "status", `run ${run} ends on a status read`);
       const expected =
@@ -478,9 +561,10 @@ describe("broadcastUntilSettled, over generated chains", () => {
         assert.notEqual(result, "expired", `run ${run}`);
       }
       // Exactly one preflighted send, first; every other send skips it.
-      assert.deepEqual(log[0], { kind: "send", skipPreflight: false });
+      assert.deepEqual(log[0], { kind: "precheck", answer: true });
+      assert.deepEqual(log[1], { kind: "send", skipPreflight: false });
       assert.ok(
-        log.slice(1).every((s) => s.kind !== "send" || s.skipPreflight),
+        log.slice(2).every((s) => s.kind !== "send" || s.skipPreflight),
         `run ${run}`
       );
     }
@@ -610,6 +694,20 @@ describe("toSolanaWalletInterface with signTransaction", () => {
         // A proxy's own answer is not what the SDK reports.
         return reply({ chainId: "solana-mainnet-beta", signature: "rpc-said" });
       }
+      if (url.includes("/v1/sdk/rpc/solana/blockhash-valid?")) {
+        const query = new URL(url).searchParams;
+        order.push("precheck");
+        assert.deepEqual(Object.fromEntries(query), {
+          chainId: "solana-mainnet-beta",
+          blockhash,
+        });
+        return reply({
+          chainId: "solana-mainnet-beta",
+          blockhash,
+          valid: true,
+          rpcHost: "rpc",
+        });
+      }
       if (url.includes("/v1/sdk/rpc/solana/tx-status?")) {
         const query = new URL(url).searchParams;
         order.push("status");
@@ -633,6 +731,11 @@ describe("toSolanaWalletInterface with signTransaction", () => {
 
     assert.equal(signature, bytesSignature);
     assert.notEqual(signature, "rpc-said");
-    assert.deepEqual(order, ["sign", "send(skipPreflight=false)", "status"]);
+    assert.deepEqual(order, [
+      "sign",
+      "precheck",
+      "send(skipPreflight=false)",
+      "status",
+    ]);
   });
 });

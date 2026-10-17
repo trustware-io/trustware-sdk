@@ -67,6 +67,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "check:surface": "node scripts/check-public-surface.mjs",
+    "check:host-types": "tsc -p scripts/host-types/tsconfig.json",
     "test:unit": "node scripts/run-unit-tests.mjs",
     "test:widget-smoke": "npm run build && node --test scripts/widget-flow-smoke.test.mjs",
     "test:balances-live": "npm run build:local && node --test scripts/balances-stream-live.test.mjs",
