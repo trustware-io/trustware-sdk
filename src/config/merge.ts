@@ -9,6 +9,7 @@ import {
   DEFAULT_MESSAGES,
 } from "./defaults";
 import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
+import { resolveRouteRefreshMs } from "./routeRefresh";
 import { validateAddressForChain } from "src";
 import { TrustwareError } from "src/errors/TrustwareError";
 import { TrustwareErrorCode } from "src/errors/errorCodes";
@@ -167,6 +168,9 @@ export function resolveConfig(
     ),
     options: {
       ...input.routes?.options,
+      routeRefreshMs: resolveRouteRefreshMs(
+        input.routes?.options?.routeRefreshMs
+      ),
     },
   };
 

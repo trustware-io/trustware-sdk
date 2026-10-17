@@ -70,11 +70,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
   const config = useTrustwareConfig();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
     useAmountConstraints();
-  const routeRefreshMs = useMemo(() => {
-    const raw = config.routes?.options?.routeRefreshMs;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
-  }, [config.routes?.options?.routeRefreshMs]);
+  const routeRefreshMs = config.routes.options.routeRefreshMs;
 
   const IsPos = <T extends { balance: string | number }>(
     x: T | null | undefined

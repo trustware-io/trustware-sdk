@@ -64,6 +64,10 @@ import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import type { Theme } from "src/widget/components";
 import type { VaultSummary, Position } from "src/core/vaults";
 import type { BuiltRoute, MaterialRouteChange } from "src/core/signTimeRoute";
+import {
+  quoteCountdown,
+  shouldRefreshQuote,
+} from "src/widget/lib/quoteCountdown";
 import { SwapWalletSelector } from "./components";
 
 const ConfettiEffect = lazy(
@@ -74,8 +78,6 @@ interface SwapModeProps {
   theme?: Theme;
   style?: React.CSSProperties;
 }
-
-const QUOTE_TTL = 60; // seconds before a quote auto-refreshes
 
 const QUOTE_LOADING_MESSAGES = [
   "Finding your best route...",
@@ -263,8 +265,11 @@ export function SwapMode({
   const [rateUpdated, setRateUpdated] = useState(false);
   const prevToAmountRef = useRef<number | null>(null);
   const [destAddress, setDestAddress] = useState("");
-  const [quoteAge, setQuoteAge] = useState(0);
+  const [quoteElapsedMs, setQuoteElapsedMs] = useState(0);
   const quoteTimestampRef = useRef<number | null>(null);
+  // Set synchronously when the user confirms, before the stage change
+  // renders: a countdown tick in between must not start a refresh.
+  const confirmInFlightRef = useRef(false);
   const [quoteLoadingMsgIdx, setQuoteLoadingMsgIdx] = useState(0);
   const [quoteLoadingMsgVisible, setQuoteLoadingMsgVisible] = useState(true);
   // Set when a Solana route rebuilt at sign time came back materially worse.
@@ -309,7 +314,14 @@ export function SwapMode({
   const completedAttemptRef = useRef<object | null>(null);
 
   // Read feature flags and theme from config
-  const { features, theme: configTheme } = useTrustwareConfig();
+  const {
+    features,
+    theme: configTheme,
+    routes: configRoutes,
+  } = useTrustwareConfig();
+  const routeRefreshMs = configRoutes.options.routeRefreshMs;
+  const quoteTickMs = Math.min(1000, routeRefreshMs);
+  const quoteRefreshCountdown = quoteCountdown(quoteElapsedMs, routeRefreshMs);
   const effectiveThemeSetting = (themeProp ?? configTheme ?? "system") as
     "light" | "dark" | "system";
   const { resolvedTheme, toggleTheme } = useThemePreference(
@@ -809,6 +821,11 @@ export function SwapMode({
       domain: window.origin,
     });
 
+    // The route the user just confirmed is the one sent. A quote refresh
+    // still in flight is dropped, and none starts until the user is back on
+    // a quote-facing stage.
+    confirmInFlightRef.current = true;
+    route.discardPendingFetch();
     setRouteChangeNotice(null);
     setStage("processing");
     const fromTokenAddress =
@@ -1261,8 +1278,15 @@ export function SwapMode({
   useEffect(() => {
     quoteTimestampRef.current = route.data ? Date.now() : null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset countdown to 0 when a new quote arrives from the route query
-    setQuoteAge(0);
+    setQuoteElapsedMs(0);
   }, [route.data]);
+
+  // Back on a quote-facing stage, the confirm is over.
+  useEffect(() => {
+    if (stage === "home" || stage === "review") {
+      confirmInFlightRef.current = false;
+    }
+  }, [stage]);
 
   // Rotate loading messages while fetching a route
   const msgTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1286,7 +1310,7 @@ export function SwapMode({
     };
   }, [route.loading]);
 
-  // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval.
+  // Tick down and auto-refetch when routes.options.routeRefreshMs runs out.
   // Only on the quote-facing stages: once the swap is submitted the quote is
   // spent, and refreshing it just spends rate-limit budget the status poll
   // needs on /route calls whose answer nothing reads.
@@ -1296,15 +1320,18 @@ export function SwapMode({
     const id = setInterval(() => {
       const ts = quoteTimestampRef.current;
       if (ts === null) return;
-      const elapsed = Math.floor((Date.now() - ts) / 1000);
-      const age = Math.min(elapsed, QUOTE_TTL);
-      setQuoteAge(age);
-      if (age >= QUOTE_TTL && latestFetchParamsRef.current) {
+      const elapsedMs = Date.now() - ts;
+      setQuoteElapsedMs(elapsedMs);
+      const due = shouldRefreshQuote(
+        quoteCountdown(elapsedMs, routeRefreshMs),
+        confirmInFlightRef.current
+      );
+      if (due && latestFetchParamsRef.current) {
         void fetchRef.current(latestFetchParamsRef.current);
       }
-    }, 1000);
+    }, quoteTickMs);
     return () => clearInterval(id);
-  }, [route.data, stage]);
+  }, [route.data, stage, routeRefreshMs, quoteTickMs]);
 
   // Every fetch nulls route.data for its whole duration (useSwapRoute), so the
   // refresh above can pull the quote out from under the review screen — and if
@@ -2638,15 +2665,17 @@ export function SwapMode({
                     r="5"
                     fill="none"
                     stroke={
-                      quoteAge >= QUOTE_TTL - 10
+                      quoteRefreshCountdown.warning
                         ? colors.destructive
                         : colors.primary
                     }
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeDasharray="31.416"
-                    strokeDashoffset={31.416 * (quoteAge / QUOTE_TTL)}
-                    style={{ transition: "stroke-dashoffset 1s linear" }}
+                    strokeDashoffset={31.416 * quoteRefreshCountdown.progress}
+                    style={{
+                      transition: `stroke-dashoffset ${quoteTickMs}ms linear`,
+                    }}
                   />
                 </svg>
               )}
@@ -3983,15 +4012,17 @@ export function SwapMode({
                       r="5"
                       fill="none"
                       stroke={
-                        quoteAge >= QUOTE_TTL - 10
+                        quoteRefreshCountdown.warning
                           ? colors.destructive
                           : colors.primary
                       }
                       strokeWidth="1.5"
                       strokeLinecap="round"
                       strokeDasharray="31.416"
-                      strokeDashoffset={31.416 * (quoteAge / QUOTE_TTL)}
-                      style={{ transition: "stroke-dashoffset 1s linear" }}
+                      strokeDashoffset={31.416 * quoteRefreshCountdown.progress}
+                      style={{
+                        transition: `stroke-dashoffset ${quoteTickMs}ms linear`,
+                      }}
                     />
                   </svg>
                 )}

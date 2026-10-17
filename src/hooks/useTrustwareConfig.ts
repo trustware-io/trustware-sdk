@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { ResolvedTrustwareConfig } from "../types";
 import { DEFAULT_FEATURE_FLAGS, DEFAULT_RETRY_CONFIG } from "../types/config";
 import { TrustwareConfigStore } from "../config/store";
+import { DEFAULT_ROUTE_REFRESH_MS } from "../config/routeRefresh";
 
 export function useTrustwareConfig(): ResolvedTrustwareConfig {
   const [cfg, setCfg] = useState<ResolvedTrustwareConfig>(() => {
@@ -19,7 +20,7 @@ export function useTrustwareConfig(): ResolvedTrustwareConfig {
           toToken: "",
           toAddress: undefined,
           defaultSlippage: 1,
-          options: {},
+          options: { routeRefreshMs: DEFAULT_ROUTE_REFRESH_MS },
         },
         autoDetectProvider: false,
         theme: "system",
