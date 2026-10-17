@@ -163,9 +163,25 @@ export async function estimateEVMGas(body: {
   });
 }
 
+/**
+ * The `send-serialized` error code for a transaction the cluster has
+ * already processed. On a rebroadcast that means an earlier send landed, so
+ * it isn't a failure. Only `isSolanaAlreadyProcessed` reads it.
+ */
+export const SOLANA_ALREADY_PROCESSED_CODE = "ALREADY_PROCESSED";
+
+export function isSolanaAlreadyProcessed(err: unknown): boolean {
+  return (
+    err instanceof SDKRPCError && err.code === SOLANA_ALREADY_PROCESSED_CODE
+  );
+}
+
+/** `skipPreflight` is required so every caller chooses: the first send of a
+ *  transaction preflights, its rebroadcasts don't. */
 export async function sendSolanaSerialized(body: {
   chainId: string;
   serializedTransaction: string;
+  skipPreflight: boolean;
 }) {
   return requestSDKRPC<SolanaSendSerializedResponse>(
     "/solana/send-serialized",
@@ -185,4 +201,22 @@ export async function getSolanaTxStatus(params: {
     `/solana/tx-status?${search.toString()}`,
     { method: "GET" }
   );
+}
+
+/** Whether a blockhash can still be used, by `isBlockhashValid` at
+ *  `processed`. */
+export async function getSolanaBlockhashValid(params: {
+  blockhash: string;
+}): Promise<boolean> {
+  const search = new URLSearchParams(params);
+  const data = await requestSDKRPC<{ valid?: unknown }>(
+    `/solana/blockhash-valid?${search.toString()}`,
+    { method: "GET" }
+  );
+  if (typeof data.valid !== "boolean") {
+    throw new SDKRPCError(
+      `blockhash-valid answered without a boolean "valid" (got ${JSON.stringify(data)}).`
+    );
+  }
+  return data.valid;
 }

@@ -403,9 +403,14 @@ gets dropped, and with preflight skipped nothing reports it. Mayan's own
 app does what Solana apps normally do: the wallet only signs, and the app
 sends and rebroadcasts.
 
-The flow, in one chokepoint in `src/wallets/solana.ts` that extends its
-`sendSolanaSerialized` / `waitForSolanaConfirmation` path through the
-backend's SDK RPC proxy (no parallel sender):
+The flow, in one chokepoint: `toSolanaWalletInterface`'s
+`sendSerializedTransaction` in `src/wallets/solana.ts`, which replaced
+`waitForSolanaConfirmation` with `broadcastUntilSettled`
+(`src/wallets/solanaBroadcast.ts`) over the existing
+`sendSolanaSerialized` / `getSolanaTxStatus` proxy calls, plus
+`getSolanaBlockhashValid` (`src/core/sdkRpc.ts`). The loop has its own
+module only because `solana.ts` is re-exported whole by the public
+`./wallet` entry:
 
 1. The wallet signs. Wallet Standard and injected-provider wallets both
    prefer `signTransaction`. `signAndSendTransaction` is the fallback only
@@ -430,8 +435,10 @@ backend's SDK RPC proxy (no parallel sender):
      sending. `not_found` fails with an exact "expired before inclusion"
      error.
    An "already processed" answer to a rebroadcast is not an error; polling
-   continues. The code that names it lives in one constant in
-   `src/core/sdkRpc.ts`.
+   continues. The code that names it lives in one constant,
+   `SOLANA_ALREADY_PROCESSED_CODE` in `src/core/sdkRpc.ts`, read only by
+   `isSolanaAlreadyProcessed`. Its value, `ALREADY_PROCESSED`, is a
+   placeholder until the backend names the exact code.
 5. The receipt goes to the backend once, as now, with that signature.
 
 The stop condition works for every provider's Solana transaction (Mayan,
@@ -442,7 +449,7 @@ withdrawn and isn't read.
 Proxy contract (being added on quicklinks_v1
 `stephen/bvt-280-mayan-blockhash-rent`):
 
-- `GET /v1/sdk/rpc/solana/blockhash-valid?chainId=<chain>&blockhash=<base58>`
+- `GET /v1/sdk/rpc/solana/blockhash-valid?blockhash=<base58>`
   → `{ "data": { "valid": bool } }`, `isBlockhashValid` at `processed`.
   400 for a malformed blockhash, 503 on RPC failure.
 - `POST /v1/sdk/rpc/solana/send-serialized` takes an optional

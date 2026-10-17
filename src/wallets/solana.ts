@@ -1,4 +1,9 @@
-import { getSolanaTxStatus, sendSolanaSerialized } from "../core/sdkRpc";
+import { encodeBase58 } from "./base58";
+import {
+  broadcastUntilSettled,
+  proxyBroadcastIO,
+  readSignedSolanaTransaction,
+} from "./solanaBroadcast";
 
 import type {
   DetectedWallet,
@@ -22,33 +27,6 @@ const SOLANA_WALLET_IDS: WalletId[] = [
 
 // CAIP-2 chain ID for Solana mainnet — used by the Wallet Standard
 const SOLANA_MAINNET_CHAIN = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-
-// Minimal base58 encoder for Solana transaction signatures (64 bytes → ~88 chars)
-const BASE58_ALPHABET =
-  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-function encodeBase58(bytes: Uint8Array): string {
-  const digits = [0];
-  for (const byte of bytes) {
-    let carry = byte;
-    for (let i = 0; i < digits.length; i++) {
-      carry += digits[i] << 8;
-      digits[i] = carry % 58;
-      carry = (carry / 58) | 0;
-    }
-    while (carry > 0) {
-      digits.push(carry % 58);
-      carry = (carry / 58) | 0;
-    }
-  }
-  let result = "";
-  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
-    result += "1";
-  }
-  for (let i = digits.length - 1; i >= 0; i--) {
-    result += BASE58_ALPHABET[digits[i]];
-  }
-  return result;
-}
 
 // ── Wallet Standard types (subset we need — no npm dependency required) ──────
 
@@ -262,23 +240,6 @@ export function encodeBase64(bytes: Uint8Array) {
   return globalThis.btoa(binary);
 }
 
-async function waitForSolanaConfirmation(chainId: string, signature: string) {
-  const started = Date.now();
-  const timeoutMs = 120000;
-  const intervalMs = 2000;
-
-  while (Date.now() - started < timeoutMs) {
-    const status = await getSolanaTxStatus({ chainId, signature });
-    if (status.status === "success") return signature;
-    if (status.status === "failed") {
-      throw new Error("Solana transaction failed");
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-
-  throw new Error("Timed out waiting for Solana transaction confirmation");
-}
-
 const MAX_INTERNAL_ERROR_ATTEMPTS = 3;
 const INTERNAL_ERROR_RETRY_DELAY_MS = 500;
 
@@ -446,6 +407,20 @@ export function toSolanaWalletInterface(
         serializedTransactionBase64
       );
 
+      // The wallet only signs; the SDK sends and rebroadcasts. A wallet's
+      // own single broadcast was dropped without a trace in real-wallet
+      // testing (CLAUDE.md, "Solana transactions: the SDK sends and
+      // rebroadcasts them").
+      if (provider.signTransaction) {
+        const bytes = (await provider.signTransaction(transaction)).serialize();
+        const signed = await readSignedSolanaTransaction(
+          bytes,
+          encodeBase64(bytes)
+        );
+        const resolvedChainId = chainId?.trim() || "solana-mainnet";
+        return broadcastUntilSettled(signed, proxyBroadcastIO(resolvedChainId));
+      }
+
       if (provider.signAndSendTransaction) {
         return signAndSendWithRetry(
           provider.signAndSendTransaction,
@@ -453,19 +428,7 @@ export function toSolanaWalletInterface(
         );
       }
 
-      if (!provider.signTransaction) {
-        throw new Error("Connected Solana wallet cannot sign transactions");
-      }
-
-      const signed = await provider.signTransaction(transaction);
-      const resolvedChainId = chainId?.trim() || "solana-mainnet";
-      const serializedSigned = encodeBase64(signed.serialize());
-      const { signature } = await sendSolanaSerialized({
-        chainId: resolvedChainId,
-        serializedTransaction: serializedSigned,
-      });
-      await waitForSolanaConfirmation(resolvedChainId, signature);
-      return signature;
+      throw new Error("Connected Solana wallet cannot sign transactions");
     },
   };
 }

@@ -18,7 +18,7 @@ function serializedTransaction(): string {
   ).toString("base64");
 }
 
-type Calls = { signAndSend: number; sign: number };
+type Calls = { signAndSend: number };
 
 function provider(
   calls: Calls,
@@ -32,16 +32,14 @@ function provider(
       calls.signAndSend += 1;
       return signAndSendResult();
     }) as SolanaProviderLike["signAndSendTransaction"],
-    signTransaction: async () => {
-      calls.sign += 1;
-      return { serialize: () => new Uint8Array() };
-    },
   };
 }
 
+// signAndSendTransaction is the fallback for a wallet without
+// signTransaction, which is the only kind these providers are.
 describe("sendSerializedTransaction via signAndSendTransaction", () => {
   it("returns the signature from an object result", async () => {
-    const calls = { signAndSend: 0, sign: 0 };
+    const calls = { signAndSend: 0 };
     const wallet = toSolanaWalletInterface(
       provider(calls, async () => ({ signature: "sig-object" }))
     );
@@ -49,11 +47,11 @@ describe("sendSerializedTransaction via signAndSendTransaction", () => {
       await wallet.sendSerializedTransaction(serializedTransaction()),
       "sig-object"
     );
-    assert.deepEqual(calls, { signAndSend: 1, sign: 0 });
+    assert.deepEqual(calls, { signAndSend: 1 });
   });
 
   it("returns a bare string signature", async () => {
-    const calls = { signAndSend: 0, sign: 0 };
+    const calls = { signAndSend: 0 };
     const wallet = toSolanaWalletInterface(
       provider(calls, async () => "sig-string")
     );
@@ -61,11 +59,11 @@ describe("sendSerializedTransaction via signAndSendTransaction", () => {
       await wallet.sendSerializedTransaction(serializedTransaction()),
       "sig-string"
     );
-    assert.deepEqual(calls, { signAndSend: 1, sign: 0 });
+    assert.deepEqual(calls, { signAndSend: 1 });
   });
 
-  // A resolved signAndSend may already have broadcast. Asking the user to
-  // sign again through signTransaction can send the same payment twice.
+  // A resolved signAndSend may already have broadcast, so it must never be
+  // followed by a second signature prompt.
   for (const [label, result, shown] of [
     ["an object without a signature", {}, "{}"],
     ["an empty signature", { signature: "" }, '{"signature":""}'],
@@ -74,7 +72,7 @@ describe("sendSerializedTransaction via signAndSendTransaction", () => {
     ["null", null, "null"],
   ] as const) {
     it(`fails loudly on ${label}, without a second signature prompt`, async () => {
-      const calls = { signAndSend: 0, sign: 0 };
+      const calls = { signAndSend: 0 };
       const wallet = toSolanaWalletInterface(
         provider(calls, async () => result)
       );
@@ -87,12 +85,12 @@ describe("sendSerializedTransaction via signAndSendTransaction", () => {
             "Check the wallet's activity before trying again.",
         }
       );
-      assert.deepEqual(calls, { signAndSend: 1, sign: 0 });
+      assert.deepEqual(calls, { signAndSend: 1 });
     });
   }
 
   it("still retries the wallet's transient -32603 and then returns the signature", async () => {
-    const calls = { signAndSend: 0, sign: 0 };
+    const calls = { signAndSend: 0 };
     const wallet = toSolanaWalletInterface(
       provider(calls, async () => {
         if (calls.signAndSend === 1) {
@@ -105,11 +103,11 @@ describe("sendSerializedTransaction via signAndSendTransaction", () => {
       await wallet.sendSerializedTransaction(serializedTransaction()),
       "sig-after-retry"
     );
-    assert.deepEqual(calls, { signAndSend: 2, sign: 0 });
+    assert.deepEqual(calls, { signAndSend: 2 });
   });
 
   it("surfaces a user rejection immediately", async () => {
-    const calls = { signAndSend: 0, sign: 0 };
+    const calls = { signAndSend: 0 };
     const rejection = Object.assign(new Error("User rejected the request."), {
       code: 4001,
     });
@@ -122,6 +120,6 @@ describe("sendSerializedTransaction via signAndSendTransaction", () => {
       wallet.sendSerializedTransaction(serializedTransaction()),
       (err) => err === rejection
     );
-    assert.deepEqual(calls, { signAndSend: 1, sign: 0 });
+    assert.deepEqual(calls, { signAndSend: 1 });
   });
 });
