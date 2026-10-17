@@ -133,9 +133,17 @@ export type SolanaWalletInterface = BaseWalletInterface & {
   ecosystem: "solana";
   type: "solana";
   getChainKey(): Promise<string>;
+  /**
+   * Sign and send a serialized transaction; resolves with its signature.
+   * The SDK's own adapters call `options.onAccepted` once, right after the
+   * network first accepts the transaction, so the SDK can post its receipt
+   * before confirmation. A wallet that ignores it still works: the receipt
+   * is then posted when this resolves.
+   */
   sendSerializedTransaction(
     serializedTransactionBase64: string,
-    chainId?: string
+    chainId?: string,
+    options?: { onAccepted?: (signature: string) => void }
   ): Promise<string>;
 };
 

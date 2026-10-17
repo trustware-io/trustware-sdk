@@ -1,10 +1,12 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  deliverReceipt,
   runIntentTracking,
   trackIntent,
   TRACKING_TIMEOUT_MS,
   type IntentTrackingOutcome,
+  type ReceiptDeliveryOutcome,
   type ReceiptReport,
   type TrackingClock,
 } from "../intentTracking";
@@ -183,7 +185,11 @@ afterEach(() => {
 
 async function track(
   script: { receipt: Reply[]; status: Reply[] },
-  options: { report?: ReceiptReport; signal?: AbortSignal } = {}
+  options: {
+    report?: ReceiptReport;
+    signal?: AbortSignal;
+    receiptDelivery?: Promise<ReceiptDeliveryOutcome>;
+  } = {}
 ) {
   const clock = virtualClock();
   const backend = installBackend(clock, script);
@@ -194,6 +200,7 @@ async function track(
       {
         signal: options.signal ?? new AbortController().signal,
         onUpdate: (tx) => updates.push(tx.status),
+        receiptDelivery: options.receiptDelivery,
       },
       clock
     )
@@ -850,5 +857,146 @@ describe("trackIntent properties", () => {
       await drainTasks();
       assert.equal(answered.length, callsAtSettle, context);
     }
+  });
+});
+
+// ── deliverReceipt: the receipt posted at acceptance ────────────────────────
+
+async function deliver(script: { receipt: Reply[] }) {
+  const clock = virtualClock();
+  const backend = installBackend(clock, {
+    receipt: script.receipt,
+    status: [],
+  });
+  const delivery = deliverReceipt(REPORT, clock);
+  // The first POST is out before deliverReceipt returns, so a caller that
+  // starts it at acceptance orders the receipt ahead of what it does next.
+  const dispatchedBeforeReturn = backend.calls.length;
+  const outcome = await clock.drive(delivery);
+  return { outcome, dispatchedBeforeReturn, clock, ...backend };
+}
+
+describe("deliverReceipt", () => {
+  it("posts once, dispatched before it returns, and reports it recorded", async () => {
+    const run = await deliver({ receipt: [accepted] });
+    assert.equal(run.dispatchedBeforeReturn, 1);
+    assert.deepEqual(run.outcome, { kind: "recorded" });
+    assert.deepEqual(receiptTimes(run.calls), [0]);
+    assert.deepEqual(statusTimes(run.calls), []);
+    assert.deepEqual(run.bodies, [{ txHash: TX_HASH }]);
+    assert.deepEqual(warnings, []);
+    assert.deepEqual(errors, []);
+  });
+
+  it("retries a failed post with trackIntent's backoff until it lands", async () => {
+    const run = await deliver({
+      receipt: [err(503, "upstream timeout"), "network", accepted],
+    });
+    assert.deepEqual(run.outcome, { kind: "recorded" });
+    assert.deepEqual(receiptTimes(run.calls), [0, 2000, 6000]);
+    assert.equal(warnings.length, 2);
+    assert.equal(
+      warnings[0][0],
+      "[Trustware] receipt delivery failed; will retry"
+    );
+    assert.deepEqual(errors, []);
+  });
+
+  it("gives up at the tracking deadline, loudly, after a bounded number of attempts", async () => {
+    const run = await deliver({ receipt: [err(500, "down")] });
+    assert.deepEqual(run.outcome, { kind: "gave_up", failures: 14 });
+    assert.deepEqual(
+      receiptTimes(run.calls),
+      [
+        0, 2000, 6000, 14000, 30000, 60000, 90000, 120000, 150000, 180000,
+        210000, 240000, 270000, 300000,
+      ]
+    );
+    assert.ok(receiptTimes(run.calls).every((t) => t <= TRACKING_TIMEOUT_MS));
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0][0], "[Trustware] receipt delivery gave up");
+  });
+
+  it("stops on a rejection and logs it", async () => {
+    const run = await deliver({ receipt: [err(409, "already recorded")] });
+    assert.deepEqual(run.outcome, {
+      kind: "rejected",
+      httpStatus: 409,
+      message: "already recorded",
+    });
+    assert.deepEqual(receiptTimes(run.calls), [0]);
+    assert.equal(errors[0][0], "[Trustware] receipt rejected");
+  });
+
+  it("stops when the backend has no such intent", async () => {
+    const run = await deliver({ receipt: [err(404, "intent not found")] });
+    assert.deepEqual(run.outcome, { kind: "intent_not_found" });
+    assert.equal(errors.length, 1);
+  });
+
+  it("never rejects, even on a failure no transport produces", async () => {
+    const run = await deliver({ receipt: ["bug"] });
+    assert.equal(run.outcome.kind, "crashed");
+    assert.equal(errors[0][0], "[Trustware] receipt delivery crashed");
+  });
+});
+
+describe("trackIntent with the receipt delivered elsewhere", () => {
+  it("only polls: it never posts the receipt itself", async () => {
+    const run = await track(
+      {
+        receipt: [accepted],
+        status: [withStatus("submitted"), withStatus("success")],
+      },
+      { receiptDelivery: Promise.resolve({ kind: "recorded" }) }
+    );
+    assert.equal(run.outcome.kind, "success");
+    assert.deepEqual(receiptTimes(run.calls), []);
+    assert.deepEqual(statusTimes(run.calls), [0, 1500]);
+  });
+
+  it("still only polls while the delivery is in flight", async () => {
+    const run = await track(
+      { receipt: [accepted], status: [pending, withStatus("success")] },
+      { receiptDelivery: new Promise<ReceiptDeliveryOutcome>(() => {}) }
+    );
+    assert.equal(run.outcome.kind, "success");
+    assert.deepEqual(receiptTimes(run.calls), []);
+  });
+
+  it("ends as receipt_rejected when the delivery was rejected and the intent stays pending", async () => {
+    const run = await track(
+      { receipt: [accepted], status: [pending] },
+      {
+        receiptDelivery: Promise.resolve({
+          kind: "rejected",
+          httpStatus: 409,
+          message: "hash recorded against another intent",
+        }),
+      }
+    );
+    assert.deepEqual(run.outcome, {
+      kind: "receipt_rejected",
+      httpStatus: 409,
+      message: "hash recorded against another intent",
+    });
+    assert.deepEqual(receiptTimes(run.calls), []);
+  });
+
+  it("ends as intent_not_found when the delivery found no intent", async () => {
+    const run = await track(
+      { receipt: [accepted], status: [pending] },
+      { receiptDelivery: Promise.resolve({ kind: "intent_not_found" }) }
+    );
+    assert.deepEqual(run.outcome, { kind: "intent_not_found" });
+  });
+
+  it("times out as unrecorded when the delivery gave up", async () => {
+    const run = await track(
+      { receipt: [accepted], status: [pending] },
+      { receiptDelivery: Promise.resolve({ kind: "gave_up", failures: 14 }) }
+    );
+    assert.deepEqual(run.outcome, { kind: "timed_out", recorded: false });
+    assert.deepEqual(receiptTimes(run.calls), []);
   });
 });

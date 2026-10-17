@@ -75,6 +75,12 @@ for (const name of [
   expectExcludes("src/index.ts", name);
 }
 
+// Signed off 2026-10-16: the SDK's adapters report the first accepted send.
+expectIncludes(
+  "src/types/wallets.ts",
+  "    options?: { onAccepted?: (signature: string) => void }\n  ): Promise<string>;"
+);
+
 expectIncludes("src/widget/index.tsx", "TrustwareWidgetV2 as TrustwareWidget");
 expectIncludes("src/core.ts", 'export * from "./core/index";');
 expectIncludes("src/wallet.ts", 'export * from "./wallets/index";');

@@ -247,7 +247,8 @@ describe("broadcastUntilSettled", () => {
     ]);
   });
 
-  it("stops on a rebroadcast refusal the proxy doesn't document", async () => {
+  it("reports an accepted send as submitted when a rebroadcast is refused with an undocumented code", async (t) => {
+    const errorLog = t.mock.method(console, "error", () => {});
     const { io } = scriptedIO(
       [notFound],
       [true],
@@ -259,9 +260,13 @@ describe("broadcastUntilSettled", () => {
         }),
       ]
     );
-    await assert.rejects(broadcastUntilSettled(SIGNED, io), {
-      message: `Rebroadcast of Solana transaction ${SIGNED.signature} failed: Invalid serialized Solana transaction. It may still land, so check a block explorer before trying again.`,
-    });
+    assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+    assert.deepEqual(
+      errorLog.mock.calls.map((c) => c.arguments[0]),
+      [
+        `Rebroadcast of Solana transaction ${SIGNED.signature} failed: Invalid serialized Solana transaction. It was accepted, so it's reported as submitted and still confirming; the backend tracks it from its receipt.`,
+      ]
+    );
   });
 
   it("checks validity again next round after a 503 RPC_CALL_FAILED, never calling it expired", async () => {
@@ -385,19 +390,36 @@ describe("broadcastUntilSettled", () => {
     assert.deepEqual(kinds(log), ["precheck:true", "send"]);
   });
 
-  it("fails naming the signature when a status read fails, since it may still land", async () => {
-    const io: SolanaBroadcastIO = {
-      ...scriptedIO([], []).io,
-      status: async () => {
-        throw new SDKRPCError("Failed to read Solana transaction status");
-      },
-    };
-    await assert.rejects(broadcastUntilSettled(SIGNED, io), {
-      message: `Couldn't confirm Solana transaction ${SIGNED.signature}: Failed to read Solana transaction status. It may still land, so check a block explorer before trying again.`,
+  // After acceptance the receipt is already on its way, so no read failure
+  // can turn into an error that loses track of the transaction.
+  for (const [label, failure, shown] of [
+    [
+      "an undocumented code",
+      new SDKRPCError("Failed to read Solana transaction status"),
+      "Failed to read Solana transaction status",
+    ],
+    ["a fetch TypeError", new TypeError("fetch failed"), "fetch failed"],
+  ] as const) {
+    it(`reports an accepted send as submitted when a status read fails with ${label}`, async (t) => {
+      const errorLog = t.mock.method(console, "error", () => {});
+      const io: SolanaBroadcastIO = {
+        ...scriptedIO([], []).io,
+        status: async () => {
+          throw failure;
+        },
+      };
+      assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+      assert.deepEqual(
+        errorLog.mock.calls.map((c) => c.arguments[0]),
+        [
+          `Couldn't confirm Solana transaction ${SIGNED.signature}: ${shown}. It was accepted, so it's reported as submitted and still confirming; the backend tracks it from its receipt.`,
+        ]
+      );
     });
-  });
+  }
 
-  it("fails naming the signature when a validity read fails without a documented code", async () => {
+  it("reports an accepted send as submitted when a validity read fails without a documented code", async (t) => {
+    const errorLog = t.mock.method(console, "error", () => {});
     const io: SolanaBroadcastIO = {
       ...scriptedIO([notFound], []).io,
       blockhashValid: (() => {
@@ -408,9 +430,13 @@ describe("broadcastUntilSettled", () => {
         };
       })(),
     };
-    await assert.rejects(broadcastUntilSettled(SIGNED, io), {
-      message: `Couldn't confirm Solana transaction ${SIGNED.signature}: HTTP 503: Service Unavailable. It may still land, so check a block explorer before trying again.`,
-    });
+    assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+    assert.deepEqual(
+      errorLog.mock.calls.map((c) => c.arguments[0]),
+      [
+        `Couldn't confirm Solana transaction ${SIGNED.signature}: HTTP 503: Service Unavailable. It was accepted, so it's reported as submitted and still confirming; the backend tracks it from its receipt.`,
+      ]
+    );
   });
 
   it("checks the blockhash before the first send, and sends nothing when it has expired", async () => {
@@ -528,15 +554,88 @@ describe("broadcastUntilSettled", () => {
     );
   });
 
-  it("refuses a status it doesn't know", async () => {
+  it("reports an accepted send as submitted when tx-status answers a status it doesn't know", async (t) => {
+    const errorLog = t.mock.method(console, "error", () => {});
     const { io } = scriptedIO(
       [{ status: "finalized" as SolanaTxStatus["status"] }],
       []
     );
-    await assert.rejects(broadcastUntilSettled(SIGNED, io), {
-      message: `tx-status answered an unknown status "finalized" for ${SIGNED.signature}.`,
-    });
+    assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+    assert.deepEqual(
+      errorLog.mock.calls.map((c) => c.arguments[0]),
+      [
+        `tx-status answered an unknown status "finalized" for ${SIGNED.signature}. It was accepted, so it's reported as submitted and still confirming; the backend tracks it from its receipt.`,
+      ]
+    );
   });
+
+  it("reports acceptance once, right after the first accepted send and before any status read", async () => {
+    const { io, log } = scriptedIO([notFound, success], [true]);
+    const accepted: string[] = [];
+    const signature = await broadcastUntilSettled(SIGNED, io, (sig) => {
+      accepted.push(sig);
+      log.push({ kind: "sleep", ms: -1 });
+    });
+    assert.equal(signature, SIGNED.signature);
+    assert.deepEqual(accepted, [SIGNED.signature]);
+    // The marker (a sleep of -1) sits right after the first send.
+    assert.deepEqual(log.slice(0, 4), [
+      { kind: "precheck", answer: true },
+      { kind: "send", skipPreflight: false },
+      { kind: "sleep", ms: -1 },
+      { kind: "status", answer: "not_found" },
+    ]);
+  });
+
+  it("counts a 409 ALREADY_PROCESSED first send as accepted", async () => {
+    const { io } = scriptedIO([success], [], [alreadyProcessed]);
+    const accepted: string[] = [];
+    await broadcastUntilSettled(SIGNED, io, (sig) => accepted.push(sig));
+    assert.deepEqual(accepted, [SIGNED.signature]);
+  });
+
+  it("reports acceptance, then the chain's error, for a transaction that lands with one", async () => {
+    const { io } = scriptedIO([failed], []);
+    const accepted: string[] = [];
+    await assert.rejects(
+      broadcastUntilSettled(SIGNED, io, (sig) => accepted.push(sig)),
+      {
+        message: `Solana transaction ${SIGNED.signature} failed on chain: {"InstructionError":[2,{"Custom":6001}]}.`,
+      }
+    );
+    assert.deepEqual(accepted, [SIGNED.signature]);
+  });
+
+  for (const [label, script] of [
+    [
+      "the blockhash expired before sending",
+      () => scriptedIO([], [], [], false),
+    ],
+    [
+      "the first send answers BLOCKHASH_NOT_FOUND",
+      () =>
+        scriptedIO(
+          [],
+          [],
+          [
+            new SDKRPCError("expired", {
+              code: SDK_RPC_CODES.BLOCKHASH_NOT_FOUND,
+              status: 409,
+            }),
+          ]
+        ),
+    ],
+    ["the first send is refused", () => scriptedIO([], [], [broadcastFailed])],
+  ] as const) {
+    it(`never reports acceptance when ${label}`, async () => {
+      const { io } = script();
+      const accepted: string[] = [];
+      await assert.rejects(
+        broadcastUntilSettled(SIGNED, io, (sig) => accepted.push(sig))
+      );
+      assert.deepEqual(accepted, []);
+    });
+  }
 });
 
 /** mulberry32: a fixed seed makes every run test the same scripts. */

@@ -78,9 +78,9 @@ describe("prepareConfirmedSend", () => {
 
     assert.deepEqual(
       events.map((e) => e.kind),
-      ["build", "build", "build", "payment_initiated", "sign"]
+      ["build", "build", "build", "payment_initiated", "sign", "receipt"]
     );
-    assert.deepEqual(events.at(-1), { kind: "sign", data: "QUdBSU4tdHg=" });
+    assert.deepEqual(events.at(-2), { kind: "sign", data: "QUdBSU4tdHg=" });
   });
 
   it("reports after the rebuild and before the wallet signs", async () => {
@@ -98,9 +98,9 @@ describe("prepareConfirmedSend", () => {
 
     assert.deepEqual(
       events.map((e) => e.kind),
-      ["build", "build", "payment_initiated", "sign"]
+      ["build", "build", "payment_initiated", "sign", "receipt"]
     );
-    assert.deepEqual(events.at(-1), { kind: "sign", data: REBUILT_SOLANA_TX });
+    assert.deepEqual(events.at(-2), { kind: "sign", data: REBUILT_SOLANA_TX });
   });
 
   it("reports nothing when the rebuild fails", async () => {
@@ -142,7 +142,7 @@ describe("prepareConfirmedSend", () => {
 
     assert.deepEqual(
       events.map((e) => e.kind),
-      ["build", "payment_initiated", "sign"]
+      ["build", "payment_initiated", "sign", "receipt"]
     );
   });
 });

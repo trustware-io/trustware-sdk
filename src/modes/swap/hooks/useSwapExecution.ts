@@ -12,7 +12,11 @@ import {
   prepareConfirmedSend,
   type PAYMENT_INITIATED,
 } from "src/widget/lib/confirmedSend";
-import { trackIntent, type ReceiptReport } from "src/core/intentTracking";
+import {
+  trackIntent,
+  type ReceiptDeliveryOutcome,
+  type ReceiptReport,
+} from "src/core/intentTracking";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
   approvalSatisfied,
@@ -133,7 +137,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     (
       receipt: ReceiptReport,
       onSuccess: () => void,
-      onError: (msg: string) => void
+      onError: (msg: string) => void,
+      /** The send step's own receipt delivery, or "tracker_posts" when
+       *  nothing else posts it (the smart-account path). */
+      receiptDelivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts"
     ) => {
       stopTracking();
       const controller = new AbortController();
@@ -141,6 +148,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       void trackIntent(receipt, {
         signal: controller.signal,
+        receiptDelivery:
+          receiptDelivery === "tracker_posts" ? undefined : receiptDelivery,
         onUpdate: (raw) => {
           const tx = normalizeTx(raw);
           setState((p) => ({
@@ -420,7 +429,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             txStatus: "processing",
             allowanceStatus: "sufficient",
           }));
-          startTracking(result.receipt, onSuccess, onError);
+          startTracking(result.receipt, onSuccess, onError, "tracker_posts");
           return;
         } catch (err) {
           if (isUserRejection(err)) {
@@ -441,6 +450,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       }
 
       // ── EOA path (no sponsorship, or SA fallback) ─────────────────────────────
+      const acceptance = { tracking: false };
       try {
         // Every allowance this route needs, in the plan's own order. The
         // plan is authoritative: its entries carry the spender the route
@@ -635,6 +645,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           await requireActiveAddress(wallet, walletAddress as string);
         }
 
+        // The network has it: the swap is on-chain from here, and the
+        // screen must say so at once, without waiting for confirmation
+        // (a Solana send keeps rebroadcasting until it settles). The send
+        // step already posted the receipt, so tracking only polls.
         const sent = await sendSignableRoute(
           reviewed,
           routeResult,
@@ -643,6 +657,23 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             approvalsEnsured: ownsApprovals,
             onRetry: (retry) =>
               setState((p) => ({ ...p, signingRetryMessage: retry.message })),
+          },
+          (accepted) => {
+            acceptance.tracking = true;
+            setState((p) => ({
+              ...p,
+              isSubmitting: false,
+              txHash: accepted.hash,
+              intentId: accepted.receipt.intentId,
+              txStatus: "processing",
+              signingRetryMessage: null,
+            }));
+            startTracking(
+              accepted.receipt,
+              onSuccess,
+              onError,
+              accepted.receiptDelivery
+            );
           }
         );
         if (sent.kind === "route_changed") {
@@ -656,23 +687,16 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           return;
         }
 
-        // The hash is the point of no return: the swap is on-chain and the
-        // screen must reflect that immediately, before the receipt is
-        // delivered — `rateLimitedFetch` has no request timeout and will sit
-        // out a server-directed 429 wait, so awaiting the receipt here pinned
-        // the progress ring at "confirming" while the transaction was already
-        // confirming on-chain. The tracker delivers it in the background.
-        setState((p) => ({
-          ...p,
-          isSubmitting: false,
-          txHash: sent.hash,
-          intentId: sent.receipt.intentId,
-          txStatus: "processing",
-          signingRetryMessage: null,
-        }));
-
-        startTracking(sent.receipt, onSuccess, onError);
+        if (!acceptance.tracking) {
+          throw new Error(
+            `Intent ${sent.receipt.intentId} was sent without being reported as accepted.`
+          );
+        }
       } catch (err) {
+        // After acceptance this is the chain's own verdict (it landed with
+        // an error, or expired): it replaces the tracker, whose receipt was
+        // already delivered.
+        if (acceptance.tracking) stopTracking();
         const msg = mapTxError(err);
         setState((p) => ({
           ...p,
@@ -684,7 +708,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         onError(msg);
       }
     },
-    [fromChain, startTracking]
+    [fromChain, startTracking, stopTracking]
   );
 
   const resetSmartAccountFailure = useCallback(() => {

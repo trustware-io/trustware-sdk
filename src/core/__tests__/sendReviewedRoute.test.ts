@@ -73,11 +73,18 @@ describe("sendReviewedRoute", () => {
 
     const outcome = await sendReviewedRoute(reviewed, SOLANA);
 
+    // The wallet here ignores onAccepted, like a host-built one: the
+    // receipt goes out as soon as it returns, exactly once.
     assert.deepEqual(
       events.map((e) => e.kind),
-      ["build", "build", "sign"]
+      ["build", "build", "sign", "receipt"]
     );
-    const [reviewBuild, rebuild, sign] = events;
+    const [reviewBuild, rebuild, sign, receipt] = events;
+    assert.deepEqual(receipt, {
+      kind: "receipt",
+      intentId: "intent-rebuilt",
+      txHash: "solana-signature-1",
+    });
     assert.equal(reviewBuild.kind, "build");
     assert.equal(rebuild.kind, "build");
     assert.deepEqual(rebuild.body, reviewBuild.body, "same request again");
@@ -102,7 +109,12 @@ describe("sendReviewedRoute", () => {
     const outcome = await sendReviewedRoute(reviewed, SOLANA);
 
     assert.equal(outcome.kind, "sent");
-    assert.deepEqual(events.at(-1), { kind: "sign", data: REBUILT_SOLANA_TX });
+    assert.deepEqual(events.at(-2), { kind: "sign", data: REBUILT_SOLANA_TX });
+    assert.deepEqual(events.at(-1), {
+      kind: "receipt",
+      intentId: "intent-rebuilt",
+      txHash: "solana-signature-1",
+    });
   });
 
   it("signs a rebuild that delivers more than the review", async () => {
@@ -193,7 +205,17 @@ describe("sendReviewedRoute", () => {
       intentId: "intent-rebuilt-again",
       txHash: "solana-signature-1",
     });
-    assert.deepEqual(events.at(-1), { kind: "sign", data: "QUdBSU4tdHg=" });
+    assert.deepEqual(events.at(-2), { kind: "sign", data: "QUdBSU4tdHg=" });
+    assert.deepEqual(events.at(-1), {
+      kind: "receipt",
+      intentId: "intent-rebuilt-again",
+      txHash: "solana-signature-1",
+    });
+    assert.equal(
+      events.filter((e) => e.kind === "receipt").length,
+      1,
+      "the confirm that went back to review posted nothing"
+    );
   });
 
   it("surfaces a failed rebuild as the backend's error and sends nothing", async () => {
@@ -284,9 +306,16 @@ describe("sendReviewedRoute", () => {
 
     assert.deepEqual(
       events.map((e) => e.kind),
-      ["build", "sign"]
+      ["build", "sign", "receipt"]
     );
     assert.deepEqual(events[1], { kind: "sign", data: REVIEWED_EVM_DATA });
+    // EVM: accepted when the wallet returns the hash, and the receipt goes
+    // out right then (sendRouteTransactionReporting's EVM branch).
+    assert.deepEqual(events[2], {
+      kind: "receipt",
+      intentId: "intent-evm",
+      txHash: `0x${"e".repeat(64)}`,
+    });
     assert.equal(outcome.kind, "sent");
     if (outcome.kind !== "sent") return;
     assert.deepEqual(outcome.receipt, {
@@ -334,10 +363,15 @@ describe("Trustware.sendReviewedRoute (host API)", () => {
 
     assert.deepEqual(
       events.map((e) => e.kind),
-      ["build", "build", "sign"]
+      ["build", "build", "sign", "receipt"]
     );
     assert.deepEqual(events[1], events[0], "the same request, built again");
     assert.deepEqual(events[2], { kind: "sign", data: REBUILT_SOLANA_TX });
+    assert.deepEqual(events[3], {
+      kind: "receipt",
+      intentId: "intent-rebuilt",
+      txHash: "solana-signature-1",
+    });
     assert.equal(outcome.kind, "sent");
     if (outcome.kind !== "sent") return;
     assert.deepEqual(outcome.receipt, {

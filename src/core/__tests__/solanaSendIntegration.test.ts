@@ -114,6 +114,20 @@ const status503: Answer = () =>
     error: "dRPC refused the request",
   });
 
+const landedWithErr: Answer = (s) =>
+  ok({
+    chainId: SOLANA,
+    signature: s.signature,
+    found: true,
+    confirmed: true,
+    status: "failed",
+    err: { InstructionError: [2, { Custom: 6001 }] },
+  });
+/** A status read the loop can't retry: after acceptance it ends as
+ *  "submitted, still confirming", never as an error. */
+const statusInvalidRequest: Answer = () =>
+  fail(400, "INVALID_REQUEST", "Invalid Solana signature", {});
+
 const MATERIALLY_WORSE: RouteEstimate = {
   ...REVIEWED_ESTIMATE,
   toAmount: "900000",
@@ -143,7 +157,10 @@ async function hostSend(script: {
   validity: Answer[];
   sends: Answer[];
   statuses: Answer[];
+  /** HTTP status of each receipt POST, the last repeating (default 200). */
+  receiptReplies?: number[];
 }) {
+  const receiptReplies = [...(script.receiptReplies ?? [200])];
   const events: Event[] = [];
   const routes = stubBackend(
     events,
@@ -229,7 +246,12 @@ async function hostSend(script: {
         url: url.slice(url.indexOf("/v1/route-intent/")),
         body: JSON.parse(String(init?.body)),
       });
-      return ok({});
+      const replyStatus =
+        receiptReplies.length > 1 ? receiptReplies.shift()! : receiptReplies[0];
+      order.push(replyStatus === 200 ? "receipt" : `receipt:${replyStatus}`);
+      return replyStatus === 200
+        ? ok({ ok: true })
+        : envelope(replyStatus, { error: "receipt store unavailable" });
     }
     if (url.endsWith("/v1/routes/route")) order.push("build");
     return routes(input, init);
@@ -245,13 +267,7 @@ async function hostSend(script: {
         order.push(`onRetry:${retry.reason}`);
       },
     });
-    if (outcome.kind === "sent") {
-      // What a host does with the result: one receipt.
-      await Trustware.submitReceipt(
-        outcome.receipt.intentId,
-        outcome.receipt.txHash
-      );
-    }
+    // sendReviewedRoute delivered the receipt itself: a host doesn't post.
   } catch (err) {
     outcome = err as Error;
   }
@@ -296,6 +312,7 @@ describe("Solana send, end to end against the proxy contract", () => {
       `sign:${confirm}`,
       "valid:true",
       "send(false):200",
+      "receipt",
       "status:not_found",
       "valid:503",
       "send(true):409",
@@ -344,6 +361,7 @@ describe("Solana send, end to end against the proxy contract", () => {
       `sign:${confirm}`,
       "valid:true",
       "send(false):200",
+      "receipt",
       "status:503",
       "valid:true",
       "send(true):409",
@@ -377,6 +395,7 @@ describe("Solana send, end to end against the proxy contract", () => {
       `sign:${confirm}`,
       "valid:true",
       "send(false):200",
+      "receipt",
       "status:not_found",
       "valid:false",
       "status:503",
@@ -385,6 +404,118 @@ describe("Solana send, end to end against the proxy contract", () => {
     assert.equal(outcome.kind, "sent");
     if (outcome.kind !== "sent") return;
     assert.equal(outcome.hash, run.signed[0].signature);
+    assert.deepEqual(run.receipts, [
+      {
+        url: "/v1/route-intent/intent-rebuilt/receipt",
+        body: { txHash: run.signed[0].signature },
+      },
+    ]);
+  });
+
+  it("keeps rebroadcasting when the receipt post fails, and retries the receipt", async () => {
+    const [review, confirm] = [freshBlockhash(), freshBlockhash()];
+    const run = await hostSend({
+      routes: [
+        { intentId: "intent-reviewed", blockhash: review },
+        { intentId: "intent-rebuilt", blockhash: confirm },
+      ],
+      validity: [valid, valid],
+      sends: [sent, alreadyProcessed],
+      statuses: [status("not_found"), status("success")],
+      receiptReplies: [503, 200],
+    });
+
+    // The failed post comes straight after the accepted send, and the loop
+    // runs on regardless. The retry lands about 2 s later (trackIntent's
+    // first backoff), whenever that falls against the loop.
+    const deadline = Date.now() + 5_000;
+    while (run.receipts.length < 2 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.deepEqual(run.order.slice(0, 6), [
+      "build",
+      "build",
+      `sign:${confirm}`,
+      "valid:true",
+      "send(false):200",
+      "receipt:503",
+    ]);
+    assert.deepEqual(
+      run.order.filter((o) => !o.startsWith("receipt")),
+      [
+        "build",
+        "build",
+        `sign:${confirm}`,
+        "valid:true",
+        "send(false):200",
+        "status:not_found",
+        "valid:true",
+        "send(true):409",
+        "status:success",
+      ]
+    );
+    assert.deepEqual(
+      run.order.filter((o) => o.startsWith("receipt")),
+      ["receipt:503", "receipt"]
+    );
+    assert.equal((run.outcome as ReviewedRouteSend).kind, "sent");
+    assert.deepEqual(run.receipts, [
+      {
+        url: "/v1/route-intent/intent-rebuilt/receipt",
+        body: { txHash: run.signed[0].signature },
+      },
+      {
+        url: "/v1/route-intent/intent-rebuilt/receipt",
+        body: { txHash: run.signed[0].signature },
+      },
+    ]);
+  });
+
+  it("returns an accepted send as submitted when a status read fails outright, with its receipt posted", async () => {
+    const [review, confirm] = [freshBlockhash(), freshBlockhash()];
+    const run = await hostSend({
+      routes: [
+        { intentId: "intent-reviewed", blockhash: review },
+        { intentId: "intent-rebuilt", blockhash: confirm },
+      ],
+      validity: [valid],
+      sends: [sent],
+      statuses: [
+        () => {
+          throw new TypeError("fetch failed");
+        },
+      ],
+    });
+
+    const outcome = run.outcome as ReviewedRouteSend;
+    assert.equal(outcome.kind, "sent");
+    if (outcome.kind !== "sent") return;
+    assert.equal(outcome.hash, run.signed[0].signature);
+    assert.deepEqual(run.receipts, [
+      {
+        url: "/v1/route-intent/intent-rebuilt/receipt",
+        body: { txHash: run.signed[0].signature },
+      },
+    ]);
+  });
+
+  it("keeps the receipt of a transaction that lands with an error, and surfaces the error", async () => {
+    const [review, confirm] = [freshBlockhash(), freshBlockhash()];
+    const run = await hostSend({
+      routes: [
+        { intentId: "intent-reviewed", blockhash: review },
+        { intentId: "intent-rebuilt", blockhash: confirm },
+      ],
+      validity: [valid],
+      sends: [sent],
+      statuses: [landedWithErr],
+    });
+
+    assert.ok(run.outcome instanceof Error);
+    assert.equal(
+      run.outcome.message,
+      `Solana transaction ${run.signed[0].signature} failed on chain: {"InstructionError":[2,{"Custom":6001}]}.`
+    );
     assert.deepEqual(run.receipts, [
       {
         url: "/v1/route-intent/intent-rebuilt/receipt",
@@ -420,6 +551,7 @@ describe("Solana send, end to end against the proxy contract", () => {
       `sign:${retry}`,
       "valid:true",
       "send(false):200",
+      "receipt",
       "status:success",
     ]);
     const second = run.signed[1];
@@ -475,6 +607,7 @@ describe("Solana send, end to end against the proxy contract", () => {
       `sign:${retry}`,
       "valid:true",
       "send(false):200",
+      "receipt",
       "status:success",
     ]);
     assert.equal(run.retries.length, 1);
@@ -594,7 +727,13 @@ describe("Solana re-sign, over generated outcomes", () => {
   it("prompts at most twice and never sends a blockhash known to be invalid", async () => {
     const random = seededRandom(0x7e51_9e00);
     const pick = <T>(items: T[]) => items[Math.floor(random() * items.length)];
-    const seen = { sent: 0, expired: 0, changed: 0, notSent: 0 };
+    const seen = {
+      sent: 0,
+      expired: 0,
+      changed: 0,
+      notSent: 0,
+      landedWithErr: 0,
+    };
 
     for (let run = 0; run < 300; run++) {
       // One attempt's script: its precheck answer and, if it sends, the
@@ -632,10 +771,14 @@ describe("Solana re-sign, over generated outcomes", () => {
           ? null
           : two.first
         : one.first;
-      const statuses =
-        finalFirst === sent || finalFirst === alreadyProcessed
-          ? [status("success")]
-          : [];
+      const accepted = finalFirst === sent || finalFirst === alreadyProcessed;
+      const ending = pick([
+        status("success"),
+        status("success"),
+        landedWithErr,
+        statusInvalidRequest,
+      ]);
+      const statuses = accepted ? [ending] : [];
 
       const result = await hostSend({
         routes: [
@@ -668,7 +811,30 @@ describe("Solana re-sign, over generated outcomes", () => {
         assert.equal(retries[0].route.intentId, "intent-retry", label);
       }
 
-      if (outcome instanceof Error) {
+      // Every accepted send posts exactly one receipt, for its own
+      // signature, however it ends afterwards; nothing else posts one.
+      assert.equal(receipts.length, accepted ? 1 : 0, label);
+      if (accepted) {
+        const last = signed.at(-1) as Signed;
+        assert.deepEqual(receipts[0].body, { txHash: last.signature }, label);
+        // Posted right after the accepted first send, before any status read.
+        const receiptAt = order.indexOf("receipt");
+        assert.match(order[receiptAt - 1], /^send\(false\):(200|409)$/, label);
+        assert.ok(
+          order.slice(0, receiptAt).every((o) => !o.startsWith("status:")),
+          `${label}: a status read came before the receipt`
+        );
+      }
+
+      if (outcome instanceof Error && accepted) {
+        assert.ok(ending === landedWithErr, label);
+        assert.equal(
+          outcome.message,
+          `Solana transaction ${(signed.at(-1) as Signed).signature} failed on chain: {"InstructionError":[2,{"Custom":6001}]}.`,
+          label
+        );
+        seen.landedWithErr++;
+      } else if (outcome instanceof Error) {
         assert.deepEqual(receipts, [], label);
         if (expiresFirst && !retryWorse && expiresSecond) {
           assert.equal(outcome.message, expiredMessage(signed[1]), label);
@@ -703,5 +869,6 @@ describe("Solana re-sign, over generated outcomes", () => {
     assert.ok(seen.expired > 10, `${seen.expired} expired twice`);
     assert.ok(seen.changed > 5, `${seen.changed} changed`);
     assert.ok(seen.notSent > 20, `${seen.notSent} refused`);
+    assert.ok(seen.landedWithErr > 20, `${seen.landedWithErr} landed with err`);
   });
 });

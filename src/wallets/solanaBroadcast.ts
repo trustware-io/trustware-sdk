@@ -104,12 +104,19 @@ function describeRpcError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** A status or validity read failed, so the loop can't tell how the
- *  transaction ended. It may still land, so the error names it. */
-function unknownOutcome(signature: string, err: unknown): Error {
-  return new Error(
-    `Couldn't confirm Solana transaction ${signature}: ${describeRpcError(err)}. ` +
-      `It may still land, so check a block explorer before trying again.`
+/**
+ * After the first accepted send, the loop can no longer tell how the
+ * transaction will end: a read failed in a way no retry covers, or the
+ * proxy answered something unknown. The transaction may still land, and
+ * its receipt is already on its way (`onAccepted`), so this never reaches
+ * the caller as an error: `broadcastUntilSettled` reports the transaction
+ * as submitted and still confirming.
+ */
+class OutcomeUnknownError extends Error {}
+
+function unknownOutcome(signature: string, err: unknown): OutcomeUnknownError {
+  return new OutcomeUnknownError(
+    `Couldn't confirm Solana transaction ${signature}: ${describeRpcError(err)}.`
   );
 }
 
@@ -120,13 +127,20 @@ function landedWithError(signature: string, status: SolanaTxStatus): Error {
 }
 
 /**
- * Send `signed`, then rebroadcast the same bytes until it settles. Resolves
- * with the signature on success; throws when it lands with an error or
- * expires before inclusion. Its only stop conditions are those facts.
+ * Send `signed`, then rebroadcast the same bytes until it settles.
+ *
+ * `onAccepted` runs once, synchronously, as soon as the first send is
+ * accepted (200, or 409 `ALREADY_PROCESSED`), before any status read, so
+ * the caller can post the receipt first. From then on the transaction is
+ * the backend's to track too. Resolves with the signature on success, and
+ * also when the outcome can't be read any more ("submitted, still
+ * confirming"). Throws when it lands with an error or expires before
+ * inclusion. Its only stop conditions are those facts.
  */
 export async function broadcastUntilSettled(
   signed: SignedSolanaTransaction,
-  io: SolanaBroadcastIO
+  io: SolanaBroadcastIO,
+  onAccepted?: (signature: string) => void
 ): Promise<string> {
   const { serialized, signature } = signed;
 
@@ -157,6 +171,25 @@ export async function broadcastUntilSettled(
     }
   }
 
+  onAccepted?.(signature);
+  try {
+    return await confirmUntilSettled(signed, io);
+  } catch (err) {
+    if (!(err instanceof OutcomeUnknownError)) throw err;
+    console.error(
+      `${err.message} It was accepted, so it's reported as submitted and ` +
+        `still confirming; the backend tracks it from its receipt.`
+    );
+    return signature;
+  }
+}
+
+/** Poll and rebroadcast an accepted transaction until it settles. */
+async function confirmUntilSettled(
+  signed: SignedSolanaTransaction,
+  io: SolanaBroadcastIO
+): Promise<string> {
+  const { signature } = signed;
   for (;;) {
     const status = await readStatus(io, signature);
     switch (status.status) {
@@ -235,9 +268,8 @@ async function rebroadcast(
       );
       return;
     }
-    throw new Error(
-      `Rebroadcast of Solana transaction ${signature} failed: ${describeRpcError(err)}. ` +
-        `It may still land, so check a block explorer before trying again.`
+    throw new OutcomeUnknownError(
+      `Rebroadcast of Solana transaction ${signature} failed: ${describeRpcError(err)}.`
     );
   }
 }
@@ -283,7 +315,7 @@ async function settleAfterExpiry(
  *  whatever the proxy sent. */
 function unknownStatus(status: never, signature: string): Error {
   const answered = (status as { status?: unknown }).status;
-  return new Error(
+  return new OutcomeUnknownError(
     `tx-status answered an unknown status ${JSON.stringify(answered)} for ${signature}.`
   );
 }
@@ -291,7 +323,7 @@ function unknownStatus(status: never, signature: string): Error {
 /**
  * A status read. A failed RPC call (503 `RPC_CALL_FAILED`) is transient:
  * it says nothing about the transaction, so it is "unavailable", never a
- * failure. Any other error is a fault.
+ * failure. Any other error ends confirmation as "submitted".
  */
 async function readStatus(
   io: SolanaBroadcastIO,

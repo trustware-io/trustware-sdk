@@ -401,7 +401,8 @@ export function toSolanaWalletInterface(
     },
     async sendSerializedTransaction(
       serializedTransactionBase64: string,
-      chainId?: string
+      chainId?: string,
+      options?: { onAccepted?: (signature: string) => void }
     ) {
       const transaction = await decodeBase64Transaction(
         serializedTransactionBase64
@@ -418,14 +419,21 @@ export function toSolanaWalletInterface(
           encodeBase64(bytes)
         );
         const resolvedChainId = chainId?.trim() || "solana-mainnet";
-        return broadcastUntilSettled(signed, proxyBroadcastIO(resolvedChainId));
+        return broadcastUntilSettled(
+          signed,
+          proxyBroadcastIO(resolvedChainId),
+          options?.onAccepted
+        );
       }
 
       if (provider.signAndSendTransaction) {
-        return signAndSendWithRetry(
+        // The wallet broadcast it, so its signature is the acceptance.
+        const signature = await signAndSendWithRetry(
           provider.signAndSendTransaction,
           transaction
         );
+        options?.onAccepted?.(signature);
+        return signature;
       }
 
       throw new Error("Connected Solana wallet cannot sign transactions");

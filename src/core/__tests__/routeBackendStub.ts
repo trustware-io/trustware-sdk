@@ -51,7 +51,8 @@ export const FLOOR_TO_AMOUNT = "985050";
 
 export type Event =
   | { kind: "build"; body: Record<string, unknown> }
-  | { kind: "sign"; data: string };
+  | { kind: "sign"; data: string }
+  | { kind: "receipt"; intentId: string; txHash: string };
 
 export type RouteReply =
   | { status: 200; intentId: string; estimate: RouteEstimate; tx: TxShape }
@@ -116,6 +117,12 @@ export function stubBackend(events: Event[], replies: RouteReply[]) {
           },
         ],
       });
+    }
+    const receipt = url.match(/\/v1\/route-intent\/([^/]+)\/receipt$/);
+    if (receipt) {
+      const { txHash } = JSON.parse(String(init?.body)) as { txHash: string };
+      events.push({ kind: "receipt", intentId: receipt[1], txHash });
+      return json(200, { data: { ok: true } });
     }
     throw new Error(`Unexpected request: ${url}`);
   };

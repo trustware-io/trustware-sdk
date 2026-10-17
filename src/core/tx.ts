@@ -8,13 +8,13 @@ import type { ChainDef, EvmWalletInterface } from "../types";
 import { walletManager } from "../wallets/";
 import {
   buildRoute,
-  submitReceipt,
   submitStepReceipt,
   pollStatus,
   isEvmTxRequest,
   isSerializedSolanaTxRequest,
 } from "./routes";
 import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
+import { deliverReceipt, type ReceiptDeliveryOutcome } from "./intentTracking";
 import type { VaultRedeemAction } from "./vaults";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
 
@@ -355,6 +355,43 @@ export async function sendRouteTransaction(
   fallbackChainId?: number | string,
   options?: SendRouteTransactionOptions
 ): Promise<string> {
+  return sendRouteTransactionReporting(b, fallbackChainId, options);
+}
+
+/**
+ * Calls `onAccepted` exactly once per send, with the first hash reported.
+ * A wallet that later returns a different hash from the one it reported as
+ * accepted is broken, so that throws rather than track the wrong one.
+ */
+function acceptOnce(onAccepted: ((hash: string) => void) | undefined) {
+  let acceptedHash: string | null = null;
+  return (hash: string): string => {
+    if (acceptedHash === null) {
+      acceptedHash = hash;
+      onAccepted?.(hash);
+    } else if (hash !== acceptedHash) {
+      throw new Error(
+        `The wallet reported transaction ${acceptedHash} as accepted but returned ${hash}.`
+      );
+    }
+    return hash;
+  };
+}
+
+/**
+ * `sendRouteTransaction`, plus `onAccepted`: called once, as soon as the
+ * network has the transaction, with its hash. That is when the wallet
+ * returns an EVM hash, and, for Solana, when the SDK's adapter reports its
+ * first accepted send (or when a wallet that doesn't report it returns).
+ * The receipt is posted from there (`sendSignableRoute`, `runTopUp`).
+ */
+export async function sendRouteTransactionReporting(
+  b: BuildRouteResult,
+  fallbackChainId?: number | string,
+  options?: SendRouteTransactionOptions,
+  onAccepted?: (hash: string) => void
+): Promise<string> {
+  const accepted = acceptOnce(onAccepted);
   // buildRoute already refused a losing route, so one can only arrive here
   // assembled by hand — and signing it is the irreversible step. Refused
   // before the wallet is consulted.
@@ -427,7 +464,7 @@ export async function sendRouteTransaction(
         method: "eth_sendTransaction",
         params: [params],
       });
-      return hash as string;
+      return accepted(hash as string);
     }
 
     // wagmi path — Account Kit wallets pick up paymasterAndData on sendTransaction
@@ -443,7 +480,7 @@ export async function sendRouteTransaction(
           }
         : {}),
     });
-    return response.hash as string;
+    return accepted(response.hash as string);
   }
 
   if (isSerializedSolanaTxRequest(txReq)) {
@@ -461,9 +498,17 @@ export async function sendRouteTransaction(
     const chain = registry.chain(
       String(fallbackChainId ?? txReq.chainId ?? "")
     );
-    return w.sendSerializedTransaction(
-      txReq.data,
-      backendChainId(chain, fallbackChainId ?? txReq.chainId)
+    const solanaChainId = backendChainId(
+      chain,
+      fallbackChainId ?? txReq.chainId
+    );
+    if (!onAccepted) {
+      return w.sendSerializedTransaction(txReq.data, solanaChainId);
+    }
+    return accepted(
+      await w.sendSerializedTransaction(txReq.data, solanaChainId, {
+        onAccepted: accepted,
+      })
     );
   }
 
@@ -593,8 +638,24 @@ export async function runTopUp(params: {
       slippage: cfg.routes.defaultSlippage,
     });
 
-    const hash = await sendRouteTransaction(build, fromChain);
-    await submitReceipt(build.intentId, hash);
+    // The receipt goes out the moment the network has the transaction, so
+    // the backend tracks it even if this page closes before it confirms.
+    let delivery: Promise<ReceiptDeliveryOutcome> | undefined;
+    await sendRouteTransactionReporting(build, fromChain, undefined, (hash) => {
+      delivery = deliverReceipt({ intentId: build.intentId, txHash: hash });
+    });
+    if (!delivery) {
+      throw new Error(
+        `runTopUp sent intent ${build.intentId} without a receipt delivery.`
+      );
+    }
+    const receipt = await delivery;
+    if (receipt.kind !== "recorded") {
+      throw new Error(
+        `The transaction for intent ${build.intentId} was sent, but its ` +
+          `receipt wasn't recorded (${receipt.kind}).`
+      );
+    }
     return await pollStatus(build.intentId);
   } catch (e: unknown) {
     if (isUserRejected(e)) throw new Error("Transaction cancelled by user");

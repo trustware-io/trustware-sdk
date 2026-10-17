@@ -82,7 +82,106 @@ export type TrackIntentOptions = {
   signal: AbortSignal;
   /** Every status payload read, terminal or not. */
   onUpdate: (transaction: Transaction) => void;
+  /**
+   * The receipt is already being delivered (`deliverReceipt`, started when
+   * the send was accepted), so tracking only polls and reads this for how
+   * delivery ended. Without it, tracking posts the receipt itself.
+   */
+  receiptDelivery?: Promise<ReceiptDeliveryOutcome>;
 };
+
+/** How `deliverReceipt` ended. */
+export type ReceiptDeliveryOutcome =
+  | { kind: "recorded" }
+  | { kind: "rejected"; httpStatus: number; message: string }
+  | { kind: "intent_not_found" }
+  /** Every attempt failed transiently until TRACKING_TIMEOUT_MS. */
+  | { kind: "gave_up"; failures: number }
+  /** A failure no transport produces: a bug. Logged. */
+  | { kind: "crashed"; error: unknown };
+
+/** How long to wait before re-sending a receipt after `failures`
+ *  consecutive transient failures, honouring a server-directed wait. */
+function receiptRetryDelayMs(failures: number, serverWaitMs: number): number {
+  const backoffMs = Math.min(
+    RECEIPT_RETRY_BASE_MS * 2 ** (failures - 1),
+    RECEIPT_RETRY_MAX_MS
+  );
+  return Math.max(backoffMs, serverWaitMs);
+}
+
+const neverAborted = new AbortController().signal;
+
+/**
+ * Post the receipt for a send the network accepted, retrying transient
+ * failures with trackIntent's backoff until TRACKING_TIMEOUT_MS.
+ *
+ * The first POST is dispatched before this returns (nothing is awaited
+ * before it), so calling this at acceptance orders the receipt ahead of
+ * whatever the caller does next. It never rejects, and every ending other
+ * than "recorded" is logged as an error, since it means the backend may
+ * not be tracking a transaction that was sent.
+ */
+export function deliverReceipt(
+  report: ReceiptReport,
+  clock: TrackingClock = systemClock
+): Promise<ReceiptDeliveryOutcome> {
+  const deadline = clock.now() + TRACKING_TIMEOUT_MS;
+  const first = attemptReceipt(report);
+  const log = (what: string, detail: Record<string, unknown>) =>
+    console.error(`[Trustware] receipt ${what}`, {
+      intentId: report.intentId,
+      txHash: report.txHash,
+      ...detail,
+    });
+
+  const run = async (): Promise<ReceiptDeliveryOutcome> => {
+    let attempt = first;
+    let failures = 0;
+    for (;;) {
+      let result: ReceiptAttempt;
+      try {
+        result = await attempt;
+      } catch (error) {
+        log("delivery crashed", { error });
+        return { kind: "crashed", error };
+      }
+      switch (result.kind) {
+        case "accepted":
+          return { kind: "recorded" };
+        case "rejected":
+          log("rejected", {
+            httpStatus: result.httpStatus,
+            message: result.message,
+          });
+          return result;
+        case "intent_not_found":
+          log("rejected: the backend has no such intent", {});
+          return { kind: "intent_not_found" };
+        case "transient": {
+          failures += 1;
+          const waitMs = receiptRetryDelayMs(failures, result.serverWaitMs);
+          if (clock.now() + waitMs > deadline) {
+            log("delivery gave up", { failures, error: result.error });
+            return { kind: "gave_up", failures };
+          }
+          console.warn("[Trustware] receipt delivery failed; will retry", {
+            intentId: report.intentId,
+            txHash: report.txHash,
+            failures,
+            error: result.error,
+          });
+          await clock.sleep(waitMs, neverAborted);
+          attempt = attemptReceipt(report);
+          break;
+        }
+        default:
+          assertNever(result);
+      }
+    }
+  };
+  return run();
+}
 
 /**
  * Delivers the receipt for a sent transaction and polls the intent's status
@@ -121,6 +220,10 @@ export async function trackIntent(
 
 type ReceiptState =
   | { kind: "due"; failures: number; dueAt: number }
+  /** `deliverReceipt` owns delivery and hasn't finished. */
+  | { kind: "delegated" }
+  /** `deliverReceipt` gave up or crashed: nothing will deliver it now. */
+  | { kind: "lost" }
   | { kind: "recorded" }
   | { kind: "rejected"; httpStatus: number; message: string };
 
@@ -136,7 +239,7 @@ type TrackingRunOutcome = Exclude<IntentTrackingOutcome, { kind: "crashed" }>;
 /** Exported for tests, which substitute a virtual clock. */
 export async function runIntentTracking(
   report: ReceiptReport,
-  { signal, onUpdate }: TrackIntentOptions,
+  { signal, onUpdate, receiptDelivery }: TrackIntentOptions,
   clock: TrackingClock
 ): Promise<TrackingRunOutcome> {
   if (signal.aborted) return { kind: "aborted" };
@@ -147,11 +250,35 @@ export async function runIntentTracking(
   const onCallerAbort = () => stop.abort();
   signal.addEventListener("abort", onCallerAbort, { once: true });
 
-  let receipt: ReceiptState = { kind: "due", failures: 0, dueAt: clock.now() };
+  let receipt: ReceiptState = receiptDelivery
+    ? { kind: "delegated" }
+    : { kind: "due", failures: 0, dueAt: clock.now() };
+  let intentMissing = false;
+  void receiptDelivery?.then((outcome) => {
+    if (receipt.kind !== "delegated") return;
+    switch (outcome.kind) {
+      case "recorded":
+        receipt = { kind: "recorded" };
+        break;
+      case "rejected":
+        receipt = outcome;
+        break;
+      case "intent_not_found":
+        intentMissing = true;
+        break;
+      case "gave_up":
+      case "crashed":
+        receipt = { kind: "lost" };
+        break;
+      default:
+        assertNever(outcome);
+    }
+  });
 
   const loop = async (): Promise<TrackingRunOutcome | null> => {
     let polls = 0;
     while (!stop.signal.aborted) {
+      if (intentMissing) return { kind: "intent_not_found" };
       if (receipt.kind === "due" && clock.now() >= receipt.dueAt) {
         const attempt = await attemptReceipt(report);
         if (stop.signal.aborted) return null;
@@ -172,14 +299,12 @@ export async function runIntentTracking(
             return { kind: "intent_not_found" };
           case "transient": {
             const failures = receipt.failures + 1;
-            const backoffMs = Math.min(
-              RECEIPT_RETRY_BASE_MS * 2 ** (failures - 1),
-              RECEIPT_RETRY_MAX_MS
-            );
             receipt = {
               kind: "due",
               failures,
-              dueAt: clock.now() + Math.max(backoffMs, attempt.serverWaitMs),
+              dueAt:
+                clock.now() +
+                receiptRetryDelayMs(failures, attempt.serverWaitMs),
             };
             console.warn("[Trustware] receipt delivery failed; will retry", {
               intentId: report.intentId,

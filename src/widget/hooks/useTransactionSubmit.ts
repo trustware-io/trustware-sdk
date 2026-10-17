@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import type { ReceiptReport } from "../../core/intentTracking";
+import type { TrackedReceipt } from "../state/deposit/types";
 import {
   sendSignableRoute,
   type BuiltRoute,
@@ -121,46 +122,52 @@ export function useTransactionSubmit() {
           return decision;
         }
 
-        let hash: string;
-        let receipt: ReceiptReport;
+        // The network has it: show the Processing page at once. A Solana
+        // send keeps rebroadcasting until it settles, which the user
+        // shouldn't have to watch from this screen.
+        const showSent = (hash: string, receipt: TrackedReceipt) => {
+          setState({ isSubmitting: false, txHash: hash, error: null });
+          setTransactionHash(hash);
+          setReceipt(receipt);
+          setTransactionStatus("processing");
+          setCurrentStep("processing");
+        };
 
         if (sendOverride) {
-          ({ hash, receipt } = await sendOverride(decision.route));
-        } else {
-          // Standard EOA path. The Processing page's tracker delivers the
-          // receipt; awaiting it here would hold this screen on a
-          // transaction that is already on-chain.
-          const fallbackChainId = selectedChain?.chainId;
-          const sent = await sendSignableRoute(
-            reviewed,
-            decision.route,
-            Number(fallbackChainId),
-            { onRetry: (retry) => setSigningRetryMessage(retry.message) }
-          );
-          if (sent.kind === "route_changed") {
-            setState({ isSubmitting: false, txHash: null, error: null });
-            setSigningRetryMessage(null);
-            setTransactionStatus("idle");
-            return sent;
-          }
-          ({ hash, receipt } = sent);
+          const { hash, receipt } = await sendOverride(decision.route);
+          showSent(hash, { report: receipt, delivery: "tracker_posts" });
+          return { kind: "sent", hash };
         }
 
-        // Transaction was signed and submitted
-        setState({
-          isSubmitting: false,
-          txHash: hash,
-          error: null,
-        });
-
-        setTransactionHash(hash);
-        setReceipt(receipt);
-
-        // Transition to processing step (tracking is handled by Processing page)
-        setTransactionStatus("processing");
-        setCurrentStep("processing");
-
-        return { kind: "sent", hash };
+        // The send step delivers the receipt at acceptance, so the
+        // Processing page only polls (`delivery`).
+        const acceptance = { shown: false };
+        const fallbackChainId = selectedChain?.chainId;
+        const sent = await sendSignableRoute(
+          reviewed,
+          decision.route,
+          Number(fallbackChainId),
+          { onRetry: (retry) => setSigningRetryMessage(retry.message) },
+          (accepted) => {
+            acceptance.shown = true;
+            showSent(accepted.hash, {
+              report: accepted.receipt,
+              delivery: accepted.receiptDelivery,
+            });
+          }
+        );
+        if (sent.kind === "route_changed") {
+          setState({ isSubmitting: false, txHash: null, error: null });
+          setSigningRetryMessage(null);
+          setTransactionStatus("idle");
+          return sent;
+        }
+        if (!acceptance.shown) {
+          throw new Error(
+            `Intent ${sent.receipt.intentId} was sent without being reported as accepted.`
+          );
+        }
+        return { kind: "sent", hash: sent.hash };
       } catch (err) {
         // Map error to user-friendly message
         const errorMsg = mapTransactionError(err);

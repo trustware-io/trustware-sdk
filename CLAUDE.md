@@ -439,7 +439,8 @@ module only because `solana.ts` is re-exported whole by the public
    An "already processed" answer to a rebroadcast is not an error; polling
    continues. The proxy codes the loop acts on live in one constant,
    `SDK_RPC_CODES` in `src/core/sdkRpc.ts`, read through `hasSDKRPCCode`.
-5. The receipt goes to the backend once, as now, with that signature.
+5. The receipt goes to the backend once, with that signature, as soon as
+   the first send is accepted (see "never lose the receipt" below).
 
 The stop condition works for every provider's Solana transaction (Mayan,
 Relay, LiFi, Squid and deposit transfers alike), because every one of
@@ -619,6 +620,35 @@ accepted, its receipt is already on its way, so:
   an error;
 - a transaction that lands with an `err` keeps its receipt, and the error
   is surfaced.
+
+In the code:
+
+- `deliverReceipt` (`src/core/intentTracking.ts`) is the one receipt
+  poster for an accepted send: trackIntent's backoff, bounded by
+  `TRACKING_TIMEOUT_MS`, never rejects, and logs every ending but
+  "recorded" as an error. Its first POST is dispatched before it returns,
+  which is what orders the receipt ahead of the first status read.
+- `sendRouteTransactionReporting` (`src/core/tx.ts`, behind the unchanged
+  `sendRouteTransaction`) calls `onAccepted` exactly once per send: for
+  EVM when the wallet returns the hash (the `eth_sendTransaction` and
+  wagmi `sendTransaction` branches), for Solana when the SDK's adapter
+  reports its first accepted send, or when a wallet that doesn't report
+  it returns.
+- `sendSignableRoute` starts `deliverReceipt` from there and hands the
+  widget an `AcceptedSend` carrying it. Both widgets switch to their
+  processing screen at that moment and run `trackIntent` with
+  `receiptDelivery`, so tracking only polls. The widget's
+  `TrackedReceipt.delivery` and the swap tracker's argument are required,
+  so a send path has to choose: the send step's delivery, or
+  `"tracker_posts"` (the smart-account path only, which also posts its own
+  receipt in `src/smart-account/send.ts`, as it did before).
+- `runTopUp` starts `deliverReceipt` from `onAccepted` and waits for it to
+  be recorded before polling.
+- In `broadcastUntilSettled`, `onAccepted` runs right after the first
+  accepted send. After that, a fault (a read failing with any code, a
+  fetch `TypeError`, an undocumented rebroadcast refusal, an unknown
+  status) is `OutcomeUnknownError`, which ends as "submitted, still
+  confirming" (logged), never as an error.
 
 ### Other Subsystems
 

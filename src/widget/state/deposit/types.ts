@@ -1,5 +1,20 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { ReceiptReport } from "src/core/intentTracking";
+import type {
+  ReceiptDeliveryOutcome,
+  ReceiptReport,
+} from "src/core/intentTracking";
+
+/**
+ * A sent transaction for the Processing page to track. `delivery` is the
+ * send step's own receipt delivery (every route sent through
+ * `sendSignableRoute`), so tracking must not post it again, or
+ * "tracker_posts" when nothing else posts it (the smart-account path).
+ * Required, so no send path can leave the choice to a default.
+ */
+export type TrackedReceipt = {
+  report: ReceiptReport;
+  delivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts";
+};
 
 import type {
   ChainDef,
@@ -92,10 +107,10 @@ export interface DepositContextValue {
   setTransactionHash: (hash: string | null) => void;
   errorMessage: string | null;
   setErrorMessage: (message: string | null) => void;
-  /** What the Processing page tracks; set once the wallet has sent the
+  /** What the Processing page tracks; set once the network has the
    *  transaction. */
-  receipt: ReceiptReport | null;
-  setReceipt: (receipt: ReceiptReport | null) => void;
+  receipt: TrackedReceipt | null;
+  setReceipt: (receipt: TrackedReceipt | null) => void;
   paymentMethod: PaymentMethodType;
   setPaymentMethod: (method: PaymentMethodType) => void;
   resolvedTheme: ResolvedTheme;

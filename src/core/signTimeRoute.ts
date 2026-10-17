@@ -6,7 +6,11 @@ import {
   requestSlippageBps,
   type BuildRouteBody,
 } from "./routes";
-import { sendRouteTransaction, type SendRouteTransactionOptions } from "./tx";
+import {
+  sendRouteTransactionReporting,
+  type SendRouteTransactionOptions,
+} from "./tx";
+import { deliverReceipt, type ReceiptDeliveryOutcome } from "./intentTracking";
 import { SolanaExpiredBeforeSendError } from "../wallets/solanaBroadcast";
 
 /**
@@ -136,8 +140,10 @@ export type ReviewedRouteSend =
   | {
       kind: "sent";
       hash: string;
-      /** Names the route that was signed, which for a Solana route is the
-       *  rebuilt one and never the one the user reviewed. */
+      /** The receipt the SDK already delivered, as soon as the network
+       *  accepted the transaction: don't post it again. It names the route
+       *  that was signed, which for a Solana route is the rebuilt one and
+       *  never the one the user reviewed. */
       receipt: ReceiptReport;
       route: BuildRouteResult;
     }
@@ -213,8 +219,17 @@ export type SendReviewedRouteOptions = SendRouteTransactionOptions & {
 export const SIGNING_RETRY_MESSAGE =
   "That took a little long, so we refreshed the route. Please approve again.";
 
+/** A send the network accepted. Its receipt delivery has already started:
+ *  the first POST went out before this was handed over. */
+export type AcceptedSend = Extract<ReviewedRouteSend, { kind: "sent" }> & {
+  receiptDelivery: Promise<ReceiptDeliveryOutcome>;
+};
+
 /**
- * Sign and send a route `routeForSigning` cleared for `reviewed`.
+ * Sign and send a route `routeForSigning` cleared for `reviewed`, and
+ * deliver its receipt the moment the network accepts it, before any
+ * confirmation (CLAUDE.md, "never lose the receipt"). `onAccepted` is
+ * told then, so the widget can start tracking; it runs once per send.
  *
  * If signing outlasted the Solana blockhash, nothing was sent, so the route
  * is rebuilt from `reviewed`'s request, checked for a material change
@@ -226,36 +241,60 @@ export async function sendSignableRoute(
   reviewed: BuiltRoute,
   route: SignableRoute,
   fallbackChainId?: number | string,
-  options: SendReviewedRouteOptions = {}
+  options: SendReviewedRouteOptions = {},
+  onAccepted?: (accepted: AcceptedSend) => void
 ): Promise<ReviewedRouteSend> {
   const { onRetry, ...sendOptions } = options;
-  let signing = route;
-  let hash: string;
+  const acceptance: { sent?: AcceptedSend } = {};
+  const send = (signing: SignableRoute) =>
+    sendRouteTransactionReporting(
+      signing,
+      fallbackChainId,
+      sendOptions,
+      (hash) => {
+        const receipt = { intentId: signing.intentId, txHash: hash };
+        acceptance.sent = {
+          kind: "sent",
+          hash,
+          receipt,
+          route: signing,
+          receiptDelivery: deliverReceipt(receipt),
+        };
+        onAccepted?.(acceptance.sent);
+      }
+    );
+
   try {
-    hash = await sendRouteTransaction(signing, fallbackChainId, sendOptions);
+    await send(route);
   } catch (err) {
     if (!(err instanceof SolanaExpiredBeforeSendError)) throw err;
     const decision = await routeForSigning(reviewed);
     if (decision.kind === "route_changed") return decision;
-    signing = decision.route;
     onRetry?.({
       reason: err.reason,
       message: SIGNING_RETRY_MESSAGE,
-      route: signing,
+      route: decision.route,
     });
-    hash = await sendRouteTransaction(signing, fallbackChainId, sendOptions);
+    await send(decision.route);
+  }
+  const { sent } = acceptance;
+  if (!sent) {
+    throw new Error(
+      `Intent ${route.intentId} was sent without being reported as accepted.`
+    );
   }
   return {
     kind: "sent",
-    hash,
-    receipt: { intentId: signing.intentId, txHash: hash },
-    route: signing,
+    hash: sent.hash,
+    receipt: sent.receipt,
+    route: sent.route,
   };
 }
 
 /**
  * Send the route the user confirmed: `routeForSigning`, then
- * `sendSignableRoute`. The public form of what the widget does.
+ * `sendSignableRoute`. The public form of what the widget does. It delivers
+ * the receipt itself, so callers don't call `submitReceipt`.
  */
 export async function sendReviewedRoute(
   reviewed: BuiltRoute,

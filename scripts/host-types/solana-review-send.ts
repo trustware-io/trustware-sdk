@@ -37,7 +37,9 @@ export async function reviewThenSend(): Promise<void> {
     void change;
     void again;
   } else {
-    await Trustware.submitReceipt(sent.receipt.intentId, sent.receipt.txHash);
+    // Already delivered by sendReviewedRoute: no submitReceipt.
+    const status = await Trustware.pollStatus(sent.receipt.intentId);
+    void status;
   }
 
   const onRetry = (retry: SigningRetry): void => {
