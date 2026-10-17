@@ -29,7 +29,7 @@ const SIGNED: SignedSolanaTransaction = {
 
 type Step =
   | { kind: "send"; skipPreflight: boolean }
-  | { kind: "status"; answer: SolanaTxStatus["status"] }
+  | { kind: "status"; answer: SolanaTxStatus["status"] | "rpc_call_failed" }
   | { kind: "valid"; answer: Validity }
   | { kind: "precheck"; answer: Validity }
   | { kind: "sleep"; ms: number };
@@ -50,8 +50,18 @@ const rpcCallFailed = () =>
  * out of script is a test bug and throws. The first validity read is the
  * check before the first send, answered by `precheck`.
  */
+/** A status read: the proxy's answer, or its 503 RPC_CALL_FAILED. */
+type StatusRead = SolanaTxStatus | "rpc_call_failed";
+
+const statusRpcCallFailed = () =>
+  new SDKRPCError("Failed to read Solana transaction status", {
+    code: SDK_RPC_CODES.RPC_CALL_FAILED,
+    status: 503,
+    context: { error: "dRPC refused the request" },
+  });
+
 function scriptedIO(
-  statuses: SolanaTxStatus[],
+  statuses: StatusRead[],
   validity: Validity[],
   sendErrors: (unknown | null)[] = [],
   precheck: Validity = true
@@ -70,6 +80,10 @@ function scriptedIO(
       assert.equal(signature, SIGNED.signature);
       const answer = statuses.shift();
       if (!answer) throw new Error("script ran out of statuses");
+      if (answer === "rpc_call_failed") {
+        log.push({ kind: "status", answer });
+        throw statusRpcCallFailed();
+      }
       log.push({ kind: "status", answer: answer.status });
       return answer;
     },
@@ -457,6 +471,63 @@ describe("broadcastUntilSettled", () => {
     });
   });
 
+  // The 2026-10-16 incident: the first status read answered 503, and the
+  // transaction landed while the SDK reported a failure.
+  it("keeps looping through a tx-status 503 RPC_CALL_FAILED", async () => {
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message: string) => warnings.push(message);
+    try {
+      const { io, log } = scriptedIO(
+        ["rpc_call_failed", "rpc_call_failed", success],
+        [true, true]
+      );
+      assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+      assert.deepEqual(kinds(log), [
+        "precheck:true",
+        "send",
+        "status:rpc_call_failed",
+        "valid:true",
+        "sleep",
+        "rebroadcast",
+        "status:rpc_call_failed",
+        "valid:true",
+        "sleep",
+        "rebroadcast",
+        "status:success",
+      ]);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.deepEqual(warnings, [
+      `Couldn't read the status of Solana transaction ${SIGNED.signature}, reading again next round: Failed to read Solana transaction status: dRPC refused the request`,
+      `Couldn't read the status of Solana transaction ${SIGNED.signature}, reading again next round: Failed to read Solana transaction status: dRPC refused the request`,
+    ]);
+  });
+
+  it("returns a sent transaction as submitted when its final status after expiry can't be read", async () => {
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message: string) => warnings.push(message);
+    try {
+      const { io, log } = scriptedIO([notFound, "rpc_call_failed"], [false]);
+      assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+      assert.deepEqual(kinds(log), [
+        "precheck:true",
+        "send",
+        "status:not_found",
+        "valid:false",
+        "status:rpc_call_failed",
+      ]);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(
+      warnings.at(-1),
+      `Solana transaction ${SIGNED.signature} was sent, but its final status couldn't be read after its blockhash expired. Reporting it as submitted and still confirming.`
+    );
+  });
+
   it("refuses a status it doesn't know", async () => {
     const { io } = scriptedIO(
       [{ status: "finalized" as SolanaTxStatus["status"] }],
@@ -490,16 +561,16 @@ describe("broadcastUntilSettled, over generated chains", () => {
     t.mock.method(console, "warn", () => {});
     const random = seededRandom(0xb10c_4a54);
     const pick = <T>(items: T[]) => items[Math.floor(random() * items.length)];
-    const outcomes = { success: 0, failed: 0, expired: 0 };
+    const outcomes = { success: 0, failed: 0, expired: 0, submitted: 0 };
 
     for (let run = 0; run < 3_000; run++) {
       // An unbounded-looking chain: random in-flight reads, then a fact.
-      const statuses: SolanaTxStatus[] = [];
+      const statuses: StatusRead[] = [];
       const validity: Validity[] = [];
       const sendErrors: (unknown | null)[] = [null];
       const inFlight = Math.floor(random() * 12);
       for (let i = 0; i < inFlight; i++) {
-        statuses.push(pick([notFound, pending]));
+        statuses.push(pick<StatusRead>([notFound, pending, "rpc_call_failed"]));
         validity.push(pick<Validity>([true, true, true, "rpc_call_failed"]));
         sendErrors.push(pick([null, null, alreadyProcessed, broadcastFailed]));
       }
@@ -509,17 +580,29 @@ describe("broadcastUntilSettled, over generated chains", () => {
         validity.push(false);
         const lateReads = Math.floor(random() * 4);
         for (let i = 0; i < lateReads; i++) statuses.push(pending);
-        statuses.push(pick([notFound, notFound, success, failed]));
+        statuses.push(
+          pick<StatusRead>([
+            notFound,
+            notFound,
+            success,
+            failed,
+            "rpc_call_failed",
+          ])
+        );
       } else {
         statuses.push(ending === "success" ? success : failed);
       }
       const scriptLength = statuses.length + validity.length;
 
       const { io, log } = scriptedIO(statuses, validity, sendErrors);
-      let result: "success" | "failed" | "expired";
+      let result: "success" | "failed" | "expired" | "submitted";
       try {
         await broadcastUntilSettled(SIGNED, io);
-        result = "success";
+        result =
+          log.at(-1)?.kind === "status" &&
+          (log.at(-1) as { answer: string }).answer === "rpc_call_failed"
+            ? "submitted"
+            : "success";
       } catch (err) {
         const message = (err as Error).message;
         result = message === EXPIRED ? "expired" : "failed";
@@ -544,8 +627,18 @@ describe("broadcastUntilSettled, over generated chains", () => {
           ? "success"
           : last.answer === "failed"
             ? "failed"
-            : "expired";
+            : last.answer === "rpc_call_failed"
+              ? "submitted"
+              : "expired";
       assert.equal(result, expected, `run ${run}`);
+      // A 503 status read only ends the loop as the final read after
+      // expiry, and then as "submitted", never as expired or failed.
+      if (last.answer === "rpc_call_failed") {
+        const expiryAt = log.findIndex(
+          (s) => s.kind === "valid" && s.answer === false
+        );
+        assert.ok(expiryAt >= 0, `run ${run}: 503 ended a live loop`);
+      }
 
       // Never sends after expiry, and always rechecks status after it.
       const expiry = log.findIndex(
@@ -572,6 +665,7 @@ describe("broadcastUntilSettled, over generated chains", () => {
     assert.ok(outcomes.success > 500, `${outcomes.success} successes`);
     assert.ok(outcomes.failed > 500, `${outcomes.failed} failures`);
     assert.ok(outcomes.expired > 300, `${outcomes.expired} expiries`);
+    assert.ok(outcomes.submitted > 100, `${outcomes.submitted} submitted`);
   });
 });
 

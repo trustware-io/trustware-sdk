@@ -464,11 +464,11 @@ scope) and use its envelope: `{"success": true, "data": …}`, or
   preflighted send, `BROADCAST_FAILED` is the simulation's or the
   broadcast's real failure and is surfaced with its message.
 
-Anything else stops the loop with an error that names the signature,
-since the transaction may still land: a failed `tx-status` read (including
-its own 503 `RPC_CALL_FAILED`, which the contract doesn't call transient),
-a validity read with any other code, or a rebroadcast refused with any
-other code.
+A `tx-status` 503 `RPC_CALL_FAILED` is transient too (ruled 2026-10-16;
+see "never lose the receipt" below). Anything else stops the loop with an
+error that names the signature, since the transaction may still land: a
+`tx-status` or validity read with any other code, or a rebroadcast
+refused with any other code.
 
 ### Solana: one automatic re-sign when signing took too long
 

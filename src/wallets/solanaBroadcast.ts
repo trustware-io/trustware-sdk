@@ -158,7 +158,7 @@ export async function broadcastUntilSettled(
   }
 
   for (;;) {
-    const status = await read(() => io.status(signature), signature);
+    const status = await readStatus(io, signature);
     switch (status.status) {
       case "success":
         return signature;
@@ -166,13 +166,10 @@ export async function broadcastUntilSettled(
         throw landedWithError(signature, status);
       case "pending":
       case "not_found":
+      case "unavailable":
         break;
-      default: {
-        const unknown: never = status.status;
-        throw new Error(
-          `tx-status answered an unknown status ${JSON.stringify(unknown)} for ${signature}.`
-        );
-      }
+      default:
+        throw unknownStatus(status, signature);
     }
 
     const validity = await readValidity(io, signed, "in_flight");
@@ -254,7 +251,7 @@ async function settleAfterExpiry(
   io: SolanaBroadcastIO
 ): Promise<string> {
   for (;;) {
-    const status = await read(() => io.status(signature), signature);
+    const status = await readStatus(io, signature);
     switch (status.status) {
       case "success":
         return signature;
@@ -262,23 +259,54 @@ async function settleAfterExpiry(
         throw landedWithError(signature, status);
       case "not_found":
         throw new Error(expiredBeforeInclusion(signature, blockhash));
+      case "unavailable":
+        // Neither expired nor failed: nothing says which. The send was
+        // accepted, so it goes back as submitted, and the backend's
+        // status tracking takes it from here.
+        console.warn(
+          `Solana transaction ${signature} was sent, but its final status ` +
+            `couldn't be read after its blockhash expired. Reporting it as ` +
+            `submitted and still confirming.`
+        );
+        return signature;
       case "pending":
         await io.sleep(REBROADCAST_INTERVAL_MS);
         break;
-      default: {
-        const unknown: never = status.status;
-        throw new Error(
-          `tx-status answered an unknown status ${JSON.stringify(unknown)} for ${signature}.`
-        );
-      }
+      default:
+        throw unknownStatus(status, signature);
     }
   }
 }
 
-async function read<T>(call: () => Promise<T>, signature: string): Promise<T> {
+/** The proxy answered a status this SDK doesn't know. `status` is `never`
+ *  to the compiler, so a new kind breaks the build; at runtime it is
+ *  whatever the proxy sent. */
+function unknownStatus(status: never, signature: string): Error {
+  const answered = (status as { status?: unknown }).status;
+  return new Error(
+    `tx-status answered an unknown status ${JSON.stringify(answered)} for ${signature}.`
+  );
+}
+
+/**
+ * A status read. A failed RPC call (503 `RPC_CALL_FAILED`) is transient:
+ * it says nothing about the transaction, so it is "unavailable", never a
+ * failure. Any other error is a fault.
+ */
+async function readStatus(
+  io: SolanaBroadcastIO,
+  signature: string
+): Promise<SolanaTxStatus | { status: "unavailable" }> {
   try {
-    return await call();
+    return await io.status(signature);
   } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.RPC_CALL_FAILED)) {
+      console.warn(
+        `Couldn't read the status of Solana transaction ${signature}, ` +
+          `reading again next round: ${describeRpcError(err)}`
+      );
+      return { status: "unavailable" };
+    }
     throw unknownOutcome(signature, err);
   }
 }

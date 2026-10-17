@@ -109,6 +109,11 @@ const status =
       status: value,
     });
 
+const status503: Answer = () =>
+  fail(503, "RPC_CALL_FAILED", "Failed to read Solana transaction status", {
+    error: "dRPC refused the request",
+  });
+
 const MATERIALLY_WORSE: RouteEstimate = {
   ...REVIEWED_ESTIMATE,
   toAmount: "900000",
@@ -214,9 +219,9 @@ async function hostSend(script: {
       assert.ok(next, "unexpected extra status read");
       const response = next(s);
       const body = (await response.clone().json()) as {
-        data: { status: string };
+        data?: { status: string };
       };
-      order.push(`status:${body.data.status}`);
+      order.push(`status:${body.data?.status ?? response.status}`);
       return response;
     }
     if (url.includes("/v1/route-intent/") && url.endsWith("/receipt")) {
@@ -316,6 +321,76 @@ describe("Solana send, end to end against the proxy contract", () => {
       },
     ]);
     assert.deepEqual(run.retries, []);
+  });
+
+  // The 2026-10-16 20:13 incident replayed: the first status read answered
+  // 503 while the transaction landed. It must come back as sent, so the
+  // receipt reaches the backend.
+  it("treats a tx-status 503 as transient, returns the landed transaction as sent, and posts its receipt", async () => {
+    const [review, confirm] = [freshBlockhash(), freshBlockhash()];
+    const run = await hostSend({
+      routes: [
+        { intentId: "intent-reviewed", blockhash: review },
+        { intentId: "intent-rebuilt", blockhash: confirm },
+      ],
+      validity: [valid, valid],
+      sends: [sent, alreadyProcessed],
+      statuses: [status503, status("success")],
+    });
+
+    assert.deepEqual(run.order, [
+      "build",
+      "build",
+      `sign:${confirm}`,
+      "valid:true",
+      "send(false):200",
+      "status:503",
+      "valid:true",
+      "send(true):409",
+      "status:success",
+    ]);
+    const outcome = run.outcome as ReviewedRouteSend;
+    assert.equal(outcome.kind, "sent");
+    assert.deepEqual(run.receipts, [
+      {
+        url: "/v1/route-intent/intent-rebuilt/receipt",
+        body: { txHash: run.signed[0].signature },
+      },
+    ]);
+  });
+
+  it("returns a send whose final status can't be read as submitted, and posts its receipt", async () => {
+    const [review, confirm] = [freshBlockhash(), freshBlockhash()];
+    const run = await hostSend({
+      routes: [
+        { intentId: "intent-reviewed", blockhash: review },
+        { intentId: "intent-rebuilt", blockhash: confirm },
+      ],
+      validity: [valid, invalid],
+      sends: [sent],
+      statuses: [status("not_found"), status503],
+    });
+
+    assert.deepEqual(run.order, [
+      "build",
+      "build",
+      `sign:${confirm}`,
+      "valid:true",
+      "send(false):200",
+      "status:not_found",
+      "valid:false",
+      "status:503",
+    ]);
+    const outcome = run.outcome as ReviewedRouteSend;
+    assert.equal(outcome.kind, "sent");
+    if (outcome.kind !== "sent") return;
+    assert.equal(outcome.hash, run.signed[0].signature);
+    assert.deepEqual(run.receipts, [
+      {
+        url: "/v1/route-intent/intent-rebuilt/receipt",
+        body: { txHash: run.signed[0].signature },
+      },
+    ]);
   });
 
   it("rebuilds and asks once more when the blockhash expired while the wallet signed", async () => {
