@@ -588,44 +588,37 @@ The rules:
    and the widget's processing screen tracks the intent through the
    backend (`trackIntent`, `src/core/intentTracking.ts`).
 
-**Status (2026-10-16).** Rule 2 is implemented. Rule 1 waits for a design
-decision, because it changes what hosts see:
-
-- Today nobody below the caller posts receipts. The widget's
-  `trackIntent` posts the receipt (with its own retry) and then polls,
-  hosts call `submitReceipt` themselves (the README tells them to), and
-  `runTopUp` calls it too. All of them get the signature only when
-  `sendSerializedTransaction` returns, which is after the loop settles.
-- Posting at the first accepted send means the code that sees the
-  acceptance (the wallet adapter's loop) must reach something that knows
-  the intent id (core). `SolanaWalletInterface.sendSerializedTransaction`
-  and `sendRouteTransaction` are public, so the plumbing, and who posts
-  the receipt for a host, are public decisions.
-
-Proposed (A, recommended), for sign-off:
+**Rule 1 signed off 2026-10-16 (Proposal A, exactly as recorded).**
+Before it, nobody below the caller posted receipts: the widget's
+`trackIntent`, hosts (the README told them to call `submitReceipt`) and
+`runTopUp` each posted after `sendSerializedTransaction` returned, which
+was after the loop settled. The approved design:
 
 - `SolanaWalletInterface.sendSerializedTransaction(serializedTransactionBase64, chainId?, options?: { onAccepted?: (signature: string) => void })`:
   the SDK's own adapters call `onAccepted` once, right after the first
-  send is accepted. A host-built wallet that ignores it keeps today's
-  behaviour, with the receipt posted when the call returns.
+  send is accepted (200, or 409 `ALREADY_PROCESSED`). A host-built wallet
+  that ignores it keeps today's behaviour: the receipt is posted when the
+  call returns.
 - `sendReviewedRoute` delivers the receipt itself, for EVM and Solana
-  alike, through the bounded-retry delivery `trackIntent` already uses,
-  started at `onAccepted` (or when the hash comes back). `ReviewedRouteSend`
-  `sent` keeps `receipt`, documented as already delivered. Hosts stop
-  calling `submitReceipt` after `sendReviewedRoute`, and the README says
-  so. A duplicate post carries the same `Idempotency-Key` (the signature).
+  alike, through the same bounded-retry delivery `trackIntent` uses,
+  started at `onAccepted` (or when the EVM hash comes back).
+  `ReviewedRouteSend`'s `sent` keeps `receipt`, documented as already
+  delivered. Hosts stop calling `submitReceipt` after `sendReviewedRoute`,
+  and the README says so. A duplicate post carries the same
+  `Idempotency-Key` (the signature).
 - The widget starts `trackIntent` from `onAccepted`, in a mode that
   doesn't post the receipt a second time. `runTopUp` stops posting its
   own.
 - `sendRouteTransaction` doesn't change: its callers keep posting.
 
-Alternative (B): `sendSerializedTransaction` returns the signature at the
-first accepted send and the rebroadcast loop continues detached, logging
-its end. Callers then post the receipt as they do today, and no type
-changes. But a chain failure or expiry after acceptance then reaches the
-user only through the backend's status, the tab must stay open for the
-rebroadcasts, and the receipt can't be ordered before the first status
-read.
+The same sign-off closes the gaps the first version left. Once a send was
+accepted, its receipt is already on its way, so:
+
+- any later status or validity read failure (any code, or a fetch
+  `TypeError`) ends the loop as "submitted, still confirming", never as
+  an error;
+- a transaction that lands with an `err` keeps its receipt, and the error
+  is surfaced.
 
 ### Other Subsystems
 

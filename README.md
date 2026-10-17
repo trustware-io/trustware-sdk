@@ -374,13 +374,17 @@ if (sent.kind === "route_changed") {
   // or spends more. Show sent.rebuilt for review, and when the user confirms
   // again, pass it to sendReviewedRoute.
 } else {
-  await Trustware.submitReceipt(sent.receipt.intentId, sent.receipt.txHash);
+  // The receipt is already on its way. Don't call submitReceipt.
+  const result = await Trustware.pollStatus(sent.receipt.intentId);
 }
 ```
 
-Report the receipt from `sent.receipt`, not from the route you reviewed: a
-Solana rebuild has its own intent. A failed rebuild throws, and nothing is
-sent. The automatic re-sign happens at most once: if the second signature
+`sendReviewedRoute` delivers the receipt itself, for EVM and Solana routes
+alike, as soon as the network accepts the transaction, and retries it if
+the post fails. Don't call `submitReceipt` after it. `sent.receipt` says
+what was delivered: on a Solana route its intent is the rebuilt route's,
+not the one you reviewed, so poll status with `sent.receipt.intentId`. A
+failed rebuild throws, and nothing is sent. The automatic re-sign happens at most once: if the second signature
 also takes too long, `sendReviewedRoute` throws an "expired before
 inclusion" error. The types `BuiltRoute`, `ReviewedRouteSend`,
 `MaterialRouteChange`, `SendReviewedRouteOptions` and `SigningRetry` are
