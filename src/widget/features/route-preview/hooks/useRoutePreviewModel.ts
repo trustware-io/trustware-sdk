@@ -20,7 +20,8 @@ type UseRoutePreviewModelArgs = {
     typeof import("../../../../hooks/useTrustwareConfig").useTrustwareConfig
   >;
   isReady: boolean | undefined;
-  routeRefreshMs?: number;
+  /** The resolved `routes.options.routeRefreshMs`. */
+  routeRefreshMs: number;
   selectedChain: ChainDef | null;
   selectedToken: Token | YourTokenData | null;
   walletAddress: string | null;

@@ -366,6 +366,16 @@ Swap mode already rebuilt at confirm before this ruling (af5e6ee), but it
 fell back to the stale route when the rebuild failed, and it sent a worse
 rebuild without re-review. Deposit mode never rebuilt.
 
+**EVM routes are not rebuilt at confirm (ruling 2026-10-17).** A rebuild of
+every route at confirm, EVM included, was proposed on 2026-10-17 (SDK PR
+#142's first version) and withdrawn the same day. The ruling: EVM routes are
+sent as reviewed, as above. Quote freshness on the review screen is the job
+of the countdown refresh (`routes.options.routeRefreshMs`), not of a
+rebuild at confirm. The Solana rebuild
+stays, because it isn't a quote refresh: a Solana transaction's blockhash
+lives about 31 s, and a transaction signed after it expired never lands.
+Don't extend `routeForSigning`'s rebuild to EVM without a new ruling.
+
 **Host API (signed off 2026-10-16).** `sendRouteTransaction` can't apply
 the rule for a host: it gets only a `BuildRouteResult`, not the request that
 built it, and returns a bare hash, so it can't rebuild or report the new
@@ -387,6 +397,53 @@ transaction that the network drops without an error. `sendReviewedRoute`
 returns `sent` with the receipt to submit, which names the rebuilt intent,
 or `route_changed` with the rebuilt route to show for review. For an EVM
 route the pair behaves like `buildRoute` plus `sendRouteTransaction`.
+
+### Quote refresh countdown (`routeRefreshMs`)
+
+Ruling (2026-10-17): the widget keeps auto-refreshing the quote on the
+review screen when its countdown runs out, at the interval the host sets in
+`routes.options.routeRefreshMs`, in both modes.
+
+- **One interval, parsed once.** `resolveConfig` (`src/config/merge.ts`)
+  resolves `routeRefreshMs` through `resolveRouteRefreshMs`
+  (`src/config/routeRefresh.ts`). Both modes read the resolved
+  `config.routes.options.routeRefreshMs`; neither parses it again. Deposit
+  mode's `CryptoPay` used to parse it itself and swap mode ignored it,
+  counting down a hardcoded 60 s.
+- **Default: 60 000 ms, for both modes** (`DEFAULT_ROUTE_REFRESH_MS`).
+  That was swap mode's countdown, so swap is unchanged. Deposit mode used
+  to have no default and never refreshed unless the host set the option;
+  it now refreshes every 60 s by default. One default was chosen over
+  keeping two because the modes show the same quote with the same
+  staleness, and 60 s because it is the behaviour the countdown UI was
+  built around.
+- **Invalid values are a config error, not a silent default.** Anything
+  but a number from 1 to 2 147 483 647 ms is refused at `init` with
+  `INVALID_CONFIG` and an exact message naming the value. That includes
+  0, negatives, `NaN`, `Infinity` and numeric strings. Deposit mode used
+  to ignore such values silently (no refresh at all). The upper bound is
+  the largest delay `setTimeout`/`setInterval` hold: browsers run a longer
+  one at once, which would refresh in a tight loop.
+- **The ring and its warning follow the interval.** Swap mode's countdown
+  ring fills over `routeRefreshMs`, turns to the warning colour for the
+  last sixth of it, and refetches when it runs out
+  (`quoteCountdown`, `src/widget/lib/quoteCountdown.ts`). A sixth keeps
+  today's 10 s warning at the 60 s default and scales with the interval,
+  so a 10 s interval doesn't sit in the warning colour throughout, as a
+  fixed 10 s would.
+- **The countdown is what keeps a quote fresh; a confirm never races
+  it.** EVM routes are not rebuilt at confirm (see "Solana routes are
+  built at sign time"), so the countdown refresh is the only thing keeping
+  the review screen's quote current, and the route the user confirmed is
+  the route that is sent (a Solana one is rebuilt at sign time, for its
+  blockhash). A refresh must therefore never replace that route mid-send:
+  the countdown never refreshes during a confirm, and a refresh that was
+  already in flight when the user confirmed is discarded. Swap mode's
+  `useSwapRoute` tags every fetch with a generation (`RequestGeneration`,
+  `src/widget/lib/requestGeneration.ts`); confirming, clearing or adopting
+  a rebuilt route starts a new generation, so an older fetch can't land
+  afterwards. Deposit mode pauses its refresh while `transactionStatus` is
+  `confirming` and aborts a build that is still debouncing.
 
 ### Solana transactions: the SDK sends and rebroadcasts them
 
