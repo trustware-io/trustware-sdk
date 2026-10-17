@@ -388,13 +388,11 @@ route the pair behaves like `buildRoute` plus `sendRouteTransaction`.
 
 ### Solana transactions: the SDK sends and rebroadcasts them
 
-Ruling (2026-10-16): for a Solana route transaction, the SDK prefers the
-wallet's `signTransaction`, sends the signed transaction itself, and
-rebroadcasts the same signed bytes about every 2 s until the signature is
-confirmed or the chain's block height passes the transaction's
-`lastValidBlockHeight`. If the height passes first, it fails loudly with an
-exact "expired before inclusion" error. A timer is never the stop
-condition.
+Ruling (2026-10-16, revised and signed off the same day): for a Solana
+route transaction, the wallet only signs. The SDK sends the signed
+transaction itself and rebroadcasts the same signed bytes until the
+signature confirms, the transaction fails, or its blockhash stops being
+valid. A timer is never a stop condition.
 
 Why: real-wallet testing on 2026-10-16 sent four Solana-source swaps
 through Phantom's `signAndSendTransaction` (`skipPreflight: true`, one
@@ -405,40 +403,57 @@ gets dropped, and with preflight skipped nothing reports it. Mayan's own
 app does what Solana apps normally do: the wallet only signs, and the app
 sends and rebroadcasts.
 
-Rules that follow from it:
+The flow, in one chokepoint in `src/wallets/solana.ts` that extends its
+`sendSolanaSerialized` / `waitForSolanaConfirmation` path through the
+backend's SDK RPC proxy (no parallel sender):
 
-- One chokepoint in `src/wallets/solana.ts`, extending its
-  `sendSolanaSerialized` / `waitForSolanaConfirmation` path through the
-  backend's SDK RPC proxy. No parallel sender.
-- Wallet Standard and injected-provider wallets both prefer
-  `signTransaction`. `signAndSendTransaction` is the fallback only for a
-  wallet without `signTransaction`, and keeps the -32603 retry.
-- The signature returned is the transaction's own first signature, read
-  from the signed bytes, not an RPC's answer.
-- The loop is bounded by block height (read through the proxy at
-  `confirmed`) against `execution.transaction.lastValidBlockHeight`, which
-  the route carries. A Solana route without it is a backend bug and throws.
-- A transaction that lands with an `err` fails with that error and is not
-  rebroadcast.
-- Sends keep `skipPreflight`. The receipt goes to the backend once, as
-  now, with that signature.
+1. The wallet signs. Wallet Standard and injected-provider wallets both
+   prefer `signTransaction`. `signAndSendTransaction` is the fallback only
+   for a wallet without `signTransaction`, keeps its -32603 retry, and gets
+   no rebroadcast (the SDK never holds those bytes).
+2. The signature is the transaction's own first signature, and the stop
+   condition's blockhash is its `recentBlockhash`, both read from the
+   signed bytes. Neither is taken from an RPC answer.
+3. The first send preflights (`skipPreflight: false`): a transaction that
+   can't succeed fails at once with the simulation's error, instead of
+   being rebroadcast until it expires. The backend sends through its own
+   RPC pool at the commitment it built with, so the lagging-node false
+   failures that made the wallet path skip preflight mostly don't apply.
+4. Then, about every 2 s, it polls `tx-status` and rebroadcasts the same
+   bytes with `skipPreflight: true`, until one of these facts holds:
+   - `success`: done.
+   - `failed`: the transaction landed with an `err`. That error is
+     surfaced, with no retry.
+   - `blockhash-valid` answers `false`: no more sends. It reads
+     `tx-status` again, since the transaction may have landed at the last
+     moment. While that reads `pending`, it keeps reading without
+     sending. `not_found` fails with an exact "expired before inclusion"
+     error.
+   An "already processed" answer to a rebroadcast is not an error; polling
+   continues. The code that names it lives in one constant in
+   `src/core/sdkRpc.ts`.
+5. The receipt goes to the backend once, as now, with that signature.
 
-**Blocked (2026-10-16), not implemented yet.** Three facts conflict with
-the ruling as written and need a decision first:
+The stop condition works for every provider's Solana transaction (Mayan,
+Relay, LiFi, Squid and deposit transfers alike), because every one of
+them carries its blockhash. The route's `lastValidBlockHeight` was
+withdrawn and isn't read.
 
-1. The backend's published contract (quicklinks_v1, BVT-280, commit
-   2e0de008) puts `lastValidBlockHeight` only on Mayan routes from Solana.
-   Relay, LiFi and Squid serve their own serialized Solana transactions and
-   the deposit-address transfer doesn't set it, so "throw when it's
-   missing" would refuse every non-Mayan Solana-source route.
-2. The SDK RPC proxy has no block-height endpoint. It serves only
-   `POST /v1/sdk/rpc/solana/send-serialized` and
-   `GET /v1/sdk/rpc/solana/tx-status`.
-3. `send-serialized` always preflights (`SkipPreflight: false`,
-   `PreflightCommitment: confirmed`) and takes no option to skip it. A
-   preflighted rebroadcast of a transaction the cluster has already
-   processed fails simulation, and the proxy turns that into a 503
-   `BROADCAST_FAILED`.
+Proxy contract (being added on quicklinks_v1
+`stephen/bvt-280-mayan-blockhash-rent`):
+
+- `GET /v1/sdk/rpc/solana/blockhash-valid?chainId=<chain>&blockhash=<base58>`
+  → `{ "data": { "valid": bool } }`, `isBlockhashValid` at `processed`.
+  400 for a malformed blockhash, 503 on RPC failure.
+- `POST /v1/sdk/rpc/solana/send-serialized` takes an optional
+  `"skipPreflight": bool` (default `false`, as before). An already-processed
+  send answers with a distinct error code instead of a 503
+  `BROADCAST_FAILED`. The exact code is pending from the backend.
+
+A proxy failure on a status or validity read, or on the first send, is an
+error that names the signature, since the transaction may still land. A
+failed rebroadcast is not: the first send already reached the cluster,
+and the next status and validity reads still bound the loop.
 
 ### Other Subsystems
 
