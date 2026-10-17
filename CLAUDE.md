@@ -559,6 +559,74 @@ Across RPC endpoints the proxy answers with the strongest outcome:
 success, then `ALREADY_PROCESSED`, then `BLOCKHASH_NOT_FOUND`, then 503
 `BROADCAST_FAILED`.
 
+### Solana: never lose the receipt for an accepted send
+
+Ruling (2026-10-16): a Solana send the network accepted must always reach
+the backend as a receipt.
+
+Why: in real-wallet testing at 20:13–20:14 the automatic re-sign worked
+(transaction `5YNN7Vym…uTtc` finalized, and Mayan bridged 1.612959 USDC to
+Polygon). But the first `tx-status` read answered 503 `RPC_CALL_FAILED`
+(the backend's public RPC timed out, then dRPC refused). The loop treated
+that as fatal, so the widget showed an error and no receipt was posted.
+The backend had no record of a transaction that landed until one was
+posted by hand. Lost payment tracking must be impossible.
+
+The rules:
+
+1. The receipt is posted as soon as the first send is accepted (200, or
+   409 `ALREADY_PROCESSED`), before any status polling, so the backend's
+   poller tracks the transaction whatever the browser does next. Exactly
+   one receipt per sent signature. A failed receipt post retries with a
+   bounded backoff and logs loudly, and never stops the rebroadcast loop.
+2. A `tx-status` 503 `RPC_CALL_FAILED` is transient, like
+   `blockhash-valid`'s: the loop carries on. It still stops only on
+   `success`, on `failed` with an `err`, or on an invalid blockhash
+   followed by a final status read. If that final read can't be made
+   (503), the result is neither "expired" nor a failure: the transaction
+   was submitted and is still confirming. The send returns its signature,
+   and the widget's processing screen tracks the intent through the
+   backend (`trackIntent`, `src/core/intentTracking.ts`).
+
+**Status (2026-10-16).** Rule 2 is implemented. Rule 1 waits for a design
+decision, because it changes what hosts see:
+
+- Today nobody below the caller posts receipts. The widget's
+  `trackIntent` posts the receipt (with its own retry) and then polls,
+  hosts call `submitReceipt` themselves (the README tells them to), and
+  `runTopUp` calls it too. All of them get the signature only when
+  `sendSerializedTransaction` returns, which is after the loop settles.
+- Posting at the first accepted send means the code that sees the
+  acceptance (the wallet adapter's loop) must reach something that knows
+  the intent id (core). `SolanaWalletInterface.sendSerializedTransaction`
+  and `sendRouteTransaction` are public, so the plumbing, and who posts
+  the receipt for a host, are public decisions.
+
+Proposed (A, recommended), for sign-off:
+
+- `SolanaWalletInterface.sendSerializedTransaction(serializedTransactionBase64, chainId?, options?: { onAccepted?: (signature: string) => void })`:
+  the SDK's own adapters call `onAccepted` once, right after the first
+  send is accepted. A host-built wallet that ignores it keeps today's
+  behaviour, with the receipt posted when the call returns.
+- `sendReviewedRoute` delivers the receipt itself, for EVM and Solana
+  alike, through the bounded-retry delivery `trackIntent` already uses,
+  started at `onAccepted` (or when the hash comes back). `ReviewedRouteSend`
+  `sent` keeps `receipt`, documented as already delivered. Hosts stop
+  calling `submitReceipt` after `sendReviewedRoute`, and the README says
+  so. A duplicate post carries the same `Idempotency-Key` (the signature).
+- The widget starts `trackIntent` from `onAccepted`, in a mode that
+  doesn't post the receipt a second time. `runTopUp` stops posting its
+  own.
+- `sendRouteTransaction` doesn't change: its callers keep posting.
+
+Alternative (B): `sendSerializedTransaction` returns the signature at the
+first accepted send and the rebroadcast loop continues detached, logging
+its end. Callers then post the receipt as they do today, and no type
+changes. But a chain failure or expiry after acceptance then reaches the
+user only through the backend's status, the tab must stay open for the
+rebroadcasts, and the receipt can't be ordered before the first status
+read.
+
 ### Other Subsystems
 
 - `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, `analytics.ts` (GA4 payload builder + once-per-attempt guard), hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
