@@ -52,7 +52,7 @@ export type RoutesConfig = {
   toAddress?: string; // Default destination address (optional; can be updated later via Trustware.setDestinationAddress)
   defaultSlippage?: number; // Default slippage percentage (optional) defautts to 1
   options?: {
-    routeRefreshMs?: number; // Route refresh interval in milliseconds (optional)
+    routeRefreshMs?: number; // Quote refresh interval in ms, both modes (optional, default 60000)
     fixedFromAmount?: string | number;
     minAmountOut?: string | number;
     maxAmountOut?: string | number;
@@ -98,7 +98,8 @@ export type ResolvedTrustwareConfig = {
     toAddress?: string;
     defaultSlippage: number; // resolved
     options: {
-      routeRefreshMs?: number;
+      /** Resolved: the host's interval, or `DEFAULT_ROUTE_REFRESH_MS`. */
+      routeRefreshMs: number;
       fixedFromAmount?: string | number;
       minAmountOut?: string | number;
       maxAmountOut?: string | number;

@@ -185,7 +185,12 @@ Chain and token fields are strings, including numeric chain ids — `"8453"`, no
 
 ### Route Options
 
-- `routes.options.routeRefreshMs`: auto-refresh cadence for route previews.
+- `routes.options.routeRefreshMs`: how often the quote on the review screen
+  refreshes, in milliseconds, in both deposit and swap mode. Swap mode's
+  countdown ring runs over this interval. Defaults to `60000`. Anything but a
+  number from `1` to `2147483647` is refused at `init` with an
+  `INVALID_CONFIG` error. A refresh never lands while the user is confirming,
+  so the route they confirmed is the one that's sent.
 - `routes.options.fixedFromAmount`: locks the widget amount input to a fixed USD amount.
 - `routes.options.minAmountOut`: minimum allowed USD amount.
 - `routes.options.maxAmountOut`: maximum allowed USD amount.

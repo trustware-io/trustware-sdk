@@ -6,6 +6,7 @@ import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import { TrustwareConfigStore } from "src/config/store";
 import { mapError } from "src/widget/lib/mapError";
+import { RequestGeneration } from "src/widget/lib/requestGeneration";
 
 export type SwapRouteState = {
   built: BuiltRoute | null;
@@ -20,7 +21,9 @@ export function useSwapRoute() {
     error: null,
   });
 
-  const abortRef = useRef(false);
+  // A fetch's result lands only if nothing newer happened since it began:
+  // another fetch, a clear, a confirm, or an adopted rebuild.
+  const generationRef = useRef(new RequestGeneration());
 
   const fetch = useCallback(
     async (params: {
@@ -49,7 +52,7 @@ export function useSwapRoute() {
         return null;
       }
 
-      abortRef.current = false;
+      const generation = generationRef.current.begin();
       setState({ built: null, loading: true, error: null });
 
       let slippage = params.slippage ?? 1;
@@ -74,11 +77,11 @@ export function useSwapRoute() {
           vault: params.vault,
         });
 
-        if (abortRef.current) return null;
+        if (!generationRef.current.isCurrent(generation)) return null;
         setState({ built, loading: false, error: null });
         return built;
       } catch (err) {
-        if (abortRef.current) return null;
+        if (!generationRef.current.isCurrent(generation)) return null;
         // Classify here, while the RouteError still has its provider
         // outcomes. State holds a string, and the API's "error" sentence is
         // only the summary — the verdict is in `providers`, which a message
@@ -93,13 +96,21 @@ export function useSwapRoute() {
   );
 
   const clear = useCallback(() => {
-    abortRef.current = true;
+    generationRef.current.invalidate();
     setState({ built: null, loading: false, error: null });
   }, []);
 
+  /** The user confirmed: a quote refresh still in flight must not land on
+   *  top of the route being sent. The route on screen stays as it is. */
+  const discardPendingFetch = useCallback(() => {
+    generationRef.current.invalidate();
+  }, []);
+
   /** Put a route rebuilt at sign time up for review in place of the one the
-   *  user confirmed. */
+   *  user confirmed. A fetch still in flight is discarded, so it can't
+   *  replace the rebuilt route before the user has seen it. */
   const adoptRebuiltRoute = useCallback((built: BuiltRoute) => {
+    generationRef.current.invalidate();
     setState({ built, loading: false, error: null });
   }, []);
 
@@ -108,6 +119,7 @@ export function useSwapRoute() {
     data: state.built?.result ?? null,
     fetch,
     clear,
+    discardPendingFetch,
     adoptRebuiltRoute,
   };
 }

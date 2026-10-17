@@ -44,8 +44,9 @@ export interface UseRouteBuilderOptions {
   debounceMs?: number;
   /** Whether to automatically build routes (default: true) */
   enabled?: boolean;
-  /** Route refresh interval in milliseconds (optional) */
-  refreshMs?: number;
+  /** Quote refresh interval in ms: the resolved
+   *  `routes.options.routeRefreshMs`. */
+  refreshMs: number;
 
   fromChain: ChainDef | undefined | string | number;
   fromChainId: string | number | undefined;
@@ -90,7 +91,10 @@ export function useRouteBuilder({
 } {
   const { selectedToken, selectedChain, amount } = useDepositForm();
   const { walletAddress } = useDepositWallet();
-  const { errorMessage } = useDepositTransaction();
+  const { errorMessage, transactionStatus } = useDepositTransaction();
+  // The wallet is being asked to confirm the route on screen: a refresh
+  // now would swap it for one the user isn't signing.
+  const confirmInFlight = transactionStatus === "confirming";
 
   const [state, setState] = useState<RouteBuilderState>(EMPTY_ROUTE_STATE);
 
@@ -191,6 +195,9 @@ export function useRouteBuilder({
 
     // Debounce the route building
     const timeout = setTimeout(async () => {
+      // Aborted while debouncing (a confirm started): build nothing, and
+      // leave the route on screen as it is.
+      if (ac.signal.aborted) return;
       try {
         setState((prev) => ({
           ...prev,
@@ -283,14 +290,18 @@ export function useRouteBuilder({
   ]);
 
   useEffect(() => {
-    if (!enabled || !routeKey || !refreshMs || refreshMs <= 0) return;
+    if (confirmInFlight) abortRef.current?.abort();
+  }, [confirmInFlight]);
+
+  useEffect(() => {
+    if (!enabled || !routeKey || confirmInFlight) return;
     const id = setInterval(() => {
       setRefreshTick((tick) => tick + 1);
     }, refreshMs);
     return () => {
       clearInterval(id);
     };
-  }, [enabled, refreshMs, routeKey]);
+  }, [enabled, refreshMs, routeKey, confirmInFlight]);
 
   /** Put a route rebuilt at sign time up for review in place of the one the
    *  user confirmed. Cancels any build in flight, which would otherwise
