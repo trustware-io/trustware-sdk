@@ -22,13 +22,21 @@ import {
 import { divRoundDown } from "../../../../utils";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
 import { useGTMTracker } from "../../../../hooks";
+import type {
+  BuiltRoute,
+  MaterialRouteChange,
+} from "../../../../core/signTimeRoute";
+import { ROUTE_CHANGED_TITLE } from "../../../lib/routeChange";
+import type { PAYMENT_INITIATED } from "../../../lib/confirmedSend";
 
 type UseTransactionActionModelArgs = {
   actionErrorMessage: string | null;
   amountWei: bigint;
   isLoadingRoute: boolean;
   parsedAmount: number;
-  routeResult: BuildRouteResult | null;
+  builtRoute: BuiltRoute | null;
+  /** Put a route rebuilt at sign time up for review. */
+  onRouteRebuilt: (rebuilt: BuiltRoute) => void;
   selectedChain: ChainDef | null;
   selectedToken: Token | YourTokenData | null;
   walletAddress: string | null;
@@ -50,19 +58,30 @@ export function useTransactionActionModel({
   amountWei,
   isLoadingRoute,
   parsedAmount,
-  routeResult,
+  builtRoute,
+  onRouteRebuilt,
   selectedChain,
   selectedToken,
   walletAddress,
   walletStatus,
 }: UseTransactionActionModelArgs) {
+  const routeResult = builtRoute?.result ?? null;
+  // Set when a confirmed Solana route came back materially worse from its
+  // sign-time rebuild. `sequence` only grows, so every such return resets
+  // the swipe, even two in a row.
+  const [routeChange, setRouteChange] = useState<{
+    route: BuiltRoute;
+    change: MaterialRouteChange;
+    sequence: number;
+  } | null>(null);
   const feeDataCacheRef = useRef<{
     value?: CachedFeeData;
     ts?: number;
     inflight?: Promise<CachedFeeData>;
   }>({});
 
-  const { isSubmitting, submitTransaction } = useTransactionSubmit();
+  const { isSubmitting, signingRetryMessage, submitTransaction } =
+    useTransactionSubmit();
   const { trackEvent } = useGTMTracker();
 
   const destinationConfig = (() => {
@@ -456,10 +475,13 @@ export function useTransactionActionModel({
   }, [routeResult?.intentId]);
 
   const handleConfirm = useCallback(async () => {
-    if (!routeResult) {
+    if (!builtRoute || !routeResult) {
       return;
     }
-    trackEvent("payment_initiated", {
+    // Snapshot now: the event describes what the user confirmed. It's sent
+    // only once something is about to be sent, so a confirm that goes back
+    // to review (a worse Solana rebuild) reports nothing.
+    const paymentParams = {
       from_chain:
         selectedChain?.networkName ??
         selectedChain?.axelarChainName ??
@@ -468,7 +490,9 @@ export function useTransactionActionModel({
       to_chain: destinationConfig?.routes.toChain,
       to_token: destinationConfig?.routes.toToken,
       domain: window.origin,
-    });
+    };
+    const reportPaymentInitiated = (event: typeof PAYMENT_INITIATED) =>
+      trackEvent(event, paymentParams);
 
     // Silent smart-account sponsored path. Conditions: sponsorship present,
     // wallet is EIP-1193 EVM, ERC-20 token, numeric chain ID available, and
@@ -526,16 +550,30 @@ export function useTransactionActionModel({
         }
       };
 
-      const hash = await submitTransaction(routeResult, sendOverride);
-      if (hash === null && !wasRejected) {
+      const outcome = await submitTransaction(
+        builtRoute,
+        reportPaymentInitiated,
+        sendOverride
+      );
+      if (outcome.kind === "failed" && !wasRejected) {
         // Non-rejection failure: mark as failed so the next retry uses EOA.
         setSmartAccountFailed(true);
       }
       return;
     }
 
-    await submitTransaction(routeResult);
+    const outcome = await submitTransaction(builtRoute, reportPaymentInitiated);
+    if (outcome.kind === "route_changed") {
+      onRouteRebuilt(outcome.rebuilt);
+      setRouteChange((previous) => ({
+        route: outcome.rebuilt,
+        change: outcome.change,
+        sequence: (previous?.sequence ?? 0) + 1,
+      }));
+    }
   }, [
+    builtRoute,
+    onRouteRebuilt,
     amountWei,
     backendChainId,
     destinationConfig?.routes.toChain,
@@ -627,8 +665,22 @@ export function useTransactionActionModel({
       chainId,
       needsApproval ? "approval-required" : "ready-to-confirm",
       isApproving ? "approving" : "idle",
+      `route-change-${routeChange?.sequence ?? 0}`,
     ].join(":");
-  }, [isApproving, needsApproval, selectedChain?.chainId, selectedToken]);
+  }, [
+    isApproving,
+    needsApproval,
+    routeChange?.sequence,
+    selectedChain?.chainId,
+    selectedToken,
+  ]);
+
+  // Only while the rebuilt route is still the one on review: a route
+  // refresh replaces it with one the notice doesn't describe.
+  const routeChangedLabel =
+    routeChange && routeChange.route === builtRoute
+      ? ROUTE_CHANGED_TITLE
+      : null;
 
   return {
     canSwipe,
@@ -640,6 +692,8 @@ export function useTransactionActionModel({
     isSubmitting,
     isWalletConnected,
     needsApproval,
+    routeChangedLabel,
+    signingRetryMessage,
     swipeResetKey,
   };
 }

@@ -39,6 +39,15 @@ import {
   getBalancesByAddressStream,
 } from "./balances";
 import { sendRouteTransaction, sendVaultRedeemTx, runTopUp } from "./tx";
+import { buildRouteForReview, sendReviewedRoute } from "./signTimeRoute";
+export { buildRouteForReview, sendReviewedRoute } from "./signTimeRoute";
+export type {
+  BuiltRoute,
+  ReviewedRouteSend,
+  MaterialRouteChange,
+  SendReviewedRouteOptions,
+  SigningRetry,
+} from "./signTimeRoute";
 import {
   searchVaults,
   getVaultDetails,
@@ -237,6 +246,10 @@ export const Trustware = {
 
   // ---- Tx helpers ----
   sendRouteTransaction,
+  /** Build a route to show the user, keeping the request that built it. */
+  buildRouteForReview,
+  /** Send a reviewed route, rebuilding a Solana route right before signing. */
+  sendReviewedRoute,
   sendVaultRedeemTx,
   runTopUp,
 };

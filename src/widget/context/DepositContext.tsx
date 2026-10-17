@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useMemo } from "react";
 import { useTrustware } from "../../provider";
 import type { ChainDef } from "../../types";
-import type { ReceiptReport } from "../../core/intentTracking";
 import {
   type Chain,
   type DepositContextValue,
@@ -10,6 +9,7 @@ import {
   type PaymentMethodType,
   type ResolvedTheme,
   type Token,
+  type TrackedReceipt,
   type TransactionStatus,
   type YourTokenData,
 } from "../state/deposit/types";
@@ -210,7 +210,7 @@ export function DepositProvider({
     useState<TransactionStatus>("idle");
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [receipt, setReceipt] = useState<ReceiptReport | null>(null);
+  const [receipt, setReceipt] = useState<TrackedReceipt | null>(null);
 
   // Payment method state (defaults to crypto)
   const [paymentMethod, setPaymentMethod] =

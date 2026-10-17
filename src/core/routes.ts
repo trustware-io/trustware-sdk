@@ -139,6 +139,20 @@ export function assertValidVaultRequest(body: {
   }
 }
 
+/**
+ * The slippage a route request asks for, in basis points: the figure the
+ * routing API receives as `slippageBps`. An explicit `slippageBps` wins over
+ * the percentage `slippage`. Undefined when the request names neither, which
+ * leaves the choice to the backend.
+ */
+export function requestSlippageBps(
+  body: Pick<BuildRouteBody, "slippage" | "slippageBps">
+): number | undefined {
+  if (body.slippageBps !== undefined) return body.slippageBps;
+  if (body.slippage === undefined) return undefined;
+  return Math.round(body.slippage * 100);
+}
+
 export type TxRequest = {
   to?: string;
   target?: string;
@@ -227,11 +241,7 @@ export async function buildRoute(
     ...body,
     fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
     toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps:
-      body.slippageBps ??
-      (body.slippage === undefined
-        ? undefined
-        : Math.round(body.slippage * 100)),
+    slippageBps: requestSlippageBps(body),
     fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
   };
   const r = await rateLimitedFetch(url, {
@@ -298,11 +308,7 @@ export async function buildDepositAddress(
     ...body,
     fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
     toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps:
-      body.slippageBps ??
-      (body.slippage === undefined
-        ? undefined
-        : Math.round(body.slippage * 100)),
+    slippageBps: requestSlippageBps(body),
     fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
   };
   const r = await rateLimitedFetch(url, {

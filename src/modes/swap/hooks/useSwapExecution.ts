@@ -3,7 +3,20 @@ import { useCallback, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
 import { submitStepReceipt } from "src/core/routes";
-import { trackIntent, type ReceiptReport } from "src/core/intentTracking";
+import {
+  sendSignableRoute,
+  type BuiltRoute,
+  type MaterialRouteChange,
+} from "src/core/signTimeRoute";
+import {
+  prepareConfirmedSend,
+  type PAYMENT_INITIATED,
+} from "src/widget/lib/confirmedSend";
+import {
+  trackIntent,
+  type ReceiptDeliveryOutcome,
+  type ReceiptReport,
+} from "src/core/intentTracking";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
   approvalSatisfied,
@@ -50,6 +63,9 @@ export type SwapExecutionState = {
   pollingTx: Transaction | null;
   isSubmitting: boolean;
   allowanceStatus: AllowanceStatus;
+  /** Set while the wallet is asked to sign a second time because signing
+   *  outlasted the Solana blockhash. Shown with that prompt. */
+  signingRetryMessage: string | null;
 };
 
 function isUserRejection(err: unknown): boolean {
@@ -103,6 +119,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     pollingTx: null,
     isSubmitting: false,
     allowanceStatus: "unknown",
+    signingRetryMessage: null,
   });
 
   // Wall-clock time after which the SA path is available again.
@@ -120,7 +137,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
     (
       receipt: ReceiptReport,
       onSuccess: () => void,
-      onError: (msg: string) => void
+      onError: (msg: string) => void,
+      /** The send step's own receipt delivery, or "tracker_posts" when
+       *  nothing else posts it (the smart-account path). */
+      receiptDelivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts"
     ) => {
       stopTracking();
       const controller = new AbortController();
@@ -128,6 +148,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       void trackIntent(receipt, {
         signal: controller.signal,
+        receiptDelivery:
+          receiptDelivery === "tracker_posts" ? undefined : receiptDelivery,
         onUpdate: (raw) => {
           const tx = normalizeTx(raw);
           setState((p) => ({
@@ -251,15 +273,23 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
   const execute = useCallback(
     async (
-      routeResult: BuildRouteResult,
+      reviewed: BuiltRoute,
       fromTokenAddress: string | undefined,
       fromTokenDecimals: number | undefined,
       walletAddress: string | undefined,
       maxApproval: boolean,
       onSuccess: () => void,
-      onError: (msg: string) => void
+      onError: (msg: string) => void,
+      /** A Solana route rebuilt at sign time came back materially worse.
+       *  Nothing was sent; `rebuilt` needs the user's review. */
+      onRouteChanged: (
+        rebuilt: BuiltRoute,
+        change: MaterialRouteChange
+      ) => void,
+      /** Something is about to be sent: report `payment_initiated` here. */
+      onSendStarting: (event: typeof PAYMENT_INITIATED) => void
     ) => {
-      if (!routeResult?.txReq) {
+      if (!reviewed.result?.txReq) {
         const msg = "Invalid route data. Please try again.";
         setState((p) => ({ ...p, txStatus: "error", errorMessage: msg }));
         onError(msg);
@@ -276,7 +306,31 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         txHash: null,
         intentId: null,
         pollingTx: null,
+        signingRetryMessage: null,
       }));
+
+      // Rebuilds a Solana route right before signing; its blockhash may
+      // have expired while the user read the review screen.
+      let decision: Awaited<ReturnType<typeof prepareConfirmedSend>>;
+      try {
+        decision = await prepareConfirmedSend(reviewed, onSendStarting);
+      } catch (err) {
+        const msg = mapTxError(err);
+        setState((p) => ({
+          ...p,
+          isSubmitting: false,
+          txStatus: "error",
+          errorMessage: msg,
+        }));
+        onError(msg);
+        return;
+      }
+      if (decision.kind === "route_changed") {
+        setState((p) => ({ ...p, isSubmitting: false, txStatus: "idle" }));
+        onRouteChanged(decision.rebuilt, decision.change);
+        return;
+      }
+      const routeResult = decision.route;
 
       const wallet = Trustware.getWallet();
       const txReq = routeResult.txReq;
@@ -375,7 +429,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             txStatus: "processing",
             allowanceStatus: "sufficient",
           }));
-          startTracking(result.receipt, onSuccess, onError);
+          startTracking(result.receipt, onSuccess, onError, "tracker_posts");
           return;
         } catch (err) {
           if (isUserRejection(err)) {
@@ -396,6 +450,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       }
 
       // ── EOA path (no sponsorship, or SA fallback) ─────────────────────────────
+      const acceptance = { tracking: false };
       try {
         // Every allowance this route needs, in the plan's own order. The
         // plan is authoritative: its entries carry the spender the route
@@ -590,43 +645,70 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           await requireActiveAddress(wallet, walletAddress as string);
         }
 
-        const hash = await Trustware.sendRouteTransaction(
+        // The network has it: the swap is on-chain from here, and the
+        // screen must say so at once, without waiting for confirmation
+        // (a Solana send keeps rebroadcasting until it settles). The send
+        // step already posted the receipt, so tracking only polls.
+        const sent = await sendSignableRoute(
+          reviewed,
           routeResult,
           numericChainId,
-          { approvalsEnsured: ownsApprovals }
+          {
+            approvalsEnsured: ownsApprovals,
+            onRetry: (retry) =>
+              setState((p) => ({ ...p, signingRetryMessage: retry.message })),
+          },
+          (accepted) => {
+            acceptance.tracking = true;
+            setState((p) => ({
+              ...p,
+              isSubmitting: false,
+              txHash: accepted.hash,
+              intentId: accepted.receipt.intentId,
+              txStatus: "processing",
+              signingRetryMessage: null,
+            }));
+            startTracking(
+              accepted.receipt,
+              onSuccess,
+              onError,
+              accepted.receiptDelivery
+            );
+          }
         );
+        if (sent.kind === "route_changed") {
+          setState((p) => ({
+            ...p,
+            isSubmitting: false,
+            txStatus: "idle",
+            signingRetryMessage: null,
+          }));
+          onRouteChanged(sent.rebuilt, sent.change);
+          return;
+        }
 
-        // The hash is the point of no return: the swap is on-chain and the
-        // screen must reflect that immediately, before the receipt is
-        // delivered — `rateLimitedFetch` has no request timeout and will sit
-        // out a server-directed 429 wait, so awaiting the receipt here pinned
-        // the progress ring at "confirming" while the transaction was already
-        // confirming on-chain. The tracker delivers it in the background.
-        setState((p) => ({
-          ...p,
-          isSubmitting: false,
-          txHash: hash,
-          intentId: routeResult.intentId,
-          txStatus: "processing",
-        }));
-
-        startTracking(
-          { intentId: routeResult.intentId, txHash: hash },
-          onSuccess,
-          onError
-        );
+        if (!acceptance.tracking) {
+          throw new Error(
+            `Intent ${sent.receipt.intentId} was sent without being reported as accepted.`
+          );
+        }
       } catch (err) {
+        // After acceptance this is the chain's own verdict (it landed with
+        // an error, or expired): it replaces the tracker, whose receipt was
+        // already delivered.
+        if (acceptance.tracking) stopTracking();
         const msg = mapTxError(err);
         setState((p) => ({
           ...p,
           isSubmitting: false,
           txStatus: "error",
           errorMessage: msg,
+          signingRetryMessage: null,
         }));
         onError(msg);
       }
     },
-    [fromChain, startTracking]
+    [fromChain, startTracking, stopTracking]
   );
 
   const resetSmartAccountFailure = useCallback(() => {
@@ -644,6 +726,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       pollingTx: null,
       isSubmitting: false,
       allowanceStatus: "unknown",
+      signingRetryMessage: null,
     });
   }, [stopTracking]);
 

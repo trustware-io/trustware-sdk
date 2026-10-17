@@ -1,4 +1,9 @@
-import { getSolanaTxStatus, sendSolanaSerialized } from "../core/sdkRpc";
+import { encodeBase58 } from "./base58";
+import {
+  broadcastUntilSettled,
+  proxyBroadcastIO,
+  readSignedSolanaTransaction,
+} from "./solanaBroadcast";
 
 import type {
   DetectedWallet,
@@ -22,33 +27,6 @@ const SOLANA_WALLET_IDS: WalletId[] = [
 
 // CAIP-2 chain ID for Solana mainnet — used by the Wallet Standard
 const SOLANA_MAINNET_CHAIN = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-
-// Minimal base58 encoder for Solana transaction signatures (64 bytes → ~88 chars)
-const BASE58_ALPHABET =
-  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-function encodeBase58(bytes: Uint8Array): string {
-  const digits = [0];
-  for (const byte of bytes) {
-    let carry = byte;
-    for (let i = 0; i < digits.length; i++) {
-      carry += digits[i] << 8;
-      digits[i] = carry % 58;
-      carry = (carry / 58) | 0;
-    }
-    while (carry > 0) {
-      digits.push(carry % 58);
-      carry = (carry / 58) | 0;
-    }
-  }
-  let result = "";
-  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
-    result += "1";
-  }
-  for (let i = digits.length - 1; i >= 0; i--) {
-    result += BASE58_ALPHABET[digits[i]];
-  }
-  return result;
-}
 
 // ── Wallet Standard types (subset we need — no npm dependency required) ──────
 
@@ -262,21 +240,79 @@ export function encodeBase64(bytes: Uint8Array) {
   return globalThis.btoa(binary);
 }
 
-async function waitForSolanaConfirmation(chainId: string, signature: string) {
-  const started = Date.now();
-  const timeoutMs = 120000;
-  const intervalMs = 2000;
+const MAX_INTERNAL_ERROR_ATTEMPTS = 3;
+const INTERNAL_ERROR_RETRY_DELAY_MS = 500;
 
-  while (Date.now() - started < timeoutMs) {
-    const status = await getSolanaTxStatus({ chainId, signature });
-    if (status.status === "success") return signature;
-    if (status.status === "failed") {
-      throw new Error("Solana transaction failed");
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+/**
+ * The signature a wallet's `signAndSendTransaction` reported, or a throw.
+ *
+ * A resolved call with no signature is not a reason to sign again through
+ * `signTransaction`: the wallet may already have broadcast the transaction,
+ * and a second prompt can send the same payment twice.
+ */
+function signatureFromSignAndSend(result: unknown): string {
+  if (typeof result === "string" && result !== "") return result;
+  if (typeof result === "object" && result !== null) {
+    const signature = (result as { signature?: unknown }).signature;
+    if (typeof signature === "string" && signature !== "") return signature;
   }
+  throw new Error(
+    `The Solana wallet's signAndSendTransaction returned no signature ` +
+      `(got ${describeWalletResult(result)}). It may still have sent the ` +
+      `transaction, so it was not signed again. Check the wallet's activity ` +
+      `before trying again.`
+  );
+}
 
-  throw new Error("Timed out waiting for Solana transaction confirmation");
+function describeWalletResult(result: unknown): string {
+  if (result === undefined) return "undefined";
+  try {
+    return JSON.stringify(result);
+  } catch {
+    // Only describes the value for the error message; a circular or bigint
+    // result can't be stringified, and its type is still worth reporting.
+    return typeof result;
+  }
+}
+
+async function signAndSendWithRetry(
+  signAndSend: NonNullable<SolanaProviderLike["signAndSendTransaction"]>,
+  transaction: unknown
+): Promise<string> {
+  // skipPreflight: the wallet's own preflight simulation runs against
+  // whatever RPC it happens to be pointed at, which frequently lags the
+  // aggregator's RPC for freshly-built multi-hop routes (new/updated
+  // address lookup tables, just-minted blockhash). A failed preflight
+  // aborts the send locally with no broadcast and no on-chain trace —
+  // exactly the intermittent "nothing broadcasted" failures seen here.
+  // Skipping it defers validity checking to actual execution, which we
+  // already verify via status polling after send.
+  for (let attempt = 1; ; attempt++) {
+    let result: unknown;
+    try {
+      result = await signAndSend(transaction, { skipPreflight: true });
+    } catch (err) {
+      // Solflare and Phantom both surface a generic -32603 "Internal
+      // error" from their own extension-internal message dispatch —
+      // confirmed (via stack trace) to originate inside the wallet's
+      // own inpage script, not from Solana or our transaction content
+      // (which simulates cleanly independently). This is a long-
+      // standing, unresolved fault reported across wallets with no
+      // known root cause; treated by the community as transient and
+      // retry-worthy. Scoped narrowly to this exact code so unrelated
+      // failures (user rejection, real simulation errors) still
+      // surface immediately.
+      const code = (err as { code?: number } | null | undefined)?.code;
+      if (code === -32603 && attempt < MAX_INTERNAL_ERROR_ATTEMPTS) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, INTERNAL_ERROR_RETRY_DELAY_MS * attempt)
+        );
+        continue;
+      }
+      throw err;
+    }
+    return signatureFromSignAndSend(result);
+  }
 }
 
 export function getSolanaProviders(): Partial<
@@ -365,73 +401,42 @@ export function toSolanaWalletInterface(
     },
     async sendSerializedTransaction(
       serializedTransactionBase64: string,
-      chainId?: string
+      chainId?: string,
+      options?: { onAccepted?: (signature: string) => void }
     ) {
       const transaction = await decodeBase64Transaction(
         serializedTransactionBase64
       );
 
+      // The wallet only signs; the SDK sends and rebroadcasts. A wallet's
+      // own single broadcast was dropped without a trace in real-wallet
+      // testing (CLAUDE.md, "Solana transactions: the SDK sends and
+      // rebroadcasts them").
+      if (provider.signTransaction) {
+        const bytes = (await provider.signTransaction(transaction)).serialize();
+        const signed = await readSignedSolanaTransaction(
+          bytes,
+          encodeBase64(bytes)
+        );
+        const resolvedChainId = chainId?.trim() || "solana-mainnet";
+        return broadcastUntilSettled(
+          signed,
+          proxyBroadcastIO(resolvedChainId),
+          options?.onAccepted
+        );
+      }
+
       if (provider.signAndSendTransaction) {
-        // skipPreflight: the wallet's own preflight simulation runs against
-        // whatever RPC it happens to be pointed at, which frequently lags the
-        // aggregator's RPC for freshly-built multi-hop routes (new/updated
-        // address lookup tables, just-minted blockhash). A failed preflight
-        // aborts the send locally with no broadcast and no on-chain trace —
-        // exactly the intermittent "nothing broadcasted" failures seen here.
-        // Skipping it defers validity checking to actual execution, which we
-        // already verify via status polling after send.
-        const MAX_INTERNAL_ERROR_ATTEMPTS = 3;
-        const INTERNAL_ERROR_RETRY_DELAY_MS = 500;
-
-        for (
-          let attempt = 1;
-          attempt <= MAX_INTERNAL_ERROR_ATTEMPTS;
-          attempt++
-        ) {
-          try {
-            const result = await provider.signAndSendTransaction(transaction, {
-              skipPreflight: true,
-            });
-
-            if (typeof result === "string") return result;
-            if (result?.signature) return result.signature;
-            break;
-          } catch (err) {
-            // Solflare and Phantom both surface a generic -32603 "Internal
-            // error" from their own extension-internal message dispatch —
-            // confirmed (via stack trace) to originate inside the wallet's
-            // own inpage script, not from Solana or our transaction content
-            // (which simulates cleanly independently). This is a long-
-            // standing, unresolved fault reported across wallets with no
-            // known root cause; treated by the community as transient and
-            // retry-worthy. Scoped narrowly to this exact code so unrelated
-            // failures (user rejection, real simulation errors) still
-            // surface immediately.
-            const code = (err as { code?: number } | null | undefined)?.code;
-            if (code === -32603 && attempt < MAX_INTERNAL_ERROR_ATTEMPTS) {
-              await new Promise((resolve) =>
-                setTimeout(resolve, INTERNAL_ERROR_RETRY_DELAY_MS * attempt)
-              );
-              continue;
-            }
-            throw err;
-          }
-        }
+        // The wallet broadcast it, so its signature is the acceptance.
+        const signature = await signAndSendWithRetry(
+          provider.signAndSendTransaction,
+          transaction
+        );
+        options?.onAccepted?.(signature);
+        return signature;
       }
 
-      if (!provider.signTransaction) {
-        throw new Error("Connected Solana wallet cannot sign transactions");
-      }
-
-      const signed = await provider.signTransaction(transaction);
-      const resolvedChainId = chainId?.trim() || "solana-mainnet";
-      const serializedSigned = encodeBase64(signed.serialize());
-      const { signature } = await sendSolanaSerialized({
-        chainId: resolvedChainId,
-        serializedTransaction: serializedSigned,
-      });
-      await waitForSolanaConfirmation(resolvedChainId, signature);
-      return signature;
+      throw new Error("Connected Solana wallet cannot sign transactions");
     },
   };
 }

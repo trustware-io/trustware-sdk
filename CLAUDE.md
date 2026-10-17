@@ -21,6 +21,7 @@ npm run validate          # Full validation (typecheck + lint:strict + format:ch
 npm run test:unit         # Unit tests (scripts/run-unit-tests.mjs)
 npm run test:widget-smoke # Builds, then runs the widget flow smoke test
 npm run check:surface     # Assert the public export surface hasn't drifted
+npm run check:host-types  # After a build: typecheck scripts/host-types against dist
 npm run size              # Report gzipped size per entry point
 npm run size:check        # Same, but fails when an entry exceeds its budget
 ```
@@ -216,10 +217,11 @@ If you run `npm run build` without the env var, the SDK will call production API
 - **REST** (`core/routes.ts`, `core/balances.ts`): `buildRoute`, `buildDepositAddress`, `submitReceipt`, `submitStepReceipt`, `getStatus`, `pollStatus`, `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
   - `buildRoute` takes a full `BuildRouteBody` — `fromChain`, `toChain`, `fromToken`, `toToken`, `fromAmount`, `fromAddress`, `toAddress` are all **required**; it does not fall back to the provider config. `fromAmount` is in the source token's smallest unit (`fromAmountUsd` carries the USD figure). Optional `hooks.postHook` does bridge-and-call; `buildRoute`/`buildDepositAddress` run `assertValidPostHook` on it internally. That helper is defined in `src/core/routes.ts` and re-exported from both the package root and `./core`, so hosts can validate a hook before building.
   - There is **no** `getQuote` — the estimate comes back on the route (`route.route?.estimate`, `route.finalExchangeRate`).
+  - `buildRouteForReview` / `sendReviewedRoute` (`core/signTimeRoute.ts`) are the review-then-send pair: they rebuild a Solana route right before signing. See "Solana routes are built at sign time".
   - The status wire payload is entirely snake_case while `Transaction` is camelCase. `getStatus` runs `normalizeStatusPayload` (`src/core/routes.ts`) to map every field onto the camelCase names the type advertises, keeping the raw wire keys alongside them. Before 1.1.11 it mapped only `request_id`/`provider_request_id`, so `sourceTxHash`/`destTxHash`/`intentId` read `undefined` everywhere except swap mode, which re-mapped four of them itself in `normalizeTx`.
 - **Validation**: `validateAddressForChain`, `validateRouteAddresses`.
 - **Data hooks** (`core/useChains.ts`, `core/useTokens.ts`): `useChains`, `useTokens`.
-- **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`. `runTopUp({ fromAmount, ... })` resolves the rest from config, sends, submits the receipt, and polls — it resolves to the `Transaction` that `pollStatus` returns (read `sourceTxHash`/`destTxHash`; there is no `txHash` field).
+- **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`. `runTopUp` builds and sends in one go, so its Solana transaction is already fresh. Widget flows don't call `sendRouteTransaction` directly; they go through `core/signTimeRoute.ts` (see "Solana routes are built at sign time"). `runTopUp({ fromAmount, ... })` resolves the rest from config, sends, submits the receipt, and polls — it resolves to the `Transaction` that `pollStatus` returns (read `sourceTxHash`/`destTxHash`; there is no `txHash` field).
 
 There is **no** event-emitter on the facade (`Trustware.on` does not exist). Events reach the host through `config.onEvent`.
 
@@ -265,6 +267,13 @@ dashboards outside this repo:
 | Event               | Deposit                                                   | Swap                                        |
 | ------------------- | --------------------------------------------------------- | ------------------------------------------- |
 | `payment_initiated` | `features/transaction/hooks/useTransactionActionModel.ts` | `modes/swap/SwapMode.tsx` (`handleExecute`) |
+
+`payment_initiated` fires once per send, not per confirm: both flows pass
+a callback to `prepareConfirmedSend`, which runs it only when the route is
+cleared for signing. A confirm whose Solana rebuild comes back materially
+worse goes back to review and reports nothing. ESLint allows the literal
+`"payment_initiated"` only in `src/widget/lib/confirmedSend.ts`
+(`PAYMENT_INITIATED`).
 | `payment_completed` | `widget/hooks/useTransactionPolling.ts`                   | `modes/swap/SwapMode.tsx` (`onSuccess`)     |
 
 Both carry `from_chain`, `from_token`, `to_chain`, `to_token`, `domain`. Deposit
@@ -288,6 +297,358 @@ home → select-token → crypto-pay → processing → success | error
 ```
 
 `goBack()` pops the history stack; `resetNavigation()` returns to `home`.
+
+### Solana routes are built at sign time
+
+Ruling (2026-10-16): when a route's transaction is Solana, the SDK builds
+the route again right before it asks the wallet to sign. It doesn't sign
+the route the user reviewed. If it can't produce a fresh transaction, it
+fails loudly and sends nothing.
+
+Why: `execution.transaction.data` on a Solana route is a serialized v0
+transaction whose recent blockhash is valid for roughly 60–90 s, and the
+backend mints it when the route is built. The user can sit on the review
+screen for any length of time, and `sendSerializedTransaction`
+(`src/wallets/solana.ts`) sends with `skipPreflight: true`, so an expired
+transaction is accepted by the wallet and then dropped by the network
+without a trace. Real-wallet testing on 2026-10-16 lost two Mayan swaps
+this way (30 s and 2 min between build and sign). EVM transactions carry no
+expiry, so EVM routes are sent as reviewed.
+
+Rules that follow from it:
+
+- One core chokepoint does the rebuild for every widget flow (deposit and
+  swap), keyed on `isSerializedSolanaTxRequest`, so no flow can send a
+  reviewed Solana route by forgetting a step. It lives in
+  `src/core/signTimeRoute.ts`: `routeForSigning` decides what to sign
+  (rebuilding a Solana route) and returns a branded `SignableRoute`, which
+  is the only route `sendSignableRoute` accepts, beside the reviewed
+  `BuiltRoute` it rebuilds from if signing outlasts the blockhash. `sendReviewedRoute` is the
+  two in one call, for hosts. Widget flows call `prepareConfirmedSend`
+  (`src/widget/lib/confirmedSend.ts`), which wraps `routeForSigning`, and
+  then send through `sendSignableRoute` or the smart-account override, so
+  the override also only ever gets a cleared route. ESLint forbids
+  `sendRouteTransaction` and `buildRoute` under `src/widget/` and
+  `src/modes/`.
+- The rebuild repeats the exact request that built the reviewed route, so
+  a route always travels with its request: `BuiltRoute` pairs them, and
+  only `buildRouteForReview` can make one.
+- A rebuild that comes back materially worse stops and goes back to review
+  with the rebuilt amounts shown. It is never sent silently. Material means
+  the rebuilt `toAmount` is below the reviewed `toAmount` less the slippage
+  the user accepted for that request, or the rebuilt `fromAmount` is above
+  the reviewed one. A change inside those bounds is sent without
+  re-review. `findMaterialRouteChange` holds the definition; the floor is
+  rounded up to a whole base unit. Swap mode returns to its review screen
+  with a notice, and deposit mode stays on Confirm Deposit with the rebuilt
+  amounts and a relabelled swipe.
+- Each build issues its own intent. The receipt and status tracking follow
+  the route that was actually signed. The reviewed route's intent is never
+  reported as sent; it stays an ordinary abandoned intent. The SDK can't
+  retire it: checked 2026-10-16 against quicklinks_v1 `origin/staging`
+  (9ee84dc1), the SDK's `/route-intent` API has only `receipt`,
+  `steps/:index/receipt` and `status`, and `intent_status` has no cancelled
+  or superseded value. The status poller's `HasSupersedingIntent` is
+  server-internal and covers only orphaned EVM approve steps. Retiring the
+  reviewed intent needs a backend endpoint first, so each Solana confirm
+  leaves one extra `created` intent.
+- A failed rebuild is an error. Nothing is sent, and the stale route is
+  never sent as a fallback.
+- The SDK never rewrites a transaction's blockhash. Some Solana paths carry
+  server signatures over the message, and a new blockhash would invalidate
+  them.
+- `skipPreflight: true` stays. It isn't what lets a transaction expire;
+  the delay between build and sign is.
+- A `lastValidBlockHeight` on the route response (if the backend adds one)
+  is not relied on.
+
+Swap mode already rebuilt at confirm before this ruling (af5e6ee), but it
+fell back to the stale route when the rebuild failed, and it sent a worse
+rebuild without re-review. Deposit mode never rebuilt.
+
+**Host API (signed off 2026-10-16).** `sendRouteTransaction` can't apply
+the rule for a host: it gets only a `BuildRouteResult`, not the request that
+built it, and returns a bare hash, so it can't rebuild or report the new
+intent. The user approved exposing the widget's pair instead, exactly as
+follows, with `sendRouteTransaction` unchanged:
+
+- `Trustware.buildRouteForReview(request)` and
+  `Trustware.sendReviewedRoute(reviewed, chainId?, options?)`, also exported
+  by name from `@trustware/sdk/core`. `options` is
+  `SendRouteTransactionOptions`.
+- The types `BuiltRoute`, `ReviewedRouteSend` and `MaterialRouteChange`,
+  exported from `@trustware/sdk/core`. They are not re-exported from the
+  package root.
+
+Hosts that send Solana routes should build with `buildRouteForReview` and
+send with `sendReviewedRoute`. A host that holds a route while the user
+reads it and then calls `sendRouteTransaction` can send an expired
+transaction that the network drops without an error. `sendReviewedRoute`
+returns `sent` with the receipt to submit, which names the rebuilt intent,
+or `route_changed` with the rebuilt route to show for review. For an EVM
+route the pair behaves like `buildRoute` plus `sendRouteTransaction`.
+
+### Solana transactions: the SDK sends and rebroadcasts them
+
+Ruling (2026-10-16, revised and signed off the same day): for a Solana
+route transaction, the wallet only signs. The SDK sends the signed
+transaction itself and rebroadcasts the same signed bytes until the
+signature confirms, the transaction fails, or its blockhash stops being
+valid. A timer is never a stop condition.
+
+Why: real-wallet testing on 2026-10-16 sent four Solana-source swaps
+through Phantom's `signAndSendTransaction` (`skipPreflight: true`, one
+broadcast, no retry). None reached the network, after 30 s, 2 min, 2 min
+and 41 s in the popup. Fresh builds had 149–150 blocks (about 55 s) of
+headroom, so the build wasn't the problem: a single unretried broadcast
+gets dropped, and with preflight skipped nothing reports it. Mayan's own
+app does what Solana apps normally do: the wallet only signs, and the app
+sends and rebroadcasts.
+
+The flow, in one chokepoint: `toSolanaWalletInterface`'s
+`sendSerializedTransaction` in `src/wallets/solana.ts`, which replaced
+`waitForSolanaConfirmation` with `broadcastUntilSettled`
+(`src/wallets/solanaBroadcast.ts`) over the existing
+`sendSolanaSerialized` / `getSolanaTxStatus` proxy calls, plus
+`getSolanaBlockhashValid` (`src/core/sdkRpc.ts`). The loop has its own
+module only because `solana.ts` is re-exported whole by the public
+`./wallet` entry:
+
+1. The wallet signs. Wallet Standard and injected-provider wallets both
+   prefer `signTransaction`. `signAndSendTransaction` is the fallback only
+   for a wallet without `signTransaction`, keeps its -32603 retry, and gets
+   no rebroadcast (the SDK never holds those bytes).
+2. The signature is the transaction's own first signature, and the stop
+   condition's blockhash is its `recentBlockhash`, both read from the
+   signed bytes. Neither is taken from an RPC answer.
+3. The first send preflights (`skipPreflight: false`): a transaction that
+   can't succeed fails at once with the simulation's error, instead of
+   being rebroadcast until it expires. The backend sends through its own
+   RPC pool at the commitment it built with, so the lagging-node false
+   failures that made the wallet path skip preflight mostly don't apply.
+4. Then, about every 2 s, it polls `tx-status` and rebroadcasts the same
+   bytes with `skipPreflight: true`, until one of these facts holds:
+   - `success`: done.
+   - `failed`: the transaction landed with an `err`. That error is
+     surfaced, with no retry.
+   - `blockhash-valid` answers `false`: no more sends. It reads
+     `tx-status` again, since the transaction may have landed at the last
+     moment. While that reads `pending`, it keeps reading without
+     sending. `not_found` fails with an exact "expired before inclusion"
+     error.
+   An "already processed" answer to a rebroadcast is not an error; polling
+   continues. The proxy codes the loop acts on live in one constant,
+   `SDK_RPC_CODES` in `src/core/sdkRpc.ts`, read through `hasSDKRPCCode`.
+5. The receipt goes to the backend once, with that signature, as soon as
+   the first send is accepted (see "never lose the receipt" below).
+
+The stop condition works for every provider's Solana transaction (Mayan,
+Relay, LiFi, Squid and deposit transfers alike), because every one of
+them carries its blockhash. The route's `lastValidBlockHeight` was
+withdrawn and isn't read.
+
+Proxy contract (quicklinks_v1 `stephen/bvt-280-mayan-blockhash-rent`,
+7b9cc7cf). Both endpoints sit in the SDK RPC group (SDK API key, `rpc`
+scope) and use its envelope: `{"success": true, "data": …}`, or
+`{"success": false, "error": {"code", "message", "context"}}`.
+
+- `GET /v1/sdk/rpc/solana/blockhash-valid?chainId=<chain>&blockhash=<base58>`,
+  with the same `chainId` as `send-serialized`. 200 carries
+  `data.valid`, from `isBlockhashValid` at `processed`. 400 is
+  `INVALID_REQUEST`, `UNSUPPORTED_CHAIN_TYPE` or `CHAIN_NOT_FOUND`. 503
+  `RPC_CALL_FAILED` is transient: the next iteration checks again, and it
+  is never read as invalid or expired.
+- `POST /v1/sdk/rpc/solana/send-serialized` with
+  `{chainId, serializedTransaction, skipPreflight?}` (left out means
+  `false`). 409 `ALREADY_PROCESSED` (with `context.signature`) and 503
+  `BROADCAST_FAILED` both keep a rebroadcast loop going. On the first,
+  preflighted send, `BROADCAST_FAILED` is the simulation's or the
+  broadcast's real failure and is surfaced with its message.
+
+A `tx-status` 503 `RPC_CALL_FAILED` is transient too (ruled 2026-10-16;
+see "never lose the receipt" below). Anything else stops the loop with an
+error that names the signature, since the transaction may still land: a
+`tx-status` or validity read with any other code, or a rebroadcast
+refused with any other code.
+
+### Solana: one automatic re-sign when signing took too long
+
+Ruling (2026-10-16): when the user takes so long to sign that the
+transaction's blockhash has expired, the SDK rebuilds the route and asks
+the wallet to sign once more, automatically, instead of failing.
+
+Why: on 2026-10-16 the sign-then-send flow above worked end to end on
+mainnet (transaction `5UikQ2…4Ph`, signed in 4 s, 0.826662 USDC landed).
+But block height advances about 4.77 per second, so a blockhash lives
+only about 31 s, and a 42 s signature failed its first send with
+`BlockhashNotFound`. Rebuilding at confirm can't help with time spent in
+the wallet; only a fresh build after signing can.
+
+The rules:
+
+- After the wallet returns the signed bytes and before the first send,
+  the SDK checks `blockhash-valid` on the transaction's own blockhash.
+- If that reads invalid, or the first send answers 409
+  `BLOCKHASH_NOT_FOUND`, nothing was sent. The SDK rebuilds through the same sign-time path
+  (`buildRoute` with the same request) and runs the same material-change
+  check. A material change goes back to review, as it does at confirm.
+  Otherwise the wallet is asked to sign the rebuilt route, with a message
+  for the second prompt: "That took a little long, so we refreshed the
+  route. Please approve again."
+- Exactly one automatic retry per confirm. If the second signature has
+  also expired, the send fails with the exact "expired before inclusion"
+  error. It never loops, and never asks a third time.
+- The receipt is posted only for the transaction actually sent. The first
+  route's intent stays an ordinary abandoned one.
+- `payment_initiated` still fires once per actual send: the retry belongs
+  to the same confirm and doesn't report again.
+- `BLOCKHASH_NOT_FOUND` sits beside `ALREADY_PROCESSED` in
+  `SDK_RPC_CODES`.
+- A 503 on the validity check before the first send says nothing about
+  the blockhash, so the send goes ahead. If the blockhash had expired, the
+  preflighted send answers `BLOCKHASH_NOT_FOUND`, which takes the same
+  retry path.
+
+Where it has to live: the rebuild needs the reviewed `BuiltRoute` (core,
+`src/core/signTimeRoute.ts`), but the expiry is found inside the wallet
+adapter's `sendSerializedTransaction` (`src/wallets/solana.ts`), which
+`sendRouteTransaction` calls with only the transaction bytes. So the
+adapter reports "expired before the first send" as a distinct internal
+error, and the core send step catches it once, rebuilds, and sends again.
+Both widget flows and `sendReviewedRoute` go through that step.
+
+In the code: `broadcastUntilSettled` (`src/wallets/solanaBroadcast.ts`)
+checks validity before the first send and throws
+`SolanaExpiredBeforeSendError` (its message is the exact "expired before
+inclusion" text) on an invalid answer or `BLOCKHASH_NOT_FOUND`.
+`sendSignableRoute(reviewed, route, chainId?, options?)` catches it once,
+reruns `routeForSigning(reviewed)`, calls `onRetry` with
+`SIGNING_RETRY_MESSAGE`, and sends the rebuild. A second one propagates.
+Deposit shows the message under the swipe (`CryptoPaySwipeSection`), swap
+on its processing screen. `payment_initiated` fires only from
+`prepareConfirmedSend`, which runs before the first prompt, so the retry
+can't report again. `npm run check:host-types` typechecks the host example
+in `scripts/host-types/` against the built typings.
+
+**Host API (signed off 2026-10-16, exactly as proposed).**
+
+```ts
+// @trustware/sdk/core
+type SendReviewedRouteOptions = SendRouteTransactionOptions & {
+  /** Called once, after the route was rebuilt and before the wallet is
+   *  asked to sign it again. Show `message` with the second prompt. */
+  onRetry?: (retry: SigningRetry) => void;
+};
+type SigningRetry = {
+  reason: "blockhash_expired_before_send" | "blockhash_not_found_on_send";
+  message: string; // "That took a little long, so we refreshed the route. Please approve again."
+  route: BuildRouteResult; // the rebuilt route about to be signed
+};
+sendReviewedRoute(reviewed, chainId?, options?: SendReviewedRouteOptions)
+```
+
+`SendReviewedRouteOptions` and `SigningRetry` are exported from
+`@trustware/sdk/core` beside `BuiltRoute`; `ReviewedRouteSend` is
+unchanged. The approval also covers the behaviour change: a host calling
+`sendReviewedRoute` on a Solana route can get one extra wallet prompt when
+signing took too long, whether or not it passes `onRetry`. Without
+`onRetry` the second prompt just comes with no message.
+
+The backend's 409 landed (quicklinks_v1 b43dbdeb):
+`{"success":false,"error":{"code":"BLOCKHASH_NOT_FOUND","message":"Solana transaction's blockhash is no longer valid; rebuild and sign again","context":{"blockhash","error","signature"}}}`.
+Across RPC endpoints the proxy answers with the strongest outcome:
+success, then `ALREADY_PROCESSED`, then `BLOCKHASH_NOT_FOUND`, then 503
+`BROADCAST_FAILED`.
+
+### Solana: never lose the receipt for an accepted send
+
+Ruling (2026-10-16): a Solana send the network accepted must always reach
+the backend as a receipt.
+
+Why: in real-wallet testing at 20:13–20:14 the automatic re-sign worked
+(transaction `5YNN7Vym…uTtc` finalized, and Mayan bridged 1.612959 USDC to
+Polygon). But the first `tx-status` read answered 503 `RPC_CALL_FAILED`
+(the backend's public RPC timed out, then dRPC refused). The loop treated
+that as fatal, so the widget showed an error and no receipt was posted.
+The backend had no record of a transaction that landed until one was
+posted by hand. Lost payment tracking must be impossible.
+
+The rules:
+
+1. The receipt is posted as soon as the first send is accepted (200, or
+   409 `ALREADY_PROCESSED`), before any status polling, so the backend's
+   poller tracks the transaction whatever the browser does next. Exactly
+   one receipt per sent signature. A failed receipt post retries with a
+   bounded backoff and logs loudly, and never stops the rebroadcast loop.
+2. A `tx-status` 503 `RPC_CALL_FAILED` is transient, like
+   `blockhash-valid`'s: the loop carries on. It still stops only on
+   `success`, on `failed` with an `err`, or on an invalid blockhash
+   followed by a final status read. If that final read can't be made
+   (503), the result is neither "expired" nor a failure: the transaction
+   was submitted and is still confirming. The send returns its signature,
+   and the widget's processing screen tracks the intent through the
+   backend (`trackIntent`, `src/core/intentTracking.ts`).
+
+**Rule 1 signed off 2026-10-16 (Proposal A, exactly as recorded).**
+Before it, nobody below the caller posted receipts: the widget's
+`trackIntent`, hosts (the README told them to call `submitReceipt`) and
+`runTopUp` each posted after `sendSerializedTransaction` returned, which
+was after the loop settled. The approved design:
+
+- `SolanaWalletInterface.sendSerializedTransaction(serializedTransactionBase64, chainId?, options?: { onAccepted?: (signature: string) => void })`:
+  the SDK's own adapters call `onAccepted` once, right after the first
+  send is accepted (200, or 409 `ALREADY_PROCESSED`). A host-built wallet
+  that ignores it keeps today's behaviour: the receipt is posted when the
+  call returns.
+- `sendReviewedRoute` delivers the receipt itself, for EVM and Solana
+  alike, through the same bounded-retry delivery `trackIntent` uses,
+  started at `onAccepted` (or when the EVM hash comes back).
+  `ReviewedRouteSend`'s `sent` keeps `receipt`, documented as already
+  delivered. Hosts stop calling `submitReceipt` after `sendReviewedRoute`,
+  and the README says so. A duplicate post carries the same
+  `Idempotency-Key` (the signature).
+- The widget starts `trackIntent` from `onAccepted`, in a mode that
+  doesn't post the receipt a second time. `runTopUp` stops posting its
+  own.
+- `sendRouteTransaction` doesn't change: its callers keep posting.
+
+The same sign-off closes the gaps the first version left. Once a send was
+accepted, its receipt is already on its way, so:
+
+- any later status or validity read failure (any code, or a fetch
+  `TypeError`) ends the loop as "submitted, still confirming", never as
+  an error;
+- a transaction that lands with an `err` keeps its receipt, and the error
+  is surfaced.
+
+In the code:
+
+- `deliverReceipt` (`src/core/intentTracking.ts`) is the one receipt
+  poster for an accepted send: trackIntent's backoff, bounded by
+  `TRACKING_TIMEOUT_MS`, never rejects, and logs every ending but
+  "recorded" as an error. Its first POST is dispatched before it returns,
+  which is what orders the receipt ahead of the first status read.
+- `sendRouteTransactionReporting` (`src/core/tx.ts`, behind the unchanged
+  `sendRouteTransaction`) calls `onAccepted` exactly once per send: for
+  EVM when the wallet returns the hash (the `eth_sendTransaction` and
+  wagmi `sendTransaction` branches), for Solana when the SDK's adapter
+  reports its first accepted send, or when a wallet that doesn't report
+  it returns.
+- `sendSignableRoute` starts `deliverReceipt` from there and hands the
+  widget an `AcceptedSend` carrying it. Both widgets switch to their
+  processing screen at that moment and run `trackIntent` with
+  `receiptDelivery`, so tracking only polls. The widget's
+  `TrackedReceipt.delivery` and the swap tracker's argument are required,
+  so a send path has to choose: the send step's delivery, or
+  `"tracker_posts"` (the smart-account path only, which also posts its own
+  receipt in `src/smart-account/send.ts`, as it did before).
+- `runTopUp` starts `deliverReceipt` from `onAccepted` and waits for it to
+  be recorded before polling.
+- In `broadcastUntilSettled`, `onAccepted` runs right after the first
+  accepted send. After that, a fault (a read failing with any code, a
+  fetch `TypeError`, an undocumented rebroadcast refusal, an unknown
+  status) is `OutcomeUnknownError`, which ends as "submitted, still
+  confirming" (logged), never as an error.
 
 ### Other Subsystems
 

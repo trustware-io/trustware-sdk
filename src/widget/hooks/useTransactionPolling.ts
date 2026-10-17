@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { trackIntent, type ReceiptReport } from "../../core/intentTracking";
+import { trackIntent } from "../../core/intentTracking";
+import type { TrackedReceipt } from "../state/deposit/types";
 import { describeTrackingFailure } from "../lib/trackingFailure";
 import {
   useDepositForm,
@@ -57,18 +58,21 @@ export function useTransactionPolling() {
   /**
    * Start tracking a transaction.
    *
-   * @param receipt - The receipt for the transaction the wallet sent
+   * @param receipt - The transaction the network accepted, and whether its
+   *   receipt is already being delivered
    */
   const startPolling = useCallback(
-    (receipt: ReceiptReport) => {
+    (receipt: TrackedReceipt) => {
       stopTracking();
       const controller = new AbortController();
       trackingRef.current = controller;
 
       setState({ isPolling: true, transaction: null });
 
-      void trackIntent(receipt, {
+      void trackIntent(receipt.report, {
         signal: controller.signal,
+        receiptDelivery:
+          receipt.delivery === "tracker_posts" ? undefined : receipt.delivery,
         onUpdate: (tx) => {
           setState((prev) => ({ ...prev, transaction: tx }));
           if (tx.status === "bridging") setTransactionStatus("bridging");
