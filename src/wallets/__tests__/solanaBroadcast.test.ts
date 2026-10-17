@@ -7,7 +7,7 @@ import {
   Transaction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import { SDKRPCError, SOLANA_ALREADY_PROCESSED_CODE } from "src/core/sdkRpc";
+import { SDKRPCError, SDK_RPC_CODES } from "src/core/sdkRpc";
 import {
   REBROADCAST_INTERVAL_MS,
   broadcastUntilSettled,
@@ -29,8 +29,18 @@ const SIGNED: SignedSolanaTransaction = {
 type Step =
   | { kind: "send"; skipPreflight: boolean }
   | { kind: "status"; answer: SolanaTxStatus["status"] }
-  | { kind: "valid"; answer: boolean }
+  | { kind: "valid"; answer: Validity }
   | { kind: "sleep"; ms: number };
+
+/** A validity read: the proxy's answer, or its 503 RPC_CALL_FAILED. */
+type Validity = boolean | "rpc_call_failed";
+
+const rpcCallFailed = () =>
+  new SDKRPCError("Failed to check Solana blockhash validity", {
+    code: SDK_RPC_CODES.RPC_CALL_FAILED,
+    status: 503,
+    context: { error: "connection reset" },
+  });
 
 /**
  * A scripted proxy. `statuses` and `validity` are consumed in order, and
@@ -39,7 +49,7 @@ type Step =
  */
 function scriptedIO(
   statuses: SolanaTxStatus[],
-  validity: boolean[],
+  validity: Validity[],
   sendErrors: (unknown | null)[] = []
 ): { io: SolanaBroadcastIO; log: Step[] } {
   const log: Step[] = [];
@@ -63,6 +73,7 @@ function scriptedIO(
       const answer = validity.shift();
       if (answer === undefined) throw new Error("script ran out of validity");
       log.push({ kind: "valid", answer });
+      if (answer === "rpc_call_failed") throw rpcCallFailed();
       return answer;
     },
     async sleep(ms) {
@@ -80,10 +91,23 @@ const failed: SolanaTxStatus = {
   err: { InstructionError: [2, { Custom: 6001 }] },
 };
 
-const alreadyProcessed = new SDKRPCError("Transaction already processed", {
-  code: SOLANA_ALREADY_PROCESSED_CODE,
-  status: 409,
-});
+// The proxy's exact refusals (quicklinks_v1 7b9cc7cf).
+const alreadyProcessed = new SDKRPCError(
+  "Solana transaction has already been processed",
+  {
+    code: SDK_RPC_CODES.ALREADY_PROCESSED,
+    status: 409,
+    context: { signature: "sig-from-bytes" },
+  }
+);
+const broadcastFailed = new SDKRPCError(
+  "Failed to broadcast Solana transaction",
+  {
+    code: SDK_RPC_CODES.BROADCAST_FAILED,
+    status: 503,
+    context: { error: "node is behind" },
+  }
+);
 
 const EXPIRED = `Solana transaction ${SIGNED.signature} expired before inclusion: its blockhash ${SIGNED.blockhash} is no longer valid and the network never included it.`;
 
@@ -174,7 +198,7 @@ describe("broadcastUntilSettled", () => {
       const { io, log } = scriptedIO(
         [notFound, success],
         [true],
-        [null, new SDKRPCError("Failed to broadcast Solana transaction")]
+        [null, broadcastFailed]
       );
       assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
       assert.deepEqual(kinds(log), [
@@ -189,8 +213,61 @@ describe("broadcastUntilSettled", () => {
       console.warn = originalWarn;
     }
     assert.deepEqual(warnings, [
-      `Rebroadcast of Solana transaction ${SIGNED.signature} failed: Failed to broadcast Solana transaction`,
+      `Rebroadcast of Solana transaction ${SIGNED.signature} failed: Failed to broadcast Solana transaction: node is behind`,
     ]);
+  });
+
+  it("stops on a rebroadcast refusal the proxy doesn't document", async () => {
+    const { io } = scriptedIO(
+      [notFound],
+      [true],
+      [
+        null,
+        new SDKRPCError("Invalid serialized Solana transaction", {
+          code: "SERIALIZATION_ERROR",
+          status: 400,
+        }),
+      ]
+    );
+    await assert.rejects(broadcastUntilSettled(SIGNED, io), {
+      message: `Rebroadcast of Solana transaction ${SIGNED.signature} failed: Invalid serialized Solana transaction. It may still land, so check a block explorer before trying again.`,
+    });
+  });
+
+  it("checks validity again next round after a 503 RPC_CALL_FAILED, never calling it expired", async () => {
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message: string) => warnings.push(message);
+    try {
+      const { io, log } = scriptedIO(
+        [notFound, notFound, notFound, success],
+        ["rpc_call_failed", "rpc_call_failed", true]
+      );
+      assert.equal(await broadcastUntilSettled(SIGNED, io), SIGNED.signature);
+      assert.deepEqual(kinds(log), [
+        "send",
+        "status:not_found",
+        "valid:rpc_call_failed",
+        "sleep",
+        "rebroadcast",
+        "status:not_found",
+        "valid:rpc_call_failed",
+        "sleep",
+        "rebroadcast",
+        "status:not_found",
+        "valid:true",
+        "sleep",
+        "rebroadcast",
+        "status:success",
+      ]);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnings.length, 2);
+    assert.equal(
+      warnings[0],
+      `Couldn't check the blockhash of Solana transaction ${SIGNED.signature}, checking again next round: Failed to check Solana blockhash validity: connection reset`
+    );
   });
 
   it("fails with the chain's error when the transaction lands with one, without retrying", async () => {
@@ -285,7 +362,7 @@ describe("broadcastUntilSettled", () => {
     });
   });
 
-  it("fails naming the signature when a validity read fails", async () => {
+  it("fails naming the signature when a validity read fails without a documented code", async () => {
     const io: SolanaBroadcastIO = {
       ...scriptedIO([notFound], []).io,
       blockhashValid: async () => {
@@ -324,7 +401,10 @@ describe("broadcastUntilSettled, over generated chains", () => {
   // The claims: nothing is sent after the blockhash reads invalid, a final
   // status read always follows that, and the loop stops only on success,
   // failed, or (after expiry) not_found.
-  it("never sends after expiry, always rechecks status, and stops only on a settling fact", async () => {
+  it("never sends after expiry, always rechecks status, and stops only on a settling fact", async (t) => {
+    // Every rebroadcast 503 and validity 503 warns; the claims are about
+    // the log, not the console.
+    t.mock.method(console, "warn", () => {});
     const random = seededRandom(0xb10c_4a54);
     const pick = <T>(items: T[]) => items[Math.floor(random() * items.length)];
     const outcomes = { success: 0, failed: 0, expired: 0 };
@@ -332,13 +412,13 @@ describe("broadcastUntilSettled, over generated chains", () => {
     for (let run = 0; run < 3_000; run++) {
       // An unbounded-looking chain: random in-flight reads, then a fact.
       const statuses: SolanaTxStatus[] = [];
-      const validity: boolean[] = [];
+      const validity: Validity[] = [];
       const sendErrors: (unknown | null)[] = [null];
       const inFlight = Math.floor(random() * 12);
       for (let i = 0; i < inFlight; i++) {
         statuses.push(pick([notFound, pending]));
-        validity.push(true);
-        sendErrors.push(pick([null, null, alreadyProcessed]));
+        validity.push(pick<Validity>([true, true, true, "rpc_call_failed"]));
+        sendErrors.push(pick([null, null, alreadyProcessed, broadcastFailed]));
       }
       const ending = pick(["success", "failed", "expire"] as const);
       if (ending === "expire") {
@@ -385,7 +465,9 @@ describe("broadcastUntilSettled, over generated chains", () => {
       assert.equal(result, expected, `run ${run}`);
 
       // Never sends after expiry, and always rechecks status after it.
-      const expiry = log.findIndex((s) => s.kind === "valid" && !s.answer);
+      const expiry = log.findIndex(
+        (s) => s.kind === "valid" && s.answer === false
+      );
       if (expiry >= 0) {
         assert.ok(
           log.slice(expiry).every((s) => s.kind !== "send"),

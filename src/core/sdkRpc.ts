@@ -164,16 +164,23 @@ export async function estimateEVMGas(body: {
 }
 
 /**
- * The `send-serialized` error code for a transaction the cluster has
- * already processed. On a rebroadcast that means an earlier send landed, so
- * it isn't a failure. Only `isSolanaAlreadyProcessed` reads it.
+ * The proxy error codes the SDK acts on, as the backend's sdkrpc package
+ * names them (quicklinks_v1 `iluvatar/services/sdkrpc/solana.go`).
  */
-export const SOLANA_ALREADY_PROCESSED_CODE = "ALREADY_PROCESSED";
+export const SDK_RPC_CODES = {
+  /** 409 from `send-serialized`: the cluster already processed this
+   *  transaction, so an earlier copy landed. */
+  ALREADY_PROCESSED: "ALREADY_PROCESSED",
+  /** 503 from `send-serialized`: the RPC refused or couldn't take it. */
+  BROADCAST_FAILED: "BROADCAST_FAILED",
+  /** 503 from `tx-status` and `blockhash-valid`: the RPC call failed. */
+  RPC_CALL_FAILED: "RPC_CALL_FAILED",
+} as const;
 
-export function isSolanaAlreadyProcessed(err: unknown): boolean {
-  return (
-    err instanceof SDKRPCError && err.code === SOLANA_ALREADY_PROCESSED_CODE
-  );
+export type SDKRPCCode = (typeof SDK_RPC_CODES)[keyof typeof SDK_RPC_CODES];
+
+export function hasSDKRPCCode(err: unknown, code: SDKRPCCode): boolean {
+  return err instanceof SDKRPCError && err.code === code;
 }
 
 /** `skipPreflight` is required so every caller chooses: the first send of a
@@ -204,8 +211,9 @@ export async function getSolanaTxStatus(params: {
 }
 
 /** Whether a blockhash can still be used, by `isBlockhashValid` at
- *  `processed`. */
+ *  `processed`. `chainId` is the one `send-serialized` gets. */
 export async function getSolanaBlockhashValid(params: {
+  chainId: string;
   blockhash: string;
 }): Promise<boolean> {
   const search = new URLSearchParams(params);

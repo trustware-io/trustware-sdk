@@ -435,10 +435,8 @@ module only because `solana.ts` is re-exported whole by the public
      sending. `not_found` fails with an exact "expired before inclusion"
      error.
    An "already processed" answer to a rebroadcast is not an error; polling
-   continues. The code that names it lives in one constant,
-   `SOLANA_ALREADY_PROCESSED_CODE` in `src/core/sdkRpc.ts`, read only by
-   `isSolanaAlreadyProcessed`. Its value, `ALREADY_PROCESSED`, is a
-   placeholder until the backend names the exact code.
+   continues. The proxy codes the loop acts on live in one constant,
+   `SDK_RPC_CODES` in `src/core/sdkRpc.ts`, read through `hasSDKRPCCode`.
 5. The receipt goes to the backend once, as now, with that signature.
 
 The stop condition works for every provider's Solana transaction (Mayan,
@@ -446,21 +444,29 @@ Relay, LiFi, Squid and deposit transfers alike), because every one of
 them carries its blockhash. The route's `lastValidBlockHeight` was
 withdrawn and isn't read.
 
-Proxy contract (being added on quicklinks_v1
-`stephen/bvt-280-mayan-blockhash-rent`):
+Proxy contract (quicklinks_v1 `stephen/bvt-280-mayan-blockhash-rent`,
+7b9cc7cf). Both endpoints sit in the SDK RPC group (SDK API key, `rpc`
+scope) and use its envelope: `{"success": true, "data": …}`, or
+`{"success": false, "error": {"code", "message", "context"}}`.
 
-- `GET /v1/sdk/rpc/solana/blockhash-valid?blockhash=<base58>`
-  → `{ "data": { "valid": bool } }`, `isBlockhashValid` at `processed`.
-  400 for a malformed blockhash, 503 on RPC failure.
-- `POST /v1/sdk/rpc/solana/send-serialized` takes an optional
-  `"skipPreflight": bool` (default `false`, as before). An already-processed
-  send answers with a distinct error code instead of a 503
-  `BROADCAST_FAILED`. The exact code is pending from the backend.
+- `GET /v1/sdk/rpc/solana/blockhash-valid?chainId=<chain>&blockhash=<base58>`,
+  with the same `chainId` as `send-serialized`. 200 carries
+  `data.valid`, from `isBlockhashValid` at `processed`. 400 is
+  `INVALID_REQUEST`, `UNSUPPORTED_CHAIN_TYPE` or `CHAIN_NOT_FOUND`. 503
+  `RPC_CALL_FAILED` is transient: the next iteration checks again, and it
+  is never read as invalid or expired.
+- `POST /v1/sdk/rpc/solana/send-serialized` with
+  `{chainId, serializedTransaction, skipPreflight?}` (left out means
+  `false`). 409 `ALREADY_PROCESSED` (with `context.signature`) and 503
+  `BROADCAST_FAILED` both keep a rebroadcast loop going. On the first,
+  preflighted send, `BROADCAST_FAILED` is the simulation's or the
+  broadcast's real failure and is surfaced with its message.
 
-A proxy failure on a status or validity read, or on the first send, is an
-error that names the signature, since the transaction may still land. A
-failed rebroadcast is not: the first send already reached the cluster,
-and the next status and validity reads still bound the loop.
+Anything else stops the loop with an error that names the signature,
+since the transaction may still land: a failed `tx-status` read (including
+its own 503 `RPC_CALL_FAILED`, which the contract doesn't call transient),
+a validity read with any other code, or a rebroadcast refused with any
+other code.
 
 ### Other Subsystems
 

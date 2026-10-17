@@ -2,7 +2,8 @@ import {
   SDKRPCError,
   getSolanaBlockhashValid,
   getSolanaTxStatus,
-  isSolanaAlreadyProcessed,
+  hasSDKRPCCode,
+  SDK_RPC_CODES,
   sendSolanaSerialized,
   type SolanaTxStatusResponse,
 } from "../core/sdkRpc";
@@ -95,14 +96,14 @@ export async function broadcastUntilSettled(
   signed: SignedSolanaTransaction,
   io: SolanaBroadcastIO
 ): Promise<string> {
-  const { serialized, signature, blockhash } = signed;
+  const { serialized, signature } = signed;
 
   // Preflighted, so a transaction that can't succeed fails here with the
   // simulation's error rather than being rebroadcast until it expires.
   try {
     await io.send(serialized, false);
   } catch (err) {
-    if (!isSolanaAlreadyProcessed(err)) {
+    if (!hasSDKRPCCode(err, SDK_RPC_CODES.ALREADY_PROCESSED)) {
       throw new Error(
         `Solana transaction ${signature} was not sent: ${describeRpcError(err)}.`
       );
@@ -127,22 +128,61 @@ export async function broadcastUntilSettled(
       }
     }
 
-    const valid = await read(() => io.blockhashValid(blockhash), signature);
-    if (!valid) return settleAfterExpiry(signed, io);
+    const validity = await readValidity(io, signed);
+    if (validity === "invalid") return settleAfterExpiry(signed, io);
 
     await io.sleep(REBROADCAST_INTERVAL_MS);
-    try {
-      await io.send(serialized, true);
-    } catch (err) {
-      // The first send already reached the cluster, and the next status and
-      // validity reads still bound the loop, so a failed rebroadcast only
-      // costs one copy. "Already processed" means an earlier copy landed.
-      if (!isSolanaAlreadyProcessed(err)) {
-        console.warn(
-          `Rebroadcast of Solana transaction ${signature} failed: ${describeRpcError(err)}`
-        );
-      }
+    await rebroadcast(io, signed);
+  }
+}
+
+/**
+ * Whether the blockhash can still be used. A failed RPC call (503
+ * `RPC_CALL_FAILED`) says nothing about validity, so it is neither
+ * "invalid" nor "expired": the next iteration checks again.
+ */
+async function readValidity(
+  io: SolanaBroadcastIO,
+  { signature, blockhash }: SignedSolanaTransaction
+): Promise<"valid" | "invalid" | "unknown"> {
+  try {
+    return (await io.blockhashValid(blockhash)) ? "valid" : "invalid";
+  } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.RPC_CALL_FAILED)) {
+      console.warn(
+        `Couldn't check the blockhash of Solana transaction ${signature}, ` +
+          `checking again next round: ${describeRpcError(err)}`
+      );
+      return "unknown";
     }
+    throw unknownOutcome(signature, err);
+  }
+}
+
+/**
+ * Send the same bytes again. The first send already reached the cluster,
+ * so neither of the proxy's expected refusals stops the loop:
+ * `ALREADY_PROCESSED` means an earlier copy landed, and `BROADCAST_FAILED`
+ * only costs this copy. Anything else is a fault and throws.
+ */
+async function rebroadcast(
+  io: SolanaBroadcastIO,
+  { serialized, signature }: SignedSolanaTransaction
+): Promise<void> {
+  try {
+    await io.send(serialized, true);
+  } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.ALREADY_PROCESSED)) return;
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.BROADCAST_FAILED)) {
+      console.warn(
+        `Rebroadcast of Solana transaction ${signature} failed: ${describeRpcError(err)}`
+      );
+      return;
+    }
+    throw new Error(
+      `Rebroadcast of Solana transaction ${signature} failed: ${describeRpcError(err)}. ` +
+        `It may still land, so check a block explorer before trying again.`
+    );
   }
 }
 
@@ -202,7 +242,8 @@ export function proxyBroadcastIO(chainId: string): SolanaBroadcastIO {
       const { status, err } = await getSolanaTxStatus({ chainId, signature });
       return { status, err };
     },
-    blockhashValid: (blockhash) => getSolanaBlockhashValid({ blockhash }),
+    blockhashValid: (blockhash) =>
+      getSolanaBlockhashValid({ chainId, blockhash }),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   };
 }
