@@ -366,6 +366,16 @@ Swap mode already rebuilt at confirm before this ruling (af5e6ee), but it
 fell back to the stale route when the rebuild failed, and it sent a worse
 rebuild without re-review. Deposit mode never rebuilt.
 
+**EVM routes are not rebuilt at confirm (ruling 2026-10-17).** A rebuild of
+every route at confirm, EVM included, was proposed on 2026-10-17 (SDK PR
+#142's first version) and withdrawn the same day. The ruling: EVM routes are
+sent as reviewed, as above. Quote freshness on the review screen is the job
+of the countdown refresh (`routes.options.routeRefreshMs`), not of a
+rebuild at confirm. The Solana rebuild
+stays, because it isn't a quote refresh: a Solana transaction's blockhash
+lives about 31 s, and a transaction signed after it expired never lands.
+Don't extend `routeForSigning`'s rebuild to EVM without a new ruling.
+
 **Host API (signed off 2026-10-16).** `sendRouteTransaction` can't apply
 the rule for a host: it gets only a `BuildRouteResult`, not the request that
 built it, and returns a bare hash, so it can't rebuild or report the new
