@@ -363,8 +363,12 @@ const reviewed = await Trustware.buildRouteForReview({
 });
 console.log(reviewed.result.route?.estimate); // show this to the user
 
-// After the user confirms:
-const sent = await Trustware.sendReviewedRoute(reviewed);
+// After the user confirms. If signing takes so long that the Solana
+// blockhash expires, the SDK rebuilds the route and asks the wallet once
+// more. onRetry fires just before that second prompt: show its message.
+const sent = await Trustware.sendReviewedRoute(reviewed, undefined, {
+  onRetry: (retry) => showNotice(retry.message), // your own UI
+});
 if (sent.kind === "route_changed") {
   // Nothing was sent: the rebuilt route gives less than the slippage allows,
   // or spends more. Show sent.rebuilt for review, and when the user confirms
@@ -376,8 +380,11 @@ if (sent.kind === "route_changed") {
 
 Report the receipt from `sent.receipt`, not from the route you reviewed: a
 Solana rebuild has its own intent. A failed rebuild throws, and nothing is
-sent. The types `BuiltRoute`, `ReviewedRouteSend` and `MaterialRouteChange`
-are exported from `@trustware/sdk/core`.
+sent. The automatic re-sign happens at most once: if the second signature
+also takes too long, `sendReviewedRoute` throws an "expired before
+inclusion" error. The types `BuiltRoute`, `ReviewedRouteSend`,
+`MaterialRouteChange`, `SendReviewedRouteOptions` and `SigningRetry` are
+exported from `@trustware/sdk/core`.
 
 See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 

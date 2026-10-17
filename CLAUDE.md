@@ -486,10 +486,7 @@ The rules:
 - After the wallet returns the signed bytes and before the first send,
   the SDK checks `blockhash-valid` on the transaction's own blockhash.
 - If that reads invalid, or the first send answers 409
-  `BLOCKHASH_NOT_FOUND` (backend, being added: "Solana transaction's
-  blockhash is no longer valid; rebuild and sign again", with
-  `context.signature`, `context.blockhash` and `context.error`), nothing
-  was sent. The SDK rebuilds through the same sign-time path
+  `BLOCKHASH_NOT_FOUND`, nothing was sent. The SDK rebuilds through the same sign-time path
   (`buildRoute` with the same request) and runs the same material-change
   check. A material change goes back to review, as it does at confirm.
   Otherwise the wallet is asked to sign the rebuilt route, with a message
@@ -502,8 +499,12 @@ The rules:
   route's intent stays an ordinary abandoned one.
 - `payment_initiated` still fires once per actual send: the retry belongs
   to the same confirm and doesn't report again.
-- The code constant for `BLOCKHASH_NOT_FOUND` sits beside
-  `ALREADY_PROCESSED` in `SDK_RPC_CODES` until the backend lands it.
+- `BLOCKHASH_NOT_FOUND` sits beside `ALREADY_PROCESSED` in
+  `SDK_RPC_CODES`.
+- A 503 on the validity check before the first send says nothing about
+  the blockhash, so the send goes ahead. If the blockhash had expired, the
+  preflighted send answers `BLOCKHASH_NOT_FOUND`, which takes the same
+  retry path.
 
 Where it has to live: the rebuild needs the reviewed `BuiltRoute` (core,
 `src/core/signTimeRoute.ts`), but the expiry is found inside the wallet
@@ -513,9 +514,7 @@ adapter reports "expired before the first send" as a distinct internal
 error, and the core send step catches it once, rebuilds, and sends again.
 Both widget flows and `sendReviewedRoute` go through that step.
 
-**Pending sign-off (2026-10-16), not implemented.** Telling a host about
-the second prompt changes the public surface beyond what was approved for
-`sendReviewedRoute`, so it waits for approval. Proposed:
+**Host API (signed off 2026-10-16, exactly as proposed).**
 
 ```ts
 // @trustware/sdk/core
@@ -532,12 +531,18 @@ type SigningRetry = {
 sendReviewedRoute(reviewed, chainId?, options?: SendReviewedRouteOptions)
 ```
 
-`SendReviewedRouteOptions` and `SigningRetry` would be exported from
-`@trustware/sdk/core` beside `BuiltRoute`. A host that passes no `onRetry`
-still gets the retry, just without a message. `ReviewedRouteSend` doesn't
-change. The alternative, a `signing_retry` member of the `TrustwareEvent`
-union delivered through `config.onEvent`, is also a public change, and it
-reaches a host that never called `sendReviewedRoute` directly.
+`SendReviewedRouteOptions` and `SigningRetry` are exported from
+`@trustware/sdk/core` beside `BuiltRoute`; `ReviewedRouteSend` is
+unchanged. The approval also covers the behaviour change: a host calling
+`sendReviewedRoute` on a Solana route can get one extra wallet prompt when
+signing took too long, whether or not it passes `onRetry`. Without
+`onRetry` the second prompt just comes with no message.
+
+The backend's 409 landed (quicklinks_v1 b43dbdeb):
+`{"success":false,"error":{"code":"BLOCKHASH_NOT_FOUND","message":"Solana transaction's blockhash is no longer valid; rebuild and sign again","context":{"blockhash","error","signature"}}}`.
+Across RPC endpoints the proxy answers with the strongest outcome:
+success, then `ALREADY_PROCESSED`, then `BLOCKHASH_NOT_FOUND`, then 503
+`BROADCAST_FAILED`.
 
 ### Other Subsystems
 
