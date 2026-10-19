@@ -1,9 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import {
-  canonicalRouteToken,
-  SOLANA_NATIVE_ROUTE_TOKEN,
-} from "src/core/routes";
+import { canonicalRouteToken } from "src/core/routes";
 import { NATIVE_SOLANA } from "src/utils/chains";
 
 const USDC_SOLANA = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -12,32 +9,29 @@ const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
 describe("canonicalRouteToken", () => {
-  // Every routing adapter understands the EVM sentinel as native SOL;
-  // iluvatar's Squid adapter doesn't understand the System Program id.
-  it("sends native SOL to the routing API as the EVM sentinel", () => {
-    assert.equal(SOLANA_NATIVE_ROUTE_TOKEN, NATIVE_EVM);
+  // iluvatar maps the System Program id onto each routing provider's own
+  // native-SOL spelling, so it is the one the SDK sends.
+  it("sends native SOL to the routing API as the System Program id", () => {
+    assert.equal(
+      canonicalRouteToken(NATIVE_EVM, "solana"),
+      "11111111111111111111111111111111"
+    );
   });
 
-  it("maps every native-SOL spelling to the EVM sentinel", () => {
+  it("maps every native-SOL spelling to the System Program id", () => {
     for (const chain of ["solana", "solana-mainnet-beta", "1151111081099710"]) {
-      assert.equal(
-        canonicalRouteToken(NATIVE_SOLANA, chain),
-        SOLANA_NATIVE_ROUTE_TOKEN
-      );
-      assert.equal(
-        canonicalRouteToken(NATIVE_EVM, chain),
-        SOLANA_NATIVE_ROUTE_TOKEN
-      );
+      assert.equal(canonicalRouteToken(NATIVE_SOLANA, chain), NATIVE_SOLANA);
+      assert.equal(canonicalRouteToken(NATIVE_EVM, chain), NATIVE_SOLANA);
       assert.equal(
         canonicalRouteToken(NATIVE_EVM.toUpperCase(), chain),
-        SOLANA_NATIVE_ROUTE_TOKEN
+        NATIVE_SOLANA
       );
       assert.equal(
         canonicalRouteToken(
           "0x0000000000000000000000000000000000000000",
           chain
         ),
-        SOLANA_NATIVE_ROUTE_TOKEN
+        NATIVE_SOLANA
       );
     }
   });
@@ -48,11 +42,11 @@ describe("canonicalRouteToken", () => {
   it("handles a numeric chain id", () => {
     assert.equal(
       canonicalRouteToken(NATIVE_EVM, 1151111081099710),
-      SOLANA_NATIVE_ROUTE_TOKEN
+      NATIVE_SOLANA
     );
     assert.equal(
       canonicalRouteToken(NATIVE_SOLANA, 1151111081099710),
-      SOLANA_NATIVE_ROUTE_TOKEN
+      NATIVE_SOLANA
     );
     assert.equal(canonicalRouteToken(NATIVE_EVM, 8453), NATIVE_EVM);
     assert.equal(
@@ -61,11 +55,8 @@ describe("canonicalRouteToken", () => {
     );
   });
 
-  it("leaves the sentinel alone when it is already canonical", () => {
-    assert.equal(
-      canonicalRouteToken(SOLANA_NATIVE_ROUTE_TOKEN, "solana"),
-      SOLANA_NATIVE_ROUTE_TOKEN
-    );
+  it("leaves the System Program id alone when it is already canonical", () => {
+    assert.equal(canonicalRouteToken(NATIVE_SOLANA, "solana"), NATIVE_SOLANA);
   });
 
   // `So1111…111` was a placeholder the SDK once invented for native SOL. It
@@ -84,7 +75,7 @@ describe("canonicalRouteToken", () => {
   // wrapped) — it must never be conflated with native SOL on the wire.
   it("passes the wSOL mint through untouched, distinct from native SOL", () => {
     assert.equal(canonicalRouteToken(WSOL_MINT, "solana"), WSOL_MINT);
-    assert.notEqual(WSOL_MINT, SOLANA_NATIVE_ROUTE_TOKEN);
+    assert.notEqual(WSOL_MINT, NATIVE_SOLANA);
   });
 
   it("trims stray whitespace on a Solana token", () => {
@@ -104,10 +95,7 @@ describe("canonicalRouteToken", () => {
   });
 
   it("defaults a missing Solana token to native SOL, and stays empty elsewhere", () => {
-    assert.equal(
-      canonicalRouteToken(undefined, "solana"),
-      SOLANA_NATIVE_ROUTE_TOKEN
-    );
+    assert.equal(canonicalRouteToken(undefined, "solana"), NATIVE_SOLANA);
     assert.equal(canonicalRouteToken(undefined, "8453"), "");
   });
 });
