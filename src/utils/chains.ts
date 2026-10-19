@@ -96,8 +96,8 @@ export function getNativeTokenAddress(chainType?: ChainType | null) {
 /**
  * The EVM sentinel and zero address name the native asset on every chain:
  * some EVM chains list their native asset at the zero address, and the
- * catalog's Squid record and the routing wire spell native SOL with the
- * sentinel. A Solana chain also has its own native address.
+ * catalog's Squid record spells native SOL with the sentinel. A Solana chain
+ * also has its own native address.
  */
 function isNativeSpelling(trimmedAddress: string, type: ChainType | undefined) {
   const lower = trimmedAddress.toLowerCase();

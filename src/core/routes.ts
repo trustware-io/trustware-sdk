@@ -14,28 +14,20 @@ import { TrustwareConfigStore } from "src/config/store";
 import { validateRouteAddresses } from "../validation/address";
 import {
   isNativeTokenAddress,
-  NATIVE_EVM,
+  NATIVE_SOLANA,
   normalizeChainType,
 } from "../utils/chains";
 
 /**
- * How the routing API spells native SOL: the EVM native sentinel, its
- * native-asset name on every chain. Inside the SDK native SOL is
- * `NATIVE_SOLANA`, the System Program id. Relay, LiFi and Khalani accept
- * either spelling, but iluvatar's Squid adapter translates only the sentinel
- * and would pass the System Program id through as a mint.
+ * Names a token the way the routing API expects. On a Solana chain every
+ * native-SOL spelling becomes `NATIVE_SOLANA`, the System Program id, and an
+ * SPL mint passes through trimmed. iluvatar maps the System Program id onto
+ * each routing provider's own spelling. Other chains pass through untouched:
+ * the EVM sentinel is already right there.
  *
  * Never the wrapped-SOL mint (`So1111…112`): wSOL is a separate SPL token you
  * only hold once you've wrapped, and routing it for a native-SOL swap spends
  * a balance the caller doesn't have.
- */
-export const SOLANA_NATIVE_ROUTE_TOKEN = NATIVE_EVM;
-
-/**
- * Names a token the way the routing API expects. On a Solana chain every
- * native-SOL spelling becomes `SOLANA_NATIVE_ROUTE_TOKEN` and an SPL mint
- * passes through trimmed. Other chains pass through untouched: the EVM
- * sentinel is already right there.
  */
 export function canonicalRouteToken(
   address: string | undefined,
@@ -48,9 +40,9 @@ export function canonicalRouteToken(
     chain === undefined || chain === null ? undefined : String(chain)
   );
   if (chainType !== "solana") return address ?? "";
-  if (!address) return SOLANA_NATIVE_ROUTE_TOKEN;
+  if (!address) return NATIVE_SOLANA;
   if (isNativeTokenAddress(address, chainType)) {
-    return SOLANA_NATIVE_ROUTE_TOKEN;
+    return NATIVE_SOLANA;
   }
   return address.trim();
 }
