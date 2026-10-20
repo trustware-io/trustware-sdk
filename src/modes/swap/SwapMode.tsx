@@ -2132,223 +2132,32 @@ export function SwapMode({
                 {completedStr && (
                   <SuccessReceiptRow label="Completed" value={completedStr} />
                 )}
-                {/* Source chain tx */}
-                {txHash &&
-                  (() => {
-                    const srcUrl = buildExplorerUrl(
+                {txHash && (
+                  <SuccessTxHashRow
+                    label={destTxHash ? "Source tx" : "Transaction"}
+                    hash={txHash}
+                    explorerUrl={buildExplorerUrl(
                       txHash,
                       fromChain,
                       fromChainTxUrl
-                    );
-                    const isCopied = copiedHash === txHash;
-                    return (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span style={{ color: colors.mutedForeground }}>
-                          {destTxHash ? "Source tx" : "Transaction"}
-                        </span>
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: spacing[2],
-                          }}
-                        >
-                          {srcUrl && (
-                            <a
-                              href={srcUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.25rem",
-                                color: colors.foreground,
-                                fontWeight: fontWeight.medium,
-                                textDecorationLine: "underline",
-                                textDecorationStyle: "dotted",
-                                textUnderlineOffset: "4px",
-                              }}
-                            >
-                              {txHash.slice(0, 6)}…{txHash.slice(-4)}
-                              <svg
-                                style={{ width: "0.75rem", height: "0.75rem" }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" y1="14" x2="21" y2="3" />
-                              </svg>
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleCopyHash(txHash)}
-                            title="Copy full hash"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "0.2rem",
-                              fontSize: fontSize.xs,
-                              color: isCopied
-                                ? colors.green[500]
-                                : colors.mutedForeground,
-                              backgroundColor: "transparent",
-                              border: 0,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              padding: 0,
-                              transition: "color 0.15s",
-                            }}
-                          >
-                            {isCopied ? (
-                              "Copied!"
-                            ) : (
-                              <svg
-                                style={{
-                                  width: "0.875rem",
-                                  height: "0.875rem",
-                                }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <rect
-                                  x="9"
-                                  y="9"
-                                  width="13"
-                                  height="13"
-                                  rx="2"
-                                  ry="2"
-                                />
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                {/* Destination chain tx (cross-chain bridges) */}
-                {destTxHash &&
-                  (() => {
-                    const destUrl = buildExplorerUrl(
+                    )}
+                    isCopied={copiedHash === txHash}
+                    onCopy={handleCopyHash}
+                  />
+                )}
+                {destTxHash && (
+                  <SuccessTxHashRow
+                    label="Destination tx"
+                    hash={destTxHash}
+                    explorerUrl={buildExplorerUrl(
                       destTxHash,
                       toChain,
                       toChainTxUrl
-                    );
-                    const isCopied = copiedHash === destTxHash;
-                    return (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span style={{ color: colors.mutedForeground }}>
-                          Destination tx
-                        </span>
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: spacing[2],
-                          }}
-                        >
-                          {destUrl && (
-                            <a
-                              href={destUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.25rem",
-                                color: colors.foreground,
-                                fontWeight: fontWeight.medium,
-                                textDecorationLine: "underline",
-                                textDecorationStyle: "dotted",
-                                textUnderlineOffset: "4px",
-                              }}
-                            >
-                              {destTxHash.slice(0, 6)}…{destTxHash.slice(-4)}
-                              <svg
-                                style={{ width: "0.75rem", height: "0.75rem" }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" y1="14" x2="21" y2="3" />
-                              </svg>
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleCopyHash(destTxHash)}
-                            title="Copy full hash"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              fontSize: fontSize.xs,
-                              color: isCopied
-                                ? colors.green[500]
-                                : colors.mutedForeground,
-                              backgroundColor: "transparent",
-                              border: 0,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              padding: 0,
-                              transition: "color 0.15s",
-                            }}
-                          >
-                            {isCopied ? (
-                              "Copied!"
-                            ) : (
-                              <svg
-                                style={{
-                                  width: "0.875rem",
-                                  height: "0.875rem",
-                                }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <rect
-                                  x="9"
-                                  y="9"
-                                  width="13"
-                                  height="13"
-                                  rx="2"
-                                  ry="2"
-                                />
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                    )}
+                    isCopied={copiedHash === destTxHash}
+                    onCopy={handleCopyHash}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -4645,6 +4454,117 @@ function SuccessReceiptRow({
       <span style={{ fontWeight: fontWeight.medium, color: colors.foreground }}>
         {value}
       </span>
+    </div>
+  );
+}
+
+/**
+ * A receipt row for one chain's tx hash. The hash is always shown; it is a
+ * link only when an explorer URL exists, since a chain the catalog has no
+ * explorer for must still show which tx landed.
+ */
+function SuccessTxHashRow({
+  label,
+  hash,
+  explorerUrl,
+  isCopied,
+  onCopy,
+}: {
+  label: string;
+  hash: string;
+  explorerUrl: string | null;
+  isCopied: boolean;
+  onCopy: (hash: string) => void;
+}): React.ReactElement {
+  const shortHash = `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      <span style={{ color: colors.mutedForeground }}>{label}</span>
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: spacing[2],
+        }}
+      >
+        {explorerUrl ? (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.25rem",
+              color: colors.foreground,
+              fontWeight: fontWeight.medium,
+              textDecorationLine: "underline",
+              textDecorationStyle: "dotted",
+              textUnderlineOffset: "4px",
+            }}
+          >
+            {shortHash}
+            <svg
+              style={{ width: "0.75rem", height: "0.75rem" }}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
+        ) : (
+          <span
+            style={{ color: colors.foreground, fontWeight: fontWeight.medium }}
+          >
+            {shortHash}
+          </span>
+        )}
+        <button
+          onClick={() => onCopy(hash)}
+          title="Copy full hash"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            fontSize: fontSize.xs,
+            color: isCopied ? colors.green[500] : colors.mutedForeground,
+            backgroundColor: "transparent",
+            border: 0,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            padding: 0,
+            transition: "color 0.15s",
+          }}
+        >
+          {isCopied ? (
+            "Copied!"
+          ) : (
+            <svg
+              style={{ width: "0.875rem", height: "0.875rem" }}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
