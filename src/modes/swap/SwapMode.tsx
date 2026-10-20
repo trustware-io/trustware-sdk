@@ -58,6 +58,7 @@ import { SwapTokenSelect } from "./components/SwapTokenSelect";
 import { VaultDiscovery } from "./components/VaultDiscovery";
 // import { SwapWalletSelector } from "./components/SwapWalletSelector";
 import { SUPPORTED_CURRENCIES, getCurrencyMeta, fmtCurrency } from "./currency";
+import { fmtAmount } from "./amountFormat";
 import type { SwapStage, SwapTxStatus } from "./types";
 import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
@@ -95,11 +96,6 @@ const PERCENT_OPTIONS = [
   { label: "75%", value: 0.75 },
   { label: "Max", value: 1 },
 ];
-
-function fmtAmount(n: number, max = 6): string {
-  if (!isFinite(n) || n === 0) return "0";
-  return n.toLocaleString(undefined, { maximumFractionDigits: max });
-}
 
 // Build a block-explorer URL for a tx hash.
 // Prefers the backend-supplied URL; falls back to chain's blockExplorerUrls list.
