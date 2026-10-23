@@ -1,31 +1,18 @@
 import type { ChainDef } from "../../types";
-
-export function normalizeChainKey(id: string | number | null): string {
-  if (id === undefined || id === null) return "";
-  return String(id).trim().toLowerCase();
-}
-
-export const NATIVE_EVM = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as const;
-export const NATIVE_SOLANA =
-  "So11111111111111111111111111111111111111111" as const;
+import {
+  EVM_ZERO_ADDRESS,
+  isNativeTokenAddress,
+  NATIVE_EVM,
+  normalizeAddress,
+  normalizeChainKey,
+  normalizeChainType,
+} from "../../utils/chains";
 
 type TokenAddressLookupEntry = {
   address: string;
   symbol: string;
   chainId: string | number;
 };
-
-export function getNativeTokenAddress(chainType?: ChainDef["type"] | null) {
-  const normalized = chainType?.toLowerCase?.();
-  return normalized === "solana" ? NATIVE_SOLANA : NATIVE_EVM;
-}
-
-export function isSolanaNativeTokenAlias(address?: string | null) {
-  if (!address) return false;
-  const trimmed = address.trim();
-  if (!trimmed) return false;
-  return trimmed === NATIVE_SOLANA || trimmed.toLowerCase() === NATIVE_EVM;
-}
 
 export function parseDecimalToWei(
   input: string,
@@ -41,80 +28,6 @@ export function parseDecimalToWei(
   const fracPart = frac ? BigInt(frac) : 0n;
   const base = 10n ** BigInt(decimals);
   return intPart * base + fracPart;
-}
-
-/** Solana mainnet-beta as the routing backend identifies it numerically. */
-export const SOLANA_CHAIN_ID = "1151111081099710";
-
-const CHAIN_TYPE_ALIASES: Record<string, SquidChainType> = {
-  btc: "bitcoin",
-  bitcoin: "bitcoin",
-  sei: "cosmos",
-  "pacific-1": "cosmos",
-  nibiru: "cosmos",
-  "cataclysm-1": "cosmos",
-};
-
-function inferChainTypeFromValue(
-  normalized: string
-): SquidChainType | undefined {
-  if (!normalized) return undefined;
-
-  const aliased = CHAIN_TYPE_ALIASES[normalized];
-  if (aliased) return aliased;
-
-  if (
-    normalized === "evm" ||
-    normalized === "solana" ||
-    normalized === "cosmos" ||
-    normalized === "bitcoin"
-  ) {
-    return normalized;
-  }
-
-  // Solana's own chain id is numeric, so it has to be claimed before the
-  // "all digits means EVM" heuristic below — otherwise SPL routes get
-  // classified as EVM and take ERC20 code paths that cannot work.
-  if (normalized === SOLANA_CHAIN_ID) return "solana";
-
-  if (/^eip155:\d+$/.test(normalized) || /^\d+$/.test(normalized)) {
-    return "evm";
-  }
-
-  if (normalized.startsWith("solana:") || normalized.includes("solana")) {
-    return "solana";
-  }
-
-  if (
-    normalized.startsWith("cosmos:") ||
-    normalized.startsWith("sei:") ||
-    normalized === "sei-evm"
-  ) {
-    return "cosmos";
-  }
-
-  return undefined;
-}
-
-export type SquidChainType = "evm" | "cosmos" | "solana" | "btc" | string;
-
-export function normalizeChainType(
-  chain?: ChainDef | SquidChainType | string | null
-): SquidChainType | undefined {
-  if (!chain) return undefined;
-  const raw =
-    typeof chain === "string"
-      ? chain
-      : (chain.type ??
-        chain.chainType ??
-        chain.networkIdentifier ??
-        chain.chainId ??
-        chain.id ??
-        chain.networkName ??
-        chain.axelarChainName);
-  if (!raw) return undefined;
-  const normalized = String(raw).trim().toLowerCase();
-  return inferChainTypeFromValue(normalized) ?? normalized;
 }
 
 export function canonicalChainKeyForLink(chain: ChainDef): string {
@@ -140,45 +53,6 @@ export function canonicalSeiChainKey(
   if (normalized === SEI_EVM_CHAIN_ID) return "sei-evm";
   if (normalized === SEI_COSMOS_CHAIN_ID) return "sei";
   return null;
-}
-
-export function isZeroAddrLike(
-  a?: string | null,
-  chainType?: ChainDef["type"] | null
-) {
-  if (!a) return true;
-  if (!chainType) return false;
-  const s = normalizeAddress(a, chainType);
-  return (
-    s === normalizeAddress(getNativeTokenAddress(chainType), chainType) ||
-    s === "0x0000000000000000000000000000000000000000"
-  );
-}
-
-export function normalizeAddress(
-  address: string,
-  chainType?: ChainDef["type"]
-) {
-  if (chainType?.toLowerCase?.() === "solana") {
-    const trimmed = address.trim();
-    if (isSolanaNativeTokenAlias(trimmed)) {
-      return NATIVE_SOLANA;
-    }
-    return trimmed;
-  }
-  return address.toLowerCase();
-}
-
-export function isNativeTokenAddress(
-  address?: string | null,
-  chainType?: ChainDef["type"] | null
-) {
-  if (!address) return false;
-  if (!chainType) return false;
-  return (
-    normalizeAddress(address, chainType) ===
-    normalizeAddress(getNativeTokenAddress(chainType), chainType)
-  );
 }
 
 const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -213,10 +87,7 @@ export function needsErc20Approval(
   if (!isEvmAddress(tokenAddress)) return false;
   const normalizedType = normalizeChainType(chainType ?? undefined);
   if (normalizedType && NON_EVM_CHAIN_TYPES.has(normalizedType)) return false;
-  return (
-    !isNativeTokenAddress(tokenAddress, chainType) &&
-    !isZeroAddrLike(tokenAddress, chainType)
-  );
+  return !isNativeTokenAddress(tokenAddress, chainType);
 }
 
 /**
@@ -252,7 +123,7 @@ export function canonicalTokenAddressForChain(
   }
 
   const lowerAddress = rawAddress.toLowerCase();
-  if (lowerAddress === "0x0000000000000000000000000000000000000000") {
+  if (lowerAddress === EVM_ZERO_ADDRESS) {
     return NATIVE_EVM;
   }
   return lowerAddress;

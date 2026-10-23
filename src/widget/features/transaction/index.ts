@@ -3,10 +3,6 @@ export {
   type CryptoPaySwipeSectionProps,
 } from "./components/CryptoPaySwipeSection";
 export {
-  ErrorRecoveryCard,
-  type ErrorRecoveryCardProps,
-} from "./components/ErrorRecoveryCard";
-export {
   SwipeToConfirmTokens,
   type SwipeToConfirmTokensProps,
 } from "./components/SwipeToConfirmTokens";

@@ -163,9 +163,35 @@ export async function estimateEVMGas(body: {
   });
 }
 
+/**
+ * The proxy error codes the SDK acts on, as the backend's sdkrpc package
+ * names them (quicklinks_v1 `iluvatar/services/sdkrpc/solana.go`).
+ */
+export const SDK_RPC_CODES = {
+  /** 409 from `send-serialized`: the cluster already processed this
+   *  transaction, so an earlier copy landed. */
+  ALREADY_PROCESSED: "ALREADY_PROCESSED",
+  /** 409 from `send-serialized`: the transaction's blockhash has expired,
+   *  so it was not sent. Rebuild and sign again. */
+  BLOCKHASH_NOT_FOUND: "BLOCKHASH_NOT_FOUND",
+  /** 503 from `send-serialized`: the RPC refused or couldn't take it. */
+  BROADCAST_FAILED: "BROADCAST_FAILED",
+  /** 503 from `tx-status` and `blockhash-valid`: the RPC call failed. */
+  RPC_CALL_FAILED: "RPC_CALL_FAILED",
+} as const;
+
+export type SDKRPCCode = (typeof SDK_RPC_CODES)[keyof typeof SDK_RPC_CODES];
+
+export function hasSDKRPCCode(err: unknown, code: SDKRPCCode): boolean {
+  return err instanceof SDKRPCError && err.code === code;
+}
+
+/** `skipPreflight` is required so every caller chooses: the first send of a
+ *  transaction preflights, its rebroadcasts don't. */
 export async function sendSolanaSerialized(body: {
   chainId: string;
   serializedTransaction: string;
+  skipPreflight: boolean;
 }) {
   return requestSDKRPC<SolanaSendSerializedResponse>(
     "/solana/send-serialized",
@@ -185,4 +211,23 @@ export async function getSolanaTxStatus(params: {
     `/solana/tx-status?${search.toString()}`,
     { method: "GET" }
   );
+}
+
+/** Whether a blockhash can still be used, by `isBlockhashValid` at
+ *  `processed`. `chainId` is the one `send-serialized` gets. */
+export async function getSolanaBlockhashValid(params: {
+  chainId: string;
+  blockhash: string;
+}): Promise<boolean> {
+  const search = new URLSearchParams(params);
+  const data = await requestSDKRPC<{ valid?: unknown }>(
+    `/solana/blockhash-valid?${search.toString()}`,
+    { method: "GET" }
+  );
+  if (typeof data.valid !== "boolean") {
+    throw new SDKRPCError(
+      `blockhash-valid answered without a boolean "valid" (got ${JSON.stringify(data)}).`
+    );
+  }
+  return data.valid;
 }

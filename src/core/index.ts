@@ -15,7 +15,7 @@ import {
   getStatus,
   pollStatus,
 } from "./routes";
-export { assertValidPostHook } from "./routes";
+export { assertValidPostHook, assertValidVaultRequest } from "./routes";
 export {
   assertRouteDeliversValue,
   isValueDestroying,
@@ -38,7 +38,37 @@ import {
   getBalancesByAddress,
   getBalancesByAddressStream,
 } from "./balances";
-import { sendRouteTransaction, runTopUp } from "./tx";
+import { sendRouteTransaction, sendVaultRedeemTx, runTopUp } from "./tx";
+import { buildRouteForReview, sendReviewedRoute } from "./signTimeRoute";
+export { buildRouteForReview, sendReviewedRoute } from "./signTimeRoute";
+export type {
+  BuiltRoute,
+  ReviewedRouteSend,
+  MaterialRouteChange,
+  SendReviewedRouteOptions,
+  SigningRetry,
+} from "./signTimeRoute";
+import {
+  searchVaults,
+  getVaultDetails,
+  getVaultPositions,
+  getVaultRedeemActions,
+} from "./vaults";
+export type {
+  VaultSummary,
+  VaultSearchParams,
+  VaultSearchResult,
+  VaultAPY,
+  VaultAPYWindow,
+  VaultTVL,
+  VaultScore,
+  VaultFlag,
+  Position,
+  PositionAsset,
+  LPToken,
+  VaultRedeemAction,
+  VaultRedeemParams,
+} from "./vaults";
 import { validateSdkAccess } from "./http";
 import { useChains } from "./useChains";
 import { useTokens } from "./useTokens";
@@ -207,11 +237,20 @@ export const Trustware = {
   getBalancesByAddressStream,
   useChains,
   useTokens,
+  searchVaults,
+  getVaultDetails,
+  getVaultPositions,
+  getVaultRedeemActions,
   validateAddressForChain,
   validateRouteAddresses,
 
   // ---- Tx helpers ----
   sendRouteTransaction,
+  /** Build a route to show the user, keeping the request that built it. */
+  buildRouteForReview,
+  /** Send a reviewed route, rebuilding a Solana route right before signing. */
+  sendReviewedRoute,
+  sendVaultRedeemTx,
   runTopUp,
 };
 

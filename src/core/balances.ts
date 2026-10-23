@@ -11,7 +11,7 @@ import { Registry } from "../registry";
 import { TrustwareConfigStore } from "../config/store";
 import {
   getNativeTokenAddress,
-  isZeroAddressLike,
+  isNativeTokenAddress,
   normalizeChainType,
 } from "../utils/chains";
 import { validateAddressForChain } from "../validation/address";
@@ -88,10 +88,12 @@ function normalizeRows(
     const decimals = toNumberOrUndefined(item.decimals ?? item.dec);
     const balance = String(item.balance ?? item.bal ?? "0");
     const explicitNative = Boolean(item.native ?? item.is_native);
+    // The backend's native rows carry no contract address at all.
     const nativeFlag =
       explicitNative ||
       category === "native" ||
-      isZeroAddressLike(tokenAddress, chainType);
+      !tokenAddress ||
+      isNativeTokenAddress(tokenAddress, chainType);
 
     if (nativeFlag) {
       const nativeRow: BalanceRow = {

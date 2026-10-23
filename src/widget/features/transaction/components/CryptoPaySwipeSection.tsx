@@ -1,7 +1,7 @@
 import { SwipeToConfirmTokens } from "./SwipeToConfirmTokens";
 import { mapError } from "src/widget/lib/mapError";
 import type { YourTokenData } from "../../../context/DepositContext";
-import { spacing } from "../../../styles";
+import { borderRadius, colors, fontSize, spacing } from "../../../styles";
 
 export interface CryptoPaySwipeSectionProps {
   actionErrorMessage?: string | null;
@@ -18,6 +18,12 @@ export interface CryptoPaySwipeSectionProps {
   isReadingAllowance: boolean;
   isWalletConnected: boolean;
   needsApproval: boolean;
+  /** Set when a confirmed route went back to review after its sign-time
+   *  rebuild came back materially worse. */
+  routeChangedLabel: string | null;
+  /** Set while the wallet is asked to sign again because signing outlasted
+   *  the Solana blockhash. */
+  signingRetryMessage: string | null;
   selectedToken: YourTokenData | null;
   swipeResetKey: string | number;
 }
@@ -33,6 +39,8 @@ export function CryptoPaySwipeSection({
   isReadingAllowance,
   isWalletConnected,
   needsApproval,
+  routeChangedLabel,
+  signingRetryMessage,
   selectedToken,
   swipeResetKey,
 }: CryptoPaySwipeSectionProps): React.ReactElement {
@@ -48,7 +56,7 @@ export function CryptoPaySwipeSection({
             ? "Checking allowance..."
             : needsApproval
               ? "Swipe to approve"
-              : "Swipe to confirm";
+              : (routeChangedLabel ?? "Swipe to confirm");
 
   // The swipe label is a button, not an error page, so it gets the mapped
   // title. What this replaces only rewrote a message that was *exactly* the
@@ -80,6 +88,22 @@ export function CryptoPaySwipeSection({
           isWalletConnected={isWalletConnected}
         />
       ) : null}
+      {signingRetryMessage && (
+        <p
+          role="status"
+          style={{
+            marginTop: spacing[3],
+            padding: spacing[3],
+            borderRadius: borderRadius.lg,
+            backgroundColor: colors.amber[500] + "1a",
+            border: `1px solid ${colors.amber[500]}66`,
+            fontSize: fontSize.xs,
+            color: colors.foreground,
+          }}
+        >
+          {signingRetryMessage}
+        </p>
+      )}
     </div>
   );
 }

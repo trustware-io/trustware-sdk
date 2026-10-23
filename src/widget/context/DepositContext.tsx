@@ -9,6 +9,7 @@ import {
   type PaymentMethodType,
   type ResolvedTheme,
   type Token,
+  type TrackedReceipt,
   type TransactionStatus,
   type YourTokenData,
 } from "../state/deposit/types";
@@ -59,6 +60,8 @@ const DepositWalletContext = createContext<
       | "yourWalletTokens"
       | "setYourWalletTokens"
       | "yourWalletTokensLoading"
+      | "walletBalanceErrorFor"
+      | "reportWalletBalanceError"
       | "WalletConnect"
       | "disconnectWalletConnect"
       | "setWalletType"
@@ -97,8 +100,8 @@ const DepositTransactionContext = createContext<
       | "setTransactionHash"
       | "errorMessage"
       | "setErrorMessage"
-      | "intentId"
-      | "setIntentId"
+      | "receipt"
+      | "setReceipt"
     >
   | undefined
 >(undefined);
@@ -192,6 +195,8 @@ export function DepositProvider({
     setYourWalletTokens,
     reloadWalletTokens,
     yourWalletTokensLoading,
+    walletBalanceErrorFor,
+    reportWalletBalanceError,
   } = useWalletTokenState({
     walletAddress: walletAddress ?? fallbackAddress ?? null,
     selectedChain,
@@ -205,7 +210,7 @@ export function DepositProvider({
     useState<TransactionStatus>("idle");
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [intentId, setIntentId] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<TrackedReceipt | null>(null);
 
   // Payment method state (defaults to crypto)
   const [paymentMethod, setPaymentMethod] =
@@ -223,7 +228,7 @@ export function DepositProvider({
     setTransactionStatus("idle");
     setTransactionHash(null);
     setErrorMessage(null);
-    setIntentId(null);
+    setReceipt(null);
     setPaymentMethod("crypto");
     reloadWalletTokens();
   }, [reloadWalletTokens, resetNavigation]);
@@ -259,6 +264,8 @@ export function DepositProvider({
       yourWalletTokens,
       setYourWalletTokens,
       yourWalletTokensLoading,
+      walletBalanceErrorFor,
+      reportWalletBalanceError,
       walletConnectAddress,
       WalletConnect,
       disconnectWalletConnect,
@@ -284,6 +291,8 @@ export function DepositProvider({
       walletType,
       yourWalletTokens,
       yourWalletTokensLoading,
+      walletBalanceErrorFor,
+      reportWalletBalanceError,
       selectedNamespace,
       setSelectedNamespace,
       wcStatus,
@@ -324,10 +333,10 @@ export function DepositProvider({
       setTransactionHash,
       errorMessage,
       setErrorMessage,
-      intentId,
-      setIntentId,
+      receipt,
+      setReceipt,
     }),
-    [errorMessage, intentId, transactionHash, transactionStatus]
+    [errorMessage, receipt, transactionHash, transactionStatus]
   );
 
   const uiValue = useMemo(

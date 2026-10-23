@@ -70,11 +70,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
   const config = useTrustwareConfig();
   const { fixedFromAmountString, isFixedAmount, minAmountUsd, maxAmountUsd } =
     useAmountConstraints();
-  const routeRefreshMs = useMemo(() => {
-    const raw = config.routes?.options?.routeRefreshMs;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
-  }, [config.routes?.options?.routeRefreshMs]);
+  const routeRefreshMs = config.routes.options.routeRefreshMs;
 
   const IsPos = <T extends { balance: string | number }>(
     x: T | null | undefined
@@ -126,7 +122,8 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     destinationConfig,
     isLoadingRoute,
     estimatedReceive,
-    routeResult,
+    builtRoute,
+    adoptRebuiltRoute,
     routePrerequisiteError,
     routeError: routeBuilderError,
   } = useRoutePreviewModel({
@@ -150,13 +147,16 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     isReadingAllowance,
     isWalletConnected,
     needsApproval,
+    routeChangedLabel,
+    signingRetryMessage,
     swipeResetKey,
   } = useTransactionActionModel({
     actionErrorMessage,
     amountWei,
     isLoadingRoute,
     parsedAmount,
-    routeResult,
+    builtRoute,
+    onRouteRebuilt: adoptRebuiltRoute,
     selectedChain,
     selectedToken,
     walletAddress,
@@ -172,6 +172,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     yourWalletTokens,
   });
 
+  const routeResult = builtRoute?.result ?? null;
   const { emitError } = useTrustware();
   const readySelectedToken = isReady ? (selectedToken as YourTokenData) : null;
 
@@ -379,6 +380,8 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
                           : false
                     }
                     needsApproval={needsApproval}
+                    routeChangedLabel={routeChangedLabel}
+                    signingRetryMessage={signingRetryMessage}
                     selectedToken={readySelectedToken}
                     swipeResetKey={swipeResetKey}
                   />

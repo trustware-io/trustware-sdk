@@ -11,11 +11,81 @@ import {
   normalizeChainKey,
   normalizeAddress,
   normalizeChainType,
-} from "../../../helpers/chainHelpers";
+} from "../../../../utils/chains";
 import { resolveChainLabel } from "../../../../utils";
+
+/**
+ * How a token picked from the catalog list gets its balance. Deposit mode
+ * fetches it for the amount screen; swap mode reads balances from the loaded
+ * wallet rows (`findWalletBalanceRow`) and skips the call.
+ */
+export type CatalogPickBalance =
+  | {
+      fetch: true;
+      onFetchFailed: (chain: ChainDef, message: string) => void;
+    }
+  | { fetch: false };
+
+/** A catalog token picked on a chain, as the amount screen reads it. */
+export type PickedCatalogToken = Token & { chainData: ChainDef };
+
+/**
+ * The token to select when the user picks one from the catalog list,
+ * carrying its wallet balance when that's known. A failed balance fetch
+ * still selects the token, with its balance undefined (unknown, never 0),
+ * and reports why.
+ */
+export async function catalogPick(
+  token: Token,
+  {
+    chain,
+    walletAddress,
+    pickBalance,
+    fetchBalances,
+  }: {
+    chain: ChainDef | null;
+    walletAddress: string | null;
+    pickBalance: CatalogPickBalance;
+    fetchBalances: typeof getBalances;
+  }
+): Promise<Token | PickedCatalogToken> {
+  if (token.balance !== undefined || !pickBalance.fetch) return token;
+
+  // The catalog list renders only once a chain is selected.
+  if (!chain) {
+    throw new Error(
+      `Picked ${token.symbol} (${token.address}) with no chain selected`
+    );
+  }
+  if (!walletAddress) return { ...token, balance: "0", chainData: chain };
+
+  let rows: Awaited<ReturnType<typeof getBalances>>;
+  try {
+    rows = await fetchBalances(chain.chainId, walletAddress);
+  } catch (error) {
+    pickBalance.onFetchFailed(
+      chain,
+      error instanceof Error ? error.message : String(error)
+    );
+    return { ...token, chainData: chain };
+  }
+
+  const chainType = normalizeChainType(chain);
+  const match = rows.find(
+    (item) =>
+      normalizeAddress(item.contract ?? item.address ?? "", chainType) ===
+      normalizeAddress(token.address, chainType)
+  );
+  return {
+    ...token,
+    balance: match?.balance?.toString?.() ?? "0",
+    chainData: chain,
+  };
+}
 
 type UseSelectTokenModelArgs = {
   goBack: () => void;
+  pickBalance: CatalogPickBalance;
   searchQuery: string;
   selectedChain: ChainDef | null;
   setSelectedChain: (chain: ChainDef | null) => void;
@@ -26,6 +96,7 @@ type UseSelectTokenModelArgs = {
 
 export function useSelectTokenModel({
   goBack,
+  pickBalance,
   searchQuery,
   selectedChain,
   setSelectedChain,
@@ -54,43 +125,17 @@ export function useSelectTokenModel({
 
   const handleTokenSelect = useCallback(
     async (token: Token) => {
-      if (token.balance !== undefined) {
-        setSelectedToken(token);
-        goBack();
-        return;
-      }
-
-      if (!walletAddress) {
-        setSelectedToken({
-          ...token,
-          balance: "0",
-          chainData: selectedChain as Chain,
-        } as unknown as YourTokenData);
-        goBack();
-        return;
-      }
-
-      const balance = await getBalances(
-        selectedChain?.chainId as string | number,
-        walletAddress
+      setSelectedToken(
+        await catalogPick(token, {
+          chain: selectedChain,
+          walletAddress,
+          pickBalance,
+          fetchBalances: getBalances,
+        })
       );
-      const chainType = normalizeChainType(selectedChain);
-
-      const match = balance.find(
-        (item) =>
-          normalizeAddress(item.contract ?? item.address ?? "", chainType) ===
-          normalizeAddress(token.address, chainType)
-      );
-
-      setSelectedToken({
-        ...token,
-        balance: match?.balance?.toString?.() ?? "0",
-        chainData: selectedChain as Chain,
-      } as unknown as YourTokenData);
-
       goBack();
     },
-    [goBack, selectedChain, setSelectedToken, walletAddress]
+    [goBack, pickBalance, selectedChain, setSelectedToken, walletAddress]
   );
 
   const handleYourTokenSelect = useCallback(

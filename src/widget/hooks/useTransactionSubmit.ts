@@ -1,7 +1,16 @@
 "use client";
 import { useCallback, useState } from "react";
-import { Trustware } from "../../core";
-import { submitReceipt } from "../../core/routes";
+import type { ReceiptReport } from "../../core/intentTracking";
+import type { TrackedReceipt } from "../state/deposit/types";
+import {
+  sendSignableRoute,
+  type BuiltRoute,
+  type MaterialRouteChange,
+} from "../../core/signTimeRoute";
+import {
+  prepareConfirmedSend,
+  type PAYMENT_INITIATED,
+} from "../lib/confirmedSend";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -21,7 +30,25 @@ export type TransactionSubmitState = {
   error: string | null;
 };
 
-type SendOverride = (routeResult: BuildRouteResult) => Promise<string>;
+/** A send path other than the plain wallet transaction (the smart-account
+ *  UserOp). `hash` is what the widget displays; `receipt` is what it tracks.
+ *  It gets the route `routeForSigning` cleared, like the plain path. */
+type SendOverride = (
+  routeResult: BuildRouteResult
+) => Promise<{ hash: string; receipt: ReceiptReport }>;
+
+/** How a submission ended. */
+export type SubmitOutcome =
+  | { kind: "sent"; hash: string }
+  /** The error is already on the error screen. */
+  | { kind: "failed" }
+  /** A Solana route rebuilt at sign time came back materially worse.
+   *  Nothing was sent and the widget stays on the review screen. */
+  | {
+      kind: "route_changed";
+      rebuilt: BuiltRoute;
+      change: MaterialRouteChange;
+    };
 
 /**
  * Hook for submitting transactions to the wallet.
@@ -36,7 +63,7 @@ export function useTransactionSubmit() {
     setTransactionStatus,
     setTransactionHash,
     setErrorMessage,
-    setIntentId,
+    setReceipt,
   } = useDepositTransaction();
 
   const [state, setState] = useState<TransactionSubmitState>({
@@ -44,19 +71,24 @@ export function useTransactionSubmit() {
     txHash: null,
     error: null,
   });
+  // Shown while the wallet is asked to sign a second time because signing
+  // outlasted the Solana blockhash.
+  const [signingRetryMessage, setSigningRetryMessage] = useState<string | null>(
+    null
+  );
 
   /**
-   * Submit a transaction to the wallet for signing.
+   * Submit the reviewed route to the wallet for signing.
    * Updates context state throughout the flow.
-   *
-   * @param routeResult - The built route result from useRouteBuilder
-   * @returns The transaction hash if successful, null if failed
    */
   const submitTransaction = useCallback(
     async (
-      routeResult: BuildRouteResult,
+      reviewed: BuiltRoute,
+      /** Something is about to be sent: report `payment_initiated` here. */
+      onSendStarting: (event: typeof PAYMENT_INITIATED) => void,
       sendOverride?: SendOverride
-    ): Promise<string | null> => {
+    ): Promise<SubmitOutcome> => {
+      const routeResult = reviewed.result;
       if (!routeResult?.txReq) {
         const errorMsg = "Invalid route data. Please try again.";
         setState({
@@ -67,7 +99,7 @@ export function useTransactionSubmit() {
         setErrorMessage(errorMsg);
         setTransactionStatus("error");
         setCurrentStep("error");
-        return null;
+        return { kind: "failed" };
       }
 
       setState({
@@ -75,47 +107,67 @@ export function useTransactionSubmit() {
         txHash: null,
         error: null,
       });
+      setSigningRetryMessage(null);
 
       // Set context to confirming state (waiting for wallet signature)
       setTransactionStatus("confirming");
 
       try {
-        let hash: string;
-
-        if (sendOverride) {
-          // Smart-account path: sendOverride (sendRouteAsUserOperation) already
-          // submits the receipt internally, so we skip the submitReceipt call.
-          hash = await sendOverride(routeResult);
-        } else {
-          // Standard EOA path.
-          const fallbackChainId = selectedChain?.chainId;
-          hash = await Trustware.sendRouteTransaction(
-            routeResult,
-            Number(fallbackChainId)
-          );
-          try {
-            await submitReceipt(routeResult.intentId, hash);
-          } catch {
-            // Non-fatal: the backend status poller will eventually pick it up.
-          }
+        // Rebuilds a Solana route right before signing; its blockhash may
+        // have expired while the user read Confirm Deposit.
+        const decision = await prepareConfirmedSend(reviewed, onSendStarting);
+        if (decision.kind === "route_changed") {
+          setState({ isSubmitting: false, txHash: null, error: null });
+          setTransactionStatus("idle");
+          return decision;
         }
 
-        // Transaction was signed and submitted
-        setState({
-          isSubmitting: false,
-          txHash: hash,
-          error: null,
-        });
+        // The network has it: show the Processing page at once. A Solana
+        // send keeps rebroadcasting until it settles, which the user
+        // shouldn't have to watch from this screen.
+        const showSent = (hash: string, receipt: TrackedReceipt) => {
+          setState({ isSubmitting: false, txHash: hash, error: null });
+          setTransactionHash(hash);
+          setReceipt(receipt);
+          setTransactionStatus("processing");
+          setCurrentStep("processing");
+        };
 
-        // Update context with the transaction hash and intent ID
-        setTransactionHash(hash);
-        setIntentId(routeResult.intentId);
+        if (sendOverride) {
+          const { hash, receipt } = await sendOverride(decision.route);
+          showSent(hash, { report: receipt, delivery: "tracker_posts" });
+          return { kind: "sent", hash };
+        }
 
-        // Transition to processing step (polling will be handled by Processing page)
-        setTransactionStatus("processing");
-        setCurrentStep("processing");
-
-        return hash;
+        // The send step delivers the receipt at acceptance, so the
+        // Processing page only polls (`delivery`).
+        const acceptance = { shown: false };
+        const fallbackChainId = selectedChain?.chainId;
+        const sent = await sendSignableRoute(
+          reviewed,
+          decision.route,
+          Number(fallbackChainId),
+          { onRetry: (retry) => setSigningRetryMessage(retry.message) },
+          (accepted) => {
+            acceptance.shown = true;
+            showSent(accepted.hash, {
+              report: accepted.receipt,
+              delivery: accepted.receiptDelivery,
+            });
+          }
+        );
+        if (sent.kind === "route_changed") {
+          setState({ isSubmitting: false, txHash: null, error: null });
+          setSigningRetryMessage(null);
+          setTransactionStatus("idle");
+          return sent;
+        }
+        if (!acceptance.shown) {
+          throw new Error(
+            `Intent ${sent.receipt.intentId} was sent without being reported as accepted.`
+          );
+        }
+        return { kind: "sent", hash: sent.hash };
       } catch (err) {
         // Map error to user-friendly message
         const errorMsg = mapTransactionError(err);
@@ -131,7 +183,7 @@ export function useTransactionSubmit() {
         setTransactionStatus("error");
         setCurrentStep("error");
 
-        return null;
+        return { kind: "failed" };
       }
     },
     [
@@ -140,7 +192,7 @@ export function useTransactionSubmit() {
       setTransactionHash,
       setErrorMessage,
       setCurrentStep,
-      setIntentId,
+      setReceipt,
     ]
   );
 
@@ -153,10 +205,12 @@ export function useTransactionSubmit() {
       txHash: null,
       error: null,
     });
+    setSigningRetryMessage(null);
   }, []);
 
   return {
     ...state,
+    signingRetryMessage,
     submitTransaction,
     resetSubmit,
   };
