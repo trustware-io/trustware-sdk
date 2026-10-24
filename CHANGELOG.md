@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.17] - 2026-10-24
+
+
+### Fixed
+
+- Re-send lost receipts so the progress screen can finish (BVT-261) (#135)
+- Native SOL selection, swap side rules, and large-wallet support (#138)
+- List a held token once, under Your tokens (BVT-408) (#139)
+- Build routes at sign time, send and rebroadcast ourselves, receipt at acceptance (#141)
+- Drive both modes' quote refresh from routeRefreshMs (#142)
+- Send native SOL as the System Program id
+- Show small received amounts instead of rounding to 0
+- Show the tx hash on the receipt when no explorer URL exists
+
+
+### Internal
+
+- Bring staging up to main (v1.1.16) (#131)
+- Remove dead code found by knip (#130)
+- Publish staging builds under the latest dist-tag (#136)
+- Refuse a staging publish that moves latest backward (#137)
+
+
+### Other
+
+- Add shared Claude Code engineering standards to CLAUDE.md (#133)
+- Tyler/bvt 398 vaultsfyi integration cross chain vault deposits (#134)
+
 ## [1.1.16] - 2026-09-09
 
 
