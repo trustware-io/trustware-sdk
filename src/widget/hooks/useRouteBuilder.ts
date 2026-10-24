@@ -1,14 +1,14 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Trustware } from "../../core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TrustwareConfigStore } from "../../config/store";
 import {
   useDepositForm,
   useDepositTransaction,
   useDepositWallet,
 } from "../context/DepositContext";
-import type { BuildRouteResult, ChainDef } from "../../types";
+import type { ChainDef } from "../../types";
 import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../../core/routes";
+import { buildRouteForReview, type BuiltRoute } from "../../core/signTimeRoute";
 import { parseRouteError } from "../../core";
 import { mapError } from "../lib/mapError";
 
@@ -24,10 +24,16 @@ export type RouteBuilderState = {
   estimatedReceive: string | null;
   /** Error message if route building failed */
   error: string | null;
-  /** The built route intent ID (needed for transaction submission) */
-  intentId: string | null;
-  /** The full route result (for transaction execution) */
-  routeResult: BuildRouteResult | null;
+  /** The route on review, with the request that built it */
+  builtRoute: BuiltRoute | null;
+};
+
+const EMPTY_ROUTE_STATE: RouteBuilderState = {
+  isLoadingRoute: false,
+  networkFees: null,
+  estimatedReceive: null,
+  error: null,
+  builtRoute: null,
 };
 
 /**
@@ -38,8 +44,9 @@ export interface UseRouteBuilderOptions {
   debounceMs?: number;
   /** Whether to automatically build routes (default: true) */
   enabled?: boolean;
-  /** Route refresh interval in milliseconds (optional) */
-  refreshMs?: number;
+  /** Quote refresh interval in ms: the resolved
+   *  `routes.options.routeRefreshMs`. */
+  refreshMs: number;
 
   fromChain: ChainDef | undefined | string | number;
   fromChainId: string | number | undefined;
@@ -79,19 +86,17 @@ export function useRouteBuilder({
   fromAddress,
   refundAddress,
   slippage,
-}: UseRouteBuilderOptions): RouteBuilderState {
+}: UseRouteBuilderOptions): RouteBuilderState & {
+  adoptRebuiltRoute: (built: BuiltRoute) => void;
+} {
   const { selectedToken, selectedChain, amount } = useDepositForm();
   const { walletAddress } = useDepositWallet();
-  const { errorMessage } = useDepositTransaction();
+  const { errorMessage, transactionStatus } = useDepositTransaction();
+  // The wallet is being asked to confirm the route on screen: a refresh
+  // now would swap it for one the user isn't signing.
+  const confirmInFlight = transactionStatus === "confirming";
 
-  const [state, setState] = useState<RouteBuilderState>({
-    isLoadingRoute: false,
-    networkFees: null,
-    estimatedReceive: null,
-    error: null,
-    intentId: null,
-    routeResult: null,
-  });
+  const [state, setState] = useState<RouteBuilderState>(EMPTY_ROUTE_STATE);
 
   const abortRef = useRef<AbortController | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -176,14 +181,7 @@ export function useRouteBuilder({
 
     // Clear state if we don't have all required params
     if (!routeKey) {
-      setState({
-        isLoadingRoute: false,
-        networkFees: null,
-        estimatedReceive: null,
-        error: null,
-        intentId: null,
-        routeResult: null,
-      });
+      setState(EMPTY_ROUTE_STATE);
       return;
     }
 
@@ -197,6 +195,9 @@ export function useRouteBuilder({
 
     // Debounce the route building
     const timeout = setTimeout(async () => {
+      // Aborted while debouncing (a confirm started): build nothing, and
+      // leave the route on screen as it is.
+      if (ac.signal.aborted) return;
       try {
         setState((prev) => ({
           ...prev,
@@ -220,7 +221,7 @@ export function useRouteBuilder({
 
         if (!shouldBuildRoute) return;
 
-        const result = await Trustware.buildRoute({
+        const built = await buildRouteForReview({
           fromChain: String(params.fromChain),
           toChain,
           fromToken: params.fromToken,
@@ -235,78 +236,7 @@ export function useRouteBuilder({
         // Check if aborted
         if (ac.signal.aborted) return;
 
-        // Extract fee and estimate info from the route result
-        const estimate = result?.route?.estimate;
-        if (
-          !result?.txReq?.data ||
-          (!isEvmTxRequest(result.txReq) &&
-            !isSerializedSolanaTxRequest(result.txReq))
-        ) {
-          throw new Error("Invalid route response");
-        }
-        const fees = estimate?.fees;
-
-        // Debug: log the full estimate object
-        // console.log("[useRouteBuilder] Route result:", result);
-        // console.log("[useRouteBuilder] Estimate:", estimate);
-        // console.log("[useRouteBuilder] Fees:", fees);
-
-        // Calculate network fees (gas + bridge fees in USD)
-        let networkFeesUSD: string | null = null;
-        if (estimate?.fromAmountUsd && estimate?.toAmountMinUsd) {
-          const fromUSD = parseFloat(estimate.fromAmountUsd);
-          const toMinUSD = parseFloat(estimate.toAmountMinUsd);
-          if (!isNaN(fromUSD) && !isNaN(toMinUSD)) {
-            const feesDiff = fromUSD - toMinUSD;
-            networkFeesUSD = feesDiff > 0 ? feesDiff.toFixed(2) : "0.00";
-          }
-        }
-
-        // Try to get gas cost from fees object
-        if (!networkFeesUSD && fees) {
-          const gasCost =
-            (fees as unknown as Record<string, string>).gasCostUSD ||
-            (fees as unknown as Record<string, string>).totalGasCostUSD;
-          if (gasCost) {
-            networkFeesUSD = parseFloat(gasCost).toFixed(2);
-          }
-        }
-
-        // Get estimated receive amount
-        // Priority: USD value > formatted token amount > raw amount converted
-        let estimatedReceive: string | null = null;
-
-        if (estimate?.toAmountUsd) {
-          estimatedReceive = estimate.toAmountUsd;
-        } else if (estimate?.toAmountMinUsd) {
-          estimatedReceive = estimate.toAmountMinUsd;
-        } else if (estimate?.toAmount) {
-          // Convert from smallest unit - assume 6 decimals for stablecoins, 18 for others
-          const toToken = config.routes.toToken?.toLowerCase() || "";
-          const isStablecoin =
-            toToken.includes("usdc") ||
-            toToken.includes("usdt") ||
-            toToken.includes("dai");
-          const decimals = isStablecoin ? 6 : 18;
-          const raw = BigInt(estimate.toAmount);
-          const divisor = BigInt(10 ** decimals);
-          const whole = raw / divisor;
-          const fraction = raw % divisor;
-          const fractionStr = fraction
-            .toString()
-            .padStart(decimals, "0")
-            .slice(0, 2);
-          estimatedReceive = `${whole}.${fractionStr}`;
-        }
-
-        setState({
-          isLoadingRoute: false,
-          networkFees: networkFeesUSD,
-          estimatedReceive,
-          error: null,
-          intentId: result.intentId,
-          routeResult: result,
-        });
+        setState(routeStateFor(built));
       } catch (err) {
         // Check if aborted
         if (ac.signal.aborted) return;
@@ -319,8 +249,7 @@ export function useRouteBuilder({
           networkFees: null,
           estimatedReceive: null,
           error: errorMessage,
-          intentId: null,
-          routeResult: null,
+          builtRoute: null,
         });
       } finally {
         if (!ac.signal.aborted) {
@@ -361,16 +290,97 @@ export function useRouteBuilder({
   ]);
 
   useEffect(() => {
-    if (!enabled || !routeKey || !refreshMs || refreshMs <= 0) return;
+    if (confirmInFlight) abortRef.current?.abort();
+  }, [confirmInFlight]);
+
+  useEffect(() => {
+    if (!enabled || !routeKey || confirmInFlight) return;
     const id = setInterval(() => {
       setRefreshTick((tick) => tick + 1);
     }, refreshMs);
     return () => {
       clearInterval(id);
     };
-  }, [enabled, refreshMs, routeKey]);
+  }, [enabled, refreshMs, routeKey, confirmInFlight]);
 
-  return state;
+  /** Put a route rebuilt at sign time up for review in place of the one the
+   *  user confirmed. Cancels any build in flight, which would otherwise
+   *  replace it with a route the user hasn't seen either. */
+  const adoptRebuiltRoute = useCallback((built: BuiltRoute) => {
+    abortRef.current?.abort();
+    setState(routeStateFor(built));
+  }, []);
+
+  return { ...state, adoptRebuiltRoute };
+}
+
+/** What the review screen shows for a built route. */
+function routeStateFor(built: BuiltRoute): RouteBuilderState {
+  const result = built.result;
+  // Extract fee and estimate info from the route result
+  const estimate = result?.route?.estimate;
+  if (
+    !result?.txReq?.data ||
+    (!isEvmTxRequest(result.txReq) &&
+      !isSerializedSolanaTxRequest(result.txReq))
+  ) {
+    throw new Error("Invalid route response");
+  }
+  const fees = estimate?.fees;
+
+  // Calculate network fees (gas + bridge fees in USD)
+  let networkFeesUSD: string | null = null;
+  if (estimate?.fromAmountUsd && estimate?.toAmountMinUsd) {
+    const fromUSD = parseFloat(estimate.fromAmountUsd);
+    const toMinUSD = parseFloat(estimate.toAmountMinUsd);
+    if (!isNaN(fromUSD) && !isNaN(toMinUSD)) {
+      const feesDiff = fromUSD - toMinUSD;
+      networkFeesUSD = feesDiff > 0 ? feesDiff.toFixed(2) : "0.00";
+    }
+  }
+
+  // Try to get gas cost from fees object
+  if (!networkFeesUSD && fees) {
+    const gasCost =
+      (fees as unknown as Record<string, string>).gasCostUSD ||
+      (fees as unknown as Record<string, string>).totalGasCostUSD;
+    if (gasCost) {
+      networkFeesUSD = parseFloat(gasCost).toFixed(2);
+    }
+  }
+
+  // Get estimated receive amount
+  // Priority: USD value > formatted token amount > raw amount converted
+  let estimatedReceive: string | null = null;
+
+  if (estimate?.toAmountUsd) {
+    estimatedReceive = estimate.toAmountUsd;
+  } else if (estimate?.toAmountMinUsd) {
+    estimatedReceive = estimate.toAmountMinUsd;
+  } else if (estimate?.toAmount) {
+    // Convert from smallest unit - assume 6 decimals for stablecoins, 18 for others
+    const toToken =
+      TrustwareConfigStore.get().routes.toToken?.toLowerCase() || "";
+    const isStablecoin =
+      toToken.includes("usdc") ||
+      toToken.includes("usdt") ||
+      toToken.includes("dai");
+    const decimals = isStablecoin ? 6 : 18;
+    const raw = BigInt(estimate.toAmount);
+    const divisor = BigInt(10 ** decimals);
+    const whole = raw / divisor;
+    const fraction = raw % divisor;
+    const fractionStr = fraction.toString().padStart(decimals, "0").slice(0, 2);
+    estimatedReceive = `${whole}.${fractionStr}`;
+  }
+
+  return {
+    isLoadingRoute: false,
+    networkFees: networkFeesUSD,
+    estimatedReceive,
+    error: null,
+    builtRoute: built,
+  };
 }
 
 /**

@@ -1,26 +1,29 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
-import { buildRoute } from "src/core/routes";
+import { buildRouteForReview, type BuiltRoute } from "src/core/signTimeRoute";
 import { parseDecimalToWei } from "src/widget/helpers/chainHelpers";
-import type { BuildRouteResult, ChainDef } from "src/types";
+import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import { TrustwareConfigStore } from "src/config/store";
 import { mapError } from "src/widget/lib/mapError";
+import { RequestGeneration } from "src/widget/lib/requestGeneration";
 
 export type SwapRouteState = {
-  data: BuildRouteResult | null;
+  built: BuiltRoute | null;
   loading: boolean;
   error: string | null;
 };
 
 export function useSwapRoute() {
   const [state, setState] = useState<SwapRouteState>({
-    data: null,
+    built: null,
     loading: false,
     error: null,
   });
 
-  const abortRef = useRef(false);
+  // A fetch's result lands only if nothing newer happened since it began:
+  // another fetch, a clear, a confirm, or an adopted rebuild.
+  const generationRef = useRef(new RequestGeneration());
 
   const fetch = useCallback(
     async (params: {
@@ -32,19 +35,25 @@ export function useSwapRoute() {
       walletAddress: string;
       toAddress?: string;
       slippage?: number;
-    }): Promise<BuildRouteResult | null> => {
+      /** Deposit into this vault instead of a plain transfer (BVT-398) — set by SwapMode's vault picker, cleared whenever the destination token is changed manually. */
+      vault?: { vaultId: string; network: string };
+    }): Promise<BuiltRoute | null> => {
       const { fromToken, fromChain, toToken, toChain, amount, walletAddress } =
         params;
 
       const decimals = fromToken.decimals ?? 18;
       const amountWei = parseDecimalToWei(amount, decimals);
       if (!amountWei || amountWei === 0n) {
-        setState({ data: null, loading: false, error: "Enter a valid amount" });
+        setState({
+          built: null,
+          loading: false,
+          error: "Enter a valid amount",
+        });
         return null;
       }
 
-      abortRef.current = false;
-      setState({ data: null, loading: true, error: null });
+      const generation = generationRef.current.begin();
+      setState({ built: null, loading: true, error: null });
 
       let slippage = params.slippage ?? 1;
       if (!params.slippage) {
@@ -56,7 +65,7 @@ export function useSwapRoute() {
       }
 
       try {
-        const result = await buildRoute({
+        const built = await buildRouteForReview({
           fromChain: String(fromChain.chainId),
           toChain: String(toChain.chainId),
           fromToken: fromToken.address,
@@ -65,20 +74,21 @@ export function useSwapRoute() {
           fromAddress: walletAddress,
           toAddress: params.toAddress ?? walletAddress,
           slippage,
+          vault: params.vault,
         });
 
-        if (abortRef.current) return null;
-        setState({ data: result, loading: false, error: null });
-        return result;
+        if (!generationRef.current.isCurrent(generation)) return null;
+        setState({ built, loading: false, error: null });
+        return built;
       } catch (err) {
-        if (abortRef.current) return null;
+        if (!generationRef.current.isCurrent(generation)) return null;
         // Classify here, while the RouteError still has its provider
         // outcomes. State holds a string, and the API's "error" sentence is
         // only the summary — the verdict is in `providers`, which a message
         // does not carry. mapError recognizes its own output, so the render
         // pass (SwapMode maps route.error again) reproduces this result.
         const msg = err ? mapError(err).message : "Failed to get quote";
-        setState({ data: null, loading: false, error: msg });
+        setState({ built: null, loading: false, error: msg });
         return null;
       }
     },
@@ -86,9 +96,30 @@ export function useSwapRoute() {
   );
 
   const clear = useCallback(() => {
-    abortRef.current = true;
-    setState({ data: null, loading: false, error: null });
+    generationRef.current.invalidate();
+    setState({ built: null, loading: false, error: null });
   }, []);
 
-  return { ...state, fetch, clear };
+  /** The user confirmed: a quote refresh still in flight must not land on
+   *  top of the route being sent. The route on screen stays as it is. */
+  const discardPendingFetch = useCallback(() => {
+    generationRef.current.invalidate();
+  }, []);
+
+  /** Put a route rebuilt at sign time up for review in place of the one the
+   *  user confirmed. A fetch still in flight is discarded, so it can't
+   *  replace the rebuilt route before the user has seen it. */
+  const adoptRebuiltRoute = useCallback((built: BuiltRoute) => {
+    generationRef.current.invalidate();
+    setState({ built, loading: false, error: null });
+  }, []);
+
+  return {
+    ...state,
+    data: state.built?.result ?? null,
+    fetch,
+    clear,
+    discardPendingFetch,
+    adoptRebuiltRoute,
+  };
 }

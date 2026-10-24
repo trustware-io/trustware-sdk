@@ -161,7 +161,10 @@ type TrustwareConfigOptions =
 
   Use `features.swapDefaultDestToken` / `features.swapLockDestToken` /
   `features.swapAllowedDestTokens` to steer the destination token selection (see
-  `FeatureFlags` in `src/types/config.ts`).
+  `FeatureFlags` in `src/types/config.ts`). Each token is `{ address, chainId }`,
+  where `chainId` is the chain's id in the routes catalog: a number for EVM chains,
+  or the catalog's string id otherwise. Native SOL, for example, is
+  `{ chainId: "solana-mainnet-beta", address: "11111111111111111111111111111111" }`.
 
   > The older `features: { swapMode: true }` flag (combined with a `routes` object) still
   > works and is treated as equivalent to `mode: "swap"`, but is deprecated in favor of the
@@ -182,7 +185,12 @@ Chain and token fields are strings, including numeric chain ids — `"8453"`, no
 
 ### Route Options
 
-- `routes.options.routeRefreshMs`: auto-refresh cadence for route previews.
+- `routes.options.routeRefreshMs`: how often the quote on the review screen
+  refreshes, in milliseconds, in both deposit and swap mode. Swap mode's
+  countdown ring runs over this interval. Defaults to `60000`. Anything but a
+  number from `1` to `2147483647` is refused at `init` with an
+  `INVALID_CONFIG` error. A refresh never lands while the user is confirming,
+  so the route they confirmed is the one that's sent.
 - `routes.options.fixedFromAmount`: locks the widget amount input to a fixed USD amount.
 - `routes.options.minAmountOut`: minimum allowed USD amount.
 - `routes.options.maxAmountOut`: maximum allowed USD amount.
@@ -335,6 +343,58 @@ const tx = await Trustware.runTopUp({ fromAmount: "25000000" });
 console.log(tx.status, tx.destTxHash);
 ```
 
+#### Review, then send (required for Solana routes)
+
+A Solana route's transaction carries a blockhash that expires about a minute
+after the route is built. If you show the route to the user and send it with
+`sendRouteTransaction` after they confirm, the transaction may already be
+expired, and the network drops it without an error. Build with
+`buildRouteForReview` and send with `sendReviewedRoute` instead. On a Solana
+route, `sendReviewedRoute` builds the route again from the same request right
+before the wallet signs. On an EVM route it sends the route you reviewed.
+
+```ts
+import { Trustware } from "@trustware/sdk";
+
+const reviewed = await Trustware.buildRouteForReview({
+  fromChain: "solana-mainnet-beta",
+  fromToken: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC on Solana
+  toChain: "8453",
+  toToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
+  fromAmount: "25000000",
+  fromAddress: await Trustware.getAddress(),
+  toAddress: "0xDestination...",
+  slippage: 0.5, // required for a Solana route: it bounds the rebuild
+});
+console.log(reviewed.result.route?.estimate); // show this to the user
+
+// After the user confirms. If signing takes so long that the Solana
+// blockhash expires, the SDK rebuilds the route and asks the wallet once
+// more. onRetry fires just before that second prompt: show its message.
+const sent = await Trustware.sendReviewedRoute(reviewed, undefined, {
+  onRetry: (retry) => showNotice(retry.message), // your own UI
+});
+if (sent.kind === "route_changed") {
+  // Nothing was sent: the rebuilt route gives less than the slippage allows,
+  // or spends more. Show sent.rebuilt for review, and when the user confirms
+  // again, pass it to sendReviewedRoute.
+} else {
+  // The receipt is already on its way. Don't call submitReceipt.
+  const result = await Trustware.pollStatus(sent.receipt.intentId);
+}
+```
+
+`sendReviewedRoute` delivers the receipt itself, for EVM and Solana routes
+alike, as soon as the network accepts the transaction, and retries it if
+the post fails. Don't call `submitReceipt` after it. `sent.receipt` says
+what was delivered: on a Solana route its intent is the rebuilt route's,
+not the one you reviewed, so poll status with `sent.receipt.intentId`. A
+failed rebuild throws, and nothing is sent. The automatic re-sign happens at most once: if the second signature
+also takes too long, `sendReviewedRoute` throws an "expired before
+inclusion" error. The types `BuiltRoute`, `ReviewedRouteSend`,
+`MaterialRouteChange`, `SendReviewedRouteOptions` and `SigningRetry` are
+exported from `@trustware/sdk/core`.
+
 See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 
 ## Common Config Examples
@@ -401,6 +461,7 @@ Trustware.setDestinationAddress("0xDestination...");
 
 - `buildRoute`, `buildDepositAddress` — build a route, or an address to deposit into.
 - `submitReceipt`, `submitStepReceipt`, `sendRouteTransaction`, `runTopUp` — execution.
+- `buildRouteForReview`, `sendReviewedRoute` — build a route for the user to review, then send it, rebuilding a Solana route right before signing.
 - `getStatus`, `pollStatus` — read a transaction through to a terminal state.
 - `getBalances`, `getBalancesByAddress`, `getBalancesByAddressStream`.
 - `useChains`, `useTokens` — React hooks over the chain and token registries.

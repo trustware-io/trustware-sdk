@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 import type { ChainDef } from "../../../../types";
+import { resolveChainLabel } from "../../../../utils";
+import { normalizeChainType, withoutTokens } from "../../../../utils/chains";
 import type { Token, YourTokenData } from "../../../context/DepositContext";
 import { colors, fontWeight, spacing, borderRadius } from "../../../styles";
+import { visibleTokenRows } from "../tokenListRows";
 import { AvailableTokenListItem } from "./AvailableTokenListItem";
 import { TokenSearchInput } from "./TokenSearchInput";
 import { TokenSelectorStateView } from "./TokenSelectorStateView";
@@ -22,6 +25,34 @@ export interface TokenSelectorPanelProps {
   setSearchQuery: (value: string) => void;
   tokensError: string | null;
   walletAddress: string | null;
+  /** Why the selected chain's wallet balances are missing, or null. */
+  walletBalanceError: string | null;
+}
+
+function WalletBalanceNotice({
+  chain,
+  error,
+}: {
+  chain: ChainDef;
+  error: string;
+}) {
+  return (
+    <div
+      role="status"
+      style={{
+        margin: `${spacing[1]} ${spacing[2]}`,
+        padding: `${spacing[2]} ${spacing[3]}`,
+        borderRadius: borderRadius.lg,
+        border: `1px solid ${colors.destructive}`,
+        color: colors.destructive,
+        fontSize: "0.75rem",
+        lineHeight: 1.4,
+        overflowWrap: "anywhere",
+      }}
+    >
+      Couldn&apos;t load your {resolveChainLabel(chain)} balances: {error}
+    </div>
+  );
 }
 
 function TokenSectionLabel({
@@ -98,7 +129,18 @@ function TokenSectionLabel({
   );
 }
 
-const INITIAL_TOKEN_LIMIT = 50;
+const showAllButtonStyle: React.CSSProperties = {
+  marginTop: spacing[2],
+  marginLeft: spacing[2],
+  marginRight: spacing[2],
+  padding: `${spacing[2]} ${spacing[3]}`,
+  borderRadius: borderRadius.lg,
+  border: `1px solid ${colors.border}`,
+  backgroundColor: colors.card,
+  color: colors.foreground,
+  cursor: "pointer",
+  fontSize: "0.8125rem",
+};
 
 export function TokenSelectorPanel({
   filteredTokens,
@@ -113,20 +155,37 @@ export function TokenSelectorPanel({
   selectedChain,
   setSearchQuery,
   tokensError,
+  walletBalanceError,
 }: TokenSelectorPanelProps): React.ReactElement {
   const [showAll, setShowAll] = useState(false);
+  const [showAllWalletTokens, setShowAllWalletTokens] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination when chain or search changes
     setShowAll(false);
+    setShowAllWalletTokens(false);
   }, [selectedChain, searchQuery]);
 
+  // A token the wallet holds is listed once, under Your tokens with its
+  // balance. Matching against the search-filtered wallet list means a token
+  // only leaves Popular tokens when Your tokens shows it.
+  const popularTokens = useMemo(
+    () =>
+      withoutTokens(
+        filteredTokens,
+        filteredWalletTokens,
+        normalizeChainType(selectedChain)
+      ),
+    [filteredTokens, filteredWalletTokens, selectedChain]
+  );
+
   const hasWalletTokens = filteredWalletTokens.length > 0;
-  const hasPopularTokens = filteredTokens.length > 0;
-  const visibleTokens =
-    showAll || filteredTokens.length <= INITIAL_TOKEN_LIMIT
-      ? filteredTokens
-      : filteredTokens.slice(0, INITIAL_TOKEN_LIMIT);
+  const hasPopularTokens = popularTokens.length > 0;
+  const catalogRows = visibleTokenRows(popularTokens, showAll);
+  const walletRows = visibleTokenRows(
+    filteredWalletTokens,
+    showAllWalletTokens
+  );
 
   return (
     <div
@@ -183,17 +242,33 @@ export function TokenSelectorPanel({
           />
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
+            {walletBalanceError ? (
+              <WalletBalanceNotice
+                chain={selectedChain}
+                error={walletBalanceError}
+              />
+            ) : null}
+
             {/* Your tokens */}
             {hasWalletTokens && (
               <>
                 <TokenSectionLabel icon="wallet">Your tokens</TokenSectionLabel>
-                {filteredWalletTokens.map((token, i) => (
+                {walletRows.visible.map((token, i) => (
                   <WalletTokenListItem
                     key={`${token.address}-${i}`}
                     token={token}
                     onSelect={onSelectWalletToken}
                   />
                 ))}
+                {walletRows.hidden > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllWalletTokens(true)}
+                    style={showAllButtonStyle}
+                  >
+                    Show all {filteredWalletTokens.length} of your tokens
+                  </button>
+                ) : null}
               </>
             )}
 
@@ -211,31 +286,20 @@ export function TokenSelectorPanel({
                 <TokenSectionLabel icon="spark">
                   Popular tokens
                 </TokenSectionLabel>
-                {visibleTokens.map((token, i) => (
+                {catalogRows.visible.map((token, i) => (
                   <AvailableTokenListItem
                     key={`${token.address}-${i}`}
                     token={token}
                     onSelect={onSelectToken}
                   />
                 ))}
-                {!showAll && filteredTokens.length > INITIAL_TOKEN_LIMIT ? (
+                {catalogRows.hidden > 0 ? (
                   <button
                     type="button"
                     onClick={() => setShowAll(true)}
-                    style={{
-                      marginTop: spacing[2],
-                      marginLeft: spacing[2],
-                      marginRight: spacing[2],
-                      padding: `${spacing[2]} ${spacing[3]}`,
-                      borderRadius: borderRadius.lg,
-                      border: `1px solid ${colors.border}`,
-                      backgroundColor: colors.card,
-                      color: colors.foreground,
-                      cursor: "pointer",
-                      fontSize: "0.8125rem",
-                    }}
+                    style={showAllButtonStyle}
                   >
-                    Show all {filteredTokens.length} tokens
+                    Show all {popularTokens.length} tokens
                   </button>
                 ) : hasNextPage ? (
                   <button

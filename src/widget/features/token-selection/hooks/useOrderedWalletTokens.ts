@@ -5,7 +5,7 @@ import type {
   Token,
   YourTokenData,
 } from "../../../context/DepositContext";
-import { normalizeAddress } from "../../../helpers/chainHelpers";
+import { normalizeAddress } from "../../../../utils/chains";
 import { formatTokenBalance } from "../../../../utils";
 
 type UseOrderedWalletTokensArgs = {

@@ -1,0 +1,364 @@
+import {
+  SDKRPCError,
+  getSolanaBlockhashValid,
+  getSolanaTxStatus,
+  hasSDKRPCCode,
+  SDK_RPC_CODES,
+  sendSolanaSerialized,
+  type SolanaTxStatusResponse,
+} from "../core/sdkRpc";
+import { encodeBase58 } from "./base58";
+
+/**
+ * Sending a signed Solana transaction and rebroadcasting it until it settles
+ * (CLAUDE.md, "Solana transactions: the SDK sends and rebroadcasts them").
+ * `toSolanaWalletInterface` in `solana.ts` is the only caller. This lives in
+ * its own module because `solana.ts` is re-exported whole by the public
+ * `./wallet` entry.
+ */
+
+export const REBROADCAST_INTERVAL_MS = 2_000;
+
+/** What the loop needs from a signed transaction, read from its bytes. */
+export type SignedSolanaTransaction = {
+  /** Base64, as the proxy takes it. */
+  serialized: string;
+  /** The first signature, base58: the transaction's id. */
+  signature: string;
+  /** The message's `recentBlockhash`, base58. */
+  blockhash: string;
+};
+
+export type SolanaTxStatus = Pick<SolanaTxStatusResponse, "status" | "err">;
+
+function expiredBeforeInclusion(signature: string, blockhash: string): string {
+  return (
+    `Solana transaction ${signature} expired before inclusion: its ` +
+    `blockhash ${blockhash} is no longer valid and the network never ` +
+    `included it.`
+  );
+}
+
+/**
+ * The signed transaction's blockhash expired before the first send, so
+ * nothing was sent: signing took too long. The core send step catches this
+ * once and rebuilds (`sendSignableRoute`); anything else reports its
+ * message, the exact "expired before inclusion" error.
+ */
+export class SolanaExpiredBeforeSendError extends Error {
+  readonly reason:
+    "blockhash_expired_before_send" | "blockhash_not_found_on_send";
+  readonly signature: string;
+  readonly blockhash: string;
+
+  constructor(
+    reason: SolanaExpiredBeforeSendError["reason"],
+    { signature, blockhash }: SignedSolanaTransaction
+  ) {
+    super(expiredBeforeInclusion(signature, blockhash));
+    this.name = "SolanaExpiredBeforeSendError";
+    this.reason = reason;
+    this.signature = signature;
+    this.blockhash = blockhash;
+  }
+}
+
+/** The proxy calls the loop makes, as a seam for tests. */
+export type SolanaBroadcastIO = {
+  send(serialized: string, skipPreflight: boolean): Promise<void>;
+  status(signature: string): Promise<SolanaTxStatus>;
+  blockhashValid(blockhash: string): Promise<boolean>;
+  sleep(ms: number): Promise<void>;
+};
+
+/**
+ * Read the signature and blockhash out of signed transaction bytes. The
+ * signature is never taken from an RPC answer: the bytes define it.
+ */
+export async function readSignedSolanaTransaction(
+  bytes: Uint8Array,
+  serialized: string
+): Promise<SignedSolanaTransaction> {
+  const { VersionedTransaction } = await import("@solana/web3.js");
+  const transaction = VersionedTransaction.deserialize(bytes);
+  const first = transaction.signatures[0];
+  if (!first || first.every((byte) => byte === 0)) {
+    throw new Error(
+      "The Solana wallet returned a transaction without the fee payer's signature."
+    );
+  }
+  return {
+    serialized,
+    signature: encodeBase58(first),
+    blockhash: transaction.message.recentBlockhash,
+  };
+}
+
+function describeRpcError(err: unknown): string {
+  if (err instanceof SDKRPCError) {
+    const detail = err.context?.error;
+    return detail === undefined
+      ? err.message
+      : `${err.message}: ${String(detail)}`;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * After the first accepted send, the loop can no longer tell how the
+ * transaction will end: a read failed in a way no retry covers, or the
+ * proxy answered something unknown. The transaction may still land, and
+ * its receipt is already on its way (`onAccepted`), so this never reaches
+ * the caller as an error: `broadcastUntilSettled` reports the transaction
+ * as submitted and still confirming.
+ */
+class OutcomeUnknownError extends Error {}
+
+function unknownOutcome(signature: string, err: unknown): OutcomeUnknownError {
+  return new OutcomeUnknownError(
+    `Couldn't confirm Solana transaction ${signature}: ${describeRpcError(err)}.`
+  );
+}
+
+function landedWithError(signature: string, status: SolanaTxStatus): Error {
+  return new Error(
+    `Solana transaction ${signature} failed on chain: ${JSON.stringify(status.err)}.`
+  );
+}
+
+/**
+ * Send `signed`, then rebroadcast the same bytes until it settles.
+ *
+ * `onAccepted` runs once, synchronously, as soon as the first send is
+ * accepted (200, or 409 `ALREADY_PROCESSED`), before any status read, so
+ * the caller can post the receipt first. From then on the transaction is
+ * the backend's to track too. Resolves with the signature on success, and
+ * also when the outcome can't be read any more ("submitted, still
+ * confirming"). Throws when it lands with an error or expires before
+ * inclusion. Its only stop conditions are those facts.
+ */
+export async function broadcastUntilSettled(
+  signed: SignedSolanaTransaction,
+  io: SolanaBroadcastIO,
+  onAccepted?: (signature: string) => void
+): Promise<string> {
+  const { serialized, signature } = signed;
+
+  // Signing can outlast the blockhash (about 31 s). Sending a transaction
+  // already known to be expired only wastes the send.
+  if ((await readValidity(io, signed, "before_send")) === "invalid") {
+    throw new SolanaExpiredBeforeSendError(
+      "blockhash_expired_before_send",
+      signed
+    );
+  }
+
+  // Preflighted, so a transaction that can't succeed fails here with the
+  // simulation's error rather than being rebroadcast until it expires.
+  try {
+    await io.send(serialized, false);
+  } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.BLOCKHASH_NOT_FOUND)) {
+      throw new SolanaExpiredBeforeSendError(
+        "blockhash_not_found_on_send",
+        signed
+      );
+    }
+    if (!hasSDKRPCCode(err, SDK_RPC_CODES.ALREADY_PROCESSED)) {
+      throw new Error(
+        `Solana transaction ${signature} was not sent: ${describeRpcError(err)}.`
+      );
+    }
+  }
+
+  onAccepted?.(signature);
+  try {
+    return await confirmUntilSettled(signed, io);
+  } catch (err) {
+    if (!(err instanceof OutcomeUnknownError)) throw err;
+    console.error(
+      `${err.message} It was accepted, so it's reported as submitted and ` +
+        `still confirming; the backend tracks it from its receipt.`
+    );
+    return signature;
+  }
+}
+
+/** Poll and rebroadcast an accepted transaction until it settles. */
+async function confirmUntilSettled(
+  signed: SignedSolanaTransaction,
+  io: SolanaBroadcastIO
+): Promise<string> {
+  const { signature } = signed;
+  for (;;) {
+    const status = await readStatus(io, signature);
+    switch (status.status) {
+      case "success":
+        return signature;
+      case "failed":
+        throw landedWithError(signature, status);
+      case "pending":
+      case "not_found":
+      case "unavailable":
+        break;
+      default:
+        throw unknownStatus(status, signature);
+    }
+
+    const validity = await readValidity(io, signed, "in_flight");
+    if (validity === "invalid") return settleAfterExpiry(signed, io);
+
+    await io.sleep(REBROADCAST_INTERVAL_MS);
+    await rebroadcast(io, signed);
+  }
+}
+
+/**
+ * Whether the blockhash can still be used. A failed RPC call (503
+ * `RPC_CALL_FAILED`) says nothing about validity, so it is neither
+ * "invalid" nor "expired": the next iteration checks again.
+ */
+async function readValidity(
+  io: SolanaBroadcastIO,
+  { signature, blockhash }: SignedSolanaTransaction,
+  phase: "before_send" | "in_flight"
+): Promise<"valid" | "invalid" | "unknown"> {
+  try {
+    return (await io.blockhashValid(blockhash)) ? "valid" : "invalid";
+  } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.RPC_CALL_FAILED)) {
+      // Before the first send, an unknown answer sends anyway: the
+      // preflight answers BLOCKHASH_NOT_FOUND for an expired blockhash.
+      console.warn(
+        `Couldn't check the blockhash of Solana transaction ${signature}, ` +
+          (phase === "before_send"
+            ? "sending anyway"
+            : "checking again next round") +
+          `: ${describeRpcError(err)}`
+      );
+      return "unknown";
+    }
+    if (phase === "before_send") {
+      throw new Error(
+        `Couldn't check the blockhash of Solana transaction ${signature} ` +
+          `before sending it: ${describeRpcError(err)}. Nothing was sent.`
+      );
+    }
+    throw unknownOutcome(signature, err);
+  }
+}
+
+/**
+ * Send the same bytes again. The first send already reached the cluster,
+ * so neither of the proxy's expected refusals stops the loop:
+ * `ALREADY_PROCESSED` means an earlier copy landed, and `BROADCAST_FAILED`
+ * only costs this copy. Anything else is a fault and throws.
+ */
+async function rebroadcast(
+  io: SolanaBroadcastIO,
+  { serialized, signature }: SignedSolanaTransaction
+): Promise<void> {
+  try {
+    await io.send(serialized, true);
+  } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.ALREADY_PROCESSED)) return;
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.BROADCAST_FAILED)) {
+      console.warn(
+        `Rebroadcast of Solana transaction ${signature} failed: ${describeRpcError(err)}`
+      );
+      return;
+    }
+    throw new OutcomeUnknownError(
+      `Rebroadcast of Solana transaction ${signature} failed: ${describeRpcError(err)}.`
+    );
+  }
+}
+
+/**
+ * The blockhash has expired, so nothing more is sent. The transaction may
+ * still have landed at the last moment: read status until it says.
+ */
+async function settleAfterExpiry(
+  { signature, blockhash }: SignedSolanaTransaction,
+  io: SolanaBroadcastIO
+): Promise<string> {
+  for (;;) {
+    const status = await readStatus(io, signature);
+    switch (status.status) {
+      case "success":
+        return signature;
+      case "failed":
+        throw landedWithError(signature, status);
+      case "not_found":
+        throw new Error(expiredBeforeInclusion(signature, blockhash));
+      case "unavailable":
+        // Neither expired nor failed: nothing says which. The send was
+        // accepted, so it goes back as submitted, and the backend's
+        // status tracking takes it from here.
+        console.warn(
+          `Solana transaction ${signature} was sent, but its final status ` +
+            `couldn't be read after its blockhash expired. Reporting it as ` +
+            `submitted and still confirming.`
+        );
+        return signature;
+      case "pending":
+        await io.sleep(REBROADCAST_INTERVAL_MS);
+        break;
+      default:
+        throw unknownStatus(status, signature);
+    }
+  }
+}
+
+/** The proxy answered a status this SDK doesn't know. `status` is `never`
+ *  to the compiler, so a new kind breaks the build; at runtime it is
+ *  whatever the proxy sent. */
+function unknownStatus(status: never, signature: string): Error {
+  const answered = (status as { status?: unknown }).status;
+  return new OutcomeUnknownError(
+    `tx-status answered an unknown status ${JSON.stringify(answered)} for ${signature}.`
+  );
+}
+
+/**
+ * A status read. A failed RPC call (503 `RPC_CALL_FAILED`) is transient:
+ * it says nothing about the transaction, so it is "unavailable", never a
+ * failure. Any other error ends confirmation as "submitted".
+ */
+async function readStatus(
+  io: SolanaBroadcastIO,
+  signature: string
+): Promise<SolanaTxStatus | { status: "unavailable" }> {
+  try {
+    return await io.status(signature);
+  } catch (err) {
+    if (hasSDKRPCCode(err, SDK_RPC_CODES.RPC_CALL_FAILED)) {
+      console.warn(
+        `Couldn't read the status of Solana transaction ${signature}, ` +
+          `reading again next round: ${describeRpcError(err)}`
+      );
+      return { status: "unavailable" };
+    }
+    throw unknownOutcome(signature, err);
+  }
+}
+
+/** The proxy-backed IO the wallet adapter uses. */
+export function proxyBroadcastIO(chainId: string): SolanaBroadcastIO {
+  return {
+    async send(serializedTransaction, skipPreflight) {
+      await sendSolanaSerialized({
+        chainId,
+        serializedTransaction,
+        skipPreflight,
+      });
+    },
+    async status(signature) {
+      const { status, err } = await getSolanaTxStatus({ chainId, signature });
+      return { status, err };
+    },
+    blockhashValid: (blockhash) =>
+      getSolanaBlockhashValid({ chainId, blockhash }),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  };
+}

@@ -4,6 +4,10 @@ import {
   RouteDeclineCode,
   type RouteErrorFacts,
 } from "src/core";
+import {
+  TRACKING_NOT_CONFIRMED,
+  TRACKING_RECEIPT_REJECTED,
+} from "./trackingFailure";
 
 export type ErrorCategory =
   | "wallet_rejected"
@@ -153,7 +157,11 @@ function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
  * quoted minimum), so the map stays small without a cap that could stop
  * remembering mid-session.
  */
-const SELF_MAPPED = new Map<string, MappedError>();
+const SELF_MAPPED = new Map<string, MappedError>(
+  // Authored outside this module and stored as plain strings, so they are
+  // known from the start rather than learned.
+  [TRACKING_RECEIPT_REJECTED, TRACKING_NOT_CONFIRMED].map((m) => [m.message, m])
+);
 
 function rememberSelfMapped(mapped: MappedError, input: string): MappedError {
   if (mapped.message && mapped.message !== input) {

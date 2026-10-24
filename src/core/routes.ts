@@ -8,37 +8,26 @@ import type {
   RoutePlan,
   RouteSponsorship,
   Transaction,
+  VaultDepositRequest,
 } from "../types";
 import { TrustwareConfigStore } from "src/config/store";
 import { validateRouteAddresses } from "../validation/address";
 import {
-  isSolanaNativeTokenAlias,
-  NATIVE_EVM,
+  isNativeTokenAddress,
+  NATIVE_SOLANA,
   normalizeChainType,
-} from "../widget/helpers/chainHelpers";
+} from "../utils/chains";
 
 /**
- * The EVM native-asset sentinel, reused as the wire representation of native
- * SOL. This is NOT the wrapped-SOL mint (`So1111…112`) — wSOL is a distinct
- * SPL token you only hold once you've wrapped, and sending its mint for a
- * native-SOL swap routes against a balance the caller doesn't have. The
- * backend already translates this sentinel into each provider's own
- * native-SOL spelling for a Solana leg (LiFi/Relay: the Solana System
- * Program id `1111…1111`; Squid: the sentinel itself, per Squid's own docs)
- * — see `lifiTokenAddress`/`relayTokenAddress` in iluvatar.
- */
-export const SOLANA_NATIVE_ROUTE_TOKEN = NATIVE_EVM;
-
-/**
- * Normalizes how a chain's native asset is named on the wire.
+ * Names a token the way the routing API expects. On a Solana chain every
+ * native-SOL spelling becomes `NATIVE_SOLANA`, the System Program id, and an
+ * SPL mint passes through trimmed. iluvatar maps the System Program id onto
+ * each routing provider's own spelling. Other chains pass through untouched:
+ * the EVM sentinel is already right there.
  *
- * Token registries describe native SOL two different ways — the EVM
- * sentinel `0xEeee…` (what the token list returns) and `So1111…111` (a
- * placeholder alias, not a real mint). Neither is the wrapped-SOL mint, and
- * providers expect the sentinel, not wSOL, for a native-SOL leg — so pin it
- * here rather than passing whichever spelling the selected token happened to
- * carry. Non-Solana chains are untouched: the EVM sentinel is exactly right
- * there.
+ * Never the wrapped-SOL mint (`So1111…112`): wSOL is a separate SPL token you
+ * only hold once you've wrapped, and routing it for a native-SOL swap spends
+ * a balance the caller doesn't have.
  */
 export function canonicalRouteToken(
   address: string | undefined,
@@ -51,15 +40,11 @@ export function canonicalRouteToken(
     chain === undefined || chain === null ? undefined : String(chain)
   );
   if (chainType !== "solana") return address ?? "";
-  if (!address) return SOLANA_NATIVE_ROUTE_TOKEN;
-  const trimmed = address.trim();
-  if (
-    isSolanaNativeTokenAlias(trimmed) ||
-    trimmed === "0x0000000000000000000000000000000000000000"
-  ) {
-    return SOLANA_NATIVE_ROUTE_TOKEN;
+  if (!address) return NATIVE_SOLANA;
+  if (isNativeTokenAddress(address, chainType)) {
+    return NATIVE_SOLANA;
   }
-  return trimmed;
+  return address.trim();
 }
 
 export type BuildRouteBody = {
@@ -85,6 +70,13 @@ export type BuildRouteBody = {
    * compatible — omit `hooks` entirely and nothing changes.
    */
   hooks?: { postHook?: PostHookRequest };
+  /**
+   * Deposit into a vault as the route's destination action (BVT-398), in
+   * place of a hand-assembled `hooks.postHook`. Optional and backward
+   * compatible — omit entirely and nothing changes. Mutually exclusive with
+   * `hooks`; see {@link VaultDepositRequest}.
+   */
+  vault?: VaultDepositRequest;
 };
 
 /**
@@ -113,6 +105,44 @@ export function assertValidPostHook(hooks: BuildRouteBody["hooks"]) {
       "hooks.postHook.fundAmount is required unless fullAmount is set."
     );
   }
+}
+
+/**
+ * Validates a `BuildRouteBody.vault` value before it's sent — the same
+ * fail-fast-client-side intent as {@link assertValidPostHook}. A no-op when
+ * `vault` is omitted or `hooks.postHook` isn't also set (the backend enforces
+ * the same mutual exclusivity; this just avoids the round trip).
+ */
+export function assertValidVaultRequest(body: {
+  vault?: BuildRouteBody["vault"];
+  hooks?: BuildRouteBody["hooks"];
+}) {
+  if (!body.vault) return;
+  if (!body.vault.vaultId?.trim()) {
+    throw new Error("vault.vaultId is required.");
+  }
+  if (!body.vault.network?.trim()) {
+    throw new Error("vault.network is required.");
+  }
+  if (body.hooks?.postHook) {
+    throw new Error(
+      "vault and hooks are mutually exclusive: a vault deposit builds its own postHook."
+    );
+  }
+}
+
+/**
+ * The slippage a route request asks for, in basis points: the figure the
+ * routing API receives as `slippageBps`. An explicit `slippageBps` wins over
+ * the percentage `slippage`. Undefined when the request names neither, which
+ * leaves the choice to the backend.
+ */
+export function requestSlippageBps(
+  body: Pick<BuildRouteBody, "slippage" | "slippageBps">
+): number | undefined {
+  if (body.slippageBps !== undefined) return body.slippageBps;
+  if (body.slippage === undefined) return undefined;
+  return Math.round(body.slippage * 100);
 }
 
 export type TxRequest = {
@@ -195,6 +225,7 @@ export async function buildRoute(
     throw new Error(addressValidation.error || "Invalid route addresses.");
   }
   assertValidPostHook(body.hooks);
+  assertValidVaultRequest(body);
 
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/v1/routes/route`;
@@ -202,11 +233,7 @@ export async function buildRoute(
     ...body,
     fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
     toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps:
-      body.slippageBps ??
-      (body.slippage === undefined
-        ? undefined
-        : Math.round(body.slippage * 100)),
+    slippageBps: requestSlippageBps(body),
     fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
   };
   const r = await rateLimitedFetch(url, {
@@ -266,17 +293,14 @@ export async function buildDepositAddress(
   route: RoutePlan | undefined;
 }> {
   assertValidPostHook(body.hooks);
+  assertValidVaultRequest(body);
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/v1/routes/deposit-address`;
   const payload = {
     ...body,
     fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
     toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps:
-      body.slippageBps ??
-      (body.slippage === undefined
-        ? undefined
-        : Math.round(body.slippage * 100)),
+    slippageBps: requestSlippageBps(body),
     fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
   };
   const r = await rateLimitedFetch(url, {

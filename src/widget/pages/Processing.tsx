@@ -68,7 +68,7 @@ function getStepText(status: TransactionStatus): string {
 export function Processing({ style }: ProcessingProps): React.ReactElement {
   const { selectedToken, selectedChain, amount } = useDepositForm();
   const { resetState, setCurrentStep } = useDepositNavigation();
-  const { transactionStatus, transactionHash, intentId } =
+  const { transactionStatus, transactionHash, receipt } =
     useDepositTransaction();
 
   // Get transaction details from polling hook
@@ -84,20 +84,19 @@ export function Processing({ style }: ProcessingProps): React.ReactElement {
     };
   }, []);
 
-  // Start polling when we have intentId and transactionHash
+  // Start tracking once the wallet has sent the transaction
   useEffect(() => {
     if (
-      intentId &&
-      transactionHash &&
+      receipt &&
       !isPolling &&
       !hasStartedPolling.current &&
       transactionStatus !== "success" &&
       transactionStatus !== "error"
     ) {
       hasStartedPolling.current = true;
-      startPolling(intentId, transactionHash);
+      startPolling(receipt);
     }
-  }, [intentId, transactionHash, isPolling, transactionStatus, startPolling]);
+  }, [receipt, isPolling, transactionStatus, startPolling]);
 
   // Calculate progress based on actual status
   const progress = useMemo(

@@ -3,6 +3,7 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,24 +18,35 @@ import {
 } from "src/widget/styles";
 import { mergeStyles } from "src/widget/lib/utils";
 import { mapError } from "src/widget/lib/mapError";
+import { describeRouteChange } from "src/widget/lib/routeChange";
 import {
   WidgetContainer,
   WidgetSecurityFooter,
   ErrorPage,
 } from "src/widget/components";
 import { getSharedRegistry } from "src/core/registryClient";
-import { isSerializedSolanaTxRequest } from "src/core/routes";
+import { mapTokenDefToToken } from "src/core/useTokens";
+import { chainForRef, chainsWithRefs } from "./tokenRefs";
+import {
+  automaticSellToken,
+  canFlip,
+  flipSides,
+  hiddenFromSellPicker,
+  pickToken,
+  type SwapRules,
+  type SwapSides,
+} from "./sides";
 import { useThemePreference } from "src/widget/state/deposit/useThemePreference";
 import { useWalletSessionState } from "src/widget/state/deposit/useWalletSessionState";
 import { useWalletTokenState } from "src/widget/state/deposit/useWalletTokenState";
 import { useChains } from "src/widget/hooks";
 import { rawToDecimal } from "src/widget/helpers/tokenAmount";
+import { needsErc20Approval } from "src/widget/helpers/chainHelpers";
 import {
-  normalizeChainType,
   isNativeTokenAddress,
-  isZeroAddrLike,
-  needsErc20Approval,
-} from "src/widget/helpers/chainHelpers";
+  normalizeChainKey,
+  normalizeChainType,
+} from "src/utils/chains";
 import { useTrustwareConfig, useGTMTracker } from "src/hooks";
 import { useTrustware } from "src/provider";
 import { useSwapRoute } from "./hooks/useSwapRoute";
@@ -43,12 +55,20 @@ import { findWalletBalanceRow } from "./walletBalance";
 import { buildSwapPaymentParams, claimAttemptOnce } from "./analytics";
 import { useForex } from "./hooks/useForex";
 import { SwapTokenSelect } from "./components/SwapTokenSelect";
+import { VaultDiscovery } from "./components/VaultDiscovery";
 // import { SwapWalletSelector } from "./components/SwapWalletSelector";
 import { SUPPORTED_CURRENCIES, getCurrencyMeta, fmtCurrency } from "./currency";
+import { fmtAmount } from "./amountFormat";
 import type { SwapStage, SwapTxStatus } from "./types";
 import type { ChainDef } from "src/types";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
 import type { Theme } from "src/widget/components";
+import type { VaultSummary, Position } from "src/core/vaults";
+import type { BuiltRoute, MaterialRouteChange } from "src/core/signTimeRoute";
+import {
+  quoteCountdown,
+  shouldRefreshQuote,
+} from "src/widget/lib/quoteCountdown";
 import { SwapWalletSelector } from "./components";
 
 const ConfettiEffect = lazy(
@@ -59,8 +79,6 @@ interface SwapModeProps {
   theme?: Theme;
   style?: React.CSSProperties;
 }
-
-const QUOTE_TTL = 60; // seconds before a quote auto-refreshes
 
 const QUOTE_LOADING_MESSAGES = [
   "Finding your best route...",
@@ -78,11 +96,6 @@ const PERCENT_OPTIONS = [
   { label: "75%", value: 0.75 },
   { label: "Max", value: 1 },
 ];
-
-function fmtAmount(n: number, max = 6): string {
-  if (!isFinite(n) || n === 0) return "0";
-  return n.toLocaleString(undefined, { maximumFractionDigits: max });
-}
 
 // Build a block-explorer URL for a tx hash.
 // Prefers the backend-supplied URL; falls back to chain's blockExplorerUrls list.
@@ -123,6 +136,29 @@ function truncateDecimal(n: number, dp: number): string {
   const s = truncated.toFixed(dp);
   // Strip trailing zeros after decimal
   return s.includes(".") ? s.replace(/\.?0+$/, "") || "0" : s;
+}
+
+// The buy picker lists no wallet tokens, so it has no balances to fail.
+const noWalletBalances = () => null;
+
+// A layout effect commits before any pending promise callback can run; React
+// 18 warns when one renders on the server, where it would do nothing anyway.
+const useCommitEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** The chain a token sits on: a wallet row carries it, a catalog token only
+ *  names its chain id. */
+function chainOfToken(
+  token: Token | YourTokenData,
+  chains: readonly ChainDef[]
+): ChainDef | null {
+  if ("chainData" in token && token.chainData) return token.chainData;
+  return (
+    chains.find(
+      (chain) =>
+        normalizeChainKey(chain.chainId) === normalizeChainKey(token.chainId)
+    ) ?? null
+  );
 }
 
 function scaleFontSize(str: string): string {
@@ -197,6 +233,15 @@ export function SwapMode({
   const [fromChain, setFromChain] = useState<ChainDef | null>(null);
   const [toToken, setToToken] = useState<Token | YourTokenData | null>(null);
   const [toChain, setToChain] = useState<ChainDef | null>(null);
+  // Set when the destination came from the vault picker (BVT-398), not a
+  // plain token select — carries the extra {vaultId, network} the route
+  // build needs to deposit into it instead of a wallet transfer. Cleared
+  // whenever the destination token changes by any other path, so a stale
+  // vault can never ride along with a since-changed toToken/toChain.
+  const [selectedVault, setSelectedVault] = useState<{
+    vaultId: string;
+    network: string;
+  } | null>(null);
   const [amount, setAmount] = useState("");
   const [amountInputMode, setAmountInputMode] = useState<"usd" | "token">(
     "usd"
@@ -216,10 +261,20 @@ export function SwapMode({
   const [rateUpdated, setRateUpdated] = useState(false);
   const prevToAmountRef = useRef<number | null>(null);
   const [destAddress, setDestAddress] = useState("");
-  const [quoteAge, setQuoteAge] = useState(0);
+  const [quoteElapsedMs, setQuoteElapsedMs] = useState(0);
   const quoteTimestampRef = useRef<number | null>(null);
+  // Set synchronously when the user confirms, before the stage change
+  // renders: a countdown tick in between must not start a refresh.
+  const confirmInFlightRef = useRef(false);
   const [quoteLoadingMsgIdx, setQuoteLoadingMsgIdx] = useState(0);
   const [quoteLoadingMsgVisible, setQuoteLoadingMsgVisible] = useState(true);
+  // Set when a Solana route rebuilt at sign time came back materially worse.
+  // Shown only while `route` is still the route on review: a quote refresh
+  // replaces it, and the notice would then describe a route that's gone.
+  const [routeChangeNotice, setRouteChangeNotice] = useState<{
+    route: BuiltRoute;
+    change: MaterialRouteChange;
+  } | null>(null);
   const latestFetchParamsRef = useRef<
     Parameters<ReturnType<typeof useSwapRoute>["fetch"]>[0] | null
   >(null);
@@ -255,7 +310,14 @@ export function SwapMode({
   const completedAttemptRef = useRef<object | null>(null);
 
   // Read feature flags and theme from config
-  const { features, theme: configTheme } = useTrustwareConfig();
+  const {
+    features,
+    theme: configTheme,
+    routes: configRoutes,
+  } = useTrustwareConfig();
+  const routeRefreshMs = configRoutes.options.routeRefreshMs;
+  const quoteTickMs = Math.min(1000, routeRefreshMs);
+  const quoteRefreshCountdown = quoteCountdown(quoteElapsedMs, routeRefreshMs);
   const effectiveThemeSetting = (themeProp ?? configTheme ?? "system") as
     "light" | "dark" | "system";
   const { resolvedTheme, toggleTheme } = useThemePreference(
@@ -276,66 +338,72 @@ export function SwapMode({
   // When allowedDestTokens is set, restrict the "to" chain selector to only chains that
   // have at least one allowed destination token. Client-side filter only — no extra fetches,
   // no impact on deposit mode or the "from" selector.
-  const allowedDestChainIds = useMemo(() => {
-    if (!allowedDestTokens || allowedDestTokens.length === 0) return null;
-    return new Set(allowedDestTokens.map((t) => t.chainId));
-  }, [allowedDestTokens]);
+  const hasDestAllowlist = !!allowedDestTokens && allowedDestTokens.length > 0;
 
   const toPopularChains = useMemo(
     () =>
-      allowedDestChainIds
-        ? popularChains.filter((c) =>
-            allowedDestChainIds.has(Number(c.chainId))
-          )
+      hasDestAllowlist
+        ? chainsWithRefs(popularChains, allowedDestTokens)
         : popularChains,
-    [popularChains, allowedDestChainIds]
+    [popularChains, hasDestAllowlist, allowedDestTokens]
   );
 
   const toOtherChains = useMemo(
     () =>
-      allowedDestChainIds
-        ? otherChains.filter((c) => allowedDestChainIds.has(Number(c.chainId)))
+      hasDestAllowlist
+        ? chainsWithRefs(otherChains, allowedDestTokens)
         : otherChains,
-    [otherChains, allowedDestChainIds]
+    [otherChains, hasDestAllowlist, allowedDestTokens]
   );
 
-  // Resolve the default dest token by querying the registry directly for the exact address.
-  // We use tokensPage(chainId, { q: address, limit: 1 }) so we never depend on pagination order.
+  // Resolve the default dest token by looking its address up in the registry,
+  // so it never depends on pagination order.
   const allChains = useMemo(
     () => [...popularChains, ...otherChains],
     [popularChains, otherChains]
   );
+  // Automatic picks land in async callbacks, so they read the current sides
+  // and rules through this ref, refreshed on every render below.
+  const automaticPickContext = useRef<{
+    sides: SwapSides<Token | YourTokenData>;
+    rules: SwapRules;
+    chains: readonly ChainDef[];
+  } | null>(null);
+  const currentPickContext = () => {
+    const context = automaticPickContext.current;
+    if (!context) {
+      throw new Error("A swap token arrived before the sides were set up");
+    }
+    return context;
+  };
+
   const destInitialized = useRef(false);
   useEffect(() => {
     if (!defaultDestRef || destInitialized.current || allChains.length === 0)
       return;
-    const chain = allChains.find(
-      (c) => Number(c.chainId) === defaultDestRef.chainId
-    );
+    const chain = chainForRef(allChains, defaultDestRef);
     if (!chain) return;
 
-    const registry = getSharedRegistry();
-    registry
-      .tokensPage(chain.chainId, { q: defaultDestRef.address, limit: 5 })
-      .then((page: import("src/types/blockchain").TokenPageResult) => {
+    getSharedRegistry()
+      .lookupToken(chain.chainId, defaultDestRef.address)
+      .then((match) => {
         if (destInitialized.current) return;
-        const normalizedAddr = defaultDestRef.address.toLowerCase();
-        const match = page.data.find(
-          (t) => t.address.toLowerCase() === normalizedAddr
-        );
         if (!match) return;
         destInitialized.current = true;
-        setToToken({
-          address: match.address,
-          chainId: match.chainId,
-          symbol: match.symbol,
-          name: match.name,
-          decimals: match.decimals,
-          iconUrl: match.logoURI,
-          logoURI: match.logoURI,
-          usdPrice: match.usdPrice,
-        });
+        const dest = mapTokenDefToToken(match);
+        setToToken(dest);
         setToChain(chain);
+        // The host's buy token wins over a sell token that repeats it.
+        const { rules, chains } = currentPickContext();
+        setFromToken((current) =>
+          current
+            ? automaticSellToken(
+                { token: current, chain: chainOfToken(current, chains) },
+                { token: dest, chain },
+                rules
+              )
+            : null
+        );
       })
       .catch(() => {
         /* non-fatal — user can still pick manually */
@@ -346,24 +414,36 @@ export function SwapMode({
   const { walletAddress, walletStatus, connectWallet } =
     useWalletSessionState();
 
-  // Stable setters so useWalletTokenState's load effect deps don't change on every render
-  const setFromTokenStable = useCallback(
-    (t: Token | YourTokenData | null) => setFromToken(t),
-    []
-  );
+  // Stable setters so useWalletTokenState's load effect deps don't change on every render.
+  // The wallet's own pick (its largest balance) must not repeat the buy token.
+  const setFromTokenStable = useCallback((t: Token | YourTokenData | null) => {
+    if (!t) {
+      setFromToken(null);
+      return;
+    }
+    const { sides, rules, chains } = currentPickContext();
+    setFromToken(
+      automaticSellToken(
+        { token: t, chain: chainOfToken(t, chains) },
+        sides.to,
+        rules
+      )
+    );
+  }, []);
   const setFromChainStable = useCallback(
     (c: ChainDef | null) => setFromChain(c),
     []
   );
 
   // Fetch wallet balances for the "sell" selector only
-  const { yourWalletTokens, reloadWalletTokens } = useWalletTokenState({
-    walletAddress,
-    selectedChain: fromChain,
-    setSelectedChain: setFromChainStable,
-    selectedToken: fromToken,
-    setSelectedToken: setFromTokenStable,
-  });
+  const { yourWalletTokens, reloadWalletTokens, walletBalanceErrorFor } =
+    useWalletTokenState({
+      walletAddress,
+      selectedChain: fromChain,
+      setSelectedChain: setFromChainStable,
+      selectedToken: fromToken,
+      setSelectedToken: setFromTokenStable,
+    });
 
   // Route state — only populated when user explicitly requests a quote
   const route = useSwapRoute();
@@ -439,8 +519,58 @@ export function SwapMode({
     [amountInputMode, amount, currencyRate, forexRates, route]
   );
 
+  const sides = useMemo<SwapSides<Token | YourTokenData>>(
+    () => ({
+      from: { token: fromToken, chain: fromChain },
+      to: { token: toToken, chain: toChain },
+    }),
+    [fromToken, fromChain, toToken, toChain]
+  );
+  const swapRules = useMemo<SwapRules>(
+    () => ({
+      lockDestToken: !!lockDestToken,
+      allowedDestTokens: allowedDestTokens ?? null,
+      depositsIntoVault: selectedVault !== null,
+    }),
+    [lockDestToken, allowedDestTokens, selectedVault]
+  );
+  const flipAllowed = canFlip(sides, swapRules);
+  useCommitEffect(() => {
+    automaticPickContext.current = {
+      sides,
+      rules: swapRules,
+      chains: allChains,
+    };
+  }, [sides, swapRules, allChains]);
+
+  const commitFlip = useCallback(
+    (next: SwapSides<Token | YourTokenData>) => {
+      setFromToken(next.from.token);
+      setFromChain(next.from.chain);
+      setToToken(next.to.token);
+      setToChain(next.to.chain);
+      setSelectedVault(null);
+      setAmount("");
+      route.clear();
+      emitEvent?.({
+        type: "swap_route_changed",
+        fromChain: String(next.from.chain?.chainId ?? ""),
+        fromToken: next.from.token?.address ?? "",
+        toChain: String(next.to.chain?.chainId ?? ""),
+        toToken: next.to.token?.address ?? "",
+      });
+    },
+    [route, emitEvent]
+  );
+
   const handleSelectFromToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
+      const picked = pickToken(sides, "from", { token, chain }, swapRules);
+      if (picked.flipped) {
+        commitFlip(picked.sides);
+        setStage("home");
+        return;
+      }
       setFromToken(token);
       setFromChain(chain);
       route.clear();
@@ -460,13 +590,20 @@ export function SwapMode({
         ...(amount ? { amount } : {}),
       });
     },
-    [route, emitEvent, toToken, toChain, amount]
+    [route, emitEvent, toToken, toChain, amount, sides, swapRules, commitFlip]
   );
 
   const handleSelectToToken = useCallback(
     (token: Token | YourTokenData, chain: ChainDef) => {
+      const picked = pickToken(sides, "to", { token, chain }, swapRules);
+      if (picked.flipped) {
+        commitFlip(picked.sides);
+        setStage("home");
+        return;
+      }
       setToToken(token);
       setToChain(chain);
+      setSelectedVault(null);
       route.clear();
       setStage("home");
       emitEvent?.({
@@ -478,28 +615,117 @@ export function SwapMode({
         ...(amount ? { amount } : {}),
       });
     },
-    [route, emitEvent, fromToken, fromChain, amount]
+    [
+      route,
+      emitEvent,
+      fromToken,
+      fromChain,
+      amount,
+      sides,
+      swapRules,
+      commitFlip,
+    ]
+  );
+
+  const handleSelectVault = useCallback(
+    (vault: VaultSummary) => {
+      const chain = allChains.find(
+        (c) => Number(c.chainId) === vault.network.chainId
+      );
+      // The vault's chain isn't one this deployment's own chain catalog
+      // knows — shouldn't happen for a supported network, but bail rather
+      // than land the route on the wrong chain.
+      if (!chain) return;
+
+      const finish = (token: Token) => {
+        setToToken(token);
+        setToChain(chain);
+        setSelectedVault({
+          vaultId: vault.vaultId,
+          network: vault.network.name,
+        });
+        route.clear();
+        setStage("home");
+      };
+
+      // Used if the registry lookup below can't confirm the token (network
+      // hiccup, or the asset simply isn't indexed) — vault.asset itself is
+      // always enough to build a route, just without the registry's icon/price.
+      const fallbackToken: Token = {
+        address: vault.asset.address,
+        chainId: chain.chainId,
+        symbol: vault.asset.symbol,
+        name: vault.asset.name,
+        decimals: vault.asset.decimals,
+        usdPrice: undefined,
+      };
+
+      getSharedRegistry()
+        .lookupToken(chain.chainId, vault.asset.address)
+        .then((match) =>
+          finish(match ? mapTokenDefToToken(match) : fallbackToken)
+        )
+        .catch(() => finish(fallbackToken));
+    },
+    [allChains, route]
+  );
+
+  // After a withdrawal lands back in the wallet as the vault's own asset
+  // (BVT-398 — vaults.fyi's redeem never bridges, so it's always the same
+  // asset on the same chain the vault was on), this puts that asset on the
+  // FROM side and either reopens Earn to pick a new vault ("vault") or
+  // drops the user on the plain swap home screen to pick anything else
+  // ("swap") — the two follow-ups from the ticket's own ask (move to a
+  // different chain/stable, or into a better-APY vault), both just an
+  // ordinary route from here, not a special one.
+  const handleAfterWithdraw = useCallback(
+    (position: Position, next: "swap" | "vault") => {
+      const chain = allChains.find(
+        (c) => Number(c.chainId) === position.network.chainId
+      );
+      if (!chain) return;
+
+      const finish = (token: Token) => {
+        setFromToken(token);
+        setFromChain(chain);
+        setSelectedVault(null);
+        route.clear();
+        // "vault" reopens Earn to pick the new vault; "swap" goes straight
+        // into token selection rather than landing on a blank Buy field the
+        // user then has to tap into themselves — unless the destination
+        // token is locked (merchant checkout), in which case there's
+        // nothing to pick and home is the only valid landing spot.
+        setStage(
+          next === "vault" ? "earn" : lockDestToken ? "home" : "select-to"
+        );
+      };
+
+      const fallbackToken: Token = {
+        address: position.asset.address,
+        chainId: chain.chainId,
+        symbol: position.asset.symbol,
+        name: position.asset.name,
+        decimals: position.asset.decimals,
+        usdPrice: undefined,
+      };
+
+      getSharedRegistry()
+        .lookupToken(chain.chainId, position.asset.address)
+        .then((match) =>
+          finish(match ? mapTokenDefToToken(match) : fallbackToken)
+        )
+        .catch(() => finish(fallbackToken));
+    },
+    [allChains, route, lockDestToken]
   );
 
   const handleFlip = useCallback(() => {
-    // When dest is locked, flipping would lose the locked token — disallow it
-    if (lockDestToken) return;
-    const newFrom = toToken ?? fromToken;
-    const newFromChain = toChain ?? fromChain;
-    setFromToken((prev) => toToken ?? prev);
-    setFromChain((prev) => toChain ?? prev);
-    setToToken(fromToken);
-    setToChain(fromChain);
-    setAmount("");
-    route.clear();
-    emitEvent?.({
-      type: "swap_route_changed",
-      fromChain: String(newFromChain?.chainId ?? ""),
-      fromToken: newFrom?.address ?? "",
-      toChain: String(fromChain?.chainId ?? ""),
-      toToken: fromToken?.address ?? "",
-    });
-  }, [lockDestToken, fromToken, fromChain, toToken, toChain, route, emitEvent]);
+    // The button is disabled whenever the flip isn't allowed.
+    if (!flipAllowed) {
+      throw new Error("Flip button pressed while flipping is disabled");
+    }
+    commitFlip(flipSides(sides));
+  }, [flipAllowed, sides, commitFlip]);
 
   const fromChainType = normalizeChainType(fromChain);
   const toChainType = normalizeChainType(toChain);
@@ -549,6 +775,7 @@ export function SwapMode({
       walletAddress,
       toAddress: needsDestAddress ? destAddress.trim() : walletAddress,
       slippage,
+      vault: selectedVault ?? undefined,
     });
     if (result) setStage("review");
   }, [
@@ -562,6 +789,7 @@ export function SwapMode({
     destAddress,
     route,
     slippage,
+    selectedVault,
   ]);
 
   const handleConnectAndReview = useCallback(() => {
@@ -574,7 +802,8 @@ export function SwapMode({
   }, []);
 
   const handleExecute = useCallback(async () => {
-    if (!route.data) return;
+    const reviewed = route.built;
+    if (!reviewed) return;
 
     // Snapshot the pair now: the completion callback fires minutes later, and
     // the swap that completed is the one the user confirmed here, not whatever
@@ -588,33 +817,22 @@ export function SwapMode({
       domain: window.origin,
     });
 
-    // One event per confirmation. handleExecute is re-entrant for as long as it
-    // takes the "processing" stage to unmount the Swap button, so a double-tap
-    // would otherwise count the same route twice.
-    if (claimAttemptOnce(initiatedAttemptRef, route.data)) {
-      trackEvent("payment_initiated", paymentParams);
-    }
-
+    // The route the user just confirmed is the one sent. A quote refresh
+    // still in flight is dropped, and none starts until the user is back on
+    // a quote-facing stage.
+    confirmInFlightRef.current = true;
+    route.discardPendingFetch();
+    setRouteChangeNotice(null);
     setStage("processing");
     const fromTokenAddress =
       fromToken?.address ?? (fromToken as { address?: string })?.address;
     const fromTokenDecimals = fromToken?.decimals ?? undefined;
 
-    // Solana blockhashes expire in ~60-90s and a quote can sit on the review
-    // screen for nearly the full QUOTE_TTL window before the user confirms —
-    // rebuild right before signing so the wallet gets a transaction with a
-    // fresh blockhash instead of one that may already be expired.
-    let routeToSend = route.data;
-    if (
-      isSerializedSolanaTxRequest(routeToSend.txReq) &&
-      latestFetchParamsRef.current
-    ) {
-      const fresh = await route.fetch(latestFetchParamsRef.current);
-      if (fresh) routeToSend = fresh;
-    }
-
+    // A Solana route is rebuilt inside execute (sendReviewedRoute) right
+    // before the wallet signs, since the reviewed transaction's blockhash may
+    // have expired while the user read the review screen.
     await execution.execute(
-      routeToSend,
+      reviewed,
       fromTokenAddress,
       fromTokenDecimals,
       walletAddress ?? undefined,
@@ -626,13 +844,27 @@ export function SwapMode({
         // not: a late poll from a superseded attempt resolving into this
         // closure. A genuine retry always rebuilds the route (the error
         // screen's only exit clears it), so it is a new object and reports.
-        if (claimAttemptOnce(completedAttemptRef, routeToSend)) {
+        if (claimAttemptOnce(completedAttemptRef, reviewed.result)) {
           trackEvent("payment_completed", paymentParams);
         }
         setCompletedAt(new Date());
         setStage("success");
       },
-      () => setStage("error")
+      () => setStage("error"),
+      (rebuilt, change) => {
+        route.adoptRebuiltRoute(rebuilt);
+        setRouteChangeNotice({ route: rebuilt, change });
+        setStage("review");
+      },
+      (event) => {
+        // One event per send. A confirm that goes back to review sends
+        // nothing, so it reports nothing. handleExecute is re-entrant for as
+        // long as it takes the "processing" stage to unmount the Swap
+        // button, so a double-tap would otherwise count the same route twice.
+        if (claimAttemptOnce(initiatedAttemptRef, reviewed.result)) {
+          trackEvent(event, paymentParams);
+        }
+      }
     );
   }, [
     route,
@@ -981,6 +1213,7 @@ export function SwapMode({
       walletAddress,
       toAddress: needsDestAddress ? destAddress.trim() : walletAddress,
       slippage,
+      vault: selectedVault ?? undefined,
     };
     const t = setTimeout(() => void fetchRef.current(params), 600);
     return () => clearTimeout(t);
@@ -996,6 +1229,7 @@ export function SwapMode({
     needsDestAddress,
     destAddress,
     slippage,
+    selectedVault,
   ]);
 
   // Keep a ref with the latest fetch params so the timer can refetch without stale closures
@@ -1020,6 +1254,7 @@ export function SwapMode({
       walletAddress,
       toAddress: needsDestAddress ? destAddress.trim() : walletAddress,
       slippage,
+      vault: selectedVault ?? undefined,
     };
   }, [
     canGetQuote,
@@ -1032,14 +1267,22 @@ export function SwapMode({
     needsDestAddress,
     destAddress,
     slippage,
+    selectedVault,
   ]);
 
   // Reset countdown when a fresh quote arrives
   useEffect(() => {
     quoteTimestampRef.current = route.data ? Date.now() : null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset countdown to 0 when a new quote arrives from the route query
-    setQuoteAge(0);
+    setQuoteElapsedMs(0);
   }, [route.data]);
+
+  // Back on a quote-facing stage, the confirm is over.
+  useEffect(() => {
+    if (stage === "home" || stage === "review") {
+      confirmInFlightRef.current = false;
+    }
+  }, [stage]);
 
   // Rotate loading messages while fetching a route
   const msgTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1063,7 +1306,7 @@ export function SwapMode({
     };
   }, [route.loading]);
 
-  // Tick down and auto-refetch at QUOTE_TTL — replaces the old 60s interval.
+  // Tick down and auto-refetch when routes.options.routeRefreshMs runs out.
   // Only on the quote-facing stages: once the swap is submitted the quote is
   // spent, and refreshing it just spends rate-limit budget the status poll
   // needs on /route calls whose answer nothing reads.
@@ -1073,15 +1316,18 @@ export function SwapMode({
     const id = setInterval(() => {
       const ts = quoteTimestampRef.current;
       if (ts === null) return;
-      const elapsed = Math.floor((Date.now() - ts) / 1000);
-      const age = Math.min(elapsed, QUOTE_TTL);
-      setQuoteAge(age);
-      if (age >= QUOTE_TTL && latestFetchParamsRef.current) {
+      const elapsedMs = Date.now() - ts;
+      setQuoteElapsedMs(elapsedMs);
+      const due = shouldRefreshQuote(
+        quoteCountdown(elapsedMs, routeRefreshMs),
+        confirmInFlightRef.current
+      );
+      if (due && latestFetchParamsRef.current) {
         void fetchRef.current(latestFetchParamsRef.current);
       }
-    }, 1000);
+    }, quoteTickMs);
     return () => clearInterval(id);
-  }, [route.data, stage]);
+  }, [route.data, stage, routeRefreshMs, quoteTickMs]);
 
   // Every fetch nulls route.data for its whole duration (useSwapRoute), so the
   // refresh above can pull the quote out from under the review screen — and if
@@ -1156,7 +1402,8 @@ export function SwapMode({
           otherChains={otherChains}
           chainsLoading={chainsLoading}
           chainsError={chainsError}
-          excludeToken={toToken ?? null}
+          excludeToken={hiddenFromSellPicker(sides, swapRules)}
+          walletBalanceErrorFor={walletBalanceErrorFor}
         />
       </WidgetContainer>
     );
@@ -1177,7 +1424,22 @@ export function SwapMode({
           chainsLoading={chainsLoading}
           chainsError={chainsError}
           allowedTokens={allowedDestTokens ?? undefined}
-          excludeToken={fromToken ?? null}
+          excludeToken={null}
+          walletBalanceErrorFor={noWalletBalances}
+        />
+      </WidgetContainer>
+    );
+  }
+
+  if (stage === "earn" && features.vaultDeposits) {
+    return (
+      <WidgetContainer theme={resolvedTheme} style={style}>
+        <VaultDiscovery
+          config={features.vaultDeposits}
+          onSelect={handleSelectVault}
+          onBack={() => setStage("home")}
+          onAfterWithdraw={handleAfterWithdraw}
+          walletAddress={walletAddress}
         />
       </WidgetContainer>
     );
@@ -1300,6 +1562,23 @@ export function SwapMode({
           >
             {title}
           </h1>
+
+          {execution.signingRetryMessage && (
+            <p
+              role="status"
+              style={{
+                marginBottom: spacing[5],
+                padding: spacing[3],
+                borderRadius: borderRadius.lg,
+                backgroundColor: colors.amber[500] + "1a",
+                border: `1px solid ${colors.amber[500]}66`,
+                fontSize: fontSize.xs,
+                color: colors.foreground,
+              }}
+            >
+              {execution.signingRetryMessage}
+            </p>
+          )}
 
           {/* Progress card */}
           <div
@@ -1853,223 +2132,32 @@ export function SwapMode({
                 {completedStr && (
                   <SuccessReceiptRow label="Completed" value={completedStr} />
                 )}
-                {/* Source chain tx */}
-                {txHash &&
-                  (() => {
-                    const srcUrl = buildExplorerUrl(
+                {txHash && (
+                  <SuccessTxHashRow
+                    label={destTxHash ? "Source tx" : "Transaction"}
+                    hash={txHash}
+                    explorerUrl={buildExplorerUrl(
                       txHash,
                       fromChain,
                       fromChainTxUrl
-                    );
-                    const isCopied = copiedHash === txHash;
-                    return (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span style={{ color: colors.mutedForeground }}>
-                          {destTxHash ? "Source tx" : "Transaction"}
-                        </span>
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: spacing[2],
-                          }}
-                        >
-                          {srcUrl && (
-                            <a
-                              href={srcUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.25rem",
-                                color: colors.foreground,
-                                fontWeight: fontWeight.medium,
-                                textDecorationLine: "underline",
-                                textDecorationStyle: "dotted",
-                                textUnderlineOffset: "4px",
-                              }}
-                            >
-                              {txHash.slice(0, 6)}…{txHash.slice(-4)}
-                              <svg
-                                style={{ width: "0.75rem", height: "0.75rem" }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" y1="14" x2="21" y2="3" />
-                              </svg>
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleCopyHash(txHash)}
-                            title="Copy full hash"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "0.2rem",
-                              fontSize: fontSize.xs,
-                              color: isCopied
-                                ? colors.green[500]
-                                : colors.mutedForeground,
-                              backgroundColor: "transparent",
-                              border: 0,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              padding: 0,
-                              transition: "color 0.15s",
-                            }}
-                          >
-                            {isCopied ? (
-                              "Copied!"
-                            ) : (
-                              <svg
-                                style={{
-                                  width: "0.875rem",
-                                  height: "0.875rem",
-                                }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <rect
-                                  x="9"
-                                  y="9"
-                                  width="13"
-                                  height="13"
-                                  rx="2"
-                                  ry="2"
-                                />
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                {/* Destination chain tx (cross-chain bridges) */}
-                {destTxHash &&
-                  (() => {
-                    const destUrl = buildExplorerUrl(
+                    )}
+                    isCopied={copiedHash === txHash}
+                    onCopy={handleCopyHash}
+                  />
+                )}
+                {destTxHash && (
+                  <SuccessTxHashRow
+                    label="Destination tx"
+                    hash={destTxHash}
+                    explorerUrl={buildExplorerUrl(
                       destTxHash,
                       toChain,
                       toChainTxUrl
-                    );
-                    const isCopied = copiedHash === destTxHash;
-                    return (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span style={{ color: colors.mutedForeground }}>
-                          Destination tx
-                        </span>
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: spacing[2],
-                          }}
-                        >
-                          {destUrl && (
-                            <a
-                              href={destUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.25rem",
-                                color: colors.foreground,
-                                fontWeight: fontWeight.medium,
-                                textDecorationLine: "underline",
-                                textDecorationStyle: "dotted",
-                                textUnderlineOffset: "4px",
-                              }}
-                            >
-                              {destTxHash.slice(0, 6)}…{destTxHash.slice(-4)}
-                              <svg
-                                style={{ width: "0.75rem", height: "0.75rem" }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" y1="14" x2="21" y2="3" />
-                              </svg>
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleCopyHash(destTxHash)}
-                            title="Copy full hash"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              fontSize: fontSize.xs,
-                              color: isCopied
-                                ? colors.green[500]
-                                : colors.mutedForeground,
-                              backgroundColor: "transparent",
-                              border: 0,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              padding: 0,
-                              transition: "color 0.15s",
-                            }}
-                          >
-                            {isCopied ? (
-                              "Copied!"
-                            ) : (
-                              <svg
-                                style={{
-                                  width: "0.875rem",
-                                  height: "0.875rem",
-                                }}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <rect
-                                  x="9"
-                                  y="9"
-                                  width="13"
-                                  height="13"
-                                  rx="2"
-                                  ry="2"
-                                />
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                    )}
+                    isCopied={copiedHash === destTxHash}
+                    onCopy={handleCopyHash}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -2129,6 +2217,16 @@ export function SwapMode({
           error={mapError(execution.errorMessage)}
           onTryAgain={() => setStage("review")}
           onStartOver={handleReset}
+          txHash={execution.txHash}
+          explorerUrl={
+            execution.txHash
+              ? buildExplorerUrl(
+                  execution.txHash,
+                  fromChain,
+                  execution.pollingTx?.fromChainTxUrl ?? null
+                )
+              : null
+          }
         />
       </WidgetContainer>
     );
@@ -2372,15 +2470,17 @@ export function SwapMode({
                     r="5"
                     fill="none"
                     stroke={
-                      quoteAge >= QUOTE_TTL - 10
+                      quoteRefreshCountdown.warning
                         ? colors.destructive
                         : colors.primary
                     }
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeDasharray="31.416"
-                    strokeDashoffset={31.416 * (quoteAge / QUOTE_TTL)}
-                    style={{ transition: "stroke-dashoffset 1s linear" }}
+                    strokeDashoffset={31.416 * quoteRefreshCountdown.progress}
+                    style={{
+                      transition: `stroke-dashoffset ${quoteTickMs}ms linear`,
+                    }}
                   />
                 </svg>
               )}
@@ -2466,6 +2566,23 @@ export function SwapMode({
             </div>
           )}
 
+          {routeChangeNotice && routeChangeNotice.route === route.built && (
+            <p
+              role="alert"
+              style={{
+                marginTop: spacing[5],
+                padding: spacing[3],
+                borderRadius: borderRadius.lg,
+                backgroundColor: colors.amber[500] + "1a",
+                border: `1px solid ${colors.amber[500]}66`,
+                fontSize: fontSize.xs,
+                color: colors.foreground,
+              }}
+            >
+              {describeRouteChange(routeChangeNotice.change)}
+            </p>
+          )}
+
           {/* ── Action area — structured for future additions ── */}
           <SwapActionArea
             fromTokenSymbol={fromToken?.symbol ?? ""}
@@ -2537,18 +2654,52 @@ export function SwapMode({
             marginBottom: spacing[1],
           }}
         >
-          <span
+          <div
             style={{
-              padding: `${spacing[1.5]} ${spacing[3]}`,
-              borderRadius: "9999px",
-              fontSize: fontSize.sm,
-              fontWeight: fontWeight.semibold,
-              backgroundColor: "hsl(var(--tw-muted))",
-              color: colors.foreground,
+              display: "flex",
+              alignItems: "center",
+              gap: spacing[1.5],
             }}
           >
-            Swap
-          </span>
+            <span
+              style={{
+                padding: `${spacing[1.5]} ${spacing[3]}`,
+                borderRadius: "9999px",
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.semibold,
+                backgroundColor: "hsl(var(--tw-muted))",
+                color: colors.foreground,
+              }}
+            >
+              Swap
+            </span>
+
+            {/* Earn — vault deposits (BVT-398). Only once a wallet is
+                connected (there's nothing to deposit before then) and only
+                when the client has configured a mode. Moved out of the
+                settings popover so it isn't buried two taps deep. Plain
+                text, no icon — matches the Swap badge next to it exactly
+                except for color, so the two read as one tab group instead
+                of two differently-styled controls. */}
+            {walletAddress && features.vaultDeposits ? (
+              <button
+                type="button"
+                onClick={() => setStage("earn")}
+                style={{
+                  padding: `${spacing[1.5]} ${spacing[3]}`,
+                  borderRadius: "9999px",
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.semibold,
+                  backgroundColor: "rgba(59, 130, 246, 0.08)",
+                  color: colors.primary,
+                  border: 0,
+                  cursor: "pointer",
+                }}
+              >
+                Earn
+              </button>
+            ) : null}
+          </div>
 
           {/* Right side: wallet + settings gear */}
           <div
@@ -3083,11 +3234,7 @@ export function SwapMode({
                       const decimals = fromToken?.decimals ?? 18;
                       const isNative =
                         !!fromToken &&
-                        (isNativeTokenAddress(
-                          fromToken.address,
-                          fromChainType ?? ""
-                        ) ||
-                          isZeroAddrLike(fromToken.address, fromChainType));
+                        isNativeTokenAddress(fromToken.address, fromChainType);
                       // Compute spendable amount — leave a fee reserve for gas tokens
                       // SOL: fixed 0.01 SOL (fees + rent-exempt buffer; % is unsafe at low balances)
                       // EVM native: 0.5% (ETH fees are variable so % is appropriate)
@@ -3261,7 +3408,7 @@ export function SwapMode({
         <div style={{ position: "relative", height: 0, zIndex: 10 }}>
           <button
             onClick={handleFlip}
-            disabled={lockDestToken}
+            disabled={!flipAllowed}
             style={{
               position: "absolute",
               left: "50%",
@@ -3275,8 +3422,8 @@ export function SwapMode({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: lockDestToken ? "default" : "pointer",
-              opacity: lockDestToken ? 0.4 : 1,
+              cursor: flipAllowed ? "pointer" : "default",
+              opacity: flipAllowed ? 1 : 0.4,
             }}
           >
             <svg
@@ -3670,15 +3817,17 @@ export function SwapMode({
                       r="5"
                       fill="none"
                       stroke={
-                        quoteAge >= QUOTE_TTL - 10
+                        quoteRefreshCountdown.warning
                           ? colors.destructive
                           : colors.primary
                       }
                       strokeWidth="1.5"
                       strokeLinecap="round"
                       strokeDasharray="31.416"
-                      strokeDashoffset={31.416 * (quoteAge / QUOTE_TTL)}
-                      style={{ transition: "stroke-dashoffset 1s linear" }}
+                      strokeDashoffset={31.416 * quoteRefreshCountdown.progress}
+                      style={{
+                        transition: `stroke-dashoffset ${quoteTickMs}ms linear`,
+                      }}
                     />
                   </svg>
                 )}
@@ -4305,6 +4454,117 @@ function SuccessReceiptRow({
       <span style={{ fontWeight: fontWeight.medium, color: colors.foreground }}>
         {value}
       </span>
+    </div>
+  );
+}
+
+/**
+ * A receipt row for one chain's tx hash. The hash is always shown; it is a
+ * link only when an explorer URL exists, since a chain the catalog has no
+ * explorer for must still show which tx landed.
+ */
+function SuccessTxHashRow({
+  label,
+  hash,
+  explorerUrl,
+  isCopied,
+  onCopy,
+}: {
+  label: string;
+  hash: string;
+  explorerUrl: string | null;
+  isCopied: boolean;
+  onCopy: (hash: string) => void;
+}): React.ReactElement {
+  const shortHash = `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      <span style={{ color: colors.mutedForeground }}>{label}</span>
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: spacing[2],
+        }}
+      >
+        {explorerUrl ? (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.25rem",
+              color: colors.foreground,
+              fontWeight: fontWeight.medium,
+              textDecorationLine: "underline",
+              textDecorationStyle: "dotted",
+              textUnderlineOffset: "4px",
+            }}
+          >
+            {shortHash}
+            <svg
+              style={{ width: "0.75rem", height: "0.75rem" }}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
+        ) : (
+          <span
+            style={{ color: colors.foreground, fontWeight: fontWeight.medium }}
+          >
+            {shortHash}
+          </span>
+        )}
+        <button
+          onClick={() => onCopy(hash)}
+          title="Copy full hash"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            fontSize: fontSize.xs,
+            color: isCopied ? colors.green[500] : colors.mutedForeground,
+            backgroundColor: "transparent",
+            border: 0,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            padding: 0,
+            transition: "color 0.15s",
+          }}
+        >
+          {isCopied ? (
+            "Copied!"
+          ) : (
+            <svg
+              style={{ width: "0.875rem", height: "0.875rem" }}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

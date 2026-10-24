@@ -7,13 +7,18 @@ import {
   borderRadius,
 } from "src/widget/styles";
 import { getSharedRegistry } from "src/core/registryClient";
+import { mapTokenDefToToken } from "src/core/useTokens";
 import { useTokens } from "src/widget/hooks";
 import {
   ChainSelectorPanel,
   TokenSelectorPanel,
   useSelectTokenModel,
+  type CatalogPickBalance,
 } from "src/widget/features/token-selection";
 import { WidgetSecurityFooter } from "src/widget/components";
+import { normalizeChainType, withoutTokens } from "src/utils/chains";
+import { onlyAllowedTokens } from "../tokenFilters";
+import { refsOnChain } from "../tokenRefs";
 import type { ChainDef } from "src/types";
 import type { SwapTokenRef } from "src/types/config";
 import type { Token, YourTokenData } from "src/widget/state/deposit/types";
@@ -34,9 +39,17 @@ interface SwapTokenSelectProps {
    * We fetch them directly by address so pagination order never matters.
    */
   allowedTokens?: SwapTokenRef[];
-  /** Token that must not appear in the list (prevents swapping a token to itself on the same chain). */
-  excludeToken?: { address: string; chainId: string | number } | null;
+  /**
+   * A token to leave out of the list. Picking the other side's token flips
+   * the sides, so the caller hides it only when that flip isn't allowed.
+   */
+  excludeToken: { address: string; chainId: string | number } | null;
+  /** Why a chain's wallet balances are missing, or null when they loaded. */
+  walletBalanceErrorFor: (chain: ChainDef | null) => string | null;
 }
+
+// Swap mode reads balances from the loaded wallet rows, never per pick.
+const NO_PICK_BALANCE_FETCH: CatalogPickBalance = { fetch: false };
 
 export function SwapTokenSelect({
   side,
@@ -51,6 +64,7 @@ export function SwapTokenSelect({
   chainsError,
   allowedTokens,
   excludeToken,
+  walletBalanceErrorFor,
 }: SwapTokenSelectProps): React.ReactElement {
   const [localChain, setLocalChain] = useState<ChainDef | null>(initialChain);
 
@@ -68,10 +82,7 @@ export function SwapTokenSelect({
       return;
     }
 
-    const chainIdNum = Number(localChain.chainId);
-    const tokensForChain = allowedTokens.filter(
-      (t) => t.chainId === chainIdNum
-    );
+    const tokensForChain = refsOnChain(allowedTokens, localChain);
     if (tokensForChain.length === 0) {
       setPinnedTokens([]);
       return;
@@ -86,25 +97,8 @@ export function SwapTokenSelect({
     Promise.all(
       tokensForChain.map((ref) =>
         registry
-          .tokensPage(localChain.chainId, { q: ref.address, limit: 5 })
-          .then((page: import("src/types/blockchain").TokenPageResult) => {
-            const norm = ref.address.toLowerCase();
-            const match = page.data.find(
-              (t) => t.address.toLowerCase() === norm
-            );
-            if (!match) return null;
-            const token: Token = {
-              address: match.address,
-              chainId: match.chainId,
-              symbol: match.symbol,
-              name: match.name,
-              decimals: match.decimals,
-              iconUrl: match.logoURI,
-              logoURI: match.logoURI,
-              usdPrice: match.usdPrice,
-            };
-            return token;
-          })
+          .lookupToken(localChain.chainId, ref.address)
+          .then((match) => (match ? mapTokenDefToToken(match) : null))
           .catch(() => null)
       )
     ).then((results) => {
@@ -151,6 +145,7 @@ export function SwapTokenSelect({
     isChainSelected,
   } = useSelectTokenModel({
     goBack: onBack,
+    pickBalance: NO_PICK_BALANCE_FETCH,
     searchQuery,
     selectedChain: localChain,
     setSelectedChain: setLocalChain,
@@ -166,40 +161,29 @@ export function SwapTokenSelect({
     yourWalletTokens,
   });
 
-  // Wallet tokens: filter by allowlist if active
-  const allowedSet = useMemo(() => {
-    if (!allowedTokens || allowedTokens.length === 0) return null;
-    return new Set(
-      allowedTokens.map((t) => `${t.chainId}:${t.address.toLowerCase()}`)
-    );
-  }, [allowedTokens]);
+  const chainType = normalizeChainType(localChain);
 
-  const filteredWalletTokens = useMemo(() => {
-    if (!allowedSet) return rawWalletTokens;
-    return rawWalletTokens.filter((t) =>
-      allowedSet.has(`${Number(t.chainId)}:${t.address.toLowerCase()}`)
-    );
-  }, [rawWalletTokens, allowedSet]);
+  // The pinned catalog list is already the allowlist; wallet rows are not.
+  const filteredWalletTokens = useMemo(
+    () => onlyAllowedTokens(rawWalletTokens, allowedTokens, chainType),
+    [rawWalletTokens, allowedTokens, chainType]
+  );
 
-  // Exclusion: remove the counterpart token (same address + same chain) so you
-  // can't swap a token to itself on the same chain.
-  const excludeKey = excludeToken
-    ? `${Number(excludeToken.chainId)}:${excludeToken.address.toLowerCase()}`
-    : null;
+  // The other side's token is hidden so a token can't be swapped into itself.
+  const counterpart = useMemo(
+    () => (excludeToken ? [excludeToken] : []),
+    [excludeToken]
+  );
 
-  const visibleTokens = useMemo(() => {
-    if (!excludeKey) return filteredTokens;
-    return filteredTokens.filter(
-      (t) => `${Number(t.chainId)}:${t.address.toLowerCase()}` !== excludeKey
-    );
-  }, [filteredTokens, excludeKey]);
+  const visibleTokens = useMemo(
+    () => withoutTokens(filteredTokens, counterpart, chainType),
+    [filteredTokens, counterpart, chainType]
+  );
 
-  const visibleWalletTokens = useMemo(() => {
-    if (!excludeKey) return filteredWalletTokens;
-    return filteredWalletTokens.filter(
-      (t) => `${Number(t.chainId)}:${t.address.toLowerCase()}` !== excludeKey
-    );
-  }, [filteredWalletTokens, excludeKey]);
+  const visibleWalletTokens = useMemo(
+    () => withoutTokens(filteredWalletTokens, counterpart, chainType),
+    [filteredWalletTokens, counterpart, chainType]
+  );
 
   return (
     <div
@@ -288,6 +272,7 @@ export function SwapTokenSelect({
           setSearchQuery={setSearchQuery}
           tokensError={tokensError}
           walletAddress={walletAddress}
+          walletBalanceError={walletBalanceErrorFor(localChain)}
         />
       </div>
 

@@ -32,6 +32,12 @@ jobs:
     if: contains(github.ref_name, '-staging.')
     runs-on: ubuntu-latest
     environment: npm-staging
+    # One staging publish at a time, so the version check below still holds
+    # when `npm publish` runs. GitHub keeps at most one run queued: a third tag
+    # pushed while one runs and one waits cancels the waiting one.
+    concurrency:
+      group: publish-staging
+      cancel-in-progress: false
     # Re-exported so notify-slack can drop the same notes that go on the
     # GitHub Release into the Slack message, instead of only linking to them.
     outputs:
@@ -55,6 +61,16 @@ jobs:
       # every command. Strip it.
       - name: Strip deprecated always-auth from npmrc
         run: sed -i '/^always-auth=/d' "$HOME/.npmrc" || true
+
+      # The publish below sets `--tag latest` explicitly, which skips npm's own
+      # refusal to move `latest` backward. A run for an older tag that starts
+      # after a newer one published must fail here instead.
+      - name: Refuse to move latest backward
+        run: |
+          set -euo pipefail
+          npm run test:publish-guard
+          PUBLISHED=$(npm view @trustware/sdk-staging versions --json)
+          node scripts/assert-version-advances.mjs "${GITHUB_REF_NAME#v}" "$PUBLISHED"
 
       - name: Install dependencies
         run: npm ci
@@ -87,7 +103,15 @@ jobs:
         # though libnpmpublish depends on it (^5.0.0), which breaks
         # `publish --provenance` with MODULE_NOT_FOUND. Drop the extra -p once
         # npm bundles it again.
-        run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --tag staging --provenance
+        #
+        # --tag latest, not --tag staging: this package only ever holds staging
+        # builds, so `latest` is the newest staging build. Publishing under a
+        # `staging` tag left `latest` stuck on the 0.0.0 placeholder, which is
+        # what npmjs.com shows and what a bare `npm i` installs. The tag must be
+        # explicit: npm refuses to apply `latest` implicitly to a prerelease.
+        # Only one tag can be set here because trusted publishing (OIDC)
+        # authorizes `npm publish` alone, not `npm dist-tag`.
+        run: npx -y -p npm@12 -p sigstore@^5.0.0 npm publish --access public --tag latest --provenance
 
       # Staging release notes show every commit since the last production tag,
       # giving a running preview of what's heading to prod next.
@@ -235,7 +259,7 @@ jobs:
               CHANNEL_LABEL="staging"
               PKG="@trustware/sdk-staging"
               EMOJI=":construction:"
-              INSTALL="npm i ${PKG}@staging"
+              INSTALL="npm i ${PKG}@latest"
               ;;
             *)
               CHANNEL_LABEL="production"

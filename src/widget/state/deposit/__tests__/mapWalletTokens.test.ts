@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { ChainDef } from "src/types";
-import { NATIVE_SOLANA } from "src/widget/helpers/chainHelpers";
+import { NATIVE_SOLANA } from "src/utils/chains";
 import { mapWalletTokens } from "src/widget/state/deposit/useWalletTokenState";
 
 const NATIVE_SENTINEL = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";

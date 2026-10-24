@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { colors, spacing, fontSize, fontWeight, borderRadius } from "../styles";
 
 import {
@@ -12,6 +12,7 @@ import {
   ChainSelectorPanel,
   TokenSelectorPanel,
   useSelectTokenModel,
+  type CatalogPickBalance,
 } from "../features/token-selection";
 
 export interface SelectTokenProps {
@@ -23,7 +24,16 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
   const { selectedChain, setSelectedChain, setSelectedToken } =
     useDepositForm();
   const { goBack } = useDepositNavigation();
-  const { walletAddress, yourWalletTokens } = useDepositWallet();
+  const {
+    walletAddress,
+    yourWalletTokens,
+    walletBalanceErrorFor,
+    reportWalletBalanceError,
+  } = useDepositWallet();
+  const pickBalance = useMemo<CatalogPickBalance>(
+    () => ({ fetch: true, onFetchFailed: reportWalletBalanceError }),
+    [reportWalletBalanceError]
+  );
   const { popularChains, otherChains, isLoading, error } = useChains();
   const {
     filteredTokens,
@@ -43,6 +53,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
     isChainSelected,
   } = useSelectTokenModel({
     goBack,
+    pickBalance,
     searchQuery,
     selectedChain,
     setSelectedChain,
@@ -147,6 +158,7 @@ export function SelectToken({ style }: SelectTokenProps): React.ReactElement {
           setSearchQuery={setSearchQuery}
           tokensError={tokensError}
           walletAddress={walletAddress}
+          walletBalanceError={walletBalanceErrorFor(selectedChain)}
         />
       </div>
 

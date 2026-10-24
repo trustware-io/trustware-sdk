@@ -1,5 +1,5 @@
 import type { ChainDef } from "src/types";
-import { normalizeAddress } from "src/widget/helpers/chainHelpers";
+import { normalizeAddress, normalizeChainKey } from "src/utils/chains";
 import type { YourTokenData } from "src/widget/state/deposit/types";
 
 /**
@@ -18,24 +18,6 @@ import type { YourTokenData } from "src/widget/state/deposit/types";
  * also maps the Solana native aliases onto one another, which a plain
  * comparison would miss.
  */
-/** Hex addresses are case-insensitive; everything else (Base58 SPL mints, BTC)
- *  is not. */
-const HEX_ADDRESS = /^0x[0-9a-f]+$/i;
-
-/**
- * `normalizeAddress` decides by chain type, which is the right call when the
- * caller knows it — it also folds the Solana native aliases together. But it
- * lowercases whenever the type is absent, which would silently reintroduce the
- * Base58 bug for a caller that couldn't supply one. The address format is
- * self-describing, so fall back to that rather than to case-folding.
- */
-function compareKey(address: string, chainType?: ChainDef["type"]): string {
-  if (chainType) return normalizeAddress(address, chainType);
-  return HEX_ADDRESS.test(address.trim())
-    ? address.toLowerCase()
-    : address.trim();
-}
-
 export function findWalletBalanceRow(
   rows: YourTokenData[] | undefined,
   token: { address?: string; chainId?: string | number } | null | undefined,
@@ -44,7 +26,7 @@ export function findWalletBalanceRow(
 ): YourTokenData | undefined {
   const rawAddress = token?.address;
   if (!rawAddress || !rows?.length) return undefined;
-  const wantAddress = compareKey(rawAddress, chainType);
+  const wantAddress = normalizeAddress(rawAddress, chainType);
   if (!wantAddress) return undefined;
 
   // The chain is a required constraint, never an optional one. An address
@@ -59,16 +41,12 @@ export function findWalletBalanceRow(
   // is the token's own chain that decides which row is its balance. Fall back
   // to it, and if neither is available, report no balance rather than the
   // wrong one.
-  const wantChain = normalizeChain(chainId ?? token?.chainId);
+  const wantChain = normalizeChainKey(chainId ?? token?.chainId);
   if (!wantChain) return undefined;
 
   return rows.find((row) => {
     if (!row?.address) return false;
-    if (compareKey(row.address, chainType) !== wantAddress) return false;
-    return normalizeChain(row.chainId) === wantChain;
+    if (normalizeAddress(row.address, chainType) !== wantAddress) return false;
+    return normalizeChainKey(row.chainId) === wantChain;
   });
-}
-
-function normalizeChain(chainId: string | number | null | undefined): string {
-  return chainId == null ? "" : String(chainId).trim().toLowerCase();
 }

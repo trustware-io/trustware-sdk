@@ -1,4 +1,20 @@
 import type { Dispatch, SetStateAction } from "react";
+import type {
+  ReceiptDeliveryOutcome,
+  ReceiptReport,
+} from "src/core/intentTracking";
+
+/**
+ * A sent transaction for the Processing page to track. `delivery` is the
+ * send step's own receipt delivery (every route sent through
+ * `sendSignableRoute`), so tracking must not post it again, or
+ * "tracker_posts" when nothing else posts it (the smart-account path).
+ * Required, so no send path can leave the choice to a default.
+ */
+export type TrackedReceipt = {
+  report: ReceiptReport;
+  delivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts";
+};
 
 import type {
   ChainDef,
@@ -91,8 +107,10 @@ export interface DepositContextValue {
   setTransactionHash: (hash: string | null) => void;
   errorMessage: string | null;
   setErrorMessage: (message: string | null) => void;
-  intentId: string | null;
-  setIntentId: (id: string | null) => void;
+  /** What the Processing page tracks; set once the network has the
+   *  transaction. */
+  receipt: TrackedReceipt | null;
+  setReceipt: (receipt: TrackedReceipt | null) => void;
   paymentMethod: PaymentMethodType;
   setPaymentMethod: (method: PaymentMethodType) => void;
   resolvedTheme: ResolvedTheme;
@@ -100,6 +118,9 @@ export interface DepositContextValue {
   setYourWalletTokens: Dispatch<SetStateAction<YourTokenData[]>>;
   yourWalletTokens: YourTokenData[];
   yourWalletTokensLoading: boolean;
+  /** Why a chain's wallet balances are missing, or null when they loaded. */
+  walletBalanceErrorFor: (chain: ChainDef | null) => string | null;
+  reportWalletBalanceError: (chain: ChainDef, message: string) => void;
   amountInputMode: "usd" | "token";
   setAmountInputMode: Dispatch<SetStateAction<"usd" | "token">>;
   WalletConnect: () => Promise<void>;

@@ -29,7 +29,6 @@ export {
   type Step,
   type TransactionStepsProps,
 } from "./TransactionSteps";
-export { WalletSelector, type WalletSelectorProps } from "./WalletSelector";
 export {
   WidgetContainer,
   type Theme,

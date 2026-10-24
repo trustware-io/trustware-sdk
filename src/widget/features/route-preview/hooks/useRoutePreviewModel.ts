@@ -9,7 +9,7 @@ import {
 import {
   normalizeChainKey,
   getNativeTokenAddress,
-} from "../../../helpers/chainHelpers";
+} from "../../../../utils/chains";
 import type { ChainDef } from "../../../../types";
 
 type UseRoutePreviewModelArgs = {
@@ -20,7 +20,8 @@ type UseRoutePreviewModelArgs = {
     typeof import("../../../../hooks/useTrustwareConfig").useTrustwareConfig
   >;
   isReady: boolean | undefined;
-  routeRefreshMs?: number;
+  /** The resolved `routes.options.routeRefreshMs`. */
+  routeRefreshMs: number;
   selectedChain: ChainDef | null;
   selectedToken: Token | YourTokenData | null;
   walletAddress: string | null;
