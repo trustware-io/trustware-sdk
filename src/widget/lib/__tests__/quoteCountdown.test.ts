@@ -7,6 +7,7 @@ import {
   shouldRefreshQuote,
 } from "src/widget/lib/quoteCountdown";
 import { MAX_ROUTE_REFRESH_MS } from "src/config/routeRefresh";
+import { DATE_HEADER_TRUNCATION_MS } from "src/core/routeExpiry";
 import { mulberry32 } from "src/__tests__/seededRandom";
 
 describe("quoteCountdown", () => {
@@ -124,12 +125,26 @@ describe("shouldRefreshQuote", () => {
 
 describe("quoteRefreshIntervalMs", () => {
   const receivedAt = Date.UTC(2026, 9, 24, 10, 0, 0);
-  /** A route expiring `inMs` after `receivedAt` on the server's clock,
+  /** A route expiring `inMs` after the latest the server's clock can read
+   *  at `receivedAt` (its Date, plus the 999 ms truncation), on a server
    *  whose clock runs `offsetMs` ahead of the device's. */
   const expiringIn = (inMs: number, offsetMs = 0) => ({
     intentId: "intent-1",
-    expiresAt: new Date(receivedAt + offsetMs + inMs),
+    expiresAt: new Date(
+      receivedAt + offsetMs + DATE_HEADER_TRUNCATION_MS + inMs
+    ),
     serverClockOffsetMs: offsetMs,
+  });
+
+  it("counts down to the expiry less the Date header's truncation", () => {
+    assert.equal(
+      quoteRefreshIntervalMs(60_000, receivedAt, {
+        intentId: "intent-1",
+        expiresAt: new Date(receivedAt + 45_000),
+        serverClockOffsetMs: 0,
+      }),
+      44_001
+    );
   });
 
   it("is the host's interval when the route outlives it", () => {

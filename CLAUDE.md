@@ -748,10 +748,12 @@ one yet.
   exposes it over CORS) into `serverClockOffsetMs = Date.parse(Date) -
   Date.now()` at arrival. A missing or malformed value of either throws
   `RouteResponseError`; the device clock is never used in place of
-  `Date`. Expiry is judged on the server's clock, `Date.now() +
-  serverClockOffsetMs >= expiresAt` (`serverNowMs`), so a skewed device
-  clock neither expires a fresh route nor keeps a dead one alive. The
-  header's one-second precision puts that estimate up to ~1 s early.
+  `Date`. Expiry is judged on the latest the server's clock can read,
+  `Date.now() + serverClockOffsetMs + 999 >= expiresAt` (`serverNowMs`,
+  the one place the 999 ms lives): `Date` is truncated to the second, so
+  the SDK refuses up to 1 s early rather than sending up to 1 s late. A
+  skewed device clock neither expires a fresh route nor keeps a dead one
+  alive.
   `sendRouteTransactionReporting` checks it at entry and again right
   before the EVM send, and `sendRouteAsUserOperation` at entry and before
   each bundler attempt: past it they throw `RouteExpiredError` and send

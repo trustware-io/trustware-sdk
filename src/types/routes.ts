@@ -325,8 +325,9 @@ export type BuildRouteResult = {
   /**
    * How far the server's clock was ahead of this device's when the route
    * arrived, in ms, from the response's `Date` header. Expiry is judged as
-   * `Date.now() + serverClockOffsetMs >= expiresAt`, so a device clock
-   * that is off doesn't change it.
+   * `Date.now() + serverClockOffsetMs + 999 >= expiresAt` (the 999 ms
+   * covers the header's truncation to the second), so a device clock that
+   * is off doesn't change it.
    */
   serverClockOffsetMs: number;
 };

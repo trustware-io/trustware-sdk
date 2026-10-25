@@ -96,8 +96,9 @@ const IMF_FIXDATE =
  * How far the server's clock is ahead of this device's, in ms, read from a
  * route response's `Date` header at the moment it arrived. Expiry is judged
  * on the server's clock (`expiresAt` is its time), so a device clock that is
- * off neither expires a fresh route nor keeps an expired one alive. Exact to
- * the header's one-second precision plus the response's travel time.
+ * off neither expires a fresh route nor keeps an expired one alive. The
+ * header's one-second truncation is allowed for where expiry is judged
+ * (`serverNowMs`), not here.
  *
  * A missing or malformed `Date` is a contract violation (an origin server
  * must send one) and throws `RouteResponseError`; the device clock is never
@@ -137,9 +138,21 @@ export type RouteExpiry = {
   serverClockOffsetMs: number;
 };
 
-/** The server's time now, by this device's clock and the route's offset. */
+/**
+ * `Date` is truncated to the second, so when the response left the server
+ * its clock read somewhere in [Date, Date + 1 s). Expiry is judged with the
+ * latest of those, so a route is refused up to 1 s early rather than sent
+ * up to 1 s late.
+ */
+export const DATE_HEADER_TRUNCATION_MS = 999;
+
+/**
+ * The latest the server's clock can read now, by this device's clock and
+ * the route's offset. Every expiry judgement goes through this.
+ */
 export function serverNowMs(route: RouteExpiry, nowMs: number): number {
-  const serverNow = nowMs + route.serverClockOffsetMs;
+  const serverNow =
+    nowMs + route.serverClockOffsetMs + DATE_HEADER_TRUNCATION_MS;
   if (!Number.isFinite(serverNow)) {
     throw new Error(
       `Route intent ${route.intentId} has no usable server clock offset ` +
