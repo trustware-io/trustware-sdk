@@ -170,6 +170,8 @@ async function hostSend(script: {
   const signed: Signed[] = [];
   const retries: SigningRetry[] = [];
   const receipts: { url: string; body: unknown }[] = [];
+  /** The `routeIntentId` each send-serialized call named. */
+  const sendIntents: unknown[] = [];
   const knownInvalid = new Set<string>();
   const current = () => {
     const last = signed.at(-1);
@@ -203,6 +205,7 @@ async function hostSend(script: {
       const s = current();
       assert.equal(body.chainId, SOLANA);
       assert.equal(body.serializedTransaction, s.base64);
+      sendIntents.push(body.routeIntentId);
       assert.ok(
         !knownInvalid.has(s.blockhash),
         `sent ${s.blockhash} after it read invalid`
@@ -271,7 +274,7 @@ async function hostSend(script: {
   } catch (err) {
     outcome = err as Error;
   }
-  return { outcome, order, signed, retries, receipts, script };
+  return { outcome, order, signed, retries, receipts, sendIntents, script };
 }
 
 const expiredMessage = (s: Signed) =>
@@ -336,6 +339,13 @@ describe("Solana send, end to end against the proxy contract", () => {
         url: "/v1/route-intent/intent-rebuilt/receipt",
         body: { txHash: only.signature },
       },
+    ]);
+    // Every send names the signed route's intent, so the backend commits
+    // the signature at broadcast too.
+    assert.deepEqual(run.sendIntents, [
+      "intent-rebuilt",
+      "intent-rebuilt",
+      "intent-rebuilt",
     ]);
     assert.deepEqual(run.retries, []);
   });
@@ -577,6 +587,8 @@ describe("Solana send, end to end against the proxy contract", () => {
         body: { txHash: second.signature },
       },
     ]);
+    // The re-signed route's intent, never the expired confirm's.
+    assert.deepEqual(run.sendIntents, ["intent-retry"]);
   });
 
   it("rebuilds and asks once more when the first send answers BLOCKHASH_NOT_FOUND", async () => {

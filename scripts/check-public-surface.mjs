@@ -76,9 +76,10 @@ for (const name of [
 }
 
 // Signed off 2026-10-16: the SDK's adapters report the first accepted send.
+// routeIntentId (BVT-251, the commit handshake) awaits sign-off in its PR.
 expectIncludes(
   "src/types/wallets.ts",
-  "    options?: { onAccepted?: (signature: string) => void }\n  ): Promise<string>;"
+  "    options?: {\n      onAccepted?: (signature: string) => void;\n      routeIntentId?: string;\n    }\n  ): Promise<string>;"
 );
 
 expectIncludes("src/widget/index.tsx", "TrustwareWidgetV2 as TrustwareWidget");

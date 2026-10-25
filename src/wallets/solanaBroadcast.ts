@@ -343,14 +343,22 @@ async function readStatus(
   }
 }
 
-/** The proxy-backed IO the wallet adapter uses. */
-export function proxyBroadcastIO(chainId: string): SolanaBroadcastIO {
+/**
+ * The proxy-backed IO the wallet adapter uses. With `routeIntentId`, every
+ * send names the route intent, so the backend commits the signature at
+ * broadcast; committing the same signature again is a no-op there.
+ */
+export function proxyBroadcastIO(
+  chainId: string,
+  routeIntentId: string | undefined
+): SolanaBroadcastIO {
   return {
     async send(serializedTransaction, skipPreflight) {
       await sendSolanaSerialized({
         chainId,
         serializedTransaction,
         skipPreflight,
+        ...(routeIntentId === undefined ? {} : { routeIntentId }),
       });
     },
     async status(signature) {

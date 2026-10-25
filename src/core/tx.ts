@@ -550,12 +550,12 @@ export async function sendRouteTransactionReporting(
       chain,
       fallbackChainId ?? txReq.chainId
     );
-    if (!onAccepted) {
-      return w.sendSerializedTransaction(txReq.data, solanaChainId);
-    }
+    // `routeIntentId` lets the backend commit the signature the moment it
+    // broadcasts it, whatever happens to the browser after that.
     return accepted(
       await w.sendSerializedTransaction(txReq.data, solanaChainId, {
         onAccepted: accepted,
+        routeIntentId: b.intentId,
       })
     );
   }
