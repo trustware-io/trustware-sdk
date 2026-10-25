@@ -317,9 +317,16 @@ export type BuildRouteResult = {
   route: RoutePlan | undefined;
   sponsorship?: RouteSponsorship;
   /**
-   * When this route stops being sendable. Past it the SDK refuses to send
-   * it (`RouteExpiredError`): build a new route instead. Wire field:
-   * `expiresAt`, RFC 3339.
+   * When this route stops being sendable, in the server's time. Past it
+   * the SDK refuses to send it (`RouteExpiredError`): build a new route
+   * instead. Wire field: `expiresAt`, RFC 3339.
    */
   expiresAt: Date;
+  /**
+   * How far the server's clock was ahead of this device's when the route
+   * arrived, in ms, from the response's `Date` header. Expiry is judged as
+   * `Date.now() + serverClockOffsetMs >= expiresAt`, so a device clock
+   * that is off doesn't change it.
+   */
+  serverClockOffsetMs: number;
 };

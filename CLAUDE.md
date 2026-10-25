@@ -743,12 +743,19 @@ one yet.
   replacements aren't seen.
 - **Expiry** (`src/core/routeExpiry.ts`). `buildRoute` and
   `buildDepositAddress` parse `expiresAt` strictly (Go's RFC 3339 output,
-  calendar-checked) into `BuildRouteResult.expiresAt: Date`; a missing or
-  malformed value throws. `sendRouteTransactionReporting` checks it at
-  entry and again right before the EVM send, and
-  `sendRouteAsUserOperation` at entry and before each bundler attempt:
-  past it they throw `RouteExpiredError` and send nothing. The check uses
-  the browser's clock against the server's time. Both widgets catch it
+  calendar-checked) into `BuildRouteResult.expiresAt: Date`, and read the
+  response's `Date` header (IMF-fixdate, round-trip checked; the backend
+  exposes it over CORS) into `serverClockOffsetMs = Date.parse(Date) -
+  Date.now()` at arrival. A missing or malformed value of either throws
+  `RouteResponseError`; the device clock is never used in place of
+  `Date`. Expiry is judged on the server's clock, `Date.now() +
+  serverClockOffsetMs >= expiresAt` (`serverNowMs`), so a skewed device
+  clock neither expires a fresh route nor keeps a dead one alive. The
+  header's one-second precision puts that estimate up to ~1 s early.
+  `sendRouteTransactionReporting` checks it at entry and again right
+  before the EVM send, and `sendRouteAsUserOperation` at entry and before
+  each bundler attempt: past it they throw `RouteExpiredError` and send
+  nothing. Both widgets catch it
   and re-quote (deposit: `useRouteBuilder.refreshRoute`; swap: the same
   fetch its countdown makes), and their refresh timers count down to
   `quoteRefreshIntervalMs`: `routeRefreshMs`, cut short by the route's

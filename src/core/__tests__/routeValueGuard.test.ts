@@ -74,7 +74,10 @@ function serve(payload: unknown) {
   return async () =>
     new Response(JSON.stringify(payload), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Date: new Date().toUTCString(),
+      },
     });
 }
 
@@ -86,6 +89,7 @@ function makeBuild(estimate: RouteEstimate | undefined): BuildRouteResult {
     finalExchangeRate: {},
     route: { provider: "relay", estimate },
     expiresAt: new Date(EXPIRES_AT),
+    serverClockOffsetMs: 0,
   } as BuildRouteResult;
 }
 

@@ -308,7 +308,7 @@ export function useRouteBuilder({
     }
     const id = setTimeout(
       refresh,
-      quoteRefreshIntervalMs(refreshMs, Date.now(), shownRoute.result.expiresAt)
+      quoteRefreshIntervalMs(refreshMs, Date.now(), shownRoute.result)
     );
     return () => clearTimeout(id);
   }, [enabled, refreshMs, routeKey, confirmInFlight, shownRoute]);

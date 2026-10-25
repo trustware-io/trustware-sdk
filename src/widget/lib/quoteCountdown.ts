@@ -1,3 +1,5 @@
+import { serverNowMs, type RouteExpiry } from "src/core/routeExpiry";
+
 /** The warning colour shows for this last fraction of the interval: 10 s
  *  of the 60 s default, scaling with whatever interval the host sets. */
 export const QUOTE_WARNING_FRACTION = 1 / 6;
@@ -14,20 +16,21 @@ export type QuoteCountdown = {
 /**
  * How long a quote may stay on screen before it is refreshed: the host's
  * `routeRefreshMs`, cut short so the refresh happens by the route's
- * `expiresAt`. A route that already expired when it arrived (`receivedAtMs`)
- * is refreshed at once, which is the 1 ms floor: an interval must be
- * positive.
+ * `expiresAt`, judged on the server's clock (`serverNowMs`). A route that
+ * already expired when it arrived (`receivedAtMs`) is refreshed at once,
+ * which is the 1 ms floor: an interval must be positive.
  */
 export function quoteRefreshIntervalMs(
   routeRefreshMs: number,
   receivedAtMs: number,
-  expiresAt: Date
+  route: RouteExpiry
 ): number {
-  const untilExpiryMs = expiresAt.getTime() - receivedAtMs;
+  const untilExpiryMs =
+    route.expiresAt.getTime() - serverNowMs(route, receivedAtMs);
   if (!Number.isFinite(untilExpiryMs)) {
     throw new Error(
       `A quote refresh interval needs a finite time to expiry (expiresAt ` +
-        `${String(expiresAt)}, received at ${receivedAtMs}).`
+        `${String(route.expiresAt)}, received at ${receivedAtMs}).`
     );
   }
   return Math.max(1, Math.min(routeRefreshMs, untilExpiryMs));

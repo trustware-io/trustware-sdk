@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import {
   assertRouteNotExpired,
   parseRouteExpiresAt,
+  parseServerClockOffsetMs,
   RouteExpiredError,
+  RouteResponseError,
 } from "src/core/routeExpiry";
 import { buildDepositAddress, buildRoute } from "src/core/routes";
 import { sendRouteTransaction } from "src/core/tx";
+import { quoteRefreshIntervalMs } from "src/widget/lib/quoteCountdown";
 import { buildRouteForReview, sendReviewedRoute } from "src/core/signTimeRoute";
 import { sendRouteAsUserOperation } from "src/smart-account/send";
 import { TrustwareConfigStore } from "src/config/store";
@@ -103,16 +106,21 @@ describe("parseRouteExpiresAt", () => {
 
 describe("assertRouteNotExpired", () => {
   const expiresAt = new Date(Date.UTC(2026, 9, 24, 10, 0, 0));
-  const route = { intentId: INTENT, expiresAt };
+  // The server's clock runs 1234 ms ahead of this device's.
+  const route = { intentId: INTENT, expiresAt, serverClockOffsetMs: 1234 };
 
-  it("lets a route through until its expiry", () => {
-    assertRouteNotExpired(route, expiresAt.getTime() - 1);
+  it("lets a route through until the server's clock reaches its expiry", () => {
+    assertRouteNotExpired(route, expiresAt.getTime() - 1234 - 1);
   });
 
-  it("refuses it at the expiry and after, with the intent and the time", () => {
-    for (const now of [expiresAt.getTime(), expiresAt.getTime() + 1]) {
+  it("refuses it when the server's clock reaches the expiry, and after", () => {
+    // Equal is expired.
+    for (const deviceNow of [
+      expiresAt.getTime() - 1234,
+      expiresAt.getTime() - 1233,
+    ]) {
       assert.throws(
-        () => assertRouteNotExpired(route, now),
+        () => assertRouteNotExpired(route, deviceNow),
         (error: unknown) => {
           assert.ok(error instanceof RouteExpiredError);
           assert.equal(error.name, "RouteExpiredError");
@@ -129,27 +137,125 @@ describe("assertRouteNotExpired", () => {
     }
   });
 
-  it("refuses exactly when now has reached the expiry, over the whole range", () => {
+  it("refuses a route that carries no usable offset rather than guess one", () => {
+    for (const offset of [undefined, Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.throws(
+        () =>
+          assertRouteNotExpired(
+            {
+              intentId: INTENT,
+              expiresAt,
+              serverClockOffsetMs: offset as number,
+            },
+            expiresAt.getTime() - 60_000
+          ),
+        {
+          message:
+            `Route intent ${INTENT} has no usable server clock offset (got ` +
+            `${String(offset)}); a route must come from buildRoute or carry ` +
+            `the offset its response's Date header gave.`,
+        }
+      );
+    }
+  });
+
+  it("refuses exactly when the server's now has reached the expiry, over the whole range", () => {
     const random = mulberry32(433);
     for (let i = 0; i < 5000; i++) {
       const expiry = Math.floor(random() * 4_102_444_800_000);
+      // Device clocks up to a day off either way.
+      const offset = Math.floor((random() - 0.5) * 2 * 86_400_000);
       // Straddle the boundary densely, and cover far either side of it.
       const delta =
         random() < 0.5
           ? Math.floor(random() * 5) - 2
           : Math.floor((random() - 0.5) * 2 * 86_400_000);
-      const now = expiry + delta;
-      const refusedRoute = { intentId: INTENT, expiresAt: new Date(expiry) };
+      const deviceNow = expiry - offset + delta;
+      const judged = {
+        intentId: INTENT,
+        expiresAt: new Date(expiry),
+        serverClockOffsetMs: offset,
+      };
       let threw = false;
       try {
-        assertRouteNotExpired(refusedRoute, now);
+        assertRouteNotExpired(judged, deviceNow);
       } catch (error) {
         assert.ok(error instanceof RouteExpiredError);
         threw = true;
       }
-      assert.equal(threw, now >= expiry, `expiry ${expiry}, now ${now}`);
+      assert.equal(
+        threw,
+        deviceNow + offset >= expiry,
+        `expiry ${expiry}, offset ${offset}, device now ${deviceNow}`
+      );
     }
   });
+});
+
+describe("parseServerClockOffsetMs", () => {
+  const deviceNow = Date.UTC(2026, 9, 24, 10, 5, 0, 250);
+
+  it("is the server's Date minus this device's clock at arrival", () => {
+    assert.equal(
+      parseServerClockOffsetMs(
+        "Sat, 24 Oct 2026 10:00:00 GMT",
+        deviceNow,
+        INTENT
+      ),
+      -300_250
+    );
+    assert.equal(
+      parseServerClockOffsetMs(
+        "Sat, 24 Oct 2026 10:07:00 GMT",
+        deviceNow,
+        INTENT
+      ),
+      119_750
+    );
+  });
+
+  const message = (why: string, raw: unknown) =>
+    `The route response for intent "${INTENT}" has ${why} Date header (got ` +
+    `${JSON.stringify(raw)}); expiry is judged on the server's clock, so ` +
+    `every route response must carry an HTTP date.`;
+
+  it("refuses a response without one", () => {
+    assert.throws(
+      () => parseServerClockOffsetMs(null, deviceNow, INTENT),
+      (error: unknown) => {
+        assert.ok(error instanceof RouteResponseError);
+        assert.equal(error.name, "RouteResponseError");
+        assert.equal(error.field, "Date");
+        assert.equal(error.received, null);
+        assert.equal(error.intentId, INTENT);
+        assert.equal(error.message, message("no", null));
+        return true;
+      }
+    );
+  });
+
+  for (const garbage of [
+    "",
+    "yesterday",
+    "2026-10-24T10:00:00Z",
+    "Sat, 24 Oct 2026 10:00:00 UTC",
+    "Saturday, 24-Oct-26 10:00:00 GMT",
+    "Sat Oct 24 10:00:00 2026",
+    "Sun, 24 Oct 2026 10:00:00 GMT",
+    "Sat, 31 Feb 2026 10:00:00 GMT",
+    "Sat, 24 Oct 2026 25:00:00 GMT",
+    " Sat, 24 Oct 2026 10:00:00 GMT",
+  ]) {
+    it(`refuses ${JSON.stringify(garbage)}`, () => {
+      assert.throws(
+        () => parseServerClockOffsetMs(garbage, deviceNow, INTENT),
+        {
+          name: "RouteResponseError",
+          message: message("a malformed", garbage),
+        }
+      );
+    });
+  }
 });
 
 // ── At the API boundary ─────────────────────────────────────────────────────
@@ -228,6 +334,156 @@ describe("buildRoute and buildDepositAddress carry the expiry", () => {
   });
 });
 
+describe("expiry is judged on the server's clock", () => {
+  // 2026-10-24 10:00 by the server; the device's clock is set per test.
+  const SERVER_DATE = "Sat, 24 Oct 2026 10:00:00 GMT";
+  const SERVER_NOW = Date.UTC(2026, 9, 24, 10, 0, 0);
+  const realNow = Date.now;
+  let calls: string[];
+
+  beforeEach(async () => {
+    initConfig();
+    calls = [];
+    walletManager.attachWallet(recordingWallet(calls));
+    await new Promise((resolve) => setImmediate(resolve));
+    calls.length = 0;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    Date.now = realNow;
+  });
+
+  /** Serve `body` with `date` as its Date header (none when null). */
+  function serveDated(body: unknown, date: string | null) {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...(date === null ? {} : { Date: date }),
+        },
+      })) as unknown as typeof fetch;
+  }
+  const route = (expiresAt: string) => ({
+    data: {
+      intentId: INTENT,
+      expiresAt,
+      route: {
+        estimate: REVIEWED_ESTIMATE,
+        execution: {
+          transaction: {
+            to: ROUTER,
+            data: "0xaa",
+            value: "0",
+            chainId: "8453",
+          },
+        },
+      },
+    },
+  });
+  const deposit = (expiresAt: string) => ({
+    data: {
+      intentId: INTENT,
+      expiresAt,
+      depositAddress: { address: ROUTER },
+      route: { estimate: REVIEWED_ESTIMATE },
+    },
+  });
+
+  it("doesn't let a device clock 5 minutes ahead make a fresh route look expired", async () => {
+    const deviceNow = SERVER_NOW + 5 * 60_000;
+    Date.now = () => deviceNow;
+    serveDated(route("2026-10-24T10:01:00Z"), SERVER_DATE);
+
+    const built = await buildRoute(EVM_REQUEST);
+
+    assert.equal(built.serverClockOffsetMs, -300_000);
+    assert.equal(built.expiresAt.getTime(), SERVER_NOW + 60_000);
+    // By the server's clock the route has a minute left: the quote counts
+    // down that minute, not "expired, refresh now".
+    assert.equal(quoteRefreshIntervalMs(120_000, deviceNow, built), 60_000);
+    // And the send goes ahead to the wallet instead of refusing.
+    await assert.rejects(sendRouteTransaction(built, 8453), {
+      message: "Unexpected wallet request: eth_sendTransaction",
+    });
+    assert.ok(calls.includes("eth_sendTransaction"));
+  });
+
+  it("carries the offset on a deposit-address route too", async () => {
+    Date.now = () => SERVER_NOW + 5 * 60_000;
+    serveDated(deposit("2026-10-24T10:01:00Z"), SERVER_DATE);
+    const built = await buildDepositAddress(EVM_REQUEST);
+    assert.equal(built.serverClockOffsetMs, -300_000);
+  });
+
+  it("refuses a route past expiry on the server's clock, though the device clock says it's fresh", async () => {
+    // The device runs 5 minutes behind; the server is past the expiry.
+    Date.now = () => Date.UTC(2026, 9, 24, 9, 57, 0);
+    serveDated(route("2026-10-24T10:01:00Z"), "Sat, 24 Oct 2026 10:02:00 GMT");
+
+    const built = await buildRoute(EVM_REQUEST);
+
+    assert.equal(built.serverClockOffsetMs, 300_000);
+    await assert.rejects(sendRouteTransaction(built, 8453), {
+      name: "RouteExpiredError",
+      message:
+        `Route intent ${INTENT} expired at 2026-10-24T10:01:00.000Z, so it ` +
+        `was not sent. Build a new route and send that instead.`,
+    });
+    assert.deepEqual(calls, []);
+    assert.equal(
+      quoteRefreshIntervalMs(60_000, Date.now(), built),
+      1,
+      "an expired quote is refreshed at once"
+    );
+  });
+
+  it("treats the server's now equal to the expiry as expired", async () => {
+    Date.now = () => SERVER_NOW + 5 * 60_000;
+    serveDated(route("2026-10-24T10:00:00Z"), SERVER_DATE);
+    const built = await buildRoute(EVM_REQUEST);
+    await assert.rejects(sendRouteTransaction(built, 8453), {
+      name: "RouteExpiredError",
+    });
+    Date.now = () => SERVER_NOW + 5 * 60_000 - 1;
+    await assert.rejects(sendRouteTransaction(built, 8453), {
+      message: "Unexpected wallet request: eth_sendTransaction",
+    });
+  });
+
+  const dateMessage = (why: string, raw: unknown) =>
+    `The route response for intent "${INTENT}" has ${why} Date header (got ` +
+    `${JSON.stringify(raw)}); expiry is judged on the server's clock, so ` +
+    `every route response must carry an HTTP date.`;
+
+  it("refuses a route response without a Date header", async () => {
+    serveDated(route("2026-10-24T10:01:00Z"), null);
+    await assert.rejects(buildRoute(EVM_REQUEST), (error: unknown) => {
+      assert.ok(error instanceof RouteResponseError);
+      assert.equal(error.field, "Date");
+      assert.equal(error.received, null);
+      assert.equal(error.message, dateMessage("no", null));
+      return true;
+    });
+  });
+
+  it("refuses a route response whose Date header is garbage", async () => {
+    serveDated(route("2026-10-24T10:01:00Z"), "not a date");
+    await assert.rejects(buildRoute(EVM_REQUEST), {
+      name: "RouteResponseError",
+      message: dateMessage("a malformed", "not a date"),
+    });
+  });
+
+  it("refuses a deposit-address response without a Date header", async () => {
+    serveDated(deposit("2026-10-24T10:01:00Z"), null);
+    await assert.rejects(buildDepositAddress(EVM_REQUEST), {
+      name: "RouteResponseError",
+      message: dateMessage("no", null),
+    });
+  });
+});
+
 /** Records every wallet call; answers only what a send needs. */
 function recordingWallet(calls: string[]): WalletInterFaceAPI {
   return {
@@ -259,6 +515,7 @@ function routeExpiringAt(expiresAt: Date): BuildRouteResult {
     finalExchangeRate: {},
     route: { estimate: REVIEWED_ESTIMATE },
     expiresAt,
+    serverClockOffsetMs: 0,
   };
 }
 
@@ -346,16 +603,22 @@ describe("an expired route is never sent", () => {
 
   it("sendReviewedRoute refuses an expired EVM route: nothing signed, nothing committed", async () => {
     const events: Event[] = [];
-    const expiresAt = new Date(Date.now() + 40);
+    // Dated to the second, like a real server; the route expires 40 ms
+    // into that second on the server's clock.
+    const serverDate = new Date().toUTCString();
+    const expiresAt = new Date(Date.parse(serverDate) + 40);
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/v1/routes/route")) {
         const body = routeJson("intent-evm", REVIEWED_ESTIMATE, {
           evm: "0xaaaa",
         });
-        return json(200, {
-          data: { ...body.data, expiresAt: expiresAt.toISOString() },
-        });
+        return new Response(
+          JSON.stringify({
+            data: { ...body.data, expiresAt: expiresAt.toISOString() },
+          }),
+          { status: 200, headers: { Date: serverDate } }
+        );
       }
       events.push({ kind: "receipt", intentId: url, txHash: "" });
       throw new Error(`Unexpected request: ${url}`);

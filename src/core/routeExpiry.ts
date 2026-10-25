@@ -19,12 +19,42 @@ function daysInMonth(year: number, month: number): number {
 }
 
 /**
+ * A route response broke the contract: a field every route must carry is
+ * missing or malformed. Nothing about the route can be trusted, so it is
+ * refused rather than repaired.
+ */
+export class RouteResponseError extends Error {
+  readonly intentId: string;
+  /** The field at fault: the body's `expiresAt`, or the `Date` header. */
+  readonly field: "expiresAt" | "Date";
+  /** What arrived in its place. */
+  readonly received: unknown;
+
+  constructor(
+    intentId: string,
+    field: RouteResponseError["field"],
+    received: unknown,
+    message: string
+  ) {
+    super(message);
+    this.name = "RouteResponseError";
+    this.intentId = intentId;
+    this.field = field;
+    this.received = received;
+  }
+}
+
+/**
  * Parse a route response's `expiresAt`. A missing or malformed value is a
- * contract violation and throws, naming the intent and the value.
+ * contract violation and throws `RouteResponseError`, naming the intent and
+ * the value.
  */
 export function parseRouteExpiresAt(raw: unknown, intentId: string): Date {
   const fail = (why: string): never => {
-    throw new Error(
+    throw new RouteResponseError(
+      intentId,
+      "expiresAt",
+      raw,
       `The route for intent "${intentId}" has ${why} expiresAt ` +
         `(got ${JSON.stringify(raw)}); every route must carry an RFC 3339 expiry.`
     );
@@ -57,6 +87,69 @@ export function parseRouteExpiresAt(raw: unknown, intentId: string): Date {
   return new Date(ms);
 }
 
+/** HTTP's IMF-fixdate, the form an origin server must send `Date` in
+ *  (RFC 9110, section 5.6.7): `Sun, 06 Nov 1994 08:49:37 GMT`. */
+const IMF_FIXDATE =
+  /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+
+/**
+ * How far the server's clock is ahead of this device's, in ms, read from a
+ * route response's `Date` header at the moment it arrived. Expiry is judged
+ * on the server's clock (`expiresAt` is its time), so a device clock that is
+ * off neither expires a fresh route nor keeps an expired one alive. Exact to
+ * the header's one-second precision plus the response's travel time.
+ *
+ * A missing or malformed `Date` is a contract violation (an origin server
+ * must send one) and throws `RouteResponseError`; the device clock is never
+ * used in its place.
+ */
+export function parseServerClockOffsetMs(
+  dateHeader: string | null,
+  receivedAtMs: number,
+  intentId: string
+): number {
+  const ms = dateHeader === null ? Number.NaN : Date.parse(dateHeader);
+  // The round trip rejects what the pattern can't: a wrong weekday, Feb 30.
+  if (
+    dateHeader === null ||
+    !IMF_FIXDATE.test(dateHeader) ||
+    !Number.isFinite(ms) ||
+    new Date(ms).toUTCString() !== dateHeader
+  ) {
+    throw new RouteResponseError(
+      intentId,
+      "Date",
+      dateHeader,
+      `The route response for intent "${intentId}" has ` +
+        `${dateHeader === null ? "no" : "a malformed"} Date header (got ` +
+        `${JSON.stringify(dateHeader)}); expiry is judged on the server's ` +
+        `clock, so every route response must carry an HTTP date.`
+    );
+  }
+  return ms - receivedAtMs;
+}
+
+/** What judging a route's expiry needs: its expiry, in the server's time,
+ *  and how far the server's clock was ahead of this device's. */
+export type RouteExpiry = {
+  intentId: string;
+  expiresAt: Date;
+  serverClockOffsetMs: number;
+};
+
+/** The server's time now, by this device's clock and the route's offset. */
+export function serverNowMs(route: RouteExpiry, nowMs: number): number {
+  const serverNow = nowMs + route.serverClockOffsetMs;
+  if (!Number.isFinite(serverNow)) {
+    throw new Error(
+      `Route intent ${route.intentId} has no usable server clock offset ` +
+        `(got ${String(route.serverClockOffsetMs)}); a route must come from ` +
+        `buildRoute or carry the offset its response's Date header gave.`
+    );
+  }
+  return serverNow;
+}
+
 /**
  * Refused to send a route whose expiry has passed: nothing was sent. Build
  * a new route and send that instead.
@@ -77,14 +170,15 @@ export class RouteExpiredError extends Error {
 }
 
 /**
- * Throws `RouteExpiredError` once `nowMs` reaches the route's expiry. Run
- * right before anything that would broadcast the route.
+ * Throws `RouteExpiredError` once the server's time (`nowMs`, this device's
+ * clock, plus the route's offset) reaches the route's expiry. Run right
+ * before anything that would broadcast the route.
  */
 export function assertRouteNotExpired(
-  route: { intentId: string; expiresAt: Date },
+  route: RouteExpiry,
   nowMs: number = Date.now()
 ): void {
-  if (nowMs >= route.expiresAt.getTime()) {
+  if (serverNowMs(route, nowMs) >= route.expiresAt.getTime()) {
     throw new RouteExpiredError(route.intentId, route.expiresAt);
   }
 }

@@ -82,10 +82,15 @@ export function routeJson(
   };
 }
 
+/** A JSON response dated now, as an origin server sends every response:
+ *  the SDK reads route builds' `Date` for the server's clock. */
 export function json(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Date: new Date().toUTCString(),
+    },
   });
 }
 

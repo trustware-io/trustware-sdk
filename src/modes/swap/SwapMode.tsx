@@ -1291,11 +1291,7 @@ export function SwapMode({
     // The new quote's interval is fixed when it arrives, from its own expiry.
     setQuoteIntervalMs(
       route.data
-        ? quoteRefreshIntervalMs(
-            routeRefreshMs,
-            receivedAtMs,
-            route.data.expiresAt
-          )
+        ? quoteRefreshIntervalMs(routeRefreshMs, receivedAtMs, route.data)
         : routeRefreshMs
     );
   }, [route.data, routeRefreshMs]);

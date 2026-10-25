@@ -397,7 +397,10 @@ exported from `@trustware/sdk/core`.
 
 #### Expiry, commits and refusals
 
-Every route carries `expiresAt` (a `Date`). Send it before then; after it,
+Every route carries `expiresAt` (a `Date`, in the server's time) and
+`serverClockOffsetMs`, read from the response's `Date` header, so expiry is
+judged on the server's clock however far off the device's is. Send it
+before then; after it,
 `sendRouteTransaction`, `sendReviewedRoute` and `runTopUp` throw
 `RouteExpiredError` and send nothing. Build a new route instead.
 

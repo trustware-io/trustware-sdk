@@ -124,36 +124,53 @@ describe("shouldRefreshQuote", () => {
 
 describe("quoteRefreshIntervalMs", () => {
   const receivedAt = Date.UTC(2026, 9, 24, 10, 0, 0);
+  /** A route expiring `inMs` after `receivedAt` on the server's clock,
+   *  whose clock runs `offsetMs` ahead of the device's. */
+  const expiringIn = (inMs: number, offsetMs = 0) => ({
+    intentId: "intent-1",
+    expiresAt: new Date(receivedAt + offsetMs + inMs),
+    serverClockOffsetMs: offsetMs,
+  });
 
   it("is the host's interval when the route outlives it", () => {
     assert.equal(
-      quoteRefreshIntervalMs(
-        60_000,
-        receivedAt,
-        new Date(receivedAt + 1_800_000)
-      ),
+      quoteRefreshIntervalMs(60_000, receivedAt, expiringIn(1_800_000)),
       60_000
     );
   });
 
   it("is cut to the route's expiry when that comes first", () => {
     assert.equal(
-      quoteRefreshIntervalMs(60_000, receivedAt, new Date(receivedAt + 45_000)),
+      quoteRefreshIntervalMs(60_000, receivedAt, expiringIn(45_000)),
       45_000
     );
   });
 
   it("is the expiry exactly when the two coincide", () => {
     assert.equal(
-      quoteRefreshIntervalMs(60_000, receivedAt, new Date(receivedAt + 60_000)),
+      quoteRefreshIntervalMs(60_000, receivedAt, expiringIn(60_000)),
       60_000
     );
+  });
+
+  it("counts to the expiry on the server's clock, whichever way the device is off", () => {
+    for (const offsetMs of [-300_000, -1, 1, 300_000]) {
+      assert.equal(
+        quoteRefreshIntervalMs(
+          60_000,
+          receivedAt,
+          expiringIn(45_000, offsetMs)
+        ),
+        45_000,
+        `offset ${offsetMs}`
+      );
+    }
   });
 
   it("refreshes at once a route that arrived already expired", () => {
     for (const late of [0, 1, 90_000]) {
       assert.equal(
-        quoteRefreshIntervalMs(60_000, receivedAt, new Date(receivedAt - late)),
+        quoteRefreshIntervalMs(60_000, receivedAt, expiringIn(-late)),
         1
       );
     }
@@ -161,7 +178,12 @@ describe("quoteRefreshIntervalMs", () => {
 
   it("refuses an invalid expiry instead of counting down forever", () => {
     assert.throws(
-      () => quoteRefreshIntervalMs(60_000, receivedAt, new Date(Number.NaN)),
+      () =>
+        quoteRefreshIntervalMs(60_000, receivedAt, {
+          intentId: "intent-1",
+          expiresAt: new Date(Number.NaN),
+          serverClockOffsetMs: 0,
+        }),
       {
         message: `A quote refresh interval needs a finite time to expiry (expiresAt Invalid Date, received at ${receivedAt}).`,
       }
@@ -175,12 +197,13 @@ describe("quoteRefreshIntervalMs", () => {
       const untilExpiryMs = Math.floor(
         (random() - 0.2) * 2 * MAX_ROUTE_REFRESH_MS
       );
+      const offsetMs = Math.floor((random() - 0.5) * 2 * 86_400_000);
       const interval = quoteRefreshIntervalMs(
         refreshMs,
         receivedAt,
-        new Date(receivedAt + untilExpiryMs)
+        expiringIn(untilExpiryMs, offsetMs)
       );
-      const context = `refresh ${refreshMs}, expiry in ${untilExpiryMs}`;
+      const context = `refresh ${refreshMs}, expiry in ${untilExpiryMs}, offset ${offsetMs}`;
       assert.ok(Number.isSafeInteger(interval) && interval >= 1, context);
       assert.ok(interval <= refreshMs, context);
       assert.ok(interval <= Math.max(1, untilExpiryMs), context);

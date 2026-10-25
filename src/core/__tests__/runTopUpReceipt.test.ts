@@ -14,7 +14,10 @@ const HASH = `0x${"a".repeat(64)}`;
 const json = (payload: unknown, status = 200) =>
   new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Date: new Date().toUTCString(),
+    },
   });
 
 // runTopUp no longer posts its own receipt: the send step delivers it the

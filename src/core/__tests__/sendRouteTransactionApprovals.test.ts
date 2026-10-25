@@ -68,6 +68,7 @@ function makeBuild(): BuildRouteResult {
     actions: [],
     finalExchangeRate: {},
     expiresAt: new Date("2099-01-01T00:00:00Z"),
+    serverClockOffsetMs: 0,
     route: {
       estimate: { fromAmount: "1000302", toAmount: "1000000" },
       execution: {

@@ -1,7 +1,7 @@
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import { routeErrorFromResponse } from "./routeError";
 import { assertRouteDeliversValue } from "./routeValue";
-import { parseRouteExpiresAt } from "./routeExpiry";
+import { parseRouteExpiresAt, parseServerClockOffsetMs } from "./routeExpiry";
 import type {
   BuildRouteResult,
   PostHookRequest,
@@ -235,6 +235,7 @@ export async function buildRoute(
     body: JSON.stringify(payload),
     signal,
   });
+  const receivedAtMs = Date.now();
 
   let json: BuildRouteResponse = {};
   try {
@@ -269,6 +270,11 @@ export async function buildRoute(
     json?.data?.expiresAt ?? json?.expiresAt,
     intentId
   );
+  const serverClockOffsetMs = parseServerClockOffsetMs(
+    r.headers.get("Date"),
+    receivedAtMs,
+    intentId
+  );
   // The backend scores on net_usd but still returns the best of a bad set.
   // Refused here, on the way in, so no consumer ever holds a losing route.
   assertRouteDeliversValue(route);
@@ -281,6 +287,7 @@ export async function buildRoute(
     route,
     sponsorship,
     expiresAt,
+    serverClockOffsetMs,
   };
 }
 
@@ -296,9 +303,12 @@ export async function buildDepositAddress(
     toAmountMinUSD?: string;
   };
   route: RoutePlan | undefined;
-  /** When the route intent stops being usable. Send to the deposit
-   *  address before then. */
+  /** When the route intent stops being usable, in the server's time.
+   *  Send to the deposit address before then. */
   expiresAt: Date;
+  /** How far the server's clock was ahead of this device's when the
+   *  response arrived (its `Date` header). */
+  serverClockOffsetMs: number;
 }> {
   assertValidPostHook(body.hooks);
   assertValidVaultRequest(body);
@@ -317,6 +327,7 @@ export async function buildDepositAddress(
     body: JSON.stringify(payload),
     signal,
   });
+  const receivedAtMs = Date.now();
 
   let json: BuildDepositAddressResponse = {};
   try {
@@ -346,6 +357,11 @@ export async function buildDepositAddress(
     json?.data?.expiresAt ?? json?.expiresAt,
     intentId
   );
+  const serverClockOffsetMs = parseServerClockOffsetMs(
+    r.headers.get("Date"),
+    receivedAtMs,
+    intentId
+  );
   assertRouteDeliversValue(route);
 
   return {
@@ -358,6 +374,7 @@ export async function buildDepositAddress(
     },
     route,
     expiresAt,
+    serverClockOffsetMs,
   };
 }
 

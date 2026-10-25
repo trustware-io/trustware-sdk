@@ -272,6 +272,7 @@ describe("a replaced EVM send commits the replacement", () => {
       finalExchangeRate: {},
       route: { estimate: REVIEWED_ESTIMATE },
       expiresAt: new Date("2099-01-01T00:00:00Z"),
+      serverClockOffsetMs: 0,
     };
     const accepted: AcceptedTransaction[] = [];
 
