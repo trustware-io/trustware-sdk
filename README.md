@@ -395,6 +395,39 @@ inclusion" error. The types `BuiltRoute`, `ReviewedRouteSend`,
 `MaterialRouteChange`, `SendReviewedRouteOptions` and `SigningRetry` are
 exported from `@trustware/sdk/core`.
 
+#### Expiry, commits and refusals
+
+Every route carries `expiresAt` (a `Date`). Send it before then; after it,
+`sendRouteTransaction`, `sendReviewedRoute` and `runTopUp` throw
+`RouteExpiredError` and send nothing. Build a new route instead.
+
+```ts
+import { RouteExpiredError, ReceiptCommitError } from "@trustware/sdk";
+
+try {
+  await Trustware.sendReviewedRoute(reviewed);
+} catch (err) {
+  if (err instanceof RouteExpiredError) {
+    // Nothing was sent. Build a new route and show it for review.
+  }
+}
+
+// If you commit yourself (after sendRouteTransaction), branch on `code`:
+try {
+  await Trustware.submitReceipt(route.intentId, hash);
+} catch (err) {
+  if (err instanceof ReceiptCommitError && err.retryable) {
+    // replacement_not_visible, signature_still_valid, tx_not_visible or
+    // idempotency_key_in_flight: retry shortly. Every other code is final.
+  }
+}
+```
+
+`sendReviewedRoute` also commits the new hash when the wallet speeds up or
+replaces an EVM transaction (EIP-1193 wallets). `getStatus` can report
+`"expired"`, which is terminal. Treat any status you don't recognize as
+not finished, and keep polling.
+
 See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 
 ## Common Config Examples
@@ -504,6 +537,12 @@ import {
 
 It is a separate entry point on purpose — 65 KB gzipped, and nothing pulls it in
 unless you import it.
+
+`sendRouteAsUserOperation` commits the userOp hash as soon as the bundler
+accepts it, so don't call `submitReceipt` after it. `result.receipt` is what
+was committed and `result.receiptDelivery` says how that ended. `result.txHash`
+is the bundle transaction, when it was seen within 45 s; it is undefined
+otherwise, and the backend tracks the userOp either way.
 
 ## Events
 
