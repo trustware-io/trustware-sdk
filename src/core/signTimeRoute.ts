@@ -294,7 +294,8 @@ export async function sendSignableRoute(
 /**
  * Send the route the user confirmed: `routeForSigning`, then
  * `sendSignableRoute`. The public form of what the widget does. It delivers
- * the receipt itself, so callers don't call `submitReceipt`.
+ * the receipt itself, and the replacement's when the wallet speeds up or
+ * replaces an EVM transaction, so callers don't call `submitReceipt`.
  */
 export async function sendReviewedRoute(
   reviewed: BuiltRoute,

@@ -14,8 +14,16 @@ import {
   isSerializedSolanaTxRequest,
 } from "./routes";
 import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
-import { deliverReceipt, type ReceiptDeliveryOutcome } from "./intentTracking";
+import {
+  deliverReceipt,
+  TRACKING_TIMEOUT_MS,
+  type ReceiptDeliveryOutcome,
+} from "./intentTracking";
 import type { TxReceiptReport } from "./receipt";
+import {
+  watchForReplacement,
+  type ReplacementWatchTiming,
+} from "./evmReplacement";
 import type { VaultRedeemAction } from "./vaults";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
 
@@ -369,6 +377,12 @@ export type AcceptedTransaction = {
   receiptDelivery: Promise<ReceiptDeliveryOutcome>;
 };
 
+/** How long an accepted EVM send is watched for a replacement. Tests
+ *  shorten the polling. */
+const REPLACEMENT_WATCH: ReplacementWatchTiming = {
+  timeoutMs: TRACKING_TIMEOUT_MS,
+};
+
 /**
  * Calls `onAccepted` exactly once per send, with the first hash reported.
  * A wallet that later returns a different hash from the one it reported as
@@ -395,12 +409,18 @@ function acceptOnce(onAccepted: ((hash: string) => void) | undefined) {
  * adapter reports its first accepted send, or a wallet that doesn't report
  * it returns), the receipt is committed (`deliverReceipt`) and `onAccepted`
  * is told, once.
+ *
+ * An EVM send from an EIP-1193 wallet is then watched until it is mined: if
+ * the wallet replaces it (a speed-up or cancel), the replacement's hash is
+ * committed too. A wagmi-adapter wallet exposes no provider to watch with,
+ * so its replacements aren't seen.
  */
 export async function sendRouteTransactionReporting(
   b: BuildRouteResult,
   fallbackChainId?: number | string,
   options?: SendRouteTransactionOptions,
-  onAccepted?: (accepted: AcceptedTransaction) => void
+  onAccepted?: (accepted: AcceptedTransaction) => void,
+  replacementWatch: ReplacementWatchTiming = REPLACEMENT_WATCH
 ): Promise<string> {
   const accepted = acceptOnce(
     onAccepted &&
@@ -477,11 +497,22 @@ export async function sendRouteTransactionReporting(
       if (Number.isFinite(target)) {
         params.chainId = `0x${target.toString(16)}`;
       }
-      const hash = await w.request({
-        method: "eth_sendTransaction",
-        params: [params],
-      });
-      return accepted(hash as string);
+      const hash = accepted(
+        (await w.request({
+          method: "eth_sendTransaction",
+          params: [params],
+        })) as string
+      );
+      if (onAccepted) {
+        void watchForReplacement(
+          w,
+          { hash, chainId: target },
+          (replacement) =>
+            void deliverReceipt({ intentId: b.intentId, txHash: replacement }),
+          replacementWatch
+        );
+      }
+      return hash;
     }
 
     // wagmi path — Account Kit wallets pick up paymasterAndData on sendTransaction

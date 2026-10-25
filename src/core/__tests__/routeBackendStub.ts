@@ -141,6 +141,31 @@ export function solanaWallet(events: Event[]): WalletInterFaceAPI {
   } as unknown as WalletInterFaceAPI;
 }
 
+export const EVM_TX_HASH = `0x${"e".repeat(64)}`;
+
+/**
+ * A mined receipt for `hash`, as an EIP-1193 provider returns it: the SDK
+ * watches an accepted EVM send through the wallet until it is mined.
+ */
+export function minedReceipt(hash: string) {
+  return {
+    transactionHash: hash,
+    transactionIndex: "0x0",
+    blockHash: `0x${"b".repeat(64)}`,
+    blockNumber: "0x10",
+    from: EVM_OWNER,
+    to: ROUTER,
+    cumulativeGasUsed: "0x5208",
+    gasUsed: "0x5208",
+    effectiveGasPrice: "0x1",
+    contractAddress: null,
+    logs: [],
+    logsBloom: `0x${"0".repeat(512)}`,
+    status: "0x1",
+    type: "0x2",
+  };
+}
+
 export function evmWallet(events: Event[]): WalletInterFaceAPI {
   return {
     ecosystem: "evm",
@@ -149,12 +174,19 @@ export function evmWallet(events: Event[]): WalletInterFaceAPI {
     getChainId: async () => 8453,
     switchChain: async () => {},
     request: async (args: { method: string; params?: unknown[] }) => {
-      if (args.method !== "eth_sendTransaction") {
-        throw new Error(`Unexpected wallet request: ${args.method}`);
+      switch (args.method) {
+        case "eth_sendTransaction": {
+          const tx = (args.params as Record<string, string>[])[0];
+          events.push({ kind: "sign", data: tx.data });
+          return EVM_TX_HASH;
+        }
+        case "eth_blockNumber":
+          return "0x10";
+        case "eth_getTransactionReceipt":
+          return minedReceipt((args.params as string[])[0]);
+        default:
+          throw new Error(`Unexpected wallet request: ${args.method}`);
       }
-      const tx = (args.params as Record<string, string>[])[0];
-      events.push({ kind: "sign", data: tx.data });
-      return `0x${"e".repeat(64)}`;
     },
   } as unknown as WalletInterFaceAPI;
 }
