@@ -24,8 +24,8 @@ export type TransactionPollingState = {
 };
 
 /**
- * Hook for tracking a submitted transaction: delivers its receipt and polls
- * the intent's status until it is terminal (see trackIntent).
+ * Hook for tracking a submitted transaction: polls the intent's status
+ * until it is terminal (see trackIntent).
  *
  * @returns Transaction polling state and the function that starts tracking
  */
@@ -58,8 +58,8 @@ export function useTransactionPolling() {
   /**
    * Start tracking a transaction.
    *
-   * @param receipt - The transaction the network accepted, and whether its
-   *   receipt is already being delivered
+   * @param receipt - The transaction the network accepted, and its receipt
+   *   delivery
    */
   const startPolling = useCallback(
     (receipt: TrackedReceipt) => {
@@ -71,8 +71,7 @@ export function useTransactionPolling() {
 
       void trackIntent(receipt.report, {
         signal: controller.signal,
-        receiptDelivery:
-          receipt.delivery === "tracker_posts" ? undefined : receipt.delivery,
+        receiptDelivery: receipt.delivery,
         onUpdate: (tx) => {
           setState((prev) => ({ ...prev, transaction: tx }));
           if (tx.status === "bridging") setTransactionStatus("bridging");

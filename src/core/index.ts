@@ -10,11 +10,12 @@ import { walletManager } from "../wallets";
 import {
   buildRoute,
   buildDepositAddress,
-  submitReceipt,
   submitStepReceipt,
   getStatus,
   pollStatus,
 } from "./routes";
+import { submitReceipt } from "./receipt";
+export { ReceiptCommitError, RETRYABLE_RECEIPT_CODES } from "./receipt";
 export { assertValidPostHook, assertValidVaultRequest } from "./routes";
 export {
   assertRouteDeliversValue,

@@ -538,8 +538,15 @@ export function useTransactionActionModel({
             eip1193Request: (args) => wallet.request(args),
           });
           // The on-chain hash, not the userOpHash: explorers index only the
-          // former, and the error screen links there.
-          return { hash: result.receipt.txHash, receipt: result.receipt };
+          // former, and the error screen links there. The userOp is already
+          // committed, so tracking starts whether or not it was seen yet.
+          return {
+            hash: result.txHash ?? null,
+            tracked: {
+              report: result.receipt,
+              delivery: result.receiptDelivery,
+            },
+          };
         } catch (e) {
           const msg = String((e as Error)?.message ?? e).toLowerCase();
           wasRejected =

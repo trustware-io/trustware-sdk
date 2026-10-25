@@ -1,5 +1,5 @@
 import type { BuildRouteResult } from "../types";
-import type { ReceiptReport } from "./intentTracking";
+import type { TxReceiptReport } from "./receipt";
 import {
   buildRoute,
   isSerializedSolanaTxRequest,
@@ -10,7 +10,7 @@ import {
   sendRouteTransactionReporting,
   type SendRouteTransactionOptions,
 } from "./tx";
-import { deliverReceipt, type ReceiptDeliveryOutcome } from "./intentTracking";
+import type { ReceiptDeliveryOutcome } from "./intentTracking";
 import { SolanaExpiredBeforeSendError } from "../wallets/solanaBroadcast";
 
 /**
@@ -144,7 +144,7 @@ export type ReviewedRouteSend =
        *  accepted the transaction: don't post it again. It names the route
        *  that was signed, which for a Solana route is the rebuilt one and
        *  never the one the user reviewed. */
-      receipt: ReceiptReport;
+      receipt: TxReceiptReport;
       route: BuildRouteResult;
     }
   | {
@@ -251,16 +251,16 @@ export async function sendSignableRoute(
       signing,
       fallbackChainId,
       sendOptions,
-      (hash) => {
-        const receipt = { intentId: signing.intentId, txHash: hash };
-        acceptance.sent = {
+      ({ hash, receipt, receiptDelivery }) => {
+        const sent: AcceptedSend = {
           kind: "sent",
           hash,
           receipt,
           route: signing,
-          receiptDelivery: deliverReceipt(receipt),
+          receiptDelivery,
         };
-        onAccepted?.(acceptance.sent);
+        acceptance.sent = sent;
+        onAccepted?.(sent);
       }
     );
 

@@ -15,8 +15,8 @@ import {
 import {
   trackIntent,
   type ReceiptDeliveryOutcome,
-  type ReceiptReport,
 } from "src/core/intentTracking";
+import type { ReceiptReport } from "src/core/receipt";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
   approvalSatisfied,
@@ -138,9 +138,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       receipt: ReceiptReport,
       onSuccess: () => void,
       onError: (msg: string) => void,
-      /** The send step's own receipt delivery, or "tracker_posts" when
-       *  nothing else posts it (the smart-account path). */
-      receiptDelivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts"
+      /** The send step's own receipt delivery, started at acceptance. */
+      receiptDelivery: Promise<ReceiptDeliveryOutcome>
     ) => {
       stopTracking();
       const controller = new AbortController();
@@ -148,8 +147,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       void trackIntent(receipt, {
         signal: controller.signal,
-        receiptDelivery:
-          receiptDelivery === "tracker_posts" ? undefined : receiptDelivery,
+        receiptDelivery,
         onUpdate: (raw) => {
           const tx = normalizeTx(raw);
           setState((p) => ({
@@ -421,15 +419,22 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             eip1193Request: (args) => wallet!.request(args),
           });
 
+          // The on-chain hash, for the explorer link; null until the
+          // bundle was seen. The userOp is already committed.
           setState((p) => ({
             ...p,
             isSubmitting: false,
-            txHash: result.receipt.txHash,
+            txHash: result.txHash ?? null,
             intentId: result.intentId,
             txStatus: "processing",
             allowanceStatus: "sufficient",
           }));
-          startTracking(result.receipt, onSuccess, onError, "tracker_posts");
+          startTracking(
+            result.receipt,
+            onSuccess,
+            onError,
+            result.receiptDelivery
+          );
           return;
         } catch (err) {
           if (isUserRejection(err)) {

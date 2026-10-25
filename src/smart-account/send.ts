@@ -1,6 +1,9 @@
 import type { Chain } from "viem";
-import { submitReceipt } from "../core/routes";
-import type { ReceiptReport } from "../core/intentTracking";
+import {
+  deliverReceipt,
+  type ReceiptDeliveryOutcome,
+} from "../core/intentTracking";
+import type { UserOpReceiptReport } from "../core/receipt";
 import type { BuildRouteResult } from "../types";
 import { createTrustwareSmartAccountClient } from "./client";
 import { isPaymasterUnavailable, extractFeeRequirement } from "./fee-utils";
@@ -115,19 +118,73 @@ export type SendRouteAsUserOperationParams = {
 
 export type SendRouteAsUserOperationResult = {
   userOpHash: string;
-  /** On-chain transaction hash. Populated once the UserOp lands in a block; undefined if
-   *  the inclusion wait timed out (the UserOp may still land later). */
+  /** The bundle transaction's hash, once the userOp was seen in a block
+   *  within USER_OP_INCLUSION_WAIT_MS; undefined when it wasn't yet. The
+   *  userOp is committed either way, and the backend tracks it. */
   txHash?: string;
   intentId: string;
-  /**
-   * The receipt this function already sent once, best-effort. Callers that
-   * track the swap pass it to the widget's intent tracker, which re-sends it
-   * until the backend records the transaction; duplicates are safe because
-   * each send is keyed by tx hash. The one-shot send stays so callers that
-   * ignore this field keep today's behaviour (BVT-261).
-   */
-  receipt: ReceiptReport;
+  /** The receipt committed the moment the bundler accepted the userOp:
+   *  its hash and the sponsorship request that sponsored it. */
+  receipt: UserOpReceiptReport;
+  /** That commit's delivery (`deliverReceipt`): don't post it again. */
+  receiptDelivery: Promise<ReceiptDeliveryOutcome>;
 };
+
+/** How long a send waits to see the userOp's bundle transaction, only so
+ *  the caller can show an explorer link. The commit doesn't wait for it. */
+export const USER_OP_INCLUSION_WAIT_MS = 45_000;
+const USER_OP_INCLUSION_POLL_MS = 3_000;
+
+type BundlerRequest = (method: string, params?: unknown[]) => Promise<unknown>;
+
+/** Time source for the inclusion wait; tests drive it virtually. */
+export type InclusionClock = {
+  now(): number;
+  sleep(ms: number): Promise<void>;
+};
+
+const systemInclusionClock: InclusionClock = {
+  now: () => Date.now(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+/**
+ * The bundler accepted the userOp: commit its hash at once, then wait up to
+ * USER_OP_INCLUSION_WAIT_MS for its bundle transaction. The commit's first
+ * POST goes out before the first inclusion poll. Never throws once the
+ * userOp is accepted: a caller that saw a throw would send the route again
+ * from the EOA, paying twice. Exported for tests.
+ */
+export async function commitAcceptedUserOperation(
+  receipt: UserOpReceiptReport,
+  bundlerRequest: BundlerRequest,
+  clock: InclusionClock = systemInclusionClock
+): Promise<{
+  receiptDelivery: Promise<ReceiptDeliveryOutcome>;
+  txHash: string | undefined;
+}> {
+  const receiptDelivery = deliverReceipt(receipt);
+  const deadline = clock.now() + USER_OP_INCLUSION_WAIT_MS;
+  while (clock.now() < deadline) {
+    try {
+      const included = (await bundlerRequest("eth_getUserOperationReceipt", [
+        receipt.userOpHash,
+      ])) as { receipt?: { transactionHash?: string } } | null;
+      if (included?.receipt?.transactionHash) {
+        return { receiptDelivery, txHash: included.receipt.transactionHash };
+      }
+    } catch (err) {
+      console.debug("[send] inclusion poll failed; polling again", err);
+    }
+    const remaining = deadline - clock.now();
+    if (remaining <= 0) break;
+    await clock.sleep(Math.min(USER_OP_INCLUSION_POLL_MS, remaining));
+  }
+  console.debug("[send] UserOp not seen in a block yet; it is committed", {
+    userOpHash: receipt.userOpHash,
+  });
+  return { receiptDelivery, txHash: undefined };
+}
 
 export async function sendRouteAsUserOperation(
   params: SendRouteAsUserOperationParams
@@ -429,7 +486,7 @@ export async function sendRouteAsUserOperation(
   type BundlerClient = {
     request: (args: { method: string; params: unknown[] }) => Promise<unknown>;
   };
-  const bundlerReq = (method: string, params: unknown[] = []) =>
+  const bundlerReq: BundlerRequest = (method, params = []) =>
     (client as unknown as BundlerClient).request({ method, params });
 
   // Fetch the fast-tier fee from rundler right before each send attempt so we always
@@ -539,78 +596,19 @@ export async function sendRouteAsUserOperation(
   if (lastErr) throw lastErr;
   result = result!;
 
-  // Poll for receipt via the bundler transport (NOT eip1193 — wallet providers don't support
-  // eth_getUserOperationReceipt). Alchemy's builder drops ghost ops immediately; accepted ops
-  // land within 2-5 seconds on Base. We poll every 3s for up to 45s, then give up and throw
-  // USEROP_NOT_INCLUDED — this is far faster than Account Kit's 60-100s wait and avoids the
-  // "4 polls then connection timeout" pattern that comes from its internal polling loop.
+  // The bundler accepted it: from here the swap may happen, so it is
+  // committed at once rather than after inclusion. Waiting for inclusion
+  // first lost the payment whenever the bundle didn't land within the wait.
   const userOpHash = result.hash as string;
-  let txHash: string | undefined;
-  {
-    const pollInterval = 3_000;
-    const deadline = Date.now() + 45_000;
-    while (Date.now() < deadline) {
-      try {
-        const r = (await bundlerReq("eth_getUserOperationReceipt", [
-          userOpHash,
-        ])) as { receipt?: { transactionHash?: string } } | null;
-        if (r?.receipt?.transactionHash) {
-          txHash = r.receipt.transactionHash;
-          break;
-        }
-      } catch {
-        /* bundler hiccup — keep polling */
-      }
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) break;
-      await new Promise((res) =>
-        setTimeout(res, Math.min(pollInterval, remaining))
-      );
-    }
-  }
-
-  if (!txHash) {
-    // Pool accepted the UO (we got a hash) but the builder dropped it — common when maxFeePerGas
-    // is below the builder's inclusion floor even after pool acceptance. Do NOT submit using the
-    // userOpHash as txHash: Squid/LiFi/Axelar return 404 for a userOpHash.
-    throw Object.assign(
-      new Error(
-        "Transaction was submitted but not included on-chain. The operation was likely dropped by the bundler — please try again."
-      ),
-      { code: "USEROP_NOT_INCLUDED", userOpHash }
-    );
-  }
-  console.debug("[send] UserOp included", { userOpHash, txHash });
-
-  // The UserOp is included — the swap has happened, and reporting the receipt
-  // must be unable to either undo that or delay the news of it.
-  //
-  // Undo: a throw here propagates out of sendRouteAsUserOperation, which the
-  // swap caller reads as "SA path failed" and answers by re-sending the very
-  // same route down the EOA path. A lost receipt is recoverable — the
-  // returned `receipt` lets the caller's tracker re-send it; re-sending the
-  // route costs the user a second swap.
-  //
-  // Delay: the caller only advances its progress screen and starts polling
-  // once this function resolves, and `rateLimitedFetch` has no request timeout
-  // and sits out a server-directed 429 wait — so awaiting the receipt stalls
-  // the UI on a transaction that is already on-chain.
-  //
-  // Hence fire-and-forget.
-  const receipt: ReceiptReport = {
+  const receipt: UserOpReceiptReport = {
     intentId,
-    txHash,
+    userOpHash,
     sponsorshipRequestId: getSponsorshipRequestId(),
     eoaAddress,
   };
-  void submitReceipt(
-    receipt.intentId,
-    receipt.txHash,
-    receipt.sponsorshipRequestId,
-    receipt.eoaAddress
-  ).catch((err) => {
-    console.debug("[send] receipt submission failed (non-fatal)", err);
-  });
-
-  return { userOpHash, txHash, intentId, receipt };
+  const { receiptDelivery, txHash } = await commitAcceptedUserOperation(
+    receipt,
+    bundlerReq
+  );
+  return { userOpHash, txHash, intentId, receipt, receiptDelivery };
 }

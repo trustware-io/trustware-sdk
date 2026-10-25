@@ -1,19 +1,15 @@
 import type { Dispatch, SetStateAction } from "react";
-import type {
-  ReceiptDeliveryOutcome,
-  ReceiptReport,
-} from "src/core/intentTracking";
+import type { ReceiptDeliveryOutcome } from "src/core/intentTracking";
+import type { ReceiptReport } from "src/core/receipt";
 
 /**
  * A sent transaction for the Processing page to track. `delivery` is the
- * send step's own receipt delivery (every route sent through
- * `sendSignableRoute`), so tracking must not post it again, or
- * "tracker_posts" when nothing else posts it (the smart-account path).
- * Required, so no send path can leave the choice to a default.
+ * send step's own receipt delivery, started when the network (or, on the
+ * smart-account path, the bundler) accepted it, so tracking only polls.
  */
 export type TrackedReceipt = {
   report: ReceiptReport;
-  delivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts";
+  delivery: Promise<ReceiptDeliveryOutcome>;
 };
 
 import type {

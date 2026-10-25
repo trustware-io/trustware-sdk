@@ -15,6 +15,7 @@ import {
 } from "./routes";
 import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
 import { deliverReceipt, type ReceiptDeliveryOutcome } from "./intentTracking";
+import type { TxReceiptReport } from "./receipt";
 import type { VaultRedeemAction } from "./vaults";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
 
@@ -359,6 +360,16 @@ export async function sendRouteTransaction(
 }
 
 /**
+ * A send the network accepted. Its receipt delivery started at that
+ * moment, before this was handed over.
+ */
+export type AcceptedTransaction = {
+  hash: string;
+  receipt: TxReceiptReport;
+  receiptDelivery: Promise<ReceiptDeliveryOutcome>;
+};
+
+/**
  * Calls `onAccepted` exactly once per send, with the first hash reported.
  * A wallet that later returns a different hash from the one it reported as
  * accepted is broken, so that throws rather than track the wrong one.
@@ -379,19 +390,25 @@ function acceptOnce(onAccepted: ((hash: string) => void) | undefined) {
 }
 
 /**
- * `sendRouteTransaction`, plus `onAccepted`: called once, as soon as the
- * network has the transaction, with its hash. That is when the wallet
- * returns an EVM hash, and, for Solana, when the SDK's adapter reports its
- * first accepted send (or when a wallet that doesn't report it returns).
- * The receipt is posted from there (`sendSignableRoute`, `runTopUp`).
+ * `sendRouteTransaction`, plus receipt delivery. As soon as the network has
+ * the transaction (the wallet returns an EVM hash; for Solana, the SDK's
+ * adapter reports its first accepted send, or a wallet that doesn't report
+ * it returns), the receipt is committed (`deliverReceipt`) and `onAccepted`
+ * is told, once.
  */
 export async function sendRouteTransactionReporting(
   b: BuildRouteResult,
   fallbackChainId?: number | string,
   options?: SendRouteTransactionOptions,
-  onAccepted?: (hash: string) => void
+  onAccepted?: (accepted: AcceptedTransaction) => void
 ): Promise<string> {
-  const accepted = acceptOnce(onAccepted);
+  const accepted = acceptOnce(
+    onAccepted &&
+      ((hash) => {
+        const receipt: TxReceiptReport = { intentId: b.intentId, txHash: hash };
+        onAccepted({ hash, receipt, receiptDelivery: deliverReceipt(receipt) });
+      })
+  );
   // buildRoute already refused a losing route, so one can only arrive here
   // assembled by hand — and signing it is the irreversible step. Refused
   // before the wallet is consulted.
@@ -641,9 +658,14 @@ export async function runTopUp(params: {
     // The receipt goes out the moment the network has the transaction, so
     // the backend tracks it even if this page closes before it confirms.
     let delivery: Promise<ReceiptDeliveryOutcome> | undefined;
-    await sendRouteTransactionReporting(build, fromChain, undefined, (hash) => {
-      delivery = deliverReceipt({ intentId: build.intentId, txHash: hash });
-    });
+    await sendRouteTransactionReporting(
+      build,
+      fromChain,
+      undefined,
+      (accepted) => {
+        delivery = accepted.receiptDelivery;
+      }
+    );
     if (!delivery) {
       throw new Error(
         `runTopUp sent intent ${build.intentId} without a receipt delivery.`
@@ -653,7 +675,11 @@ export async function runTopUp(params: {
     if (receipt.kind !== "recorded") {
       throw new Error(
         `The transaction for intent ${build.intentId} was sent, but its ` +
-          `receipt wasn't recorded (${receipt.kind}).`
+          `receipt wasn't recorded (${
+            receipt.kind === "rejected"
+              ? `rejected with HTTP ${receipt.httpStatus}, code ${String(receipt.code)}: ${receipt.message}`
+              : receipt.kind
+          }).`
       );
     }
     return await pollStatus(build.intentId);
