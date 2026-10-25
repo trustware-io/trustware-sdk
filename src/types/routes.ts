@@ -316,4 +316,10 @@ export type BuildRouteResult = {
   };
   route: RoutePlan | undefined;
   sponsorship?: RouteSponsorship;
+  /**
+   * When this route stops being sendable. Past it the SDK refuses to send
+   * it (`RouteExpiredError`): build a new route instead. Wire field:
+   * `expiresAt`, RFC 3339.
+   */
+  expiresAt: Date;
 };

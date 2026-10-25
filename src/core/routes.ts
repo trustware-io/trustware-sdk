@@ -1,10 +1,10 @@
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import { routeErrorFromResponse } from "./routeError";
 import { assertRouteDeliversValue } from "./routeValue";
+import { parseRouteExpiresAt } from "./routeExpiry";
 import type {
   BuildRouteResult,
   PostHookRequest,
-  RouteParams,
   RoutePlan,
   RouteSponsorship,
   Transaction,
@@ -159,10 +159,13 @@ export type TxRequest = {
 
 export type BuildRouteResponse = {
   intentId?: string;
+  /** RFC 3339. Parsed into `BuildRouteResult.expiresAt`. */
+  expiresAt?: string;
   route?: RoutePlan;
   sponsorship?: RouteSponsorship;
   data?: {
     intentId?: string;
+    expiresAt?: string;
     route?: RoutePlan;
     sponsorship?: RouteSponsorship;
   };
@@ -179,10 +182,12 @@ type DepositAddress = {
 type BuildDepositAddressResponse = {
   depositAddress?: DepositAddress;
   intentId?: string;
+  expiresAt?: string;
   route?: RoutePlan;
   data?: {
     depositAddress?: DepositAddress;
     intentId?: string;
+    expiresAt?: string;
     route?: RoutePlan;
   };
   error?: string;
@@ -195,18 +200,6 @@ export function isEvmTxRequest(txReq?: TxRequest | null) {
 
 export function isSerializedSolanaTxRequest(txReq?: TxRequest | null) {
   return Boolean(txReq?.data && !txReq?.to && !txReq?.target);
-}
-
-export async function buildRoute1(p: RouteParams): Promise<BuildRouteResult> {
-  const r = await rateLimitedFetch(`${apiBase()}/squid/route`, {
-    method: "POST",
-    headers: jsonHeaders(),
-    credentials: "omit",
-    body: JSON.stringify(p),
-  });
-  await assertOK(r);
-  const j = await r.json();
-  return j.data as BuildRouteResult;
 }
 
 export async function buildRoute(
@@ -272,11 +265,23 @@ export async function buildRoute(
   if (!txReq?.data) {
     throw new Error("Invalid route: missing transaction data");
   }
+  const expiresAt = parseRouteExpiresAt(
+    json?.data?.expiresAt ?? json?.expiresAt,
+    intentId
+  );
   // The backend scores on net_usd but still returns the best of a bad set.
   // Refused here, on the way in, so no consumer ever holds a losing route.
   assertRouteDeliversValue(route);
 
-  return { intentId, txReq, actions, finalExchangeRate, route, sponsorship };
+  return {
+    intentId,
+    txReq,
+    actions,
+    finalExchangeRate,
+    route,
+    sponsorship,
+    expiresAt,
+  };
 }
 
 export async function buildDepositAddress(
@@ -291,6 +296,9 @@ export async function buildDepositAddress(
     toAmountMinUSD?: string;
   };
   route: RoutePlan | undefined;
+  /** When the route intent stops being usable. Send to the deposit
+   *  address before then. */
+  expiresAt: Date;
 }> {
   assertValidPostHook(body.hooks);
   assertValidVaultRequest(body);
@@ -334,6 +342,10 @@ export async function buildDepositAddress(
   if (!depositAddress) {
     throw new Error("Invalid route: missing deposit address");
   }
+  const expiresAt = parseRouteExpiresAt(
+    json?.data?.expiresAt ?? json?.expiresAt,
+    intentId
+  );
   assertRouteDeliversValue(route);
 
   return {
@@ -345,6 +357,7 @@ export async function buildDepositAddress(
       toAmountMinUSD: estimate?.toAmountMinUsd ?? estimate?.toAmountUsd,
     },
     route,
+    expiresAt,
   };
 }
 

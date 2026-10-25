@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import type { TrackedReceipt } from "../state/deposit/types";
+import { RouteExpiredError } from "../../core/routeExpiry";
 import {
   sendSignableRoute,
   type BuiltRoute,
@@ -41,6 +42,9 @@ type SendOverride = (
 /** How a submission ended. */
 export type SubmitOutcome =
   | { kind: "sent" }
+  /** The route's `expiresAt` passed before it was sent. Nothing was sent;
+   *  the caller re-quotes. */
+  | { kind: "route_expired" }
   /** The error is already on the error screen. */
   | { kind: "failed" }
   /** A Solana route rebuilt at sign time came back materially worse.
@@ -170,6 +174,12 @@ export function useTransactionSubmit() {
         }
         return { kind: "sent" };
       } catch (err) {
+        if (err instanceof RouteExpiredError) {
+          setState({ isSubmitting: false, txHash: null, error: null });
+          setSigningRetryMessage(null);
+          setTransactionStatus("idle");
+          return { kind: "route_expired" };
+        }
         // Map error to user-friendly message
         const errorMsg = mapTransactionError(err);
 

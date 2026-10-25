@@ -4,6 +4,7 @@ import {
   type ReceiptDeliveryOutcome,
 } from "../core/intentTracking";
 import type { UserOpReceiptReport } from "../core/receipt";
+import { assertRouteNotExpired } from "../core/routeExpiry";
 import type { BuildRouteResult } from "../types";
 import { createTrustwareSmartAccountClient } from "./client";
 import { isPaymasterUnavailable, extractFeeRequirement } from "./fee-utils";
@@ -199,6 +200,7 @@ export async function sendRouteAsUserOperation(
     eip1193Request,
   } = params;
   const { txReq, intentId } = route;
+  assertRouteNotExpired(route);
 
   const target = (txReq.to ?? txReq.target) as `0x${string}` | undefined;
   if (!txReq?.data || !target) {
@@ -526,6 +528,9 @@ export async function sendRouteAsUserOperation(
   let nextFee: { maxFee: bigint; maxPriority: bigint } | null = null;
   let lastErr: unknown;
   for (let attempt = 0; attempt < 5; attempt++) {
+    // Permit2 prompts and paymaster retries can take minutes; an expired
+    // route is never handed to the bundler.
+    assertRouteNotExpired(route);
     try {
       let feeOverrides:
         { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | undefined;

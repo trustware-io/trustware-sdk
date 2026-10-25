@@ -16,6 +16,7 @@ import {
 } from "./routes";
 import { submitReceipt } from "./receipt";
 export { ReceiptCommitError, RETRYABLE_RECEIPT_CODES } from "./receipt";
+export { RouteExpiredError } from "./routeExpiry";
 export { assertValidPostHook, assertValidVaultRequest } from "./routes";
 export {
   assertRouteDeliversValue,

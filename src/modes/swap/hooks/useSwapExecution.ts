@@ -17,6 +17,7 @@ import {
   type ReceiptDeliveryOutcome,
 } from "src/core/intentTracking";
 import type { ReceiptReport } from "src/core/receipt";
+import { RouteExpiredError } from "src/core/routeExpiry";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
   approvalSatisfied,
@@ -285,7 +286,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         change: MaterialRouteChange
       ) => void,
       /** Something is about to be sent: report `payment_initiated` here. */
-      onSendStarting: (event: typeof PAYMENT_INITIATED) => void
+      onSendStarting: (event: typeof PAYMENT_INITIATED) => void,
+      /** The route's `expiresAt` passed before it was sent. Nothing was
+       *  sent; the caller fetches a new quote. */
+      onRouteExpired: () => void
     ) => {
       if (!reviewed.result?.txReq) {
         const msg = "Invalid route data. Please try again.";
@@ -329,6 +333,15 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         return;
       }
       const routeResult = decision.route;
+      const endExpired = () => {
+        setState((p) => ({
+          ...p,
+          isSubmitting: false,
+          txStatus: "idle",
+          signingRetryMessage: null,
+        }));
+        onRouteExpired();
+      };
 
       const wallet = Trustware.getWallet();
       const txReq = routeResult.txReq;
@@ -437,6 +450,11 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           );
           return;
         } catch (err) {
+          // Not a smart-account failure: the EOA path would refuse it too.
+          if (err instanceof RouteExpiredError) {
+            endExpired();
+            return;
+          }
           if (isUserRejection(err)) {
             const msg = mapTxError(err);
             setState((p) => ({
@@ -698,6 +716,11 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           );
         }
       } catch (err) {
+        // Refused before anything was sent.
+        if (err instanceof RouteExpiredError) {
+          endExpired();
+          return;
+        }
         // After acceptance this is the chain's own verdict (it landed with
         // an error, or expired): it replaces the tracker, whose receipt was
         // already delivered.

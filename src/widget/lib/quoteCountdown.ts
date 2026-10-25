@@ -12,8 +12,30 @@ export type QuoteCountdown = {
 };
 
 /**
+ * How long a quote may stay on screen before it is refreshed: the host's
+ * `routeRefreshMs`, cut short so the refresh happens by the route's
+ * `expiresAt`. A route that already expired when it arrived (`receivedAtMs`)
+ * is refreshed at once, which is the 1 ms floor: an interval must be
+ * positive.
+ */
+export function quoteRefreshIntervalMs(
+  routeRefreshMs: number,
+  receivedAtMs: number,
+  expiresAt: Date
+): number {
+  const untilExpiryMs = expiresAt.getTime() - receivedAtMs;
+  if (!Number.isFinite(untilExpiryMs)) {
+    throw new Error(
+      `A quote refresh interval needs a finite time to expiry (expiresAt ` +
+        `${String(expiresAt)}, received at ${receivedAtMs}).`
+    );
+  }
+  return Math.max(1, Math.min(routeRefreshMs, untilExpiryMs));
+}
+
+/**
  * Where a quote stands in its refresh interval, `elapsedMs` after it was
- * built. `intervalMs` is the resolved `routes.options.routeRefreshMs`.
+ * built. `intervalMs` is the quote's `quoteRefreshIntervalMs`.
  */
 export function quoteCountdown(
   elapsedMs: number,

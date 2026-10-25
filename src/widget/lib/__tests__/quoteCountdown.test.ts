@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   QUOTE_WARNING_FRACTION,
   quoteCountdown,
+  quoteRefreshIntervalMs,
   shouldRefreshQuote,
 } from "src/widget/lib/quoteCountdown";
 import { MAX_ROUTE_REFRESH_MS } from "src/config/routeRefresh";
@@ -118,5 +119,78 @@ describe("shouldRefreshQuote", () => {
     assert.equal(shouldRefreshQuote(expired, true), false);
     assert.equal(shouldRefreshQuote(fresh, false), false);
     assert.equal(shouldRefreshQuote(fresh, true), false);
+  });
+});
+
+describe("quoteRefreshIntervalMs", () => {
+  const receivedAt = Date.UTC(2026, 9, 24, 10, 0, 0);
+
+  it("is the host's interval when the route outlives it", () => {
+    assert.equal(
+      quoteRefreshIntervalMs(
+        60_000,
+        receivedAt,
+        new Date(receivedAt + 1_800_000)
+      ),
+      60_000
+    );
+  });
+
+  it("is cut to the route's expiry when that comes first", () => {
+    assert.equal(
+      quoteRefreshIntervalMs(60_000, receivedAt, new Date(receivedAt + 45_000)),
+      45_000
+    );
+  });
+
+  it("is the expiry exactly when the two coincide", () => {
+    assert.equal(
+      quoteRefreshIntervalMs(60_000, receivedAt, new Date(receivedAt + 60_000)),
+      60_000
+    );
+  });
+
+  it("refreshes at once a route that arrived already expired", () => {
+    for (const late of [0, 1, 90_000]) {
+      assert.equal(
+        quoteRefreshIntervalMs(60_000, receivedAt, new Date(receivedAt - late)),
+        1
+      );
+    }
+  });
+
+  it("refuses an invalid expiry instead of counting down forever", () => {
+    assert.throws(
+      () => quoteRefreshIntervalMs(60_000, receivedAt, new Date(Number.NaN)),
+      {
+        message: `A quote refresh interval needs a finite time to expiry (expiresAt Invalid Date, received at ${receivedAt}).`,
+      }
+    );
+  });
+
+  it("is always a valid countdown interval no later than either bound", () => {
+    const random = mulberry32(433);
+    for (let i = 0; i < 5000; i++) {
+      const refreshMs = 1 + Math.floor(random() * MAX_ROUTE_REFRESH_MS);
+      const untilExpiryMs = Math.floor(
+        (random() - 0.2) * 2 * MAX_ROUTE_REFRESH_MS
+      );
+      const interval = quoteRefreshIntervalMs(
+        refreshMs,
+        receivedAt,
+        new Date(receivedAt + untilExpiryMs)
+      );
+      const context = `refresh ${refreshMs}, expiry in ${untilExpiryMs}`;
+      assert.ok(Number.isSafeInteger(interval) && interval >= 1, context);
+      assert.ok(interval <= refreshMs, context);
+      assert.ok(interval <= Math.max(1, untilExpiryMs), context);
+      // It is one of the bounds, never something in between.
+      assert.ok(
+        interval === refreshMs || interval === Math.max(1, untilExpiryMs),
+        context
+      );
+      // quoteCountdown accepts it, and it runs out by the expiry.
+      assert.equal(quoteCountdown(interval, interval).expired, true, context);
+    }
   });
 });

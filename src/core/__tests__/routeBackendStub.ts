@@ -49,6 +49,10 @@ export const REVIEWED_ESTIMATE: RouteEstimate = {
 };
 export const FLOOR_TO_AMOUNT = "985050";
 
+/** Every built route carries an expiry; these fixtures' routes never lapse
+ *  while a test runs. */
+export const ROUTE_EXPIRES_AT = "2099-01-01T00:00:00Z";
+
 export type Event =
   | { kind: "build"; body: Record<string, unknown> }
   | { kind: "sign"; data: string }
@@ -72,6 +76,7 @@ export function routeJson(
   return {
     data: {
       intentId,
+      expiresAt: ROUTE_EXPIRES_AT,
       route: { provider: "mayan", estimate, execution: { transaction } },
     },
   };

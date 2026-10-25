@@ -230,6 +230,8 @@ export type AcceptedSend = Extract<ReviewedRouteSend, { kind: "sent" }> & {
  * deliver its receipt the moment the network accepts it, before any
  * confirmation (CLAUDE.md, "never lose the receipt"). `onAccepted` is
  * told then, so the widget can start tracking; it runs once per send.
+ * A route whose `expiresAt` has passed throws `RouteExpiredError` and
+ * sends nothing.
  *
  * If signing outlasted the Solana blockhash, nothing was sent, so the route
  * is rebuilt from `reviewed`'s request, checked for a material change
@@ -296,6 +298,8 @@ export async function sendSignableRoute(
  * `sendSignableRoute`. The public form of what the widget does. It delivers
  * the receipt itself, and the replacement's when the wallet speeds up or
  * replaces an EVM transaction, so callers don't call `submitReceipt`.
+ * Throws `RouteExpiredError`, sending nothing, when the route expired:
+ * build a new one.
  */
 export async function sendReviewedRoute(
   reviewed: BuiltRoute,

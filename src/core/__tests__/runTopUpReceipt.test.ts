@@ -4,7 +4,7 @@ import { runTopUp } from "src/core/tx";
 import { TrustwareConfigStore } from "src/config/store";
 import { walletManager } from "src/wallets/";
 import type { WalletInterFaceAPI } from "src/types";
-import { minedReceipt } from "./routeBackendStub";
+import { minedReceipt, ROUTE_EXPIRES_AT } from "./routeBackendStub";
 
 const OWNER = "0x1111111111111111111111111111111111111111";
 const ROUTER = "0x3333333333333333333333333333333333333333";
@@ -64,6 +64,7 @@ describe("runTopUp receipt", () => {
         return json({
           data: {
             intentId: "intent-topup",
+            expiresAt: ROUTE_EXPIRES_AT,
             route: {
               estimate: { toAmountUsd: "1.00", totalFeesUsd: "0.01" },
               execution: {

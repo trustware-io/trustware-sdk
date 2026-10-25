@@ -1,7 +1,7 @@
 // src/index.ts
 export { Trustware, TrustwareCore } from "./core";
 export { RateLimitError } from "./core/http";
-export { ReceiptCommitError } from "./core";
+export { ReceiptCommitError, RouteExpiredError } from "./core";
 export {
   RouteError,
   isRouteError,

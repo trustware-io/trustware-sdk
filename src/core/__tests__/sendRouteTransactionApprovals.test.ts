@@ -67,6 +67,7 @@ function makeBuild(): BuildRouteResult {
     txReq: { to: ROUTER, data: MAIN_TX_DATA, value: "0", chainId: "8453" },
     actions: [],
     finalExchangeRate: {},
+    expiresAt: new Date("2099-01-01T00:00:00Z"),
     route: {
       estimate: { fromAmount: "1000302", toAmount: "1000000" },
       execution: {

@@ -20,6 +20,7 @@ import {
   type ReceiptDeliveryOutcome,
 } from "./intentTracking";
 import type { TxReceiptReport } from "./receipt";
+import { assertRouteNotExpired } from "./routeExpiry";
 import {
   watchForReplacement,
   type ReplacementWatchTiming,
@@ -359,6 +360,11 @@ export type SendRouteTransactionOptions = {
   approvalsEnsured?: boolean;
 };
 
+/**
+ * Send a route's transaction and return its hash. The caller commits the
+ * receipt (`submitReceipt`). Throws `RouteExpiredError`, sending nothing,
+ * once the route's `expiresAt` has passed.
+ */
 export async function sendRouteTransaction(
   b: BuildRouteResult,
   fallbackChainId?: number | string,
@@ -433,6 +439,7 @@ export async function sendRouteTransactionReporting(
   // assembled by hand — and signing it is the irreversible step. Refused
   // before the wallet is consulted.
   assertRouteDeliversValue(b.route);
+  assertRouteNotExpired(b);
 
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
@@ -483,6 +490,10 @@ export async function sendRouteTransactionReporting(
         BigInt(b.route?.estimate?.fromAmount ?? "0")
       );
     }
+
+    // Approvals and a chain switch can keep the user in the wallet for
+    // minutes, so the expiry is checked again right before the send.
+    assertRouteNotExpired(b);
 
     if (w.type === "eip1193") {
       const from = (await w.getAddress()) as `0x${string}`;

@@ -36,10 +36,13 @@ const body = {
   toAddress: TO,
 };
 
+const EXPIRES_AT = "2099-01-01T00:00:00Z";
+
 function routeResponse(estimate: RouteEstimate | undefined) {
   return {
     data: {
       intentId: "intent-1",
+      expiresAt: EXPIRES_AT,
       route: {
         provider: "relay",
         estimate,
@@ -60,6 +63,7 @@ function depositAddressResponse(estimate: RouteEstimate | undefined) {
   return {
     data: {
       intentId: "intent-1",
+      expiresAt: EXPIRES_AT,
       depositAddress: { address: FROM },
       route: { provider: "relay", estimate },
     },
@@ -81,6 +85,7 @@ function makeBuild(estimate: RouteEstimate | undefined): BuildRouteResult {
     actions: [],
     finalExchangeRate: {},
     route: { provider: "relay", estimate },
+    expiresAt: new Date(EXPIRES_AT),
   } as BuildRouteResult;
 }
 
