@@ -11,23 +11,27 @@ const SPENDER = "0x09aea4b2242abc8bb4bb78d537a67a245a7bec64";
 const ROUTER = "0x3333333333333333333333333333333333333333";
 const MAIN_TX_DATA = "0xdeadbeef";
 
-type SentTx = { to: string; data: string };
+/** `chainId` is the chain the wallet was on when it was asked to send. */
+type SentTx = { to: string; data: string; chainId: number };
 
 /**
  * A minimal eip1193 EVM wallet that records every transaction it is asked
  * to send and returns a fake hash.
  */
 function makeFakeWallet(sent: SentTx[]): WalletInterFaceAPI {
+  let chainId = 8453;
   return {
     ecosystem: "evm",
     type: "eip1193",
     getAddress: async () => OWNER,
-    getChainId: async () => 8453,
-    switchChain: async () => {},
+    getChainId: async () => chainId,
+    switchChain: async (target: number) => {
+      chainId = target;
+    },
     request: async (args: { method: string; params?: unknown[] }) => {
       if (args.method === "eth_sendTransaction") {
         const tx = (args.params as Record<string, string>[])[0];
-        sent.push({ to: tx.to, data: tx.data });
+        sent.push({ to: tx.to, data: tx.data, chainId });
         return `0x${String(sent.length).padStart(64, "0")}`;
       }
       throw new Error(`Unexpected wallet request: ${args.method}`);
@@ -61,7 +65,7 @@ function stubFetch(calls: { allowanceChecks: number }) {
   };
 }
 
-function makeBuild(): BuildRouteResult {
+function makeBuild(approvalChainId = "8453"): BuildRouteResult {
   return {
     intentId: "intent-bvt-330",
     txReq: { to: ROUTER, data: MAIN_TX_DATA, value: "0", chainId: "8453" },
@@ -72,7 +76,7 @@ function makeBuild(): BuildRouteResult {
       execution: {
         approvals: [
           {
-            chainId: "8453",
+            chainId: approvalChainId,
             tokenAddress: TOKEN,
             spender: SPENDER,
             amount: "1000302",
@@ -136,5 +140,20 @@ describe("sendRouteTransaction approvals ownership (BVT-330)", () => {
     assert.equal(sent[0].to, TOKEN, "first tx is the ERC20 approve");
     assert.equal(sent[1].to, ROUTER);
     assert.equal(sent[1].data, MAIN_TX_DATA);
+  });
+
+  // ensureApprovals puts the wallet on each approval's own chain. Checking
+  // the route's chain only before that pass would sign the route on the
+  // approval's chain instead.
+  it("sends the route on its own chain after an approval on another", async () => {
+    await sendRouteTransaction(makeBuild("1"), 8453);
+
+    assert.deepEqual(
+      sent.map(({ to, chainId }) => ({ to, chainId })),
+      [
+        { to: TOKEN, chainId: 1 },
+        { to: ROUTER, chainId: 8453 },
+      ]
+    );
   });
 });

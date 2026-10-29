@@ -432,7 +432,6 @@ export async function sendRouteTransactionReporting(
         )}).`
       );
     }
-    await ensureWalletOnChain(w, target);
 
     // A sponsored (Account Kit) route grants its allowance internally via
     // Permit2 — skip the separate approve step entirely in that case.
@@ -446,6 +445,9 @@ export async function sendRouteTransactionReporting(
         BigInt(b.route?.estimate?.fromAmount ?? "0")
       );
     }
+    // After the approvals, not before: each approval puts the wallet on its
+    // own chain, which need not be the route's.
+    await ensureWalletOnChain(w, target);
 
     if (w.type === "eip1193") {
       const from = (await w.getAddress()) as `0x${string}`;
