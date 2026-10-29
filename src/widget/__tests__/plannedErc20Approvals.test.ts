@@ -178,4 +178,39 @@ describe("plannedErc20Approvals", () => {
       ]
     );
   });
+
+  // Read as 0, a missing amount would become a reset-to-zero approve and
+  // leave the router with no allowance.
+  it("refuses an approval with no amount", () => {
+    assert.throws(
+      () =>
+        plannedErc20Approvals(
+          [{ chainId: "8453", tokenAddress: USDC_BASE, spender: SQUID_ROUTER }],
+          baseRoute
+        ),
+      {
+        message: `Route approval 0 (spender ${SQUID_ROUTER}) has no amount.`,
+      }
+    );
+  });
+
+  it("refuses an approval whose amount is not an integer", () => {
+    assert.throws(
+      () =>
+        plannedErc20Approvals(
+          [
+            {
+              chainId: "8453",
+              tokenAddress: USDC_BASE,
+              spender: SQUID_ROUTER,
+              amount: "50.5",
+            },
+          ],
+          baseRoute
+        ),
+      {
+        message: `Route approval 0 (spender ${SQUID_ROUTER}) has an invalid amount "50.5".`,
+      }
+    );
+  });
 });

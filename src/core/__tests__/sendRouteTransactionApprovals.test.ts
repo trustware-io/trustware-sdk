@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import { sendRouteTransaction } from "src/core/tx";
 import { walletManager } from "src/wallets/";
 import { TrustwareConfigStore } from "src/config/store";
-import type { BuildRouteResult, WalletInterFaceAPI } from "src/types";
+import type {
+  BuildRouteResult,
+  RouteApproval,
+  WalletInterFaceAPI,
+} from "src/types";
 
 const OWNER = "0x1111111111111111111111111111111111111111";
 const TOKEN = "0x2222222222222222222222222222222222222222";
@@ -65,7 +69,8 @@ function stubFetch(calls: { allowanceChecks: number }) {
   };
 }
 
-function makeBuild(approvalChainId = "8453"): BuildRouteResult {
+/** `approval` overrides fields of the plan's one router approval. */
+function makeBuild(approval: Partial<RouteApproval> = {}): BuildRouteResult {
   return {
     intentId: "intent-bvt-330",
     txReq: { to: ROUTER, data: MAIN_TX_DATA, value: "0", chainId: "8453" },
@@ -76,10 +81,11 @@ function makeBuild(approvalChainId = "8453"): BuildRouteResult {
       execution: {
         approvals: [
           {
-            chainId: approvalChainId,
+            chainId: "8453",
             tokenAddress: TOKEN,
             spender: SPENDER,
             amount: "1000302",
+            ...approval,
           },
         ],
       },
@@ -146,7 +152,7 @@ describe("sendRouteTransaction approvals ownership (BVT-330)", () => {
   // the route's chain only before that pass would sign the route on the
   // approval's chain instead.
   it("sends the route on its own chain after an approval on another", async () => {
-    await sendRouteTransaction(makeBuild("1"), 8453);
+    await sendRouteTransaction(makeBuild({ chainId: "1" }), 8453);
 
     assert.deepEqual(
       sent.map(({ to, chainId }) => ({ to, chainId })),
@@ -155,5 +161,17 @@ describe("sendRouteTransaction approvals ownership (BVT-330)", () => {
         { to: ROUTER, chainId: 8453 },
       ]
     );
+  });
+
+  // It used to skip the entry and send the route anyway, which then reverts
+  // for want of an allowance.
+  it("refuses an approval with no amount before sending anything", async () => {
+    await assert.rejects(
+      sendRouteTransaction(makeBuild({ amount: undefined }), 8453),
+      {
+        message: `Route approval 0 (spender ${SPENDER}) has no amount.`,
+      }
+    );
+    assert.deepEqual(sent, []);
   });
 });

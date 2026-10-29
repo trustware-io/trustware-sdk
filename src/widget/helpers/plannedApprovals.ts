@@ -1,3 +1,4 @@
+import { approvalAmountWei } from "../../core/routeApprovals";
 import { requiredApprovalAmount } from "../../core/tx";
 import type { RouteApproval } from "../../types";
 import { isEvmAddress } from "./chainHelpers";
@@ -54,7 +55,7 @@ export function plannedErc20Approvals(
         // A planned 0 is the reset-to-zero step USDT-style tokens need
         // before an existing allowance can change; it is kept as 0.
         amountWei: requiredApprovalAmount(
-          BigInt(approval.amount || "0"),
+          approvalAmountWei(approval, stepIndex),
           route.amountWei
         ),
       },

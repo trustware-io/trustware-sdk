@@ -1,3 +1,4 @@
+import { approvalAmountWei } from "./routeApprovals";
 import { assertRouteDeliversValue } from "./routeValue";
 import type {
   BuildRouteResult,
@@ -272,14 +273,16 @@ async function ensureApprovals(
   for (const [stepIndex, approval] of approvals.entries()) {
     const spender = approval.spender;
     const tokenAddress = approval.tokenAddress;
-    const amount = approval.amount;
-    if (!spender || !tokenAddress || !amount) continue;
+    if (!spender || !tokenAddress) continue;
     const chainId = approval.chainId || String(fallbackChainId ?? "");
     if (!chainId) continue;
     // A planned approval of 0 is not a no-op: it is the reset-to-zero step
     // tokens like USDT require before an existing non-zero allowance can be
     // changed. Skipping it leaves the following approve to revert.
-    const amountWei = requiredApprovalAmount(BigInt(amount), routeAmountWei);
+    const amountWei = requiredApprovalAmount(
+      approvalAmountWei(approval, stepIndex),
+      routeAmountWei
+    );
 
     let currentAllowance = 0n;
     try {
