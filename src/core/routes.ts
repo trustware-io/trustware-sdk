@@ -1,5 +1,6 @@
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import { routeErrorFromResponse } from "./routeError";
+import { assertValidRouteApprovals } from "./routeApprovals";
 import { assertRouteDeliversValue } from "./routeValue";
 import type {
   BuildRouteResult,
@@ -272,6 +273,7 @@ export async function buildRoute(
   if (!txReq?.data) {
     throw new Error("Invalid route: missing transaction data");
   }
+  assertValidRouteApprovals(route?.execution?.approvals);
   // The backend scores on net_usd but still returns the best of a bad set.
   // Refused here, on the way in, so no consumer ever holds a losing route.
   assertRouteDeliversValue(route);
