@@ -402,7 +402,10 @@ export function toSolanaWalletInterface(
     async sendSerializedTransaction(
       serializedTransactionBase64: string,
       chainId?: string,
-      options?: { onAccepted?: (signature: string) => void }
+      options?: {
+        onAccepted?: (signature: string) => void;
+        routeIntentId?: string;
+      }
     ) {
       const transaction = await decodeBase64Transaction(
         serializedTransactionBase64
@@ -421,7 +424,7 @@ export function toSolanaWalletInterface(
         const resolvedChainId = chainId?.trim() || "solana-mainnet";
         return broadcastUntilSettled(
           signed,
-          proxyBroadcastIO(resolvedChainId),
+          proxyBroadcastIO(resolvedChainId, options?.routeIntentId),
           options?.onAccepted
         );
       }

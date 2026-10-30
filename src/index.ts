@@ -2,6 +2,11 @@
 export { Trustware, TrustwareCore } from "./core";
 export { RateLimitError } from "./core/http";
 export {
+  ReceiptCommitError,
+  RouteExpiredError,
+  RouteResponseError,
+} from "./core";
+export {
   RouteError,
   isRouteError,
   parseRouteError,

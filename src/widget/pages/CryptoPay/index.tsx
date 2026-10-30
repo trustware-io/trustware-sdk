@@ -124,6 +124,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     estimatedReceive,
     builtRoute,
     adoptRebuiltRoute,
+    refreshRoute,
     routePrerequisiteError,
     routeError: routeBuilderError,
   } = useRoutePreviewModel({
@@ -157,6 +158,7 @@ export function CryptoPay({ style: _style }: CryptoPayProps) {
     parsedAmount,
     builtRoute,
     onRouteRebuilt: adoptRebuiltRoute,
+    onRouteExpired: refreshRoute,
     selectedChain,
     selectedToken,
     walletAddress,

@@ -2,10 +2,10 @@ import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import { routeErrorFromResponse } from "./routeError";
 import { assertValidRouteApprovals } from "./routeApprovals";
 import { assertRouteDeliversValue } from "./routeValue";
+import { parseRouteExpiresAt, parseServerClockOffsetMs } from "./routeExpiry";
 import type {
   BuildRouteResult,
   PostHookRequest,
-  RouteParams,
   RoutePlan,
   RouteSponsorship,
   Transaction,
@@ -160,10 +160,13 @@ export type TxRequest = {
 
 export type BuildRouteResponse = {
   intentId?: string;
+  /** RFC 3339. Parsed into `BuildRouteResult.expiresAt`. */
+  expiresAt?: string;
   route?: RoutePlan;
   sponsorship?: RouteSponsorship;
   data?: {
     intentId?: string;
+    expiresAt?: string;
     route?: RoutePlan;
     sponsorship?: RouteSponsorship;
   };
@@ -180,10 +183,12 @@ type DepositAddress = {
 type BuildDepositAddressResponse = {
   depositAddress?: DepositAddress;
   intentId?: string;
+  expiresAt?: string;
   route?: RoutePlan;
   data?: {
     depositAddress?: DepositAddress;
     intentId?: string;
+    expiresAt?: string;
     route?: RoutePlan;
   };
   error?: string;
@@ -196,18 +201,6 @@ export function isEvmTxRequest(txReq?: TxRequest | null) {
 
 export function isSerializedSolanaTxRequest(txReq?: TxRequest | null) {
   return Boolean(txReq?.data && !txReq?.to && !txReq?.target);
-}
-
-export async function buildRoute1(p: RouteParams): Promise<BuildRouteResult> {
-  const r = await rateLimitedFetch(`${apiBase()}/squid/route`, {
-    method: "POST",
-    headers: jsonHeaders(),
-    credentials: "omit",
-    body: JSON.stringify(p),
-  });
-  await assertOK(r);
-  const j = await r.json();
-  return j.data as BuildRouteResult;
 }
 
 export async function buildRoute(
@@ -243,6 +236,7 @@ export async function buildRoute(
     body: JSON.stringify(payload),
     signal,
   });
+  const receivedAtMs = Date.now();
 
   let json: BuildRouteResponse = {};
   try {
@@ -274,11 +268,29 @@ export async function buildRoute(
     throw new Error("Invalid route: missing transaction data");
   }
   assertValidRouteApprovals(route?.execution?.approvals);
+  const expiresAt = parseRouteExpiresAt(
+    json?.data?.expiresAt ?? json?.expiresAt,
+    intentId
+  );
+  const serverClockOffsetMs = parseServerClockOffsetMs(
+    r.headers.get("Date"),
+    receivedAtMs,
+    intentId
+  );
   // The backend scores on net_usd but still returns the best of a bad set.
   // Refused here, on the way in, so no consumer ever holds a losing route.
   assertRouteDeliversValue(route);
 
-  return { intentId, txReq, actions, finalExchangeRate, route, sponsorship };
+  return {
+    intentId,
+    txReq,
+    actions,
+    finalExchangeRate,
+    route,
+    sponsorship,
+    expiresAt,
+    serverClockOffsetMs,
+  };
 }
 
 export async function buildDepositAddress(
@@ -293,6 +305,12 @@ export async function buildDepositAddress(
     toAmountMinUSD?: string;
   };
   route: RoutePlan | undefined;
+  /** When the route intent stops being usable, in the server's time.
+   *  Send to the deposit address before then. */
+  expiresAt: Date;
+  /** How far the server's clock was ahead of this device's when the
+   *  response arrived (its `Date` header). */
+  serverClockOffsetMs: number;
 }> {
   assertValidPostHook(body.hooks);
   assertValidVaultRequest(body);
@@ -311,6 +329,7 @@ export async function buildDepositAddress(
     body: JSON.stringify(payload),
     signal,
   });
+  const receivedAtMs = Date.now();
 
   let json: BuildDepositAddressResponse = {};
   try {
@@ -336,6 +355,15 @@ export async function buildDepositAddress(
   if (!depositAddress) {
     throw new Error("Invalid route: missing deposit address");
   }
+  const expiresAt = parseRouteExpiresAt(
+    json?.data?.expiresAt ?? json?.expiresAt,
+    intentId
+  );
+  const serverClockOffsetMs = parseServerClockOffsetMs(
+    r.headers.get("Date"),
+    receivedAtMs,
+    intentId
+  );
   assertRouteDeliversValue(route);
 
   return {
@@ -347,39 +375,15 @@ export async function buildDepositAddress(
       toAmountMinUSD: estimate?.toAmountMinUsd ?? estimate?.toAmountUsd,
     },
     route,
+    expiresAt,
+    serverClockOffsetMs,
   };
-}
-
-export async function submitReceipt(
-  intentId: string,
-  txHash: string,
-  sponsorshipRequestId?: string,
-  /** Connected wallet (EOA) that originated the payment. Pass when the route
-   *  executes from a smart account, so the backend records the tx against the
-   *  address the user actually connects with. */
-  eoaAddress?: string
-) {
-  const r = await rateLimitedFetch(
-    `${apiBase()}/v1/route-intent/${intentId}/receipt`,
-    {
-      method: "POST",
-      headers: jsonHeaders({ "Idempotency-Key": txHash }),
-      body: JSON.stringify({
-        txHash,
-        ...(sponsorshipRequestId ? { sponsorshipRequestId } : {}),
-        ...(eoaAddress ? { eoaAddress } : {}),
-      }),
-    }
-  );
-  await assertOK(r);
-  const j = await r.json();
-  return j.data;
 }
 
 /**
  * Reports the submitted tx hash for one execution step of a multi-step
  * route — approve steps only; the main tx keeps going through
- * `submitReceipt`. `stepIndex` is the step's position in
+ * `submitReceipt` (core/receipt.ts). `stepIndex` is the step's position in
  * `route.execution.approvals` (the backend seeds its step plan in the same
  * order). Best-effort telemetry: callers fire-and-forget so a failed report
  * never blocks the payment flow, but a successful one lets the backend tell
@@ -412,10 +416,12 @@ export async function submitStepReceipt(
  * - 200 status: "pending"     → intent exists, no receipt yet. Keep polling.
  * - 200 status: "submitted"   → receipt in, tx in flight. Keep polling.
  * - 200 status: "bridging"    → cross-chain leg in progress. Keep polling.
- * - 200 status: "success"/"failed" → terminal. Stop polling.
+ * - 200 status: "success"/"failed"/"expired" → terminal. Stop polling.
+ * - 200 any other status      → newer than this SDK. Keep polling.
  *
  * A "pending" payload is a stub ({intent_id, status, intent_status,
- * create_date}) — the full Transaction fields appear once a receipt lands.
+ * create_date, expiresAt}) — the full Transaction fields appear once a
+ * receipt lands.
  */
 export async function getStatus(intentId: string): Promise<Transaction> {
   const r = await rateLimitedFetch(
@@ -495,9 +501,10 @@ export function normalizeStatusPayload(raw: unknown): Transaction {
 }
 
 /**
- * Polls intent status until terminal ("success"/"failed") or timeout.
- * Non-terminal statuses ("pending", "submitted", "bridging") keep the loop
- * going; a 404 (unknown intent) throws out of the loop — don't retry it.
+ * Polls intent status until terminal ("success"/"failed"/"expired") or
+ * timeout. Every other status ("pending", "submitted", "bridging", or one
+ * newer than this SDK) keeps the loop going; a 404 (unknown intent) throws
+ * out of the loop — don't retry it.
  */
 export async function pollStatus(
   intentId: string,
@@ -506,8 +513,14 @@ export async function pollStatus(
   const t0 = Date.now();
   while (true) {
     const tx = await getStatus(intentId);
-    if (tx.status === "success" || tx.status === "failed") return tx;
+    if (isTerminalStatus(tx.status)) return tx;
     if (Date.now() - t0 > timeoutMs) return tx;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
+}
+
+/** Whether a status ends tracking. Any status not named here, including
+ *  one newer than this SDK, means "not finished". */
+export function isTerminalStatus(status: Transaction["status"]): boolean {
+  return status === "success" || status === "failed" || status === "expired";
 }

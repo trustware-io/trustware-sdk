@@ -44,6 +44,8 @@ type UseTransactionActionModelArgs = {
   builtRoute: BuiltRoute | null;
   /** Put a route rebuilt at sign time up for review. */
   onRouteRebuilt: (rebuilt: BuiltRoute) => void;
+  /** The confirmed route expired before it was sent: fetch a new quote. */
+  onRouteExpired: () => void;
   selectedChain: ChainDef | null;
   selectedToken: Token | YourTokenData | null;
   walletAddress: string | null;
@@ -63,6 +65,7 @@ export function useTransactionActionModel({
   parsedAmount,
   builtRoute,
   onRouteRebuilt,
+  onRouteExpired,
   selectedChain,
   selectedToken,
   walletAddress,
@@ -480,8 +483,15 @@ export function useTransactionActionModel({
             eip1193Request: (args) => wallet.request(args),
           });
           // The on-chain hash, not the userOpHash: explorers index only the
-          // former, and the error screen links there.
-          return { hash: result.receipt.txHash, receipt: result.receipt };
+          // former, and the error screen links there. The userOp is already
+          // committed, so tracking starts whether or not it was seen yet.
+          return {
+            hash: result.txHash ?? null,
+            tracked: {
+              report: result.receipt,
+              delivery: result.receiptDelivery,
+            },
+          };
         } catch (e) {
           const msg = String((e as Error)?.message ?? e).toLowerCase();
           wasRejected =
@@ -501,10 +511,15 @@ export function useTransactionActionModel({
         // Non-rejection failure: mark as failed so the next retry uses EOA.
         setSmartAccountFailed(true);
       }
+      if (outcome.kind === "route_expired") onRouteExpired();
       return;
     }
 
     const outcome = await submitTransaction(builtRoute, reportPaymentInitiated);
+    if (outcome.kind === "route_expired") {
+      onRouteExpired();
+      return;
+    }
     if (outcome.kind === "route_changed") {
       onRouteRebuilt(outcome.rebuilt);
       setRouteChange((previous) => ({
@@ -516,6 +531,7 @@ export function useTransactionActionModel({
   }, [
     builtRoute,
     onRouteRebuilt,
+    onRouteExpired,
     amountWei,
     backendChainId,
     destinationConfig?.routes.toChain,

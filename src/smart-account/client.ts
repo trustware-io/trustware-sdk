@@ -284,7 +284,15 @@ export async function createTrustwareSmartAccountClient(
     const j = (await resp.json()) as {
       data: { paymasterAndData: string; requestId?: string };
     };
-    if (j.data.requestId) lastSponsorshipRequestId = j.data.requestId;
+    // The receipt for the userOp names this request, so a sponsorship
+    // without one is refused before the userOp can be sent.
+    if (!j.data.requestId) {
+      throw Object.assign(
+        new Error("paymaster sponsor-calldata answered without a requestId"),
+        { code: "PAYMASTER_RESPONSE_INVALID" }
+      );
+    }
+    lastSponsorshipRequestId = j.data.requestId;
     const blob = (j.data.paymasterAndData ?? "").replace(/^0x/, "");
 
     // 596 bytes minimum: 20 (paymaster) + 16 (verifGasLimit) + 16 (postOpGasLimit) + 544 (paymasterData)
@@ -324,6 +332,15 @@ export async function createTrustwareSmartAccountClient(
 
   return {
     client,
-    getSponsorshipRequestId: () => lastSponsorshipRequestId,
+    /** The sponsorship request behind the last userOp the paymaster
+     *  signed. Throws before any was signed. */
+    getSponsorshipRequestId: (): string => {
+      if (lastSponsorshipRequestId === undefined) {
+        throw new Error(
+          "No sponsorship request yet: the paymaster hasn't signed a userOp."
+        );
+      }
+      return lastSponsorshipRequestId;
+    },
   };
 }

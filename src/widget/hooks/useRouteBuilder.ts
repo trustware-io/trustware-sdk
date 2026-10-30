@@ -11,6 +11,7 @@ import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../../core/routes";
 import { buildRouteForReview, type BuiltRoute } from "../../core/signTimeRoute";
 import { parseRouteError } from "../../core";
 import { mapError } from "../lib/mapError";
+import { quoteRefreshIntervalMs } from "../lib/quoteCountdown";
 
 /**
  * Route building state
@@ -88,6 +89,7 @@ export function useRouteBuilder({
   slippage,
 }: UseRouteBuilderOptions): RouteBuilderState & {
   adoptRebuiltRoute: (built: BuiltRoute) => void;
+  refreshRoute: () => void;
 } {
   const { selectedToken, selectedChain, amount } = useDepositForm();
   const { walletAddress } = useDepositWallet();
@@ -293,15 +295,23 @@ export function useRouteBuilder({
     if (confirmInFlight) abortRef.current?.abort();
   }, [confirmInFlight]);
 
+  // A route on screen is refreshed once, `refreshMs` after it arrived or by
+  // its expiry, whichever is first; its replacement schedules the next. With
+  // no route (a build failed), builds are retried every `refreshMs`.
+  const shownRoute = state.builtRoute;
   useEffect(() => {
     if (!enabled || !routeKey || confirmInFlight) return;
-    const id = setInterval(() => {
-      setRefreshTick((tick) => tick + 1);
-    }, refreshMs);
-    return () => {
-      clearInterval(id);
-    };
-  }, [enabled, refreshMs, routeKey, confirmInFlight]);
+    const refresh = () => setRefreshTick((tick) => tick + 1);
+    if (shownRoute === null) {
+      const id = setInterval(refresh, refreshMs);
+      return () => clearInterval(id);
+    }
+    const id = setTimeout(
+      refresh,
+      quoteRefreshIntervalMs(refreshMs, Date.now(), shownRoute.result)
+    );
+    return () => clearTimeout(id);
+  }, [enabled, refreshMs, routeKey, confirmInFlight, shownRoute]);
 
   /** Put a route rebuilt at sign time up for review in place of the one the
    *  user confirmed. Cancels any build in flight, which would otherwise
@@ -311,7 +321,12 @@ export function useRouteBuilder({
     setState(routeStateFor(built));
   }, []);
 
-  return { ...state, adoptRebuiltRoute };
+  /** Fetch a new quote now: the one on screen expired before it was sent. */
+  const refreshRoute = useCallback(() => {
+    setRefreshTick((tick) => tick + 1);
+  }, []);
+
+  return { ...state, adoptRebuiltRoute, refreshRoute };
 }
 
 /** What the review screen shows for a built route. */

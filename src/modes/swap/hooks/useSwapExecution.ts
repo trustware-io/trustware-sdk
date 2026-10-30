@@ -15,8 +15,9 @@ import {
 import {
   trackIntent,
   type ReceiptDeliveryOutcome,
-  type ReceiptReport,
 } from "src/core/intentTracking";
+import type { ReceiptReport } from "src/core/receipt";
+import { RouteExpiredError } from "src/core/routeExpiry";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
   approvalSatisfied,
@@ -135,9 +136,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       receipt: ReceiptReport,
       onSuccess: () => void,
       onError: (msg: string) => void,
-      /** The send step's own receipt delivery, or "tracker_posts" when
-       *  nothing else posts it (the smart-account path). */
-      receiptDelivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts"
+      /** The send step's own receipt delivery, started at acceptance. */
+      receiptDelivery: Promise<ReceiptDeliveryOutcome>
     ) => {
       stopTracking();
       const controller = new AbortController();
@@ -145,8 +145,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       void trackIntent(receipt, {
         signal: controller.signal,
-        receiptDelivery:
-          receiptDelivery === "tracker_posts" ? undefined : receiptDelivery,
+        receiptDelivery,
         onUpdate: (raw) => {
           const tx = normalizeTx(raw);
           setState((p) => ({
@@ -260,7 +259,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         change: MaterialRouteChange
       ) => void,
       /** Something is about to be sent: report `payment_initiated` here. */
-      onSendStarting: (event: typeof PAYMENT_INITIATED) => void
+      onSendStarting: (event: typeof PAYMENT_INITIATED) => void,
+      /** The route's `expiresAt` passed before it was sent. Nothing was
+       *  sent; the caller fetches a new quote. */
+      onRouteExpired: () => void
     ) => {
       if (!reviewed.result?.txReq) {
         const msg = "Invalid route data. Please try again.";
@@ -304,6 +306,15 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         return;
       }
       const routeResult = decision.route;
+      const endExpired = () => {
+        setState((p) => ({
+          ...p,
+          isSubmitting: false,
+          txStatus: "idle",
+          signingRetryMessage: null,
+        }));
+        onRouteExpired();
+      };
 
       const wallet = Trustware.getWallet();
       const txReq = routeResult.txReq;
@@ -393,17 +404,29 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             eip1193Request: (args) => wallet!.request(args),
           });
 
+          // The on-chain hash, for the explorer link; null until the
+          // bundle was seen. The userOp is already committed.
           setState((p) => ({
             ...p,
             isSubmitting: false,
-            txHash: result.receipt.txHash,
+            txHash: result.txHash ?? null,
             intentId: result.intentId,
             txStatus: "processing",
             allowanceStatus: "sufficient",
           }));
-          startTracking(result.receipt, onSuccess, onError, "tracker_posts");
+          startTracking(
+            result.receipt,
+            onSuccess,
+            onError,
+            result.receiptDelivery
+          );
           return;
         } catch (err) {
+          // Not a smart-account failure: the EOA path would refuse it too.
+          if (err instanceof RouteExpiredError) {
+            endExpired();
+            return;
+          }
           if (isUserRejection(err)) {
             const msg = mapTxError(err);
             setState((p) => ({
@@ -616,6 +639,11 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           );
         }
       } catch (err) {
+        // Refused before anything was sent.
+        if (err instanceof RouteExpiredError) {
+          endExpired();
+          return;
+        }
         // After acceptance this is the chain's own verdict (it landed with
         // an error, or expired): it replaces the tracker, whose receipt was
         // already delivered.

@@ -130,6 +130,7 @@ describe("buildRoute approval amounts", () => {
     const payload = {
       data: {
         intentId: "intent-1",
+        expiresAt: "2099-01-01T00:00:00Z",
         route: {
           provider: "squid",
           execution: {
@@ -147,7 +148,10 @@ describe("buildRoute approval amounts", () => {
     globalThis.fetch = (async () =>
       new Response(JSON.stringify(payload), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Date: new Date().toUTCString(),
+        },
       })) as typeof fetch;
   }
 

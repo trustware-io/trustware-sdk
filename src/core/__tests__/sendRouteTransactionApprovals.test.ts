@@ -76,6 +76,8 @@ function makeBuild(approval: Partial<RouteApproval> = {}): BuildRouteResult {
     txReq: { to: ROUTER, data: MAIN_TX_DATA, value: "0", chainId: "8453" },
     actions: [],
     finalExchangeRate: {},
+    expiresAt: new Date("2099-01-01T00:00:00Z"),
+    serverClockOffsetMs: 0,
     route: {
       estimate: { fromAmount: "1000302", toAmount: "1000000" },
       execution: {
