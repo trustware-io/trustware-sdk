@@ -1,3 +1,4 @@
+import { approvalAmountWei } from "./routeApprovals";
 import { assertRouteDeliversValue } from "./routeValue";
 import type {
   BuildRouteResult,
@@ -282,14 +283,16 @@ async function ensureApprovals(
   for (const [stepIndex, approval] of approvals.entries()) {
     const spender = approval.spender;
     const tokenAddress = approval.tokenAddress;
-    const amount = approval.amount;
-    if (!spender || !tokenAddress || !amount) continue;
+    if (!spender || !tokenAddress) continue;
     const chainId = approval.chainId || String(fallbackChainId ?? "");
     if (!chainId) continue;
     // A planned approval of 0 is not a no-op: it is the reset-to-zero step
     // tokens like USDT require before an existing non-zero allowance can be
     // changed. Skipping it leaves the following approve to revert.
-    const amountWei = requiredApprovalAmount(BigInt(amount), routeAmountWei);
+    const amountWei = requiredApprovalAmount(
+      approvalAmountWei(approval, stepIndex),
+      routeAmountWei
+    );
 
     let currentAllowance = 0n;
     try {
@@ -476,7 +479,6 @@ export async function sendRouteTransactionReporting(
         )}).`
       );
     }
-    await ensureWalletOnChain(w, target);
 
     // A sponsored (Account Kit) route grants its allowance internally via
     // Permit2 — skip the separate approve step entirely in that case.
@@ -490,6 +492,9 @@ export async function sendRouteTransactionReporting(
         BigInt(b.route?.estimate?.fromAmount ?? "0")
       );
     }
+    // After the approvals, not before: each approval puts the wallet on its
+    // own chain, which need not be the route's.
+    await ensureWalletOnChain(w, target);
 
     // Approvals and a chain switch can keep the user in the wallet for
     // minutes, so the expiry is checked again right before the send.

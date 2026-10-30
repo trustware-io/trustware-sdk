@@ -7,8 +7,12 @@ import {
   estimateEVMGas,
   getEVMAllowance,
   getEVMFeeData,
-  getEVMTxStatus,
 } from "../../../../core/sdkRpc";
+import {
+  approvalSatisfied,
+  ensureWalletOnChain,
+  waitForApprovalConfirmation,
+} from "../../../../core/tx";
 import {
   type Token,
   type YourTokenData,
@@ -17,9 +21,12 @@ import { useTransactionSubmit } from "../../../hooks";
 import {
   isNativeTokenAddress,
   normalizeAddress,
-  normalizeChainKey,
 } from "../../../../utils/chains";
 import { divRoundDown } from "../../../../utils";
+import {
+  plannedErc20Approvals,
+  type PlannedErc20Approval,
+} from "../../../helpers/plannedApprovals";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
 import { useGTMTracker } from "../../../../hooks";
 import type {
@@ -50,10 +57,6 @@ type CachedFeeData = {
   gasPrice?: bigint;
   maxFeePerGas?: bigint;
 };
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function useTransactionActionModel({
   actionErrorMessage,
@@ -113,129 +116,94 @@ export function useTransactionActionModel({
     selectedChain?.networkIdentifier,
   ]);
 
-  // selectedToken lives on selectedChain, but the allowance/approval probe
-  // targets backendChainId (which prefers routeResult.txReq.chainId — the
-  // route's tx-execution chain). For any cross-chain route, or a
-  // destination-token selection, or a stale window right after a chain
-  // switch, those diverge and we'd query allowance for a token address on
-  // a chain it isn't deployed on (empty eth_call → backend 502/404). Only
-  // probe when the token's chain actually matches backendChainId.
-  const selectedTokenOnBackendChain = useMemo(() => {
-    if (!backendChainId) return false;
-    const target = normalizeChainKey(backendChainId);
-    return [
-      selectedChain?.chainId,
-      selectedChain?.id,
-      selectedChain?.networkIdentifier,
-    ].some((c) => {
-      const k = normalizeChainKey(c ?? null);
-      return k !== "" && k === target;
-    });
-  }, [
-    backendChainId,
-    selectedChain?.chainId,
-    selectedChain?.id,
-    selectedChain?.networkIdentifier,
-  ]);
-
   const isNativeSelected = useMemo(() => {
     const address = selectedToken?.address;
     return !address || isNativeTokenAddress(address, chainType);
   }, [chainType, selectedToken?.address]);
 
-  const spender = useMemo(() => {
-    const txReq = routeResult?.txReq;
-    const addr = (txReq?.to ?? txReq?.target) as `0x${string}` | undefined;
-    return addr ?? null;
-  }, [routeResult?.txReq]);
+  // What the route's plan says must be approved before its transaction is
+  // sent. A sponsored route approves inside its own UserOperation batch
+  // (Permit2), so it needs nothing from the EOA here.
+  const requiredApprovals = useMemo(
+    () =>
+      isEvm && !isNativeSelected && !routeResult?.sponsorship
+        ? plannedErc20Approvals(routeResult?.route?.execution?.approvals, {
+            fromTokenAddress: selectedToken?.address,
+            chainId: backendChainId ?? "",
+            amountWei,
+          })
+        : [],
+    [
+      amountWei,
+      backendChainId,
+      isEvm,
+      isNativeSelected,
+      routeResult?.route?.execution?.approvals,
+      routeResult?.sponsorship,
+      selectedToken?.address,
+    ]
+  );
 
-  const [allowanceWei, setAllowanceWei] = useState<bigint>(0n);
+  // The planned approvals the wallet's allowances don't yet cover.
+  const [unmetApprovals, setUnmetApprovals] = useState<PlannedErc20Approval[]>(
+    []
+  );
   const [isReadingAllowance, setIsReadingAllowance] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [gasReservationWei, setGasReservationWei] = useState<bigint>(0n);
 
+  const findUnmetApprovals = useCallback(async () => {
+    if (!walletAddress) return [];
+    const met = await Promise.all(
+      requiredApprovals.map(async (approval) => {
+        try {
+          const { allowance } = await getEVMAllowance({
+            chainId: approval.chainId,
+            tokenAddress: approval.token,
+            ownerAddress: walletAddress,
+            spenderAddress: approval.spender,
+          });
+          return approvalSatisfied(
+            BigInt(allowance || "0"),
+            approval.amountWei
+          );
+        } catch {
+          // An unreadable allowance is treated as missing: asking for an
+          // approve is recoverable, sending a transaction that reverts for
+          // want of one is not.
+          return false;
+        }
+      })
+    );
+    return requiredApprovals.filter((_, index) => !met[index]);
+  }, [requiredApprovals, walletAddress]);
+
   const readAllowance = useCallback(async () => {
-    if (
-      !isEvm ||
-      isNativeSelected ||
-      !!routeResult?.sponsorship || // sponsored routes: SA approves bridge inside the UO batch
-      !backendChainId ||
-      !selectedTokenOnBackendChain ||
-      !walletAddress ||
-      !spender ||
-      !selectedToken?.address
-    ) {
-      setAllowanceWei(0n);
+    if (requiredApprovals.length === 0) {
+      setUnmetApprovals([]);
       return;
     }
-
+    setIsReadingAllowance(true);
     try {
-      setIsReadingAllowance(true);
-      const result = await getEVMAllowance({
-        chainId: backendChainId,
-        tokenAddress: selectedToken.address,
-        ownerAddress: walletAddress,
-        spenderAddress: spender,
-      });
-      setAllowanceWei(BigInt(result.allowance || "0"));
-    } catch {
-      setAllowanceWei(0n);
+      setUnmetApprovals(await findUnmetApprovals());
     } finally {
       setIsReadingAllowance(false);
     }
-  }, [
-    backendChainId,
-    isEvm,
-    isNativeSelected,
-    routeResult?.sponsorship,
-    selectedTokenOnBackendChain,
-    selectedToken?.address,
-    spender,
-    walletAddress,
-  ]);
+  }, [findUnmetApprovals, requiredApprovals.length]);
 
   useEffect(() => {
     void readAllowance();
   }, [readAllowance]);
 
   const needsApproval =
-    isEvm &&
-    !isNativeSelected &&
-    !routeResult?.sponsorship && // sponsored routes use Permit2 + SA internal batch — no EOA bridge approval
-    !!walletAddress &&
-    !!spender &&
-    amountWei > 0n &&
-    allowanceWei < amountWei;
-
-  const waitForApprovalConfirmation = useCallback(
-    async (chainId: string, txHash: `0x${string}`) => {
-      const timeoutMs = 120000;
-      const intervalMs = 2000;
-      const started = Date.now();
-
-      while (Date.now() - started < timeoutMs) {
-        const status = await getEVMTxStatus({ chainId, txHash });
-        if (status.status === "success") {
-          return;
-        }
-        if (status.status === "reverted") {
-          throw new Error("Approval transaction reverted");
-        }
-        await sleep(intervalMs);
-      }
-
-      throw new Error("Timed out waiting for approval confirmation");
-    },
-    []
-  );
+    !!walletAddress && amountWei > 0n && unmetApprovals.length > 0;
 
   const handleApproveExact = useCallback(async () => {
     if (
       isApproving ||
       amountWei <= 0n ||
       !walletAddress ||
-      !spender ||
-      !selectedToken?.address
+      unmetApprovals.length === 0
     ) {
       return;
     }
@@ -258,68 +226,47 @@ export function useTransactionActionModel({
 
     setIsApproving(true);
     try {
-      const targetChain = Number(
-        routeResult?.txReq?.chainId ??
-          selectedChain?.chainId ??
-          selectedChain?.id
-      );
-      console.log("[approve] targetChain:", targetChain, {
-        txReqChainId: routeResult?.txReq?.chainId,
-        selectedChainId: selectedChain?.chainId,
-        selectedChainIdAlt: selectedChain?.id,
-      });
-      if (Number.isFinite(targetChain)) {
-        const current = await wallet.getChainId();
-        if (current !== targetChain) {
-          try {
-            await wallet.switchChain(targetChain);
-          } catch {
-            // user cancellation will be surfaced by the send path
-            // throw new Error(
-            //   `Please switch to chain ${targetChain} in your wallet before approving.`
-            // );
-          }
-        }
-      }
+      for (const approval of unmetApprovals) {
+        // Be on the approval's own chain before signing, and prove it: an
+        // approve signed on another chain hits an address that usually
+        // holds no code there and "succeeds" having granted nothing.
+        const approvalChain = Number(approval.chainId);
+        await ensureWalletOnChain(wallet, approvalChain);
 
-      const data = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [spender, amountWei],
-      });
-
-      let hash: `0x${string}`;
-      if (wallet.type === "eip1193") {
-        const from = await wallet.getAddress();
-        const params: Record<string, unknown> = {
-          from,
-          to: selectedToken.address as `0x${string}`,
-          data,
-          value: "0x0",
-        };
-        if (Number.isFinite(targetChain)) {
-          params.chainId = `0x${targetChain.toString(16)}`;
-        }
-        hash = (await wallet.request({
-          method: "eth_sendTransaction",
-          params: [params],
-        })) as `0x${string}`;
-      } else {
-        const response = await wallet.sendTransaction({
-          to: selectedToken.address as `0x${string}`,
-          data,
-          value: 0n,
-          chainId: Number.isFinite(targetChain) ? targetChain : undefined,
+        const data = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [approval.spender, approval.amountWei],
         });
-        hash = response.hash;
-      }
 
-      if (backendChainId) {
-        await waitForApprovalConfirmation(backendChainId, hash);
-        await readAllowance();
-      } else {
-        setAllowanceWei(amountWei);
+        let hash: `0x${string}`;
+        if (wallet.type === "eip1193") {
+          const from = await wallet.getAddress();
+          hash = (await wallet.request({
+            method: "eth_sendTransaction",
+            params: [
+              {
+                from,
+                to: approval.token,
+                data,
+                value: "0x0",
+                chainId: `0x${approvalChain.toString(16)}`,
+              },
+            ],
+          })) as `0x${string}`;
+        } else {
+          const response = await wallet.sendTransaction({
+            to: approval.token,
+            data,
+            value: 0n,
+            chainId: approvalChain,
+          });
+          hash = response.hash;
+        }
+
+        await waitForApprovalConfirmation(approval.chainId, hash);
       }
+      await readAllowance();
     } catch {
       // approval failed; caller can retry
     } finally {
@@ -327,21 +274,16 @@ export function useTransactionActionModel({
     }
   }, [
     amountWei,
-    backendChainId,
     destinationConfig?.routes.toChain,
     destinationConfig?.routes.toToken,
     isApproving,
     readAllowance,
-    routeResult?.txReq?.chainId,
     selectedChain?.axelarChainName,
     selectedChain?.chainId,
-    selectedChain?.id,
     selectedChain?.networkName,
-    selectedToken?.address,
     selectedToken?.symbol,
-    spender,
     trackEvent,
-    waitForApprovalConfirmation,
+    unmetApprovals,
     walletAddress,
   ]);
 
@@ -610,46 +552,15 @@ export function useTransactionActionModel({
   const handleSwipeConfirm = useCallback(async () => {
     if (needsApproval) {
       await handleApproveExact();
-
-      // handleApproveExact() calls readAllowance() internally on success,
-      // but allowanceWei is stale in this closure. Re-read directly.
-      if (
-        !backendChainId ||
-        !selectedTokenOnBackendChain ||
-        !selectedToken?.address ||
-        !walletAddress ||
-        !spender
-      ) {
-        return;
-      }
-
-      const freshAllowance = await getEVMAllowance({
-        chainId: backendChainId,
-        tokenAddress: selectedToken.address,
-        ownerAddress: walletAddress,
-        spenderAddress: spender,
-      })
-        .then((r) => BigInt(r.allowance || "0"))
-        .catch(() => 0n);
-
-      if (freshAllowance >= amountWei) {
+      // unmetApprovals in this closure predates the approve; ask again.
+      if ((await findUnmetApprovals()).length === 0) {
         await handleConfirm();
       }
       return;
     }
 
     await handleConfirm();
-  }, [
-    amountWei,
-    backendChainId,
-    handleApproveExact,
-    handleConfirm,
-    needsApproval,
-    selectedTokenOnBackendChain,
-    selectedToken?.address,
-    spender,
-    walletAddress,
-  ]);
+  }, [findUnmetApprovals, handleApproveExact, handleConfirm, needsApproval]);
 
   const isWalletConnected = walletStatus === "connected";
   const canSwipe =

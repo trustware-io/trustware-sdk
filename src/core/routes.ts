@@ -1,5 +1,6 @@
 import { apiBase, jsonHeaders, assertOK, rateLimitedFetch } from "./http";
 import { routeErrorFromResponse } from "./routeError";
+import { assertValidRouteApprovals } from "./routeApprovals";
 import { assertRouteDeliversValue } from "./routeValue";
 import { parseRouteExpiresAt, parseServerClockOffsetMs } from "./routeExpiry";
 import type {
@@ -266,6 +267,7 @@ export async function buildRoute(
   if (!txReq?.data) {
     throw new Error("Invalid route: missing transaction data");
   }
+  assertValidRouteApprovals(route?.execution?.approvals);
   const expiresAt = parseRouteExpiresAt(
     json?.data?.expiresAt ?? json?.expiresAt,
     intentId

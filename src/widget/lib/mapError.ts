@@ -78,12 +78,7 @@ function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
   // A provider that never answered is not evidence about the pair — saying "no
   // route exists" would be a claim the backend explicitly refused to make.
   if (!facts.allDeclined) {
-    return {
-      category: "route_error",
-      title: "Route Unavailable",
-      message:
-        "A routing provider did not respond. Please try again in a moment.",
-    };
+    return ROUTING_BUSY;
   }
 
   const has = (code: string) => facts.codes.includes(code);
@@ -117,13 +112,14 @@ function mapRouteFacts(facts: RouteErrorFacts): MappedError | null {
     };
   }
 
-  if (lowLiquidity && !tooLow) {
-    return {
-      category: "route_error",
-      title: "Insufficient Liquidity",
-      message:
-        "Not enough liquidity for this swap. Try a smaller amount or different token.",
-    };
+  // Liquidity is the verdict only when every provider gave it. Squid answers
+  // "Low liquidity" for pairs it cannot route at any size (Base USDC to Monad
+  // was refused from $0.10 to $10 on 2026-10-29), so one such decline beside
+  // other providers' "unsupported" means no route, not "try a smaller amount".
+  if (
+    facts.codes.every((code) => code === RouteDeclineCode.InsufficientLiquidity)
+  ) {
+    return INSUFFICIENT_LIQUIDITY;
   }
 
   if (
@@ -201,6 +197,25 @@ const DESTINATION_CALL_FAILED: MappedError = {
     "The destination contract call could not be simulated. Check the call data and target.",
 };
 
+// A different token or network comes first: a provider that reports low
+// liquidity often cannot route the pair at any size, and a smaller amount
+// helps only on a genuinely large trade.
+const INSUFFICIENT_LIQUIDITY: MappedError = {
+  category: "route_error",
+  title: "Insufficient Liquidity",
+  message:
+    "There isn't enough liquidity to route this swap right now. Try a different token or network, or a smaller amount.",
+};
+
+// A provider failed rather than declined: it timed out, errored, or
+// rate-limited us. Nothing is known about the pair, so the only advice is to
+// retry.
+const ROUTING_BUSY: MappedError = {
+  category: "route_error",
+  title: "Route Unavailable",
+  message: "Routing is busy right now. Please wait a moment and try again.",
+};
+
 function classifyError(raw: unknown, msg: string): MappedError {
   const lower = msg.toLowerCase();
 
@@ -256,12 +271,7 @@ function classifyError(raw: unknown, msg: string): MappedError {
       bm.includes("slippage") ||
       bm.includes("price impact")
     ) {
-      return {
-        category: "route_error",
-        title: "Insufficient Liquidity",
-        message:
-          "Not enough liquidity for this swap. Try a smaller amount or different token.",
-      };
+      return INSUFFICIENT_LIQUIDITY;
     }
 
     if (
@@ -309,23 +319,18 @@ function classifyError(raw: unknown, msg: string): MappedError {
   }
 
   // ── Liquidity ─────────────────────────────────────────────────────────────
-  // Ahead of the balance rule on purpose: "Not enough liquidity for this swap"
-  // is about the pool, not the wallet, and the balance rule's "not enough"
-  // matched it first — so this function's own liquidity message came back as
-  // "Insufficient Balance" the second time round.
+  // Ahead of the balance rule on purpose: "not enough liquidity" is about the
+  // pool, not the wallet, and the balance rule's "not enough" would claim it.
+  // "enough liquidity" also matches this function's own sentence on the
+  // second pass.
   // Deliberately narrow: a bare "slippage" or "price impact" also appears in
   // revert text, which the transaction rules below classify better.
   if (
-    lower.includes("not enough liquidity") ||
+    lower.includes("enough liquidity") ||
     lower.includes("insufficient liquidity") ||
     lower.includes("price impact too high")
   ) {
-    return {
-      category: "route_error",
-      title: "Insufficient Liquidity",
-      message:
-        "Not enough liquidity for this swap. Try a smaller amount or different token.",
-    };
+    return INSUFFICIENT_LIQUIDITY;
   }
 
   // ── Destination call ──────────────────────────────────────────────────────
@@ -347,6 +352,11 @@ function classifyError(raw: unknown, msg: string): MappedError {
   }
 
   // ── Provider did not answer ───────────────────────────────────────────────
+  // This function's own sentence, recognized by wording so a second pass
+  // keeps it whole rather than echoing it through the rule below.
+  if (lower.includes("routing is busy")) {
+    return ROUTING_BUSY;
+  }
   if (lower.includes("did not respond") || lower.includes("routing provider")) {
     return {
       category: "route_error",
