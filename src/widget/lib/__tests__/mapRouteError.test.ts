@@ -68,6 +68,25 @@ function rejected(...names: string[]) {
   );
 }
 
+// The copy is the contract here, so it is spelled out rather than imported.
+const LIQUIDITY = {
+  category: "route_error",
+  title: "Insufficient Liquidity",
+  message:
+    "There isn't enough liquidity to route this swap right now. Try a different token or network, or a smaller amount.",
+};
+const NO_ROUTE = {
+  category: "no_route",
+  title: "No Route Found",
+  message:
+    "No swap route exists for this pair. Try a different amount or token.",
+};
+const BUSY = {
+  category: "route_error",
+  title: "Route Unavailable",
+  message: "Routing is busy right now. Please wait a moment and try again.",
+};
+
 describe("mapError on a routing verdict", () => {
   it("blames the address, not the pair, when the backend rejected it", () => {
     // Before this the rejection read as "No Route Found — try a different
@@ -143,19 +162,97 @@ describe("mapError on a routing verdict", () => {
     assert.equal(mapped.title, "No Route Found");
   });
 
-  it("reports liquidity when that is the only reason", () => {
-    const mapped = mapError(declined("insufficient_liquidity"));
-    assert.equal(mapped.category, "route_error");
-    assert.equal(mapped.title, "Insufficient Liquidity");
+  // Squid alone on a pair it cannot route at any size, as on 2026-10-29 for
+  // Base USDC to Monad: the advice leads with a different token or network.
+  it("reports liquidity, leading with token or network, when that is the only reason", () => {
+    assert.deepEqual(mapError(declined("insufficient_liquidity")), LIQUIDITY);
+  });
+
+  it("reports liquidity when every provider cites it", () => {
+    assert.deepEqual(
+      mapError(
+        declined(
+          "insufficient_liquidity",
+          "insufficient_liquidity",
+          "insufficient_liquidity"
+        )
+      ),
+      LIQUIDITY
+    );
+  });
+
+  // Every provider enabled: Squid says "Low liquidity" for a pair the others
+  // call unsupported. Nobody can route it, so "try a smaller amount" is wrong.
+  it("calls it no route when only some providers cite liquidity", () => {
+    assert.deepEqual(
+      mapError(
+        declined("insufficient_liquidity", "pair_unsupported", "no_routes")
+      ),
+      NO_ROUTE
+    );
   });
 
   it("does not claim the pair is unroutable when a provider failed", () => {
     // The backend deliberately refuses to call this a no-route; so must we.
-    const mapped = mapError(
-      failed(["failed", "provider_error"], ["declined", "no_routes"])
+    assert.deepEqual(
+      mapError(failed(["failed", "provider_error"], ["declined", "no_routes"])),
+      BUSY
     );
-    assert.equal(mapped.category, "route_error");
-    assert.notEqual(mapped.title, "No Route Found");
+  });
+
+  // A 429 from Squid arrives as a failed provider: it answered, but refused
+  // to quote, so "did not respond" was untrue.
+  it("asks for a retry, not a different pair, when a provider is rate-limited", () => {
+    assert.deepEqual(
+      mapError(
+        failed(
+          ["failed", "provider_error"],
+          ["declined", "insufficient_liquidity"]
+        )
+      ),
+      BUSY
+    );
+  });
+
+  it("only reports liquidity when every provider's decline cites it", () => {
+    // Every assignment of these codes to one, two or three providers.
+    const codes = [
+      "insufficient_liquidity",
+      "pair_unsupported",
+      "chain_unsupported",
+      "no_routes",
+      "amount_too_low",
+      "destination_call_failed",
+    ];
+    const assignments: string[][] = codes.map((code) => [code]);
+    for (let size = 2; size <= 3; size++) {
+      for (const prefix of assignments.filter((a) => a.length === size - 1)) {
+        for (const code of codes) assignments.push([...prefix, code]);
+      }
+    }
+    assert.equal(assignments.length, 6 + 36 + 216);
+
+    for (const assignment of assignments) {
+      const mapped = mapError(declined(...assignment));
+      const allLiquidity = assignment.every(
+        (code) => code === "insufficient_liquidity"
+      );
+      assert.equal(
+        mapped.title === LIQUIDITY.title,
+        allLiquidity,
+        `${assignment.join(", ")} -> ${mapped.title}`
+      );
+    }
+  });
+
+  // The message the routing API flattens to when only provider text survives.
+  it("reads Squid's own low-liquidity text the same way", () => {
+    assert.deepEqual(
+      mapError(
+        'squid api error: status=400 body={"message":"Low liquidity, please reduce swap amount and try again","statusCode":400}'
+      ),
+      LIQUIDITY
+    );
   });
 
   it("blames the caller's destination call when that is what reverted", () => {
@@ -242,6 +339,21 @@ describe("mapError is stable when applied to its own output", () => {
     ],
     ["amount_too_low x2", declined("amount_too_low", "amount_too_low")],
     ["insufficient_liquidity", declined("insufficient_liquidity")],
+    [
+      "liquidity beside unsupported",
+      declined("insufficient_liquidity", "pair_unsupported"),
+    ],
+    [
+      "rate-limited beside a decline",
+      failed(
+        ["failed", "provider_error"],
+        ["declined", "insufficient_liquidity"]
+      ),
+    ],
+    [
+      "Squid's low-liquidity text",
+      'squid api error: status=400 body={"message":"Low liquidity, please reduce swap amount and try again"}',
+    ],
     ["pair_unsupported", declined("pair_unsupported")],
     ["destination_call_failed", declined("destination_call_failed")],
     ["provider_error", failed(["failed", "provider_error"])],
