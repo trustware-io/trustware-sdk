@@ -71,3 +71,10 @@ jobs:
             exit 1
           fi
           echo "Build successful, dist directory exists"
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      # Reads dist/, so it must run after the build.
+      - name: Check bundle size budgets
+        run: npm run size:check
