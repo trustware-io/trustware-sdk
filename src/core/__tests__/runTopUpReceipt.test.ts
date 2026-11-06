@@ -4,6 +4,7 @@ import { runTopUp } from "src/core/tx";
 import { TrustwareConfigStore } from "src/config/store";
 import { walletManager } from "src/wallets/";
 import type { WalletInterFaceAPI } from "src/types";
+import { minedReceipt, ROUTE_EXPIRES_AT } from "./routeBackendStub";
 
 const OWNER = "0x1111111111111111111111111111111111111111";
 const ROUTER = "0x3333333333333333333333333333333333333333";
@@ -13,7 +14,10 @@ const HASH = `0x${"a".repeat(64)}`;
 const json = (payload: unknown, status = 200) =>
   new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Date: new Date().toUTCString(),
+    },
   });
 
 // runTopUp no longer posts its own receipt: the send step delivers it the
@@ -36,6 +40,12 @@ describe("runTopUp receipt", () => {
       getChainId: async () => 8453,
       switchChain: async () => {},
       request: async (args: { method: string }) => {
+        // After the send, the SDK watches it through the wallet until it
+        // is mined, for a replacement.
+        if (args.method === "eth_blockNumber") return "0x10";
+        if (args.method === "eth_getTransactionReceipt") {
+          return minedReceipt(HASH);
+        }
         assert.equal(args.method, "eth_sendTransaction");
         order.push("sign");
         return HASH;
@@ -57,6 +67,7 @@ describe("runTopUp receipt", () => {
         return json({
           data: {
             intentId: "intent-topup",
+            expiresAt: ROUTE_EXPIRES_AT,
             route: {
               estimate: { toAmountUsd: "1.00", totalFeesUsd: "0.01" },
               execution: {

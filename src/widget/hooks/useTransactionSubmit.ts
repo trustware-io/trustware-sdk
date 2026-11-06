@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
-import type { ReceiptReport } from "../../core/intentTracking";
 import type { TrackedReceipt } from "../state/deposit/types";
+import { RouteExpiredError } from "../../core/routeExpiry";
 import {
   sendSignableRoute,
   type BuiltRoute,
@@ -31,15 +31,20 @@ export type TransactionSubmitState = {
 };
 
 /** A send path other than the plain wallet transaction (the smart-account
- *  UserOp). `hash` is what the widget displays; `receipt` is what it tracks.
- *  It gets the route `routeForSigning` cleared, like the plain path. */
+ *  UserOp). `hash` is the on-chain hash the widget links to, null while it
+ *  isn't known yet; `tracked` is the receipt it tracks and the delivery
+ *  the send already started. It gets the route `routeForSigning` cleared,
+ *  like the plain path. */
 type SendOverride = (
   routeResult: BuildRouteResult
-) => Promise<{ hash: string; receipt: ReceiptReport }>;
+) => Promise<{ hash: string | null; tracked: TrackedReceipt }>;
 
 /** How a submission ended. */
 export type SubmitOutcome =
-  | { kind: "sent"; hash: string }
+  | { kind: "sent" }
+  /** The route's `expiresAt` passed before it was sent. Nothing was sent;
+   *  the caller re-quotes. */
+  | { kind: "route_expired" }
   /** The error is already on the error screen. */
   | { kind: "failed" }
   /** A Solana route rebuilt at sign time came back materially worse.
@@ -125,7 +130,7 @@ export function useTransactionSubmit() {
         // The network has it: show the Processing page at once. A Solana
         // send keeps rebroadcasting until it settles, which the user
         // shouldn't have to watch from this screen.
-        const showSent = (hash: string, receipt: TrackedReceipt) => {
+        const showSent = (hash: string | null, receipt: TrackedReceipt) => {
           setState({ isSubmitting: false, txHash: hash, error: null });
           setTransactionHash(hash);
           setReceipt(receipt);
@@ -134,9 +139,9 @@ export function useTransactionSubmit() {
         };
 
         if (sendOverride) {
-          const { hash, receipt } = await sendOverride(decision.route);
-          showSent(hash, { report: receipt, delivery: "tracker_posts" });
-          return { kind: "sent", hash };
+          const { hash, tracked } = await sendOverride(decision.route);
+          showSent(hash, tracked);
+          return { kind: "sent" };
         }
 
         // The send step delivers the receipt at acceptance, so the
@@ -167,8 +172,14 @@ export function useTransactionSubmit() {
             `Intent ${sent.receipt.intentId} was sent without being reported as accepted.`
           );
         }
-        return { kind: "sent", hash: sent.hash };
+        return { kind: "sent" };
       } catch (err) {
+        if (err instanceof RouteExpiredError) {
+          setState({ isSubmitting: false, txHash: null, error: null });
+          setSigningRetryMessage(null);
+          setTransactionStatus("idle");
+          return { kind: "route_expired" };
+        }
         // Map error to user-friendly message
         const errorMsg = mapTransactionError(err);
 

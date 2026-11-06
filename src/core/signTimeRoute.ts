@@ -1,5 +1,5 @@
 import type { BuildRouteResult } from "../types";
-import type { ReceiptReport } from "./intentTracking";
+import type { TxReceiptReport } from "./receipt";
 import {
   buildRoute,
   isSerializedSolanaTxRequest,
@@ -10,7 +10,7 @@ import {
   sendRouteTransactionReporting,
   type SendRouteTransactionOptions,
 } from "./tx";
-import { deliverReceipt, type ReceiptDeliveryOutcome } from "./intentTracking";
+import type { ReceiptDeliveryOutcome } from "./intentTracking";
 import { SolanaExpiredBeforeSendError } from "../wallets/solanaBroadcast";
 
 /**
@@ -144,7 +144,7 @@ export type ReviewedRouteSend =
        *  accepted the transaction: don't post it again. It names the route
        *  that was signed, which for a Solana route is the rebuilt one and
        *  never the one the user reviewed. */
-      receipt: ReceiptReport;
+      receipt: TxReceiptReport;
       route: BuildRouteResult;
     }
   | {
@@ -230,6 +230,8 @@ export type AcceptedSend = Extract<ReviewedRouteSend, { kind: "sent" }> & {
  * deliver its receipt the moment the network accepts it, before any
  * confirmation (CLAUDE.md, "never lose the receipt"). `onAccepted` is
  * told then, so the widget can start tracking; it runs once per send.
+ * A route whose `expiresAt` has passed throws `RouteExpiredError` and
+ * sends nothing.
  *
  * If signing outlasted the Solana blockhash, nothing was sent, so the route
  * is rebuilt from `reviewed`'s request, checked for a material change
@@ -251,16 +253,16 @@ export async function sendSignableRoute(
       signing,
       fallbackChainId,
       sendOptions,
-      (hash) => {
-        const receipt = { intentId: signing.intentId, txHash: hash };
-        acceptance.sent = {
+      ({ hash, receipt, receiptDelivery }) => {
+        const sent: AcceptedSend = {
           kind: "sent",
           hash,
           receipt,
           route: signing,
-          receiptDelivery: deliverReceipt(receipt),
+          receiptDelivery,
         };
-        onAccepted?.(acceptance.sent);
+        acceptance.sent = sent;
+        onAccepted?.(sent);
       }
     );
 
@@ -294,7 +296,10 @@ export async function sendSignableRoute(
 /**
  * Send the route the user confirmed: `routeForSigning`, then
  * `sendSignableRoute`. The public form of what the widget does. It delivers
- * the receipt itself, so callers don't call `submitReceipt`.
+ * the receipt itself, and the replacement's when the wallet speeds up or
+ * replaces an EVM transaction, so callers don't call `submitReceipt`.
+ * Throws `RouteExpiredError`, sending nothing, when the route expired:
+ * build a new one.
  */
 export async function sendReviewedRoute(
   reviewed: BuiltRoute,

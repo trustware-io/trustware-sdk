@@ -1,20 +1,14 @@
 /* core/intentTracking.ts */
-import { getStatus, submitReceipt } from "./routes";
+import { getStatus } from "./routes";
 import { HttpError, RateLimitError } from "./http";
+import {
+  commitReceipt,
+  RECEIPT_CODE_ROUTE_INTENT_NOT_FOUND,
+  ReceiptCommitError,
+  receiptLogFields,
+  type ReceiptReport,
+} from "./receipt";
 import type { Transaction } from "../types";
-
-/**
- * Everything the backend needs to start tracking a sent transaction: the body
- * of POST /route-intent/{intentId}/receipt.
- */
-export type ReceiptReport = {
-  intentId: string;
-  txHash: string;
-  /** Set on the sponsored smart-account path. */
-  sponsorshipRequestId?: string;
-  /** The connected wallet, when the route executed from a smart account. */
-  eoaAddress?: string;
-};
 
 /**
  * How tracking ended. Every kind needs its own handling, so callers switch
@@ -26,11 +20,17 @@ export type IntentTrackingOutcome =
   /** The backend has never heard of the intent. Retrying cannot help. */
   | { kind: "intent_not_found" }
   /**
-   * The backend refused the receipt and holds no transaction for the intent,
-   * so nothing will ever move its status past "pending". The transaction is
-   * still on-chain; only Trustware's view of it is missing.
+   * Nothing was committed for the intent within 24 hours of its expiry.
+   * Terminal. A transaction sent for it may still be on-chain.
    */
-  | { kind: "receipt_rejected"; httpStatus: number; message: string }
+  | { kind: "expired"; transaction: Transaction }
+  /**
+   * The backend refused the receipt with a final code and holds no
+   * transaction for the intent, so nothing will ever move its status past
+   * "pending". The transaction is still on-chain; only Trustware's view of
+   * it is missing.
+   */
+  | ({ kind: "receipt_rejected" } & ReceiptRefusal)
   /**
    * No terminal status inside TRACKING_TIMEOUT_MS. `recorded` says whether
    * the backend holds a transaction for the intent: when false, every receipt
@@ -83,17 +83,28 @@ export type TrackIntentOptions = {
   /** Every status payload read, terminal or not. */
   onUpdate: (transaction: Transaction) => void;
   /**
-   * The receipt is already being delivered (`deliverReceipt`, started when
-   * the send was accepted), so tracking only polls and reads this for how
-   * delivery ended. Without it, tracking posts the receipt itself.
+   * The receipt's delivery, started when the send was accepted
+   * (`deliverReceipt`). Tracking only polls, and reads this for how
+   * delivery ended.
    */
-  receiptDelivery?: Promise<ReceiptDeliveryOutcome>;
+  receiptDelivery: Promise<ReceiptDeliveryOutcome>;
+};
+
+/**
+ * A final refusal of a commit. `code` is the backend's refusal code; it is
+ * null only for a refusal from the API-key middleware in front of the
+ * commit handler (401, 403), which carries none.
+ */
+export type ReceiptRefusal = {
+  httpStatus: number;
+  code: string | null;
+  message: string;
 };
 
 /** How `deliverReceipt` ended. */
 export type ReceiptDeliveryOutcome =
   | { kind: "recorded" }
-  | { kind: "rejected"; httpStatus: number; message: string }
+  | ({ kind: "rejected" } & ReceiptRefusal)
   | { kind: "intent_not_found" }
   /** Every attempt failed transiently until TRACKING_TIMEOUT_MS. */
   | { kind: "gave_up"; failures: number }
@@ -114,7 +125,9 @@ const neverAborted = new AbortController().signal;
 
 /**
  * Post the receipt for a send the network accepted, retrying transient
- * failures with trackIntent's backoff until TRACKING_TIMEOUT_MS.
+ * failures with backoff until TRACKING_TIMEOUT_MS. Transient means a
+ * network failure, a 5xx, a rate limit, or a refusal whose code is one of
+ * `RETRYABLE_RECEIPT_CODES`; any other refusal code is final.
  *
  * The first POST is dispatched before this returns (nothing is awaited
  * before it), so calling this at acceptance orders the receipt ahead of
@@ -130,8 +143,7 @@ export function deliverReceipt(
   const first = attemptReceipt(report);
   const log = (what: string, detail: Record<string, unknown>) =>
     console.error(`[Trustware] receipt ${what}`, {
-      intentId: report.intentId,
-      txHash: report.txHash,
+      ...receiptLogFields(report),
       ...detail,
     });
 
@@ -152,6 +164,7 @@ export function deliverReceipt(
         case "rejected":
           log("rejected", {
             httpStatus: result.httpStatus,
+            code: result.code,
             message: result.message,
           });
           return result;
@@ -166,8 +179,7 @@ export function deliverReceipt(
             return { kind: "gave_up", failures };
           }
           console.warn("[Trustware] receipt delivery failed; will retry", {
-            intentId: report.intentId,
-            txHash: report.txHash,
+            ...receiptLogFields(report),
             failures,
             error: result.error,
           });
@@ -184,17 +196,13 @@ export function deliverReceipt(
 }
 
 /**
- * Delivers the receipt for a sent transaction and polls the intent's status
- * until it is terminal, the backend proves it will never track it, or
- * TRACKING_TIMEOUT_MS passes.
+ * Polls the intent's status until it is terminal, the backend proves it
+ * will never track the transaction, or TRACKING_TIMEOUT_MS passes.
  *
- * Delivery and polling are one operation because polling alone cannot finish:
- * the backend creates the transaction it tracks only when a receipt arrives,
- * so an intent whose receipt was lost reads "pending" forever. While the
- * status still reads "pending", a receipt that failed transiently (network,
- * 5xx, rate limit) is re-sent with backoff. Re-sending is safe because
- * submitReceipt keys each request by tx hash and the backend answers 409 once
- * it holds a transaction for the intent.
+ * The receipt is delivered by `deliverReceipt`, started when the send was
+ * accepted; tracking reads how that ended. The backend creates the
+ * transaction it tracks only when a receipt arrives, so an intent whose
+ * receipt was refused reads "pending" forever, and tracking stops there.
  */
 export async function trackIntent(
   report: ReceiptReport,
@@ -208,8 +216,7 @@ export async function trackIntent(
     return await runIntentTracking(report, options, systemClock);
   } catch (error) {
     console.error("[Trustware] intent tracking crashed", {
-      intentId: report.intentId,
-      txHash: report.txHash,
+      ...receiptLogFields(report),
       error,
     });
     return options.signal.aborted
@@ -219,17 +226,16 @@ export async function trackIntent(
 }
 
 type ReceiptState =
-  | { kind: "due"; failures: number; dueAt: number }
-  /** `deliverReceipt` owns delivery and hasn't finished. */
-  | { kind: "delegated" }
+  /** `deliverReceipt` hasn't finished. */
+  | { kind: "delivering" }
   /** `deliverReceipt` gave up or crashed: nothing will deliver it now. */
   | { kind: "lost" }
   | { kind: "recorded" }
-  | { kind: "rejected"; httpStatus: number; message: string };
+  | ({ kind: "rejected" } & ReceiptRefusal);
 
 type ReceiptAttempt =
   | { kind: "accepted" }
-  | { kind: "rejected"; httpStatus: number; message: string }
+  | ({ kind: "rejected" } & ReceiptRefusal)
   | { kind: "intent_not_found" }
   | { kind: "transient"; error: unknown; serverWaitMs: number };
 
@@ -250,12 +256,10 @@ export async function runIntentTracking(
   const onCallerAbort = () => stop.abort();
   signal.addEventListener("abort", onCallerAbort, { once: true });
 
-  let receipt: ReceiptState = receiptDelivery
-    ? { kind: "delegated" }
-    : { kind: "due", failures: 0, dueAt: clock.now() };
+  let receipt: ReceiptState = { kind: "delivering" };
   let intentMissing = false;
-  void receiptDelivery?.then((outcome) => {
-    if (receipt.kind !== "delegated") return;
+  void receiptDelivery.then((outcome) => {
+    if (receipt.kind !== "delivering") return;
     switch (outcome.kind) {
       case "recorded":
         receipt = { kind: "recorded" };
@@ -279,66 +283,39 @@ export async function runIntentTracking(
     let polls = 0;
     while (!stop.signal.aborted) {
       if (intentMissing) return { kind: "intent_not_found" };
-      if (receipt.kind === "due" && clock.now() >= receipt.dueAt) {
-        const attempt = await attemptReceipt(report);
-        if (stop.signal.aborted) return null;
-        switch (attempt.kind) {
-          case "accepted":
-            receipt = { kind: "recorded" };
-            break;
-          case "rejected":
-            receipt = attempt;
-            console.error("[Trustware] receipt rejected", {
-              intentId: report.intentId,
-              txHash: report.txHash,
-              httpStatus: attempt.httpStatus,
-              message: attempt.message,
-            });
-            break;
-          case "intent_not_found":
-            return { kind: "intent_not_found" };
-          case "transient": {
-            const failures = receipt.failures + 1;
-            receipt = {
-              kind: "due",
-              failures,
-              dueAt:
-                clock.now() +
-                receiptRetryDelayMs(failures, attempt.serverWaitMs),
-            };
-            console.warn("[Trustware] receipt delivery failed; will retry", {
-              intentId: report.intentId,
-              txHash: report.txHash,
-              failures,
-              error: attempt.error,
-            });
-            break;
-          }
-          default:
-            assertNever(attempt);
-        }
-      }
 
       const transaction = await readStatus(report.intentId);
       if (stop.signal.aborted) return null;
       if (transaction === "not_found") return { kind: "intent_not_found" };
       if (transaction !== "unavailable") {
         onUpdate(transaction);
-        if (transaction.status === "success") {
-          return { kind: "success", transaction };
-        }
-        if (transaction.status === "failed") {
-          return { kind: "failed", transaction };
-        }
-        if (transaction.status !== "pending") {
-          // The backend holds a transaction, whoever reported it.
-          receipt = { kind: "recorded" };
-        } else if (receipt.kind === "rejected") {
-          return {
-            kind: "receipt_rejected",
-            httpStatus: receipt.httpStatus,
-            message: receipt.message,
-          };
+        switch (transaction.status) {
+          case "success":
+            return { kind: "success", transaction };
+          case "failed":
+            return { kind: "failed", transaction };
+          case "expired":
+            return { kind: "expired", transaction };
+          case "submitted":
+          case "bridging":
+            // The backend holds a transaction, whoever reported it.
+            receipt = { kind: "recorded" };
+            break;
+          case "pending":
+            if (receipt.kind === "rejected") {
+              return {
+                kind: "receipt_rejected",
+                httpStatus: receipt.httpStatus,
+                code: receipt.code,
+                message: receipt.message,
+              };
+            }
+            break;
+          default:
+            // A status newer than this SDK. The contract says it means
+            // "not finished", so it keeps polling and says nothing about
+            // the receipt.
+            break;
         }
       }
 
@@ -371,30 +348,47 @@ export async function runIntentTracking(
   }
 }
 
+/**
+ * One commit, classified by its refusal `code`, never by its message: a
+ * retryable code, a 5xx, a rate limit or a network failure is transient,
+ * and every other code is final.
+ */
 async function attemptReceipt(report: ReceiptReport): Promise<ReceiptAttempt> {
   try {
-    await submitReceipt(
-      report.intentId,
-      report.txHash,
-      report.sponsorshipRequestId,
-      report.eoaAddress
-    );
+    await commitReceipt(report);
     return { kind: "accepted" };
   } catch (error) {
-    if (error instanceof HttpError) {
-      if (error.status === 404) return { kind: "intent_not_found" };
-      if (error.status >= 500) {
-        return { kind: "transient", error, serverWaitMs: 0 };
+    if (error instanceof HttpError && error.status >= 500) {
+      return { kind: "transient", error, serverWaitMs: 0 };
+    }
+    if (error instanceof ReceiptCommitError) {
+      if (error.retryable) return { kind: "transient", error, serverWaitMs: 0 };
+      if (error.code === RECEIPT_CODE_ROUTE_INTENT_NOT_FOUND) {
+        return { kind: "intent_not_found" };
       }
-      // 409 lands here too. It means either the backend already tracks a
-      // transaction for this intent, which the next status read shows as
-      // non-pending, or this hash is recorded against another intent, which
-      // leaves this one pending for good. The status read tells them apart.
       return {
         kind: "rejected",
         httpStatus: error.status,
+        code: error.code,
         message: error.serverMessage,
       };
+    }
+    if (error instanceof HttpError) {
+      // The API-key middleware answers before the commit handler, without a
+      // code. Either refusal is final.
+      if (error.status === 401 || error.status === 403) {
+        return {
+          kind: "rejected",
+          httpStatus: error.status,
+          code: null,
+          message: error.serverMessage,
+        };
+      }
+      throw new Error(
+        `The receipt for intent ${report.intentId} was refused with HTTP ` +
+          `${error.status} and no code ("${error.serverMessage}"); every ` +
+          `commit refusal must carry one.`
+      );
     }
     if (error instanceof RateLimitError) {
       const retryAfterSeconds = error.rateLimitInfo.retryAfter;

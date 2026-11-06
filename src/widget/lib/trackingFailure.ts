@@ -41,6 +41,10 @@ export function describeTrackingFailure(outcome: TrackingFailure): string {
       return INTENT_NOT_FOUND;
     case "receipt_rejected":
       return TRACKING_RECEIPT_REJECTED.message;
+    case "expired":
+      // Nothing was ever committed for the intent, so the transaction the
+      // widget sent is on-chain without Trustware's record of it.
+      return TRACKING_RECEIPT_REJECTED.message;
     case "timed_out":
       return outcome.recorded ? STILL_RUNNING : TRACKING_NOT_CONFIRMED.message;
     case "crashed":

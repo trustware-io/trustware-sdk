@@ -1,3 +1,4 @@
+import { approvalAmountWei } from "./routeApprovals";
 import { assertRouteDeliversValue } from "./routeValue";
 import type {
   BuildRouteResult,
@@ -14,7 +15,17 @@ import {
   isSerializedSolanaTxRequest,
 } from "./routes";
 import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
-import { deliverReceipt, type ReceiptDeliveryOutcome } from "./intentTracking";
+import {
+  deliverReceipt,
+  TRACKING_TIMEOUT_MS,
+  type ReceiptDeliveryOutcome,
+} from "./intentTracking";
+import type { TxReceiptReport } from "./receipt";
+import { assertRouteNotExpired } from "./routeExpiry";
+import {
+  watchForReplacement,
+  type ReplacementWatchTiming,
+} from "./evmReplacement";
 import type { VaultRedeemAction } from "./vaults";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
 
@@ -272,14 +283,16 @@ async function ensureApprovals(
   for (const [stepIndex, approval] of approvals.entries()) {
     const spender = approval.spender;
     const tokenAddress = approval.tokenAddress;
-    const amount = approval.amount;
-    if (!spender || !tokenAddress || !amount) continue;
+    if (!spender || !tokenAddress) continue;
     const chainId = approval.chainId || String(fallbackChainId ?? "");
     if (!chainId) continue;
     // A planned approval of 0 is not a no-op: it is the reset-to-zero step
     // tokens like USDT require before an existing non-zero allowance can be
     // changed. Skipping it leaves the following approve to revert.
-    const amountWei = requiredApprovalAmount(BigInt(amount), routeAmountWei);
+    const amountWei = requiredApprovalAmount(
+      approvalAmountWei(approval, stepIndex),
+      routeAmountWei
+    );
 
     let currentAllowance = 0n;
     try {
@@ -350,6 +363,11 @@ export type SendRouteTransactionOptions = {
   approvalsEnsured?: boolean;
 };
 
+/**
+ * Send a route's transaction and return its hash. The caller commits the
+ * receipt (`submitReceipt`). Throws `RouteExpiredError`, sending nothing,
+ * once the route's `expiresAt` has passed.
+ */
 export async function sendRouteTransaction(
   b: BuildRouteResult,
   fallbackChainId?: number | string,
@@ -357,6 +375,22 @@ export async function sendRouteTransaction(
 ): Promise<string> {
   return sendRouteTransactionReporting(b, fallbackChainId, options);
 }
+
+/**
+ * A send the network accepted. Its receipt delivery started at that
+ * moment, before this was handed over.
+ */
+export type AcceptedTransaction = {
+  hash: string;
+  receipt: TxReceiptReport;
+  receiptDelivery: Promise<ReceiptDeliveryOutcome>;
+};
+
+/** How long an accepted EVM send is watched for a replacement. Tests
+ *  shorten the polling. */
+const REPLACEMENT_WATCH: ReplacementWatchTiming = {
+  timeoutMs: TRACKING_TIMEOUT_MS,
+};
 
 /**
  * Calls `onAccepted` exactly once per send, with the first hash reported.
@@ -379,23 +413,36 @@ function acceptOnce(onAccepted: ((hash: string) => void) | undefined) {
 }
 
 /**
- * `sendRouteTransaction`, plus `onAccepted`: called once, as soon as the
- * network has the transaction, with its hash. That is when the wallet
- * returns an EVM hash, and, for Solana, when the SDK's adapter reports its
- * first accepted send (or when a wallet that doesn't report it returns).
- * The receipt is posted from there (`sendSignableRoute`, `runTopUp`).
+ * `sendRouteTransaction`, plus receipt delivery. As soon as the network has
+ * the transaction (the wallet returns an EVM hash; for Solana, the SDK's
+ * adapter reports its first accepted send, or a wallet that doesn't report
+ * it returns), the receipt is committed (`deliverReceipt`) and `onAccepted`
+ * is told, once.
+ *
+ * An EVM send from an EIP-1193 wallet is then watched until it is mined: if
+ * the wallet replaces it (a speed-up or cancel), the replacement's hash is
+ * committed too. A wagmi-adapter wallet exposes no provider to watch with,
+ * so its replacements aren't seen.
  */
 export async function sendRouteTransactionReporting(
   b: BuildRouteResult,
   fallbackChainId?: number | string,
   options?: SendRouteTransactionOptions,
-  onAccepted?: (hash: string) => void
+  onAccepted?: (accepted: AcceptedTransaction) => void,
+  replacementWatch: ReplacementWatchTiming = REPLACEMENT_WATCH
 ): Promise<string> {
-  const accepted = acceptOnce(onAccepted);
+  const accepted = acceptOnce(
+    onAccepted &&
+      ((hash) => {
+        const receipt: TxReceiptReport = { intentId: b.intentId, txHash: hash };
+        onAccepted({ hash, receipt, receiptDelivery: deliverReceipt(receipt) });
+      })
+  );
   // buildRoute already refused a losing route, so one can only arrive here
   // assembled by hand — and signing it is the irreversible step. Refused
   // before the wallet is consulted.
   assertRouteDeliversValue(b.route);
+  assertRouteNotExpired(b);
 
   const w = walletManager.wallet;
   if (!w) throw new Error("Trustware.wallet not configured");
@@ -432,7 +479,6 @@ export async function sendRouteTransactionReporting(
         )}).`
       );
     }
-    await ensureWalletOnChain(w, target);
 
     // A sponsored (Account Kit) route grants its allowance internally via
     // Permit2 — skip the separate approve step entirely in that case.
@@ -446,6 +492,13 @@ export async function sendRouteTransactionReporting(
         BigInt(b.route?.estimate?.fromAmount ?? "0")
       );
     }
+    // After the approvals, not before: each approval puts the wallet on its
+    // own chain, which need not be the route's.
+    await ensureWalletOnChain(w, target);
+
+    // Approvals and a chain switch can keep the user in the wallet for
+    // minutes, so the expiry is checked again right before the send.
+    assertRouteNotExpired(b);
 
     if (w.type === "eip1193") {
       const from = (await w.getAddress()) as `0x${string}`;
@@ -460,11 +513,22 @@ export async function sendRouteTransactionReporting(
       if (Number.isFinite(target)) {
         params.chainId = `0x${target.toString(16)}`;
       }
-      const hash = await w.request({
-        method: "eth_sendTransaction",
-        params: [params],
-      });
-      return accepted(hash as string);
+      const hash = accepted(
+        (await w.request({
+          method: "eth_sendTransaction",
+          params: [params],
+        })) as string
+      );
+      if (onAccepted) {
+        void watchForReplacement(
+          w,
+          { hash, chainId: target },
+          (replacement) =>
+            void deliverReceipt({ intentId: b.intentId, txHash: replacement }),
+          replacementWatch
+        );
+      }
+      return hash;
     }
 
     // wagmi path — Account Kit wallets pick up paymasterAndData on sendTransaction
@@ -502,12 +566,12 @@ export async function sendRouteTransactionReporting(
       chain,
       fallbackChainId ?? txReq.chainId
     );
-    if (!onAccepted) {
-      return w.sendSerializedTransaction(txReq.data, solanaChainId);
-    }
+    // `routeIntentId` lets the backend commit the signature the moment it
+    // broadcasts it, whatever happens to the browser after that.
     return accepted(
       await w.sendSerializedTransaction(txReq.data, solanaChainId, {
         onAccepted: accepted,
+        routeIntentId: b.intentId,
       })
     );
   }
@@ -641,9 +705,14 @@ export async function runTopUp(params: {
     // The receipt goes out the moment the network has the transaction, so
     // the backend tracks it even if this page closes before it confirms.
     let delivery: Promise<ReceiptDeliveryOutcome> | undefined;
-    await sendRouteTransactionReporting(build, fromChain, undefined, (hash) => {
-      delivery = deliverReceipt({ intentId: build.intentId, txHash: hash });
-    });
+    await sendRouteTransactionReporting(
+      build,
+      fromChain,
+      undefined,
+      (accepted) => {
+        delivery = accepted.receiptDelivery;
+      }
+    );
     if (!delivery) {
       throw new Error(
         `runTopUp sent intent ${build.intentId} without a receipt delivery.`
@@ -653,7 +722,11 @@ export async function runTopUp(params: {
     if (receipt.kind !== "recorded") {
       throw new Error(
         `The transaction for intent ${build.intentId} was sent, but its ` +
-          `receipt wasn't recorded (${receipt.kind}).`
+          `receipt wasn't recorded (${
+            receipt.kind === "rejected"
+              ? `rejected with HTTP ${receipt.httpStatus}, code ${String(receipt.code)}: ${receipt.message}`
+              : receipt.kind
+          }).`
       );
     }
     return await pollStatus(build.intentId);

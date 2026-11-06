@@ -67,6 +67,7 @@ import type { VaultSummary, Position } from "src/core/vaults";
 import type { BuiltRoute, MaterialRouteChange } from "src/core/signTimeRoute";
 import {
   quoteCountdown,
+  quoteRefreshIntervalMs,
   shouldRefreshQuote,
 } from "src/widget/lib/quoteCountdown";
 import { SwapWalletSelector } from "./components";
@@ -316,8 +317,11 @@ export function SwapMode({
     routes: configRoutes,
   } = useTrustwareConfig();
   const routeRefreshMs = configRoutes.options.routeRefreshMs;
-  const quoteTickMs = Math.min(1000, routeRefreshMs);
-  const quoteRefreshCountdown = quoteCountdown(quoteElapsedMs, routeRefreshMs);
+  // The quote on screen counts down over routeRefreshMs, or to its route's
+  // expiry when that comes first. Set when the quote arrives.
+  const [quoteIntervalMs, setQuoteIntervalMs] = useState(routeRefreshMs);
+  const quoteTickMs = Math.min(1000, quoteIntervalMs);
+  const quoteRefreshCountdown = quoteCountdown(quoteElapsedMs, quoteIntervalMs);
   const effectiveThemeSetting = (themeProp ?? configTheme ?? "system") as
     "light" | "dark" | "system";
   const { resolvedTheme, toggleTheme } = useThemePreference(
@@ -864,6 +868,14 @@ export function SwapMode({
         if (claimAttemptOnce(initiatedAttemptRef, reviewed.result)) {
           trackEvent(event, paymentParams);
         }
+      },
+      () => {
+        // Expired before it was sent: back to review with a fresh quote,
+        // the same fetch the countdown refresh makes.
+        setStage("review");
+        if (latestFetchParamsRef.current) {
+          void route.fetch(latestFetchParamsRef.current);
+        }
       }
     );
   }, [
@@ -1272,10 +1284,17 @@ export function SwapMode({
 
   // Reset countdown when a fresh quote arrives
   useEffect(() => {
-    quoteTimestampRef.current = route.data ? Date.now() : null;
+    const receivedAtMs = Date.now();
+    quoteTimestampRef.current = route.data ? receivedAtMs : null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset countdown to 0 when a new quote arrives from the route query
     setQuoteElapsedMs(0);
-  }, [route.data]);
+    // The new quote's interval is fixed when it arrives, from its own expiry.
+    setQuoteIntervalMs(
+      route.data
+        ? quoteRefreshIntervalMs(routeRefreshMs, receivedAtMs, route.data)
+        : routeRefreshMs
+    );
+  }, [route.data, routeRefreshMs]);
 
   // Back on a quote-facing stage, the confirm is over.
   useEffect(() => {
@@ -1306,8 +1325,9 @@ export function SwapMode({
     };
   }, [route.loading]);
 
-  // Tick down and auto-refetch when routes.options.routeRefreshMs runs out.
-  // Only on the quote-facing stages: once the swap is submitted the quote is
+  // Tick down and auto-refetch when the quote's interval runs out:
+  // routes.options.routeRefreshMs, or its route's expiry when that is
+  // sooner. Only on the quote-facing stages: once the swap is submitted the quote is
   // spent, and refreshing it just spends rate-limit budget the status poll
   // needs on /route calls whose answer nothing reads.
   useEffect(() => {
@@ -1319,7 +1339,7 @@ export function SwapMode({
       const elapsedMs = Date.now() - ts;
       setQuoteElapsedMs(elapsedMs);
       const due = shouldRefreshQuote(
-        quoteCountdown(elapsedMs, routeRefreshMs),
+        quoteCountdown(elapsedMs, quoteIntervalMs),
         confirmInFlightRef.current
       );
       if (due && latestFetchParamsRef.current) {
@@ -1327,7 +1347,7 @@ export function SwapMode({
       }
     }, quoteTickMs);
     return () => clearInterval(id);
-  }, [route.data, stage, routeRefreshMs, quoteTickMs]);
+  }, [route.data, stage, quoteIntervalMs, quoteTickMs]);
 
   // Every fetch nulls route.data for its whole duration (useSwapRoute), so the
   // refresh above can pull the quote out from under the review screen — and if
