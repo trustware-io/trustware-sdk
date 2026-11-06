@@ -87,11 +87,28 @@ export type Transaction = {
    * the backend returns it (HTTP 200) instead of the old 404 so pollers can
    * tell "not ready yet, keep polling" apart from "unknown intent" (a real
    * 404, which means stop polling). A pending response carries only
-   * `intent_id`, `status`, `intent_status`, `create_date` and — once the
-   * intent has an execution step plan — `steps`; every other field here is
-   * absent until a receipt lands.
+   * `intent_id`, `status`, `intent_status`, `create_date`, `expiresAt` and
+   * — once the intent has an execution step plan — `steps`; every other
+   * field here is absent until a receipt lands.
+   *
+   * - `"submitted"`, `"bridging"`: a receipt landed and the payment is in
+   *   flight. Keep polling.
+   * - `"success"`, `"failed"`: terminal.
+   * - `"expired"`: terminal. Nothing was committed for the intent within
+   *   24 hours of its expiry. A late commit still works after that.
+   *
+   * The backend may add values. A status not named here means "not
+   * finished": keep polling.
    */
-  status: "pending" | "submitted" | "bridging" | "success" | "failed";
+  status:
+    "pending" | "submitted" | "bridging" | "success" | "failed" | "expired";
+  /**
+   * When the route intent stops being usable (RFC 3339). Present while
+   * nothing has been committed for it; once a receipt lands the payload
+   * describes the transaction instead. Wire field: `expiresAt` (the one
+   * camelCase field of the v1 status payload).
+   */
+  expiresAt?: string;
   statusRaw?: unknown;
   routePath?: unknown;
   routeStatus?: unknown;
@@ -299,4 +316,18 @@ export type BuildRouteResult = {
   };
   route: RoutePlan | undefined;
   sponsorship?: RouteSponsorship;
+  /**
+   * When this route stops being sendable, in the server's time. Past it
+   * the SDK refuses to send it (`RouteExpiredError`): build a new route
+   * instead. Wire field: `expiresAt`, RFC 3339.
+   */
+  expiresAt: Date;
+  /**
+   * How far the server's clock was ahead of this device's when the route
+   * arrived, in ms, from the response's `Date` header. Expiry is judged as
+   * `Date.now() + serverClockOffsetMs + 999 >= expiresAt` (the 999 ms
+   * covers the header's truncation to the second), so a device clock that
+   * is off doesn't change it.
+   */
+  serverClockOffsetMs: number;
 };

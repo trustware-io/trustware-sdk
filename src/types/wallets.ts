@@ -139,11 +139,18 @@ export type SolanaWalletInterface = BaseWalletInterface & {
    * network first accepts the transaction, so the SDK can post its receipt
    * before confirmation. A wallet that ignores it still works: the receipt
    * is then posted when this resolves.
+   *
+   * `options.routeIntentId` names the route intent the transaction pays.
+   * The SDK's own adapters pass it to the backend's send-serialized proxy,
+   * which then commits the signature as soon as it broadcasts it.
    */
   sendSerializedTransaction(
     serializedTransactionBase64: string,
     chainId?: string,
-    options?: { onAccepted?: (signature: string) => void }
+    options?: {
+      onAccepted?: (signature: string) => void;
+      routeIntentId?: string;
+    }
   ): Promise<string>;
 };
 

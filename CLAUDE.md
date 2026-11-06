@@ -681,31 +681,95 @@ accepted, its receipt is already on its way, so:
 In the code:
 
 - `deliverReceipt` (`src/core/intentTracking.ts`) is the one receipt
-  poster for an accepted send: trackIntent's backoff, bounded by
-  `TRACKING_TIMEOUT_MS`, never rejects, and logs every ending but
-  "recorded" as an error. Its first POST is dispatched before it returns,
-  which is what orders the receipt ahead of the first status read.
+  poster: a bounded backoff (`TRACKING_TIMEOUT_MS`) that never rejects
+  and logs every ending but "recorded" as an error. Its first POST is
+  dispatched before it returns, which is what orders the receipt ahead of
+  the first status read. `trackIntent` never posts; it only polls and
+  reads how the delivery ended (`receiptDelivery` is required).
 - `sendRouteTransactionReporting` (`src/core/tx.ts`, behind the unchanged
-  `sendRouteTransaction`) calls `onAccepted` exactly once per send: for
-  EVM when the wallet returns the hash (the `eth_sendTransaction` and
-  wagmi `sendTransaction` branches), for Solana when the SDK's adapter
-  reports its first accepted send, or when a wallet that doesn't report
-  it returns.
-- `sendSignableRoute` starts `deliverReceipt` from there and hands the
-  widget an `AcceptedSend` carrying it. Both widgets switch to their
-  processing screen at that moment and run `trackIntent` with
-  `receiptDelivery`, so tracking only polls. The widget's
-  `TrackedReceipt.delivery` and the swap tracker's argument are required,
-  so a send path has to choose: the send step's delivery, or
-  `"tracker_posts"` (the smart-account path only, which also posts its own
-  receipt in `src/smart-account/send.ts`, as it did before).
-- `runTopUp` starts `deliverReceipt` from `onAccepted` and waits for it to
-  be recorded before polling.
+  `sendRouteTransaction`) starts `deliverReceipt` and calls `onAccepted`
+  exactly once per send, with an `AcceptedTransaction` carrying the
+  delivery: for EVM when the wallet returns the hash (the
+  `eth_sendTransaction` and wagmi `sendTransaction` branches), for Solana
+  when the SDK's adapter reports its first accepted send, or when a
+  wallet that doesn't report it returns.
+- `sendSignableRoute` hands that on as an `AcceptedSend`. Both widgets
+  switch to their processing screen at that moment and run `trackIntent`
+  with it. `runTopUp` waits for the delivery to be recorded before
+  polling. The smart-account path commits through the same
+  `deliverReceipt` (see "Commit handshake" below).
 - In `broadcastUntilSettled`, `onAccepted` runs right after the first
   accepted send. After that, a fault (a read failing with any code, a
   fetch `TypeError`, an undocumented rebroadcast refusal, an unknown
   status) is `OutcomeUnknownError`, which ends as "submitted, still
   confirming" (logged), never as an error.
+
+### Commit handshake (BVT-251)
+
+The SDK half of quicklinks_v1
+`docs/plans/2026-10-23-bvt-251-commit-handshake.md` (sections 1 to 4 and
+6). Release this only after the backend handshake ships: the SDK refuses
+a route without `expiresAt`, and the backend's first slice doesn't send
+one yet.
+
+- **Commit body** (`src/core/receipt.ts`). `ReceiptCommit` is a union:
+  exactly one of `txHash` / `userOpHash`, and `userOpHash` always with
+  `sponsorshipRequestId`. The `Idempotency-Key` is the hash.
+  `commitReceipt` is the one poster; the public `submitReceipt` keeps its
+  positional signature and commits a `txHash`.
+- **Refusals branch on `code`, never `error`.** A refusal with a code
+  throws `ReceiptCommitError` (an `HttpError`). `attemptReceipt`
+  classifies it once for every retry loop: a 5xx, a network failure, a
+  rate limit, or a code in `RETRYABLE_RECEIPT_CODES` is transient;
+  `route_intent_not_found` is `intent_not_found`; every other code,
+  including one newer than the SDK, is final and surfaces with its code.
+  A codeless 401/403 (the API-key middleware) is final with `code: null`.
+  Any other codeless refusal is a contract violation and crashes the
+  delivery, logged.
+- **Sponsored path** (`src/smart-account/send.ts`). The userOp hash is
+  committed the moment the bundler accepts it
+  (`commitAcceptedUserOperation`). The ≤45 s inclusion poll that follows
+  only finds the bundle tx hash for the explorer link; it never throws,
+  because a throw after acceptance makes both widgets resend the route
+  from the EOA. The paymaster's `requestId` is required before the userOp
+  is sent.
+- **Replacements** (`src/core/evmReplacement.ts`). After an EVM send from
+  an EIP-1193 wallet, `watchForReplacement` runs viem's
+  `waitForTransactionReceipt` over the wallet's provider until the tx is
+  mined or `TRACKING_TIMEOUT_MS`. A replacement (speed-up, cancel, any
+  same-nonce tx) mined on the same chain is committed with
+  `deliverReceipt`; the backend decides whether it is a proven
+  replacement. A wagmi-adapter wallet exposes no provider, so its
+  replacements aren't seen.
+- **Expiry** (`src/core/routeExpiry.ts`). `buildRoute` and
+  `buildDepositAddress` parse `expiresAt` strictly (Go's RFC 3339 output,
+  calendar-checked) into `BuildRouteResult.expiresAt: Date`, and read the
+  response's `Date` header (IMF-fixdate, round-trip checked; the backend
+  exposes it over CORS) into `serverClockOffsetMs = Date.parse(Date) -
+  Date.now()` at arrival. A missing or malformed value of either throws
+  `RouteResponseError`; the device clock is never used in place of
+  `Date`. Expiry is judged on the latest the server's clock can read,
+  `Date.now() + serverClockOffsetMs + 999 >= expiresAt` (`serverNowMs`,
+  the one place the 999 ms lives): `Date` is truncated to the second, so
+  the SDK refuses up to 1 s early rather than sending up to 1 s late. A
+  skewed device clock neither expires a fresh route nor keeps a dead one
+  alive.
+  `sendRouteTransactionReporting` checks it at entry and again right
+  before the EVM send, and `sendRouteAsUserOperation` at entry and before
+  each bundler attempt: past it they throw `RouteExpiredError` and send
+  nothing. Both widgets catch it
+  and re-quote (deposit: `useRouteBuilder.refreshRoute`; swap: the same
+  fetch its countdown makes), and their refresh timers count down to
+  `quoteRefreshIntervalMs`: `routeRefreshMs`, cut short by the route's
+  expiry. Deposit mode now schedules each refresh from the route's
+  arrival instead of a fixed interval.
+- **Status.** `"expired"` is terminal in `pollStatus` and `trackIntent`
+  (outcome `expired`, shown like an untracked receipt). A status the SDK
+  doesn't know keeps polling and says nothing about the receipt.
+- **Solana.** Every `send-serialized` call names `routeIntentId`, so the
+  backend commits the signature at broadcast; repeats are no-ops there.
+  It travels through `SolanaWalletInterface.sendSerializedTransaction`'s
+  `options.routeIntentId`.
 
 ### Other Subsystems
 

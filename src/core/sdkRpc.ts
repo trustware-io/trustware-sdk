@@ -187,11 +187,13 @@ export function hasSDKRPCCode(err: unknown, code: SDKRPCCode): boolean {
 }
 
 /** `skipPreflight` is required so every caller chooses: the first send of a
- *  transaction preflights, its rebroadcasts don't. */
+ *  transaction preflights, its rebroadcasts don't. With `routeIntentId` the
+ *  backend commits the returned signature to that route intent. */
 export async function sendSolanaSerialized(body: {
   chainId: string;
   serializedTransaction: string;
   skipPreflight: boolean;
+  routeIntentId?: string;
 }) {
   return requestSDKRPC<SolanaSendSerializedResponse>(
     "/solana/send-serialized",

@@ -15,20 +15,18 @@ import {
 import {
   trackIntent,
   type ReceiptDeliveryOutcome,
-  type ReceiptReport,
 } from "src/core/intentTracking";
+import type { ReceiptReport } from "src/core/receipt";
+import { RouteExpiredError } from "src/core/routeExpiry";
 import { describeTrackingFailure } from "src/widget/lib/trackingFailure";
 import {
   approvalSatisfied,
   ensureWalletOnChain,
-  requiredApprovalAmount,
   waitForApprovalConfirmation,
 } from "src/core/tx";
 import { getEVMAllowance } from "src/core/sdkRpc";
-import {
-  isEvmAddress,
-  needsErc20Approval,
-} from "src/widget/helpers/chainHelpers";
+import { needsErc20Approval } from "src/widget/helpers/chainHelpers";
+import { plannedErc20Approvals } from "src/widget/helpers/plannedApprovals";
 import { isNativeTokenAddress, normalizeChainType } from "src/utils/chains";
 import type { BuildRouteResult, ChainDef, Transaction } from "src/types";
 import type { SwapTxStatus } from "../types";
@@ -138,9 +136,8 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       receipt: ReceiptReport,
       onSuccess: () => void,
       onError: (msg: string) => void,
-      /** The send step's own receipt delivery, or "tracker_posts" when
-       *  nothing else posts it (the smart-account path). */
-      receiptDelivery: Promise<ReceiptDeliveryOutcome> | "tracker_posts"
+      /** The send step's own receipt delivery, started at acceptance. */
+      receiptDelivery: Promise<ReceiptDeliveryOutcome>
     ) => {
       stopTracking();
       const controller = new AbortController();
@@ -148,8 +145,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       void trackIntent(receipt, {
         signal: controller.signal,
-        receiptDelivery:
-          receiptDelivery === "tracker_posts" ? undefined : receiptDelivery,
+        receiptDelivery,
         onUpdate: (raw) => {
           const tx = normalizeTx(raw);
           setState((p) => ({
@@ -204,43 +200,19 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       const chainIdStr = String(txReq?.chainId ?? fromChain?.chainId ?? "");
       const amountWei = BigInt(routeResult.route?.estimate?.fromAmount ?? "0");
 
-      // Check what the plan says must be approved, against the spender it
-      // names. Inferring the spender from the main transaction's `to` is a
-      // guess that mislabels the button whenever the route pulls through a
-      // different contract — and every allowance in the plan has to be
-      // covered, not just the first.
+      // Every allowance the plan names has to be covered, not just the
+      // first, and against the spender the plan names. A plan that names
+      // none needs none.
       const plannedApprovals = routeResult.route?.execution?.approvals ?? [];
-      const toCheck = plannedApprovals.length
-        ? plannedApprovals.flatMap((a) => {
-            const token = a.tokenAddress ?? fromTokenAddress;
-            const required = requiredApprovalAmount(
-              BigInt(a.amount || "0"),
-              amountWei
-            );
-            // Only an ERC20 has an allowance to read. A plan entry naming
-            // anything else (an SPL mint, a Cosmos denom) is not one.
-            if (!isEvmAddress(token) || !isEvmAddress(a.spender)) return [];
-            return [
-              {
-                chainId: a.chainId || chainIdStr,
-                token,
-                spender: a.spender,
-                required,
-              },
-            ];
-          })
-        : (() => {
-            const spender = (txReq?.to ?? txReq?.target) as string | undefined;
-            if (!spender) return [];
-            return [
-              {
-                chainId: chainIdStr,
-                token: fromTokenAddress,
-                spender,
-                required: amountWei,
-              },
-            ];
-          })();
+      if (plannedApprovals.length === 0) {
+        setState((p) => ({ ...p, allowanceStatus: "sufficient" }));
+        return;
+      }
+      const toCheck = plannedErc20Approvals(plannedApprovals, {
+        fromTokenAddress,
+        chainId: chainIdStr,
+        amountWei,
+      });
 
       if (toCheck.length === 0 || !chainIdStr || amountWei === 0n) {
         setState((p) => ({ ...p, allowanceStatus: "unknown" }));
@@ -257,7 +229,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
               ownerAddress: walletAddress,
               spenderAddress: c.spender,
             });
-            return approvalSatisfied(BigInt(allowance || "0"), c.required);
+            return approvalSatisfied(BigInt(allowance || "0"), c.amountWei);
           })
         );
         setState((p) => ({
@@ -287,7 +259,10 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         change: MaterialRouteChange
       ) => void,
       /** Something is about to be sent: report `payment_initiated` here. */
-      onSendStarting: (event: typeof PAYMENT_INITIATED) => void
+      onSendStarting: (event: typeof PAYMENT_INITIATED) => void,
+      /** The route's `expiresAt` passed before it was sent. Nothing was
+       *  sent; the caller fetches a new quote. */
+      onRouteExpired: () => void
     ) => {
       if (!reviewed.result?.txReq) {
         const msg = "Invalid route data. Please try again.";
@@ -331,13 +306,21 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         return;
       }
       const routeResult = decision.route;
+      const endExpired = () => {
+        setState((p) => ({
+          ...p,
+          isSubmitting: false,
+          txStatus: "idle",
+          signingRetryMessage: null,
+        }));
+        onRouteExpired();
+      };
 
       const wallet = Trustware.getWallet();
       const txReq = routeResult.txReq;
       const numericChainId =
         Number(txReq.chainId ?? fromChain?.chainId) || undefined;
       const chainIdStr = String(txReq.chainId ?? fromChain?.chainId ?? "");
-      const spender = (txReq.to ?? txReq.target) as `0x${string}` | undefined;
       const chainType = normalizeChainType(fromChain);
       const isNative =
         !fromTokenAddress || isNativeTokenAddress(fromTokenAddress, chainType);
@@ -421,17 +404,29 @@ export function useSwapExecution(fromChain: ChainDef | null) {
             eip1193Request: (args) => wallet!.request(args),
           });
 
+          // The on-chain hash, for the explorer link; null until the
+          // bundle was seen. The userOp is already committed.
           setState((p) => ({
             ...p,
             isSubmitting: false,
-            txHash: result.receipt.txHash,
+            txHash: result.txHash ?? null,
             intentId: result.intentId,
             txStatus: "processing",
             allowanceStatus: "sufficient",
           }));
-          startTracking(result.receipt, onSuccess, onError, "tracker_posts");
+          startTracking(
+            result.receipt,
+            onSuccess,
+            onError,
+            result.receiptDelivery
+          );
           return;
         } catch (err) {
+          // Not a smart-account failure: the EOA path would refuse it too.
+          if (err instanceof RouteExpiredError) {
+            endExpired();
+            return;
+          }
           if (isUserRejection(err)) {
             const msg = mapTxError(err);
             setState((p) => ({
@@ -452,67 +447,22 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       // ── EOA path (no sponsorship, or SA fallback) ─────────────────────────────
       const acceptance = { tracking: false };
       try {
-        // Every allowance this route needs, in the plan's own order. The
-        // plan is authoritative: its entries carry the spender the route
-        // will actually pull from, and their positions are the step
-        // indices the backend seeded (approvals first, main last), so a
-        // receipt can only be attributed correctly by reporting the
-        // approval's own index. Falling back to a spender inferred from
-        // the main transaction's `to` is a guess — kept only for routes
-        // whose plan carries no approvals array, and never reported,
-        // because index 0 there is the main step, not an approve.
+        // Every allowance this route needs, in the plan's own order. Their
+        // positions are the step indices the backend seeded (approvals
+        // first, main last), so a receipt is attributed by reporting the
+        // approval's own index.
         const plannedApprovals = routeResult.route?.execution?.approvals ?? [];
-        const requiredApprovals: {
-          stepIndex: number | null;
-          token: `0x${string}`;
-          spender: `0x${string}`;
-          amountWei: bigint;
-          chainId: string;
-        }[] = plannedApprovals.length
-          ? plannedApprovals.flatMap((a, index) => {
-              const token = (a.tokenAddress ?? fromTokenAddress) as
-                `0x${string}` | undefined;
-              const approvalSpender = a.spender as `0x${string}` | undefined;
-              // Same guard as checkAllowance: approve() is an ERC20 call, so
-              // a plan entry that doesn't name EVM addresses can't be one.
-              if (!isEvmAddress(token) || !isEvmAddress(approvalSpender))
-                return [];
-              // A planned approval of 0 is the reset-to-zero step USDT-style
-              // tokens require before an existing allowance can change —
-              // dropping it makes the approve that follows revert.
-              const amountWei = requiredApprovalAmount(
-                BigInt(a.amount || "0"),
-                fromAmountWei
-              );
-              return [
-                {
-                  stepIndex: index,
-                  token,
-                  spender: approvalSpender,
-                  amountWei,
-                  chainId: a.chainId || chainIdStr,
-                },
-              ];
-            })
-          : spender && fromTokenAddress
-            ? [
-                {
-                  stepIndex: null,
-                  token: fromTokenAddress as `0x${string}`,
-                  spender,
-                  amountWei: fromAmountWei,
-                  chainId: chainIdStr,
-                },
-              ]
-            : [];
+        const requiredApprovals = plannedErc20Approvals(plannedApprovals, {
+          fromTokenAddress,
+          chainId: chainIdStr,
+          amountWei: fromAmountWei,
+        });
 
-        // Ownership is all-or-nothing. Any plan entry the guard above dropped
-        // is one this loop will never grant, so claiming ownership after a
-        // drop would silently skip it — sendRouteTransaction gets the whole
-        // array instead. A plan with no approvals array is covered by
-        // definition; the inferred-spender fallback stands in for it.
+        // Ownership is all-or-nothing. Any plan entry that names no EVM
+        // token and spender is one this loop will never grant, so claiming
+        // ownership after a drop would silently skip it, and
+        // sendRouteTransaction gets the whole array instead.
         const coversEveryPlannedApproval =
-          plannedApprovals.length === 0 ||
           requiredApprovals.length === plannedApprovals.length;
 
         // When this holds, the loop below owns the approval decision for the
@@ -614,17 +564,13 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
             // Report against this approval's own step index so the backend
             // can tell "approve landed, main never followed" apart from a
-            // pre-signature abandon (BVT-299). Skipped when the plan
-            // carried no approvals: index 0 is the main step there, and
-            // the endpoint rejects non-approve steps.
+            // pre-signature abandon (BVT-299).
             // Fire-and-forget: must never block or fail the swap.
-            if (required.stepIndex !== null) {
-              void submitStepReceipt(
-                routeResult.intentId,
-                required.stepIndex,
-                approvalHash
-              ).catch(() => {});
-            }
+            void submitStepReceipt(
+              routeResult.intentId,
+              required.stepIndex,
+              approvalHash
+            ).catch(() => {});
 
             await waitForApprovalConfirmation(required.chainId, approvalHash);
 
@@ -693,6 +639,11 @@ export function useSwapExecution(fromChain: ChainDef | null) {
           );
         }
       } catch (err) {
+        // Refused before anything was sent.
+        if (err instanceof RouteExpiredError) {
+          endExpired();
+          return;
+        }
         // After acceptance this is the chain's own verdict (it landed with
         // an error, or expired): it replaces the tracker, whose receipt was
         // already delivered.

@@ -22,6 +22,7 @@ describe("describeTrackingFailure", () => {
       describeTrackingFailure({
         kind: "receipt_rejected",
         httpStatus: 400,
+        code: "payer_mismatch",
         message: "payer address mismatch",
       }),
       "Your transaction was sent, but Trustware couldn't record it, so its progress can't be shown here. Check its status in your block explorer before trying again."
@@ -59,6 +60,16 @@ describe("describeTrackingFailure", () => {
     );
   });
 
+  it("tells the user an expired intent left the transaction untracked", () => {
+    assert.equal(
+      describeTrackingFailure({
+        kind: "expired",
+        transaction: { intentId: "intent-1", status: "expired" } as Transaction,
+      }),
+      "Your transaction was sent, but Trustware couldn't record it, so its progress can't be shown here. Check its status in your block explorer before trying again."
+    );
+  });
+
   it("describes a failed transaction the way the failure module does", () => {
     assert.equal(
       describeTrackingFailure({ kind: "failed", transaction: failedTx }),
@@ -75,6 +86,7 @@ describe("mapError on tracking failures", () => {
     const outcome: TrackingFailure = {
       kind: "receipt_rejected",
       httpStatus: 409,
+      code: "tx_hash_committed_elsewhere",
       message: "transaction hash already used",
     };
     assert.deepEqual(
