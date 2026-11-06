@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.18] - 2026-11-06
+
+
+### Fixed
+
+- Approve only what the route plan names
+- Check the route's chain after its approvals, not before
+- Refuse a route approval with no usable amount
+- Word route errors for what every provider answered
+
+
+### Other
+
+- Branch receipt commits on the refusal code; commit userOps at acceptance
+- Commit the replacement hash when the wallet replaces an EVM send
+- Pass routeIntentId to send-serialized so the backend commits at broadcast
+- Refuse to send a route past its expiresAt, and re-quote it instead
+- Document the commit handshake for hosts and contributors
+- Judge route expiry on the server's clock, from the response's Date header
+- Judge expiry by the latest the server's clock can read
+
 ## [1.1.17] - 2026-10-24
 
 
