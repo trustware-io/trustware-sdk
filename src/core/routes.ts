@@ -5,6 +5,7 @@ import { assertRouteDeliversValue } from "./routeValue";
 import { parseRouteExpiresAt, parseServerClockOffsetMs } from "./routeExpiry";
 import type {
   BuildRouteResult,
+  IntentExecutionStep,
   PostHookRequest,
   RoutePlan,
   RouteSponsorship,
@@ -443,6 +444,27 @@ export async function getStatus(intentId: string): Promise<Transaction> {
  */
 const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
   intent_id: "intentId",
+  project_id: "projectId",
+  sdk_api_key_id: "sdkApiKeyId",
+  sdk_request: "sdkRequest",
+  provider_quote_id: "providerQuoteId",
+  sender_verification: "senderVerification",
+  routing_provider: "routingProvider",
+  intent_status: "intentStatus",
+  quote_to_amount_usd: "quoteToAmountUSD",
+  poll_attempt: "pollAttempt",
+  next_poll_at: "nextPollAt",
+  gas_sponsored: "gasSponsored",
+  sponsorship_request_id: "sponsorshipRequestId",
+  sponsorship_status: "sponsorshipStatus",
+  paymaster_rule_id: "paymasterRuleId",
+  paymaster_address: "paymasterAddress",
+  approved_sponsored_gas_usd: "approvedSponsoredGasUSD",
+  gas_sponsored_usd: "gasSponsoredUSD",
+  actual_sponsored_gas_usd: "actualSponsoredGasUSD",
+  approved_sponsored_gas_wei: "approvedSponsoredGasWei",
+  actual_sponsored_gas_wei: "actualSponsoredGasWei",
+  sponsorship_user_operation_hash: "sponsorshipUserOperationHash",
   from_address: "fromAddress",
   to_address: "toAddress",
   from_chain_id: "fromChainId",
@@ -488,16 +510,46 @@ const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
 export function normalizeStatusPayload(raw: unknown): Transaction {
   if (!raw || typeof raw !== "object") return raw as Transaction;
 
-  const wire = raw as Record<string, unknown>;
-  const out: Record<string, unknown> = { ...wire };
+  const out = addCamelCaseKeys(
+    raw as Record<string, unknown>,
+    STATUS_WIRE_TO_CAMEL
+  );
+  if (Array.isArray(out.steps)) {
+    out.steps = out.steps.map((step: unknown) =>
+      step && typeof step === "object"
+        ? addCamelCaseKeys(step as Record<string, unknown>, STEP_WIRE_TO_CAMEL)
+        : step
+    );
+  }
+  return out as Transaction;
+}
 
-  for (const [snake, camel] of Object.entries(STATUS_WIRE_TO_CAMEL)) {
+/** Wire → IntentExecutionStep field names, for `Transaction.steps`. */
+const STEP_WIRE_TO_CAMEL: Record<string, keyof IntentExecutionStep> = {
+  step_index: "stepIndex",
+  step_kind: "stepKind",
+  chain_id: "chainId",
+  tx_hash: "txHash",
+  create_date: "createdDate",
+  update_date: "updatedDate",
+};
+
+/**
+ * Copies `wire` and adds each mapped camelCase key. The raw keys stay, an
+ * explicit camelCase key on the wire wins, and a missing field stays missing
+ * rather than becoming a defined-but-undefined property.
+ */
+function addCamelCaseKeys(
+  wire: Record<string, unknown>,
+  wireToCamel: Record<string, string>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...wire };
+  for (const [snake, camel] of Object.entries(wireToCamel)) {
     if (out[camel] !== undefined) continue;
     if (!(snake in wire)) continue;
     out[camel] = wire[snake];
   }
-
-  return out as Transaction;
+  return out;
 }
 
 /**
