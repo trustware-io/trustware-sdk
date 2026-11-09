@@ -156,8 +156,14 @@ export type Transaction = {
   /** True once toAmountWei has been confirmed on-chain rather than being the
    *  pre-trade quote estimate. Wire field: `landed_amount_verified`. */
   landed_amount_verified?: boolean;
-  fromChainBlock: number;
-  toChainBlock: number;
+  /** Block the source transaction was mined in. Absent until Trustware has
+   *  confirmed it, and on a cross-chain route whose provider reports no
+   *  block. Wire field: `from_chain_block`. */
+  fromChainBlock?: number;
+  /** Block the funds landed in on the destination chain. Absent until the
+   *  route settles, on a cross-chain route whose provider reports no block,
+   *  and on a reverted same-chain transaction. Wire field: `to_chain_block`. */
+  toChainBlock?: number;
   fromChainTxUrl?: string;
   toChainTxUrl?: string;
   gasStatus?: string;

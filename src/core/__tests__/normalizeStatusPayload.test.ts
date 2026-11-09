@@ -72,6 +72,27 @@ describe("normalizeStatusPayload", () => {
     assert.equal(tx.status, "pending");
   });
 
+  it("leaves the blocks out of a submitted payload, as the backend sends it", () => {
+    // The backend writes from_chain_block and to_chain_block only once it
+    // has confirmed the transaction, and omits NULL ones, so a submitted
+    // transaction has neither.
+    const tx = normalizeStatusPayload({
+      id: "5aa8c0e2-7b30-4a7a-b0a8-fc7f9f62fe0e",
+      intent_id: "intent-1",
+      source_tx_hash: "0xabc",
+      status: "submitted",
+      create_date: "2026-11-09T12:00:00Z",
+      update_date: "2026-11-09T12:00:00Z",
+    });
+
+    assert.equal(tx.fromChainBlock, undefined);
+    assert.equal(tx.toChainBlock, undefined);
+    assert.equal("fromChainBlock" in tx, false);
+    assert.equal("toChainBlock" in tx, false);
+    assert.equal(tx.createdDate, "2026-11-09T12:00:00Z");
+    assert.equal(tx.updatedDate, "2026-11-09T12:00:00Z");
+  });
+
   it("does not clobber a camelCase key the wire already sent", () => {
     const tx = normalizeStatusPayload({
       sourceTxHash: "0xcamel",
