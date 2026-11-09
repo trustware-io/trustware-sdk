@@ -92,6 +92,161 @@ describe("normalizeStatusPayload", () => {
     assert.equal(tx.destTxHash, null);
   });
 
+  // Every key a transaction payload from quicklinks_v1 can carry
+  // (db/transaction_view.go after #348), with the values its integration
+  // test reads back.
+  const fullWirePayload = {
+    id: "tx-1",
+    intent_id: "intent-1",
+    project_id: "project-1",
+    sdk_api_key_id: "key-1",
+    sdk_request: true,
+    from_address: "0xsender",
+    to_address: "0xrecipient",
+    origin_eoa: "0xowner",
+    sender_verification: "verified",
+    from_chain_id: "1",
+    to_chain_id: "8453",
+    source_tx_hash: "0xabc",
+    dest_tx_hash: "0xdef",
+    request_id: "req-1",
+    provider_request_id: "provider-req-1",
+    provider_quote_id: "quote-1",
+    transaction_request: { to: "0xrouter", data: "0x846a1bc6", value: "0" },
+    status: "success",
+    status_raw: { providerStatus: "success" },
+    route_path: [{ leg: 1 }],
+    route_status: [{ status: "success" }],
+    to_amount_wei: "24970000",
+    quote_to_amount_usd: "24.97000000",
+    time_spent_ms: 84000,
+    from_chain_block: 100,
+    to_chain_block: 200,
+    from_chain_tx_url: "https://etherscan.io/tx/0xabc",
+    to_chain_tx_url: "https://basescan.org/tx/0xdef",
+    gas_status: "needs_gas",
+    is_gmp_transaction: true,
+    axelar_transaction_url: "https://axelarscan.io/gmp/1",
+    landed_amount_verified: true,
+    routing_provider: "squid",
+    poll_attempt: 3,
+    next_poll_at: "2026-11-09T12:00:05Z",
+    create_date: "2026-11-09T11:58:00Z",
+    update_date: "2026-11-09T12:00:00Z",
+    sponsorship_request_id: "sponsorship-1",
+    gas_sponsored: true,
+    sponsorship_status: "settled",
+    paymaster_rule_id: "rule-1",
+    paymaster_address: "0xpaymaster",
+    approved_sponsored_gas_usd: "0.42000000",
+    actual_sponsored_gas_usd: "0.31000000",
+    approved_sponsored_gas_wei: "420000000000000",
+    actual_sponsored_gas_wei: "310000000000000",
+    sponsorship_user_operation_hash: "0xuserop",
+    gas_sponsored_usd: "0.42000000",
+  };
+
+  it("names every field of a full transaction payload", () => {
+    const tx = normalizeStatusPayload(fullWirePayload);
+
+    assert.equal(tx.projectId, "project-1");
+    assert.equal(tx.sdkApiKeyId, "key-1");
+    assert.equal(tx.sdkRequest, true);
+    assert.equal(tx.senderVerification, "verified");
+    assert.equal(tx.providerQuoteId, "quote-1");
+    assert.equal(tx.routingProvider, "squid");
+    assert.equal(tx.quoteToAmountUSD, "24.97000000");
+    assert.equal(tx.pollAttempt, 3);
+    assert.equal(tx.nextPollAt, "2026-11-09T12:00:05Z");
+    assert.equal(tx.gasSponsored, true);
+    assert.equal(tx.sponsorshipRequestId, "sponsorship-1");
+    assert.equal(tx.sponsorshipStatus, "settled");
+    assert.equal(tx.paymasterRuleId, "rule-1");
+    assert.equal(tx.paymasterAddress, "0xpaymaster");
+    assert.equal(tx.approvedSponsoredGasUSD, "0.42000000");
+    assert.equal(tx.gasSponsoredUSD, "0.42000000");
+    assert.equal(tx.actualSponsoredGasUSD, "0.31000000");
+    assert.equal(tx.approvedSponsoredGasWei, "420000000000000");
+    assert.equal(tx.actualSponsoredGasWei, "310000000000000");
+    assert.equal(tx.sponsorshipUserOperationHash, "0xuserop");
+  });
+
+  // A snake_case wire key with no camelCase name is a field Transaction
+  // forgot. The two exceptions keep their wire spelling on Transaction
+  // itself (see its doc comment).
+  it("gives every snake_case key of a full payload a camelCase name", () => {
+    const declaredAsIs = new Set(["origin_eoa", "landed_amount_verified"]);
+    const tx = normalizeStatusPayload(fullWirePayload) as Record<
+      string,
+      unknown
+    >;
+    const unnamed = Object.keys(fullWirePayload).filter((key) => {
+      if (!key.includes("_") || declaredAsIs.has(key)) return false;
+      const camel = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+      const named = Object.keys(tx).some(
+        (k) => !k.includes("_") && k.toLowerCase() === camel.toLowerCase()
+      );
+      // create_date/update_date are spelled createdDate/updatedDate.
+      return !named && !(key === "create_date" || key === "update_date");
+    });
+    assert.deepEqual(unnamed, []);
+  });
+
+  it("names a pending payload's intent status and steps", () => {
+    const tx = normalizeStatusPayload({
+      intent_id: "intent-1",
+      status: "pending",
+      intent_status: "created",
+      create_date: "2026-11-09T11:58:00Z",
+      expiresAt: "2026-11-09T12:28:00Z",
+      steps: [
+        {
+          step_index: 0,
+          step_kind: "approve",
+          chain_id: "1",
+          tx_hash: "0xapprove",
+          status: "confirmed",
+          detail: {
+            token: "0xtoken",
+            spender: "0xspender",
+            amount: "25000000",
+          },
+          create_date: "2026-11-09T11:58:00Z",
+          update_date: "2026-11-09T11:59:30Z",
+        },
+        {
+          step_index: 1,
+          step_kind: "main",
+          chain_id: "1",
+          status: "planned",
+          create_date: "2026-11-09T11:58:00Z",
+          update_date: "2026-11-09T11:58:00Z",
+        },
+      ],
+    });
+
+    assert.equal(tx.intentStatus, "created");
+    assert.equal(tx.steps?.length, 2);
+    const [approve, main] = tx.steps ?? [];
+    assert.equal(approve.stepIndex, 0);
+    assert.equal(approve.stepKind, "approve");
+    assert.equal(approve.chainId, "1");
+    assert.equal(approve.txHash, "0xapprove");
+    assert.equal(approve.status, "confirmed");
+    assert.deepEqual(approve.detail, {
+      token: "0xtoken",
+      spender: "0xspender",
+      amount: "25000000",
+    });
+    assert.equal(approve.createdDate, "2026-11-09T11:58:00Z");
+    assert.equal(approve.updatedDate, "2026-11-09T11:59:30Z");
+    assert.equal(main.stepIndex, 1);
+    assert.equal(main.stepKind, "main");
+    assert.equal("txHash" in main, false);
+    // Raw step keys survive, like the top-level ones.
+    assert.equal((approve as Record<string, unknown>).tx_hash, "0xapprove");
+  });
+
   it("passes non-object payloads straight through", () => {
     assert.equal(normalizeStatusPayload(null), null);
     assert.equal(normalizeStatusPayload(undefined), undefined);

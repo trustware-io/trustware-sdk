@@ -64,6 +64,16 @@ export type RouteIntent = {
 export type Transaction = {
   id?: string;
   intentId?: string;
+  /** The Client Dashboard project the intent belongs to. Wire field:
+   *  `project_id`. */
+  projectId?: string;
+  /** ID of the SDK key that built the route — the key's ID, never the key.
+   *  Wire field: `sdk_api_key_id`. */
+  sdkApiKeyId?: string;
+  /** True when the intent was built with a Trustware SDK key. Backends before
+   *  quicklinks_v1#348 always sent `false` on the status payload. Wire field:
+   *  `sdk_request`. */
+  sdkRequest?: boolean;
   fromAddress?: string;
   toAddress?: string;
   /** Connected wallet (EOA) that originated the payment when the sender is a
@@ -81,6 +91,17 @@ export type Transaction = {
    *  that provider's status API polls with. Wire field:
    *  `provider_request_id`. See RouteIntent.providerRequestId. */
   providerRequestId?: string;
+  /** The routing provider's quote ID, when it issued one. Wire field:
+   *  `provider_quote_id`. */
+  providerQuoteId?: string;
+  /** How far the commit endpoint got proving the payer authorized the
+   *  transaction. `"unverified"` means the check could not reach an answer,
+   *  not that it failed: a definite mismatch is refused at commit instead.
+   *  Wire field: `sender_verification`. */
+  senderVerification?: SenderVerification;
+  /** The routing provider used for this route, as a runtime value. Wire
+   *  field: `routing_provider`. */
+  routingProvider?: string;
   transactionRequest?: unknown;
   /**
    * "pending" means the intent exists but no receipt has been submitted yet —
@@ -109,6 +130,17 @@ export type Transaction = {
    * camelCase field of the v1 status payload).
    */
   expiresAt?: string;
+  /** The intent's own lifecycle state. Only on a `"pending"` or `"expired"`
+   *  payload. Wire field: `intent_status`. */
+  intentStatus?: IntentLifecycleStatus;
+  /** The intent's execution plan: one `"approve"` step per required
+   *  allowance, then the route's own `"main"` transaction. Present once the
+   *  intent has a plan, including on a `"pending"` payload, so a resuming
+   *  client can see an approval already landed. Wire field: `steps`. */
+  steps?: IntentExecutionStep[];
+  /** Expected destination USD value from the quote, as a decimal string.
+   *  Wire field: `quote_to_amount_usd`. */
+  quoteToAmountUSD?: string;
   statusRaw?: unknown;
   routePath?: unknown;
   routeStatus?: unknown;
@@ -135,6 +167,86 @@ export type Transaction = {
   createdDate: Date | string;
   updatedDate: Date | string;
   timeSpentMs?: number;
+  /** How many times Trustware has polled the routing provider for this
+   *  transaction. Wire field: `poll_attempt`. */
+  pollAttempt?: number;
+  /** When Trustware next checks the routing provider (RFC 3339). Wire field:
+   *  `next_poll_at`. */
+  nextPollAt?: string;
+
+  /** True when a paymaster sponsored the route's gas. Present on every
+   *  transaction payload. Wire field: `gas_sponsored`. */
+  gasSponsored?: boolean;
+  /** The rest are present only on a sponsored route. Wire fields:
+   *  `sponsorship_request_id`, `sponsorship_status`, `paymaster_rule_id`,
+   *  `paymaster_address`. */
+  sponsorshipRequestId?: string;
+  sponsorshipStatus?: SponsorshipStatus;
+  paymasterRuleId?: string;
+  paymasterAddress?: string;
+  /** Maximum gas cost approved, in USD, as a decimal string. Wire field:
+   *  `approved_sponsored_gas_usd`. `gasSponsoredUSD` (wire
+   *  `gas_sponsored_usd`) carries the same value. */
+  approvedSponsoredGasUSD?: string;
+  gasSponsoredUSD?: string;
+  /** Gas cost actually paid, in USD, once known. Wire field:
+   *  `actual_sponsored_gas_usd`. */
+  actualSponsoredGasUSD?: string;
+  /** Maximum gas cost approved, in the chain's smallest native unit. Wire
+   *  field: `approved_sponsored_gas_wei`. */
+  approvedSponsoredGasWei?: string;
+  /** Gas cost actually paid, in the chain's smallest native unit, once
+   *  known. Wire field: `actual_sponsored_gas_wei`. */
+  actualSponsoredGasWei?: string;
+  /** The sponsored user operation's hash. Wire field:
+   *  `sponsorship_user_operation_hash`. */
+  sponsorshipUserOperationHash?: string;
+};
+
+/** Values of `Transaction.senderVerification`. */
+export type SenderVerification = "verified" | "unverified" | "skipped";
+
+/** Values of `Transaction.intentStatus`. */
+export type IntentLifecycleStatus =
+  "created" | "submitted" | "bridging" | "success" | "failed" | "expired";
+
+/** Values of `Transaction.sponsorshipStatus`. */
+export type SponsorshipStatus =
+  | "requested"
+  | "approved"
+  | "rejected"
+  | "submitted"
+  | "settled"
+  | "failed"
+  | "expired";
+
+/**
+ * One step of an intent's execution plan, from `Transaction.steps`.
+ *
+ * Like `Transaction`, the wire is snake_case and `getStatus` adds these
+ * camelCase names; the raw keys stay on the object at runtime.
+ */
+export type IntentExecutionStep = {
+  /** Position in the plan. Wire field: `step_index`. */
+  stepIndex: number;
+  /** Wire field: `step_kind`. */
+  stepKind: "approve" | "main";
+  /** The chain the step runs on. Wire field: `chain_id`. */
+  chainId: string;
+  /** A step stays `"planned"` until its transaction hash is reported. */
+  status: "planned" | "submitted" | "confirmed" | "failed" | "skipped";
+  /** Absent while the step is `"planned"`. Wire field: `tx_hash`. */
+  txHash?: string;
+  /** Plan snapshot. An `"approve"` step carries the token, spender and
+   *  exact amount to approve; a `"main"` step may carry other keys. */
+  detail?: { token?: string; spender?: string; amount?: string } & Record<
+    string,
+    unknown
+  >;
+  /** Wire field: `create_date`. */
+  createdDate: string;
+  /** Wire field: `update_date`. */
+  updatedDate: string;
 };
 
 // export type BuildRouteResult = {
