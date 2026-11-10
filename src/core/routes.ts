@@ -440,7 +440,8 @@ export async function getStatus(intentId: string): Promise<Transaction> {
  * Wire (snake_case) → Transaction (camelCase) field names.
  *
  * `origin_eoa` and `landed_amount_verified` are absent on purpose: Transaction
- * spells those two in snake_case already, so they need no mapping.
+ * spells those two in snake_case already, so they need no mapping. So is
+ * `refunded`, which is one word and the same in both spellings.
  */
 const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
   intent_id: "intentId",

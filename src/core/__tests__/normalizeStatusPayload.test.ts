@@ -272,4 +272,22 @@ describe("normalizeStatusPayload", () => {
     assert.equal(normalizeStatusPayload(null), null);
     assert.equal(normalizeStatusPayload(undefined), undefined);
   });
+
+  // refunded is the same word on the wire and on Transaction.
+  it("passes refunded through, and leaves it absent when the backend omits it", () => {
+    const refunded = normalizeStatusPayload({
+      status: "failed",
+      refunded: true,
+    });
+    assert.equal(refunded.refunded, true);
+
+    const failed = normalizeStatusPayload({
+      status: "failed",
+      refunded: false,
+    });
+    assert.equal(failed.refunded, false);
+
+    const older = normalizeStatusPayload({ status: "failed" });
+    assert.equal("refunded" in older, false);
+  });
 });

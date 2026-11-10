@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { describeTransactionFailure } from "src/core/failure";
+import { describeTransactionFailure, REFUNDED } from "src/core/failure";
 import { mapError } from "src/widget/lib/mapError";
 import type { Transaction } from "src/types";
 
@@ -133,5 +133,55 @@ describe("mapError + describeTransactionFailure", () => {
       mapError("execution reverted").title,
       "Transaction Would Fail"
     );
+  });
+});
+
+describe("describeTransactionFailure on a refund", () => {
+  it("says the funds came back", () => {
+    assert.equal(
+      describeTransactionFailure(tx({ refunded: true })),
+      "Transaction failed and your funds were refunded. Check your wallet; a refund can arrive as a different token."
+    );
+  });
+
+  // The Squid status_raw a real refund carried (intent a4e77463, 2026-11-10).
+  it("wins over anything status_raw would classify", () => {
+    assert.equal(
+      describeTransactionFailure(
+        tx({
+          refunded: true,
+          statusRaw: {
+            status: { squidTransactionStatus: "refunded" },
+            reason: "insufficient liquidity in pool",
+          },
+        })
+      ),
+      REFUNDED
+    );
+  });
+
+  it("leaves a failure that was not refunded to the usual classification", () => {
+    for (const refunded of [false, undefined]) {
+      assert.match(
+        describeTransactionFailure(
+          tx({
+            refunded,
+            statusRaw: { reason: "insufficient liquidity in pool" },
+          })
+        ),
+        /liquidity/i
+      );
+      assert.equal(
+        describeTransactionFailure(tx({ refunded })),
+        "Transaction failed on-chain. Please try again."
+      );
+    }
+  });
+
+  it("survives mapError as a transaction failure, shown verbatim", () => {
+    const mapped = mapError(describeTransactionFailure(tx({ refunded: true })));
+    assert.equal(mapped.category, "transaction_failed");
+    assert.equal(mapped.title, "Transaction Failed");
+    assert.equal(mapped.message, REFUNDED);
   });
 });

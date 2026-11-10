@@ -60,6 +60,7 @@ export type RouteIntent = {
  *
  * `origin_eoa` and `landed_amount_verified` are the exception — the wire has no
  * camelCase spelling for those two, so they are declared as-is below.
+ * `refunded` is one word, the same in both spellings.
  */
 export type Transaction = {
   id?: string;
@@ -156,6 +157,16 @@ export type Transaction = {
   /** True once toAmountWei has been confirmed on-chain rather than being the
    *  pre-trade quote estimate. Wire field: `landed_amount_verified`. */
   landed_amount_verified?: boolean;
+  /**
+   * True when the routing provider could not complete the route and returned
+   * the input to the sender. `status` is then always "failed": a refund is a
+   * failure where the user keeps their funds, less fees. The refund can
+   * arrive as a different token from the one sent; `statusRaw` holds the
+   * provider's details. Absent from backends older than this field, so treat
+   * a missing value as unknown, not as "not refunded". Wire field:
+   * `refunded`.
+   */
+  refunded?: boolean;
   /** Block the source transaction was mined in. Absent until Trustware has
    *  confirmed it, and on a cross-chain route whose provider reports no
    *  block. Wire field: `from_chain_block`. */
