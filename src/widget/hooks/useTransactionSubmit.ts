@@ -147,11 +147,12 @@ export function useTransactionSubmit() {
         // The send step delivers the receipt at acceptance, so the
         // Processing page only polls (`delivery`).
         const acceptance = { shown: false };
+        // As the catalog gives it: Number() turned a Solana key into NaN.
         const fallbackChainId = selectedChain?.chainId;
         const sent = await sendSignableRoute(
           reviewed,
           decision.route,
-          Number(fallbackChainId),
+          fallbackChainId,
           { onRetry: (retry) => setSigningRetryMessage(retry.message) },
           (accepted) => {
             acceptance.shown = true;

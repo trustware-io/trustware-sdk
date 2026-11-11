@@ -13,6 +13,12 @@ export const EVM_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 /** Solana mainnet-beta as the routing backend identifies it numerically. */
 export const SOLANA_CHAIN_ID = "1151111081099710";
 
+/**
+ * Solana mainnet-beta as the backend's chain registry keys it: the chain id
+ * the RPC proxy (`/sdk/rpc/solana/*`) and the route API accept for Solana.
+ */
+export const SOLANA_MAINNET_CHAIN_KEY = "solana-mainnet-beta";
+
 const CHAIN_TYPE_ALIASES: Record<string, ChainType> = {
   btc: "bitcoin",
   bitcoin: "bitcoin",

@@ -17,6 +17,7 @@ import { validateRouteAddresses } from "../validation/address";
 import {
   isNativeTokenAddress,
   NATIVE_SOLANA,
+  normalizeChainKey,
   normalizeChainType,
 } from "../utils/chains";
 
@@ -267,6 +268,13 @@ export async function buildRoute(
 
   if (!txReq?.data) {
     throw new Error("Invalid route: missing transaction data");
+  }
+  // A route's transaction is sent on the route's source chain. A backend
+  // that predates stamping it passes LiFi's Solana transaction on with no
+  // chainId, and the send then had no chain to name (staging, 2026-11-11).
+  // Filled here, where every route enters the SDK, so no send path guesses.
+  if (normalizeChainKey(txReq.chainId) === "") {
+    txReq.chainId = body.fromChain;
   }
   assertValidRouteApprovals(route?.execution?.approvals);
   const expiresAt = parseRouteExpiresAt(

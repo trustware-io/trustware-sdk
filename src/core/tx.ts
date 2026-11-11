@@ -27,6 +27,7 @@ import {
   type ReplacementWatchTiming,
 } from "./evmReplacement";
 import type { VaultRedeemAction } from "./vaults";
+import { SOLANA_MAINNET_CHAIN_KEY } from "../utils/chains";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
 
 function backendChainId(chain?: ChainDef, fallback?: number | string): string {
@@ -559,13 +560,11 @@ export async function sendRouteTransactionReporting(
     const registry = getSharedRegistry();
     await registry.ensureChainsLoaded();
 
-    const chain = registry.chain(
-      String(fallbackChainId ?? txReq.chainId ?? "")
-    );
-    const solanaChainId = backendChainId(
-      chain,
-      fallbackChainId ?? txReq.chainId
-    );
+    // The route's own chain first, as on the EVM path: a caller's fallback
+    // is only for a transaction that names none.
+    const routeChainId = txReq.chainId ?? fallbackChainId;
+    const chain = registry.chain(String(routeChainId ?? ""));
+    const solanaChainId = backendChainId(chain, routeChainId);
     // `routeIntentId` lets the backend commit the signature the moment it
     // broadcasts it, whatever happens to the browser after that.
     return accepted(
@@ -661,7 +660,7 @@ export async function runTopUp(params: {
   const currentChainRef =
     w.ecosystem === "evm"
       ? String(await w.getChainId())
-      : ((await w.getChainKey?.()) ?? "solana-mainnet-beta");
+      : ((await w.getChainKey?.()) ?? SOLANA_MAINNET_CHAIN_KEY);
   const originalChain =
     w.ecosystem === "evm" ? await w.getChainId() : undefined;
 
