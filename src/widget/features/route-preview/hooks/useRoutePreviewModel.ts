@@ -11,6 +11,7 @@ import {
   getNativeTokenAddress,
 } from "../../../../utils/chains";
 import type { ChainDef } from "../../../../types";
+import { isSameChainSelfTransfer } from "./selfTransfer";
 
 type UseRoutePreviewModelArgs = {
   amountUsd?: string;
@@ -101,7 +102,8 @@ export function useRoutePreviewModel({
 
   const routePrerequisiteError = useMemo(() => {
     if (!isReady) return;
-    if (!selectedChain) {
+    const fromChainId = routeConfig.fromChainId;
+    if (!selectedChain || fromChainId === undefined) {
       return "Select a source chain to fetch a route.";
     }
     if (!selectedToken) {
@@ -115,9 +117,11 @@ export function useRoutePreviewModel({
     }
 
     if (
-      routeConfig.toToken.toString().toLowerCase() ==
-        routeConfig.fromToken.toString().toLowerCase() &&
-      Number(routeConfig.toChainId) == Number(routeConfig.fromChainId)
+      isSameChainSelfTransfer(
+        { chainId: fromChainId, token: routeConfig.fromToken },
+        { chainId: routeConfig.toChainId, token: routeConfig.toToken },
+        selectedChain.type ?? selectedChain.chainType
+      )
     ) {
       return "No self-transfer on same chain.";
     }

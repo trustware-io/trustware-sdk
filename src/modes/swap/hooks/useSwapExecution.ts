@@ -595,10 +595,12 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         // screen must say so at once, without waiting for confirmation
         // (a Solana send keeps rebroadcasting until it settles). The send
         // step already posted the receipt, so tracking only polls.
+        // numericChainId is undefined for every non-EVM chain; the send
+        // takes the chain id as the route and catalog give it.
         const sent = await sendSignableRoute(
           reviewed,
           routeResult,
-          numericChainId,
+          txReq.chainId ?? fromChain?.chainId,
           {
             approvalsEnsured: ownsApprovals,
             onRetry: (retry) =>

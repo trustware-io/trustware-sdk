@@ -2,8 +2,8 @@ import type { BuildRouteResult } from "../types";
 import type { TxReceiptReport } from "./receipt";
 import {
   buildRoute,
-  isSerializedSolanaTxRequest,
   requestSlippageBps,
+  routeTxKind,
   type BuildRouteBody,
 } from "./routes";
 import {
@@ -185,7 +185,9 @@ export type SigningDecision =
 export async function routeForSigning(
   reviewed: BuiltRoute
 ): Promise<SigningDecision> {
-  if (!isSerializedSolanaTxRequest(reviewed.result.txReq)) {
+  if (
+    routeTxKind(reviewed.result.txReq, reviewed.request.fromChain) !== "solana"
+  ) {
     // The brand exists only in the type system; this and the Solana branch
     // below are its only constructors.
     return { kind: "ready", route: reviewed.result as SignableRoute };

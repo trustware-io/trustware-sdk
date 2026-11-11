@@ -17,6 +17,7 @@ import { validateRouteAddresses } from "../validation/address";
 import {
   isNativeTokenAddress,
   NATIVE_SOLANA,
+  normalizeChainKey,
   normalizeChainType,
 } from "../utils/chains";
 
@@ -196,12 +197,36 @@ type BuildDepositAddressResponse = {
   message?: string;
 };
 
-export function isEvmTxRequest(txReq?: TxRequest | null) {
-  return Boolean(txReq?.data && (txReq.to || txReq.target));
-}
+/** How a route's transaction is signed: EVM calldata, or a serialized
+ *  Solana transaction. */
+export type RouteTxKind = "evm" | "solana";
 
-export function isSerializedSolanaTxRequest(txReq?: TxRequest | null) {
-  return Boolean(txReq?.data && !txReq?.to && !txReq?.target);
+/**
+ * Which kind of transaction a route carries, decided by the chain it is sent
+ * on (the transaction's own `chainId`, else `fallbackChainId`). Undefined
+ * when it can't be sent: no data, no chain, a chain that is neither EVM nor
+ * Solana, or EVM calldata with no target.
+ *
+ * Never decided by the presence of `to`. Squid's Solana deposit-address
+ * transaction names its deposit address there (2026-11-10), and reading
+ * that as EVM sent a Solana route to the EVM path.
+ */
+export function routeTxKind(
+  txReq: TxRequest | null | undefined,
+  fallbackChainId?: number | string
+): RouteTxKind | undefined {
+  if (!txReq?.data) return undefined;
+  const chainKey =
+    normalizeChainKey(txReq.chainId) || normalizeChainKey(fallbackChainId);
+  if (chainKey === "") return undefined;
+  switch (normalizeChainType(chainKey)) {
+    case "solana":
+      return "solana";
+    case "evm":
+      return txReq.to || txReq.target ? "evm" : undefined;
+    default:
+      return undefined;
+  }
 }
 
 export async function buildRoute(
@@ -267,6 +292,13 @@ export async function buildRoute(
 
   if (!txReq?.data) {
     throw new Error("Invalid route: missing transaction data");
+  }
+  // A route's transaction is sent on the route's source chain. A backend
+  // that predates stamping it passes LiFi's Solana transaction on with no
+  // chainId, and the send then had no chain to name (staging, 2026-11-11).
+  // Filled here, where every route enters the SDK, so no send path guesses.
+  if (normalizeChainKey(txReq.chainId) === "") {
+    txReq.chainId = body.fromChain;
   }
   assertValidRouteApprovals(route?.execution?.approvals);
   const expiresAt = parseRouteExpiresAt(

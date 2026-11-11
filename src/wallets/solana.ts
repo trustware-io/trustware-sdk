@@ -1,4 +1,5 @@
 import { encodeBase58 } from "./base58";
+import { SOLANA_MAINNET_CHAIN_KEY } from "../utils/chains";
 import {
   broadcastUntilSettled,
   proxyBroadcastIO,
@@ -397,7 +398,7 @@ export function toSolanaWalletInterface(
       await provider.disconnect?.();
     },
     async getChainKey() {
-      return "solana-mainnet-beta";
+      return SOLANA_MAINNET_CHAIN_KEY;
     },
     async sendSerializedTransaction(
       serializedTransactionBase64: string,
@@ -421,7 +422,10 @@ export function toSolanaWalletInterface(
           bytes,
           encodeBase64(bytes)
         );
-        const resolvedChainId = chainId?.trim() || "solana-mainnet";
+        // Left out, the chain is this wallet's own (getChainKey). The key it
+        // used to default to, "solana-mainnet", is not one the backend
+        // knows: every send without a chain id failed CHAIN_NOT_FOUND.
+        const resolvedChainId = chainId?.trim() || SOLANA_MAINNET_CHAIN_KEY;
         return broadcastUntilSettled(
           signed,
           proxyBroadcastIO(resolvedChainId, options?.routeIntentId),

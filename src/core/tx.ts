@@ -11,8 +11,7 @@ import {
   buildRoute,
   submitStepReceipt,
   pollStatus,
-  isEvmTxRequest,
-  isSerializedSolanaTxRequest,
+  routeTxKind,
 } from "./routes";
 import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
 import {
@@ -27,7 +26,17 @@ import {
   type ReplacementWatchTiming,
 } from "./evmReplacement";
 import type { VaultRedeemAction } from "./vaults";
+import { SOLANA_MAINNET_CHAIN_KEY } from "../utils/chains";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
+
+/** Thrown by sendRouteTransaction, before the wallet is asked, when the
+ *  connected wallet can't sign on the route's source chain. */
+export const EVM_WALLET_REQUIRED = "An EVM wallet is required for this route";
+export const SOLANA_WALLET_REQUIRED =
+  "A Solana wallet is required for this route";
+/** Starts the message sendRouteTransaction throws, before the wallet is
+ *  asked, for a route that is neither an EVM nor a Solana transaction. */
+export const INVALID_ROUTE_TRANSACTION = "Invalid route transaction payload";
 
 function backendChainId(chain?: ChainDef, fallback?: number | string): string {
   const preferred = chain?.networkIdentifier ?? chain?.chainId ?? chain?.id;
@@ -448,9 +457,17 @@ export async function sendRouteTransactionReporting(
   if (!w) throw new Error("Trustware.wallet not configured");
 
   const txReq = b.txReq;
-  if (isEvmTxRequest(txReq)) {
+  const kind = routeTxKind(txReq, fallbackChainId);
+  if (kind === undefined) {
+    throw new Error(
+      `${INVALID_ROUTE_TRANSACTION}: no EVM or Solana transaction to send on chain ${String(
+        txReq.chainId ?? fallbackChainId
+      )} (intent ${b.intentId}).`
+    );
+  }
+  if (kind === "evm") {
     if (w.ecosystem !== "evm") {
-      throw new Error("An EVM wallet is required for this route");
+      throw new Error(EVM_WALLET_REQUIRED);
     }
 
     const to = (txReq.to ?? txReq.target) as `0x${string}`;
@@ -547,9 +564,9 @@ export async function sendRouteTransactionReporting(
     return accepted(response.hash as string);
   }
 
-  if (isSerializedSolanaTxRequest(txReq)) {
+  if (kind === "solana") {
     if (w.ecosystem !== "solana") {
-      throw new Error("A Solana wallet is required for this route");
+      throw new Error(SOLANA_WALLET_REQUIRED);
     }
 
     // Only a chain lookup is needed here, so reuse the shared registry (already
@@ -559,13 +576,11 @@ export async function sendRouteTransactionReporting(
     const registry = getSharedRegistry();
     await registry.ensureChainsLoaded();
 
-    const chain = registry.chain(
-      String(fallbackChainId ?? txReq.chainId ?? "")
-    );
-    const solanaChainId = backendChainId(
-      chain,
-      fallbackChainId ?? txReq.chainId
-    );
+    // The route's own chain first, as on the EVM path: a caller's fallback
+    // is only for a transaction that names none.
+    const routeChainId = txReq.chainId ?? fallbackChainId;
+    const chain = registry.chain(String(routeChainId ?? ""));
+    const solanaChainId = backendChainId(chain, routeChainId);
     // `routeIntentId` lets the backend commit the signature the moment it
     // broadcasts it, whatever happens to the browser after that.
     return accepted(
@@ -576,7 +591,8 @@ export async function sendRouteTransactionReporting(
     );
   }
 
-  throw new Error("Invalid route transaction payload");
+  const unhandled: never = kind;
+  throw new Error(`Unhandled route transaction kind "${String(unhandled)}"`);
 }
 
 /**
@@ -661,7 +677,7 @@ export async function runTopUp(params: {
   const currentChainRef =
     w.ecosystem === "evm"
       ? String(await w.getChainId())
-      : ((await w.getChainKey?.()) ?? "solana-mainnet-beta");
+      : ((await w.getChainKey?.()) ?? SOLANA_MAINNET_CHAIN_KEY);
   const originalChain =
     w.ecosystem === "evm" ? await w.getChainId() : undefined;
 
