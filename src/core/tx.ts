@@ -11,8 +11,7 @@ import {
   buildRoute,
   submitStepReceipt,
   pollStatus,
-  isEvmTxRequest,
-  isSerializedSolanaTxRequest,
+  routeTxKind,
 } from "./routes";
 import { getEVMAllowance, getEVMTxStatus } from "./sdkRpc";
 import {
@@ -29,6 +28,12 @@ import {
 import type { VaultRedeemAction } from "./vaults";
 import { SOLANA_MAINNET_CHAIN_KEY } from "../utils/chains";
 import { keccak256, encodeFunctionData, parseAbi } from "viem";
+
+/** Thrown by sendRouteTransaction, before the wallet is asked, when the
+ *  connected wallet can't sign on the route's source chain. */
+export const EVM_WALLET_REQUIRED = "An EVM wallet is required for this route";
+export const SOLANA_WALLET_REQUIRED =
+  "A Solana wallet is required for this route";
 
 function backendChainId(chain?: ChainDef, fallback?: number | string): string {
   const preferred = chain?.networkIdentifier ?? chain?.chainId ?? chain?.id;
@@ -449,9 +454,17 @@ export async function sendRouteTransactionReporting(
   if (!w) throw new Error("Trustware.wallet not configured");
 
   const txReq = b.txReq;
-  if (isEvmTxRequest(txReq)) {
+  const kind = routeTxKind(txReq, fallbackChainId);
+  if (kind === undefined) {
+    throw new Error(
+      `Invalid route transaction payload: no EVM or Solana transaction to send on chain ${String(
+        txReq.chainId ?? fallbackChainId
+      )} (intent ${b.intentId}).`
+    );
+  }
+  if (kind === "evm") {
     if (w.ecosystem !== "evm") {
-      throw new Error("An EVM wallet is required for this route");
+      throw new Error(EVM_WALLET_REQUIRED);
     }
 
     const to = (txReq.to ?? txReq.target) as `0x${string}`;
@@ -548,9 +561,9 @@ export async function sendRouteTransactionReporting(
     return accepted(response.hash as string);
   }
 
-  if (isSerializedSolanaTxRequest(txReq)) {
+  if (kind === "solana") {
     if (w.ecosystem !== "solana") {
-      throw new Error("A Solana wallet is required for this route");
+      throw new Error(SOLANA_WALLET_REQUIRED);
     }
 
     // Only a chain lookup is needed here, so reuse the shared registry (already
@@ -575,7 +588,8 @@ export async function sendRouteTransactionReporting(
     );
   }
 
-  throw new Error("Invalid route transaction payload");
+  const unhandled: never = kind;
+  throw new Error(`Unhandled route transaction kind "${String(unhandled)}"`);
 }
 
 /**
