@@ -302,6 +302,20 @@ describe("a Squid deposit-address route from Solana", () => {
     assert.equal(outcome.hash, "solana-signature-1");
   });
 
+  it("is rebuilt by the request's chain when the route names none", async () => {
+    walletManager.attachWallet(solanaWallet(events));
+    const reviewed = await buildRouteForReview(SOLANA_REQUEST);
+    delete reviewed.result.txReq.chainId;
+
+    await sendReviewedRoute(reviewed, SOLANA);
+
+    assert.deepEqual(
+      events.map((e) => e.kind),
+      ["build", "build", "sign", "receipt"]
+    );
+    assert.deepEqual(events[2], { kind: "sign", data: SQUID_REBUILT_DATA });
+  });
+
   it("with an EVM wallet connected, is refused before the wallet is asked", async () => {
     walletManager.attachWallet(evmWallet(events));
     const reviewed = await buildRouteForReview(SOLANA_REQUEST);
