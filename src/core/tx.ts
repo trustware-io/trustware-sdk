@@ -34,6 +34,9 @@ import { keccak256, encodeFunctionData, parseAbi } from "viem";
 export const EVM_WALLET_REQUIRED = "An EVM wallet is required for this route";
 export const SOLANA_WALLET_REQUIRED =
   "A Solana wallet is required for this route";
+/** Starts the message sendRouteTransaction throws, before the wallet is
+ *  asked, for a route that is neither an EVM nor a Solana transaction. */
+export const INVALID_ROUTE_TRANSACTION = "Invalid route transaction payload";
 
 function backendChainId(chain?: ChainDef, fallback?: number | string): string {
   const preferred = chain?.networkIdentifier ?? chain?.chainId ?? chain?.id;
@@ -457,7 +460,7 @@ export async function sendRouteTransactionReporting(
   const kind = routeTxKind(txReq, fallbackChainId);
   if (kind === undefined) {
     throw new Error(
-      `Invalid route transaction payload: no EVM or Solana transaction to send on chain ${String(
+      `${INVALID_ROUTE_TRANSACTION}: no EVM or Solana transaction to send on chain ${String(
         txReq.chainId ?? fallbackChainId
       )} (intent ${b.intentId}).`
     );

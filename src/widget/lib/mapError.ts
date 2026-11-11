@@ -4,7 +4,11 @@ import {
   RouteDeclineCode,
   type RouteErrorFacts,
 } from "src/core";
-import { EVM_WALLET_REQUIRED, SOLANA_WALLET_REQUIRED } from "src/core/tx";
+import {
+  EVM_WALLET_REQUIRED,
+  INVALID_ROUTE_TRANSACTION,
+  SOLANA_WALLET_REQUIRED,
+} from "src/core/tx";
 import {
   TRACKING_NOT_CONFIRMED,
   TRACKING_RECEIPT_REJECTED,
@@ -254,6 +258,14 @@ function classifyError(raw: unknown, msg: string): MappedError {
       title: "Wrong Wallet",
       message:
         "This route is sent from Solana, so it needs a Solana wallet. Connect one and try again. Nothing was sent.",
+    };
+  }
+  if (msg.startsWith(INVALID_ROUTE_TRANSACTION)) {
+    return {
+      category: "transaction_failed",
+      title: "Route Not Supported",
+      message:
+        "This route's transaction can't be sent from here. Nothing was sent. Try a different token or chain.",
     };
   }
 

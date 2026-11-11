@@ -17,6 +17,11 @@ import {
   useDepositTransaction,
 } from "../context/DepositContext";
 import type { BuildRouteResult } from "../../types";
+import {
+  EVM_WALLET_REQUIRED,
+  INVALID_ROUTE_TRANSACTION,
+  SOLANA_WALLET_REQUIRED,
+} from "../../core/tx";
 
 /**
  * Transaction submission state
@@ -231,7 +236,7 @@ export function useTransactionSubmit() {
 /**
  * Maps wallet/transaction errors to user-friendly messages
  */
-function mapTransactionError(err: unknown): string {
+export function mapTransactionError(err: unknown): string {
   if (!err) {
     return "Transaction failed. Please try again.";
   }
@@ -251,6 +256,18 @@ function mapTransactionError(err: unknown): string {
       : typeof err === "string"
         ? err
         : String(err);
+
+  // Refusals sendRouteTransaction throws before the wallet is asked. The
+  // error page's mapError recognizes them by their exact text, so they pass
+  // through untouched: the substring rules below would turn "on chain X" into
+  // switch-network advice.
+  if (
+    msg === EVM_WALLET_REQUIRED ||
+    msg === SOLANA_WALLET_REQUIRED ||
+    msg.startsWith(INVALID_ROUTE_TRANSACTION)
+  ) {
+    return msg;
+  }
 
   const msgLower = msg.toLowerCase();
 
