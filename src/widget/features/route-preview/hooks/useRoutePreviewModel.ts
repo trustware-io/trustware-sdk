@@ -119,7 +119,8 @@ export function useRoutePreviewModel({
     if (
       isSameChainSelfTransfer(
         { chainId: fromChainId, token: routeConfig.fromToken },
-        { chainId: routeConfig.toChainId, token: routeConfig.toToken }
+        { chainId: routeConfig.toChainId, token: routeConfig.toToken },
+        selectedChain.type ?? selectedChain.chainType
       )
     ) {
       return "No self-transfer on same chain.";
