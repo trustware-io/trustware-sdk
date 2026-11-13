@@ -431,6 +431,26 @@ replaces an EVM transaction (EIP-1193 wallets). `getStatus` can report
 `"expired"`, which is terminal. Treat any status you don't recognize as
 not finished, and keep polling.
 
+### API version and field names
+
+The SDK calls the Trustware API at `/api/v2`, where every JSON field is
+camelCase, and the types it returns follow. If you read these off the objects
+the SDK returns, rename them:
+
+| Object | Before | Now |
+| --- | --- | --- |
+| `Transaction` | `origin_eoa` | `originEoa` |
+| `Transaction` | `landed_amount_verified` | `landedAmountVerified` |
+| `WalletAddressBalanceWrapper` | `chain_id` | `chainId` |
+| `BalanceRow` | `chain_key` | `chainKey` |
+
+`Transaction` and its `steps` carry only the fields their types name; the raw
+snake_case keys that used to ride along are gone. `submitReceipt` resolves to
+`{ ok, transactionId, sourceTxHash }` and `submitStepReceipt` to
+`{ ok, step }`. A response that breaks the contract (a missing `status`, a
+balance row without `chainKey`) throws a `ResponseShapeError` that names the
+field instead of returning a partial object.
+
 See [docs.trustware.io](https://docs.trustware.io) for the full headless flow.
 
 ## Common Config Examples
