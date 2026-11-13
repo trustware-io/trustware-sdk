@@ -5,7 +5,7 @@ import { TrustwareConfigStore } from "../../config/store";
 
 const realFetch = globalThis.fetch;
 const WALLET = "0xa5cc6f03b19b7528d34e19c7cdb918bdbe6ccbf1";
-const USDC = "0x833589fcdbd6edb6e08f4c7c32d4f71b54bda02913";
+const USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), {

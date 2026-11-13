@@ -7,7 +7,7 @@ import { HttpError } from "../http";
 import { TrustwareConfigStore } from "../../config/store";
 
 const realFetch = globalThis.fetch;
-const USDC = "0x833589fcdbd6edb6e08f4c7c32d4f71b54bda02913";
+const USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 
 type Reply = { status?: number; body: unknown };
 
