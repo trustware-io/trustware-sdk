@@ -1,5 +1,6 @@
 import { encodeFunctionData } from "viem";
-import { apiBase, jsonHeaders, rateLimitedFetch } from "../core/http";
+import { fetchNativePriceUsd, fetchTokenPriceUsd } from "../core/prices";
+import { ResponseShapeError } from "../core/wire";
 
 // Canonical WETH9 address per chain. OP Stack chains share the same address.
 export const WETH_BY_CHAIN: Record<number, `0x${string}`> = {
@@ -109,20 +110,14 @@ export async function estimateRelayFeeInToken(
     tokenUnitsPerDollar = Number(fromAmountWei) / fromUSD;
   } else if (fromToken && fromDecimals !== undefined) {
     try {
-      // Rate limited per API key like the rest of the SDK surface; a 429
-      // here silently zeroes the relay fee reserve below, so it is worth
-      // retrying. The surrounding catch keeps that degradation soft.
-      const resp = await rateLimitedFetch(
-        `${apiBase()}/price/token?chainId=${cid}&address=${fromToken}`,
-        { headers: jsonHeaders() }
-      );
-      if (!resp.ok) throw new Error(`token price HTTP ${resp.status}`);
-      const json = (await resp.json()) as { data?: { priceUSD?: string } };
-      const tokenPriceUSD = parseFloat(json.data?.priceUSD ?? "0");
-      if (tokenPriceUSD <= 0) throw new Error("zero token price");
+      // A 429 here silently zeroes the relay fee reserve below, so the price
+      // call retries it. Any other outage keeps the degradation soft; a body
+      // that breaks the contract does not.
+      const tokenPriceUSD = await fetchTokenPriceUsd(cid, fromToken);
       // CoinGecko returns price per full token, so scale by decimals.
       tokenUnitsPerDollar = Math.pow(10, fromDecimals) / tokenPriceUSD;
-    } catch {
+    } catch (error) {
+      if (error instanceof ResponseShapeError) throw error;
       return 0n;
     }
   } else {
@@ -130,20 +125,14 @@ export async function estimateRelayFeeInToken(
   }
 
   try {
-    const resp = await rateLimitedFetch(
-      `${apiBase()}/price/native?chainId=${cid}`,
-      { headers: jsonHeaders() }
-    );
-    if (!resp.ok) throw new Error(`native price HTTP ${resp.status}`);
-    const json = (await resp.json()) as { data?: { priceUSD?: string } };
-    const ethPriceUSD = parseFloat(json.data?.priceUSD ?? "0");
-    if (ethPriceUSD <= 0) throw new Error("zero ETH price");
+    const ethPriceUSD = await fetchNativePriceUsd(cid);
 
     const relayFeeUSD = (Number(valueWei) / 1e18) * ethPriceUSD;
     const amountIn = Math.ceil(relayFeeUSD * tokenUnitsPerDollar * 1.25);
 
     return BigInt(amountIn);
-  } catch {
+  } catch (error) {
+    if (error instanceof ResponseShapeError) throw error;
     return 0n;
   }
 }
