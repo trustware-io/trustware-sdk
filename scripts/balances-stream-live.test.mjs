@@ -43,7 +43,7 @@ function holdings(wrappers) {
   for (const wrapper of wrappers) {
     for (const row of wrapper.balances ?? []) {
       if (!row.balance || row.balance === "0") continue;
-      out.set(`${wrapper.chain_id}:${row.contract ?? row.address ?? row.symbol}`, row.balance);
+      out.set(`${wrapper.chainId}:${row.contract ?? row.address ?? row.symbol}`, row.balance);
     }
   }
   return out;

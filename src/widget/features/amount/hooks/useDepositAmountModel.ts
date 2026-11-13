@@ -229,8 +229,8 @@ export function useDepositAmountModel({
     const token = selectedToken as YourTokenData | null;
     const isSolNative =
       token?.category === "native" &&
-      typeof token.chain_key === "string" &&
-      token.chain_key.toLowerCase().includes("solana");
+      typeof token.chainKey === "string" &&
+      token.chainKey.toLowerCase().includes("solana");
     // Reserve 0.01 SOL for fees + rent-exempt minimum; % buffer is unsafe at low balances
     return isSolNative ? Math.max(0, cap - 0.01) : cap;
   }, [normalizedTokenBalance, selectedToken]);

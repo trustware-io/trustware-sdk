@@ -78,6 +78,20 @@ export function requireString(
   return value;
 }
 
+/** A string the API sends even when it has nothing to say (a chain error's `source`). */
+export function requireText(
+  wire: WireObject,
+  key: string,
+  source: string,
+  path = key
+): string {
+  const value = wire[key];
+  if (typeof value !== "string") {
+    throw new ResponseShapeError(source, path, "a string", value);
+  }
+  return value;
+}
+
 export function requireNumber(
   wire: WireObject,
   key: string,

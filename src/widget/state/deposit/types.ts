@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { ReceiptDeliveryOutcome } from "src/core/intentTracking";
 import type { ReceiptReport } from "src/core/receipt";
+import type { BalanceRow } from "src/types";
 
 /**
  * A sent transaction for the Processing page to track. `delivery` is the
@@ -34,8 +35,9 @@ export interface YourTokenData {
   chainId: number | string;
   usdPrice: number | undefined;
   address: string;
-  chain_key: string;
-  category: "native" | "erc20" | "spl" | "btc";
+  chainKey: string;
+  logoUrl?: string;
+  category: BalanceRow["category"];
   contract?: string;
   balance: string;
 }

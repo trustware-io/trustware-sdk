@@ -19,8 +19,7 @@ export function WalletTokenListItem({
   onSelect,
   token,
 }: WalletTokenListItemProps): React.ReactElement {
-  const logoUrl =
-    token.iconUrl || (token as typeof token & { logo_url?: string }).logo_url;
+  const logoUrl = token.iconUrl || token.logoUrl;
 
   return (
     <button

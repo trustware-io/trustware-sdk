@@ -14,20 +14,25 @@ export type TokenMeta = {
 };
 
 export type BalanceRow = {
-  chain_key: string;
-  category: "native" | "erc20" | "spl" | "btc";
+  chainKey: string;
+  /** Every category the backend's balance scanners emit: `coin` is a Sui
+   *  coin, `bank` a Cosmos bank denom. */
+  category: "native" | "erc20" | "spl" | "btc" | "coin" | "bank";
   contract?: string;
   address?: string;
   symbol?: string;
   decimals: number;
   balance: string;
   name?: string;
+  /** The logo the balance scan reported (the API's `logoUrl`). `logoURI` is
+   *  the catalog's. */
+  logoUrl?: string;
   logoURI?: string;
   usdPrice?: number;
 };
 
 export type WalletAddressBalanceWrapper = {
-  chain_id: string;
+  chainId: string;
   balances: BalanceRow[];
   count: number;
   error: string | null;
