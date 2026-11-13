@@ -233,6 +233,22 @@ export function routeTxKind(
   }
 }
 
+/**
+ * What `POST /routes/route` and `POST /routes/deposit-address` receive. The
+ * USD amount goes out as `fromAmountUsd`, the v2 spelling, whichever of the
+ * two names the caller used.
+ */
+function routeRequestBody(body: BuildRouteBody) {
+  const { fromAmountUSD, fromAmountUsd, ...rest } = body;
+  return {
+    ...rest,
+    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
+    toToken: canonicalRouteToken(body.toToken, body.toChain),
+    slippageBps: requestSlippageBps(body),
+    fromAmountUsd: fromAmountUSD ?? fromAmountUsd,
+  };
+}
+
 export async function buildRoute(
   body: BuildRouteBody,
   signal?: AbortSignal
@@ -253,13 +269,7 @@ export async function buildRoute(
 
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/routes/route`;
-  const payload = {
-    ...body,
-    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
-    toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps: requestSlippageBps(body),
-    fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
-  };
+  const payload = routeRequestBody(body);
   const r = await rateLimitedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
@@ -353,13 +363,7 @@ export async function buildDepositAddress(
   assertValidVaultRequest(body);
   const cfg = TrustwareConfigStore.get();
   const url = `${apiBase()}/routes/deposit-address`;
-  const payload = {
-    ...body,
-    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
-    toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps: requestSlippageBps(body),
-    fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
-  };
+  const payload = routeRequestBody(body);
   const r = await rateLimitedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
