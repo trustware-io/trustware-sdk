@@ -272,18 +272,20 @@ export type IntentExecutionStep = {
 // };
 
 export type SponsorshipApproval = {
-  client_id: string;
-  program_id: string;
-  sdk_key_id: string;
+  clientId: string;
+  programId: string;
+  sdkKeyId: string;
   sender: string;
-  call_data_hash: string;
-  chain_id: string;
-  max_cost: string;
-  valid_after?: string | null;
-  valid_until?: string | null;
+  callDataHash: string;
+  chainId: string;
+  maxCost: string;
+  validAfter?: string;
+  validUntil?: string;
   nonce: string;
-  entry_point: string;
+  entryPoint: string;
   paymaster: string;
+  verificationGasLimit?: string;
+  postOpGasLimit?: string;
 };
 
 export type RouteSponsorship = {

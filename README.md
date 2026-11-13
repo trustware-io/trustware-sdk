@@ -443,6 +443,7 @@ the SDK returns, rename them:
 | `Transaction` | `landed_amount_verified` | `landedAmountVerified` |
 | `WalletAddressBalanceWrapper` | `chain_id` | `chainId` |
 | `BalanceRow` | `chain_key` | `chainKey` |
+| `SponsorshipApproval` | `client_id`, `call_data_hash`, `valid_until` and the rest | `clientId`, `callDataHash`, `validUntil`, ... |
 
 `Transaction` and its `steps` carry only the fields their types name; the raw
 snake_case keys that used to ride along are gone. `submitReceipt` resolves to
