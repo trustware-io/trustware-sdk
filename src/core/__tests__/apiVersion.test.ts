@@ -2,8 +2,14 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { API_PREFIX, API_ROOT, API_VERSION } from "../../constants";
-import { apiBase, validateSdkAccess } from "../http";
+import {
+  API_PREFIX,
+  API_ROOT,
+  API_VERSION,
+  SDK_NAME,
+  SDK_VERSION,
+} from "../../constants";
+import { apiBase, jsonHeaders, validateSdkAccess } from "../http";
 import { fetchForexRates } from "../forex";
 import { getEVMAllowance } from "../sdkRpc";
 import { TrustwareConfigStore } from "../../config/store";
@@ -118,5 +124,17 @@ describe("the API version", () => {
     };
     walk(root);
     assert.deepEqual(offenders, []);
+  });
+
+  it("travels in the path only: requests carry no X-API-Version header", () => {
+    // The SDK used to send "X-API-Version: 2025-10-01", which the backend
+    // never read and which shares its name with the response header that
+    // says "v2". The key and the SDK's own name and release still go out.
+    assert.deepEqual(jsonHeaders(), {
+      "Content-Type": "application/json",
+      "X-API-Key": "test-key",
+      "X-SDK-Name": SDK_NAME,
+      "X-SDK-Version": SDK_VERSION,
+    });
   });
 });

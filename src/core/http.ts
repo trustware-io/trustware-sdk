@@ -20,7 +20,6 @@ export function jsonHeaders(extra?: Record<string, string>): HeadersInit {
     "X-API-Key": cfg.apiKey,
     "X-SDK-Name": SDK_NAME,
     "X-SDK-Version": SDK_VERSION,
-    "X-API-Version": "2025-10-01",
   };
   return { ...h, ...(extra || {}) };
 }
