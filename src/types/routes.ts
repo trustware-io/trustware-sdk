@@ -24,14 +24,13 @@ export type RouteIntent = {
   minToAmountWei: string | number;
   /** Trustware's own request ID (a UUID) for the call that created this
    *  intent — the same value the response carried in `X-Request-Id`, so it is
-   *  the ID to quote in a Trustware support request. Wire field:
-   *  `request_id`. Absent on intents created before it was split from
-   *  `providerRequestId`. */
+   *  the ID to quote in a Trustware support request. Absent on intents
+   *  created before it was split from `providerRequestId`. */
   requestId?: string;
   /** The routing provider's own correlation ID: Squid `requestId`, LiFi/Relay
    *  route id, or Khalani's `{quoteId,routeId}` composite — the ID *that
-   *  provider's* status API and support recognise. Wire field:
-   *  `provider_request_id`. Absent when the winning provider returned none. */
+   *  provider's* status API and support recognise. Absent when the winning
+   *  provider returned none. */
   providerRequestId?: string;
   routeRaw?: unknown;
   status: "created" | "submitted" | "bridging" | "success" | "failed";
@@ -47,61 +46,52 @@ export type RouteIntent = {
  * transaction row to describe yet. Check `status` before reading anything
  * else.
  *
- * The wire is snake_case (`source_tx_hash`, `intent_id`, ...) while this type
- * is camelCase. `getStatus` maps one onto the other (see
- * `normalizeStatusPayload` in core/routes.ts), so anything reaching you through
- * `getStatus`/`pollStatus`/`runTopUp` has the camelCase names populated.
- *
- * The raw snake_case keys are still present **at runtime** — dropping them
- * would break callers that already read them — but they are deliberately not
- * declared here, because camelCase is the supported spelling and the raw ones
- * are only kept for back-compat. Reading `tx.source_tx_hash` therefore needs a
- * cast, and new code should not: use `tx.sourceTxHash`.
- *
- * `origin_eoa` and `landed_amount_verified` are the exception — the wire has no
- * camelCase spelling for those two, so they are declared as-is below.
- * `refunded` is one word, the same in both spellings.
+ * `getStatus` parses the API's `/route-intent/{id}/status` body into this
+ * type (`parseTransactionStatus` in core/statusWire.ts), so every field here
+ * is the one the API sent under the same name, except where the field's doc
+ * says otherwise: `quoteToAmountUSD`, `approvedSponsoredGasUSD`,
+ * `gasSponsoredUSD`, `actualSponsoredGasUSD` and `isGMPTransaction` are the
+ * API's `...Usd` and `isGmpTransaction`, and `createdDate` and `updatedDate`
+ * are its `createDate` and `updateDate`. A payload field this type does not
+ * name is not carried over.
  */
 export type Transaction = {
   id?: string;
   intentId?: string;
-  /** The Client Dashboard project the intent belongs to. Wire field:
-   *  `project_id`. */
+  /** The Client Dashboard project the intent belongs to. */
   projectId?: string;
-  /** ID of the SDK key that built the route — the key's ID, never the key.
-   *  Wire field: `sdk_api_key_id`. */
+  /** ID of the SDK key that built the route — the key's ID, never the key. */
   sdkApiKeyId?: string;
   /** True when the intent was built with a Trustware SDK key. Backends before
-   *  quicklinks_v1#348 always sent `false` on the status payload. Wire field:
-   *  `sdk_request`. */
+   *  quicklinks_v1#348 always sent `false` on the status payload. */
   sdkRequest?: boolean;
   fromAddress?: string;
   toAddress?: string;
   /** Connected wallet (EOA) that originated the payment when the sender is a
-   *  smart account. Wire field: `origin_eoa`. */
-  origin_eoa?: string;
+   *  smart account. */
+  originEoa?: string;
   fromChainId?: string | number;
   toChainId?: string | number;
   sourceTxHash?: string;
   destTxHash?: string;
-  /** Trustware's own request ID (a UUID), copied from the intent. Wire field:
-   *  `request_id`. Optional: absent on a "pending" payload, and on rows
-   *  created before it was split from `providerRequestId`. */
+  /** Trustware's own request ID (a UUID), copied from the intent. Optional:
+   *  absent on a "pending" payload, and on rows created before it was split
+   *  from `providerRequestId`. */
   requestId?: string;
   /** The routing provider's own correlation ID, copied from the intent — what
-   *  that provider's status API polls with. Wire field:
-   *  `provider_request_id`. See RouteIntent.providerRequestId. */
+   *  that provider's status API polls with. See
+   *  RouteIntent.providerRequestId. */
   providerRequestId?: string;
-  /** The routing provider's quote ID, when it issued one. Wire field:
-   *  `provider_quote_id`. */
+  /** The routing provider's quote ID, when it issued one. */
   providerQuoteId?: string;
   /** How far the commit endpoint got proving the payer authorized the
    *  transaction. `"unverified"` means the check could not reach an answer,
-   *  not that it failed: a definite mismatch is refused at commit instead.
-   *  Wire field: `sender_verification`. */
+   *  not that it failed: a definite mismatch is refused at commit instead. */
   senderVerification?: SenderVerification;
-  /** The routing provider used for this route, as a runtime value. Wire
-   *  field: `routing_provider`. */
+  /** The short reason behind `senderVerification`, e.g. "erc7710 delegation
+   *  redemption" or the RPC error that made the check inconclusive. */
+  senderVerificationDetail?: string;
+  /** The routing provider used for this route, as a runtime value. */
   routingProvider?: string;
   transactionRequest?: unknown;
   /**
@@ -109,7 +99,7 @@ export type Transaction = {
    * the backend returns it (HTTP 200) instead of the old 404 so pollers can
    * tell "not ready yet, keep polling" apart from "unknown intent" (a real
    * 404, which means stop polling). A pending response carries only
-   * `intent_id`, `status`, `intent_status`, `create_date`, `expiresAt` and
+   * `intentId`, `status`, `intentStatus`, `createDate`, `expiresAt` and
    * — once the intent has an execution step plan — `steps`; every other
    * field here is absent until a receipt lands.
    *
@@ -127,53 +117,50 @@ export type Transaction = {
   /**
    * When the route intent stops being usable (RFC 3339). Present while
    * nothing has been committed for it; once a receipt lands the payload
-   * describes the transaction instead. Wire field: `expiresAt` (the one
-   * camelCase field of the v1 status payload).
+   * describes the transaction instead.
    */
   expiresAt?: string;
   /** The intent's own lifecycle state. Only on a `"pending"` or `"expired"`
-   *  payload. Wire field: `intent_status`. */
+   *  payload. */
   intentStatus?: IntentLifecycleStatus;
   /** The intent's execution plan: one `"approve"` step per required
    *  allowance, then the route's own `"main"` transaction. Present once the
    *  intent has a plan, including on a `"pending"` payload, so a resuming
-   *  client can see an approval already landed. Wire field: `steps`. */
+   *  client can see an approval already landed. */
   steps?: IntentExecutionStep[];
-  /** Expected destination USD value from the quote, as a decimal string.
-   *  Wire field: `quote_to_amount_usd`. */
+  /** Expected destination USD value from the quote, as a decimal string. */
   quoteToAmountUSD?: string;
   statusRaw?: unknown;
   routePath?: unknown;
   routeStatus?: unknown;
   /**
-   * Exact once landed_amount_verified is true; otherwise a pre-trade quote
+   * Exact once landedAmountVerified is true; otherwise a pre-trade quote
    * estimate copied in when the transaction was submitted — neither Squid's
    * nor LiFi's status API carries a real landed-amount field, so the
    * backend confirms it by reading the destination chain directly instead
-   * (see BVT-246). Check `landed_amount_verified` before auto-continuing
+   * (see BVT-246). Check `landedAmountVerified` before auto-continuing
    * on this value.
    */
   toAmountWei?: string | number;
   /** True once toAmountWei has been confirmed on-chain rather than being the
-   *  pre-trade quote estimate. Wire field: `landed_amount_verified`. */
-  landed_amount_verified?: boolean;
+   *  pre-trade quote estimate. */
+  landedAmountVerified?: boolean;
   /**
    * True when the routing provider could not complete the route and returned
    * the input to the sender. `status` is then always "failed": a refund is a
    * failure where the user keeps their funds, less fees. The refund can
    * arrive as a different token from the one sent; `statusRaw` holds the
    * provider's details. Absent from backends older than this field, so treat
-   * a missing value as unknown, not as "not refunded". Wire field:
-   * `refunded`.
+   * a missing value as unknown, not as "not refunded".
    */
   refunded?: boolean;
   /** Block the source transaction was mined in. Absent until Trustware has
    *  confirmed it, and on a cross-chain route whose provider reports no
-   *  block. Wire field: `from_chain_block`. */
+   *  block. */
   fromChainBlock?: number;
   /** Block the funds landed in on the destination chain. Absent until the
    *  route settles, on a cross-chain route whose provider reports no block,
-   *  and on a reverted same-chain transaction. Wire field: `to_chain_block`. */
+   *  and on a reverted same-chain transaction. */
   toChainBlock?: number;
   fromChainTxUrl?: string;
   toChainTxUrl?: string;
@@ -181,42 +168,38 @@ export type Transaction = {
   isGMPTransaction?: boolean;
   axelarTransactionUrl?: string;
 
+  /** The API's `createDate`. */
   createdDate: Date | string;
-  updatedDate: Date | string;
+  /** The API's `updateDate`. Absent on a `"pending"` payload. */
+  updatedDate?: Date | string;
   timeSpentMs?: number;
   /** How many times Trustware has polled the routing provider for this
-   *  transaction. Wire field: `poll_attempt`. */
+   *  transaction. */
   pollAttempt?: number;
-  /** When Trustware next checks the routing provider (RFC 3339). Wire field:
-   *  `next_poll_at`. */
+  /** When Trustware next checks the routing provider (RFC 3339). */
   nextPollAt?: string;
 
   /** True when a paymaster sponsored the route's gas. Present on every
-   *  transaction payload. Wire field: `gas_sponsored`. */
+   *  transaction payload. */
   gasSponsored?: boolean;
-  /** The rest are present only on a sponsored route. Wire fields:
-   *  `sponsorship_request_id`, `sponsorship_status`, `paymaster_rule_id`,
-   *  `paymaster_address`. */
+  /** The rest are present only on a sponsored route. */
   sponsorshipRequestId?: string;
   sponsorshipStatus?: SponsorshipStatus;
   paymasterRuleId?: string;
   paymasterAddress?: string;
-  /** Maximum gas cost approved, in USD, as a decimal string. Wire field:
-   *  `approved_sponsored_gas_usd`. `gasSponsoredUSD` (wire
-   *  `gas_sponsored_usd`) carries the same value. */
+  /** Maximum gas cost approved, in USD, as a decimal string (the API's
+   *  `approvedSponsoredGasUsd`). `gasSponsoredUSD` (`gasSponsoredUsd`) carries
+   *  the same value. */
   approvedSponsoredGasUSD?: string;
   gasSponsoredUSD?: string;
-  /** Gas cost actually paid, in USD, once known. Wire field:
-   *  `actual_sponsored_gas_usd`. */
+  /** Gas cost actually paid, in USD, once known (`actualSponsoredGasUsd`). */
   actualSponsoredGasUSD?: string;
-  /** Maximum gas cost approved, in the chain's smallest native unit. Wire
-   *  field: `approved_sponsored_gas_wei`. */
+  /** Maximum gas cost approved, in the chain's smallest native unit. */
   approvedSponsoredGasWei?: string;
   /** Gas cost actually paid, in the chain's smallest native unit, once
-   *  known. Wire field: `actual_sponsored_gas_wei`. */
+   *  known. */
   actualSponsoredGasWei?: string;
-  /** The sponsored user operation's hash. Wire field:
-   *  `sponsorship_user_operation_hash`. */
+  /** The sponsored user operation's hash. */
   sponsorshipUserOperationHash?: string;
 };
 
@@ -240,19 +223,19 @@ export type SponsorshipStatus =
 /**
  * One step of an intent's execution plan, from `Transaction.steps`.
  *
- * Like `Transaction`, the wire is snake_case and `getStatus` adds these
- * camelCase names; the raw keys stay on the object at runtime.
+ * Parsed from the API's step objects by `parseExecutionStep`
+ * (core/statusWire.ts); `createdDate` and `updatedDate` are the API's
+ * `createDate` and `updateDate`.
  */
 export type IntentExecutionStep = {
-  /** Position in the plan. Wire field: `step_index`. */
+  /** Position in the plan. */
   stepIndex: number;
-  /** Wire field: `step_kind`. */
   stepKind: "approve" | "main";
-  /** The chain the step runs on. Wire field: `chain_id`. */
+  /** The chain the step runs on. */
   chainId: string;
   /** A step stays `"planned"` until its transaction hash is reported. */
   status: "planned" | "submitted" | "confirmed" | "failed" | "skipped";
-  /** Absent while the step is `"planned"`. Wire field: `tx_hash`. */
+  /** Absent while the step is `"planned"`. */
   txHash?: string;
   /** Plan snapshot. An `"approve"` step carries the token, spender and
    *  exact amount to approve; a `"main"` step may carry other keys. */
@@ -260,9 +243,7 @@ export type IntentExecutionStep = {
     string,
     unknown
   >;
-  /** Wire field: `create_date`. */
   createdDate: string;
-  /** Wire field: `update_date`. */
   updatedDate: string;
 };
 

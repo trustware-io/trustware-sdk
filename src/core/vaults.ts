@@ -117,7 +117,7 @@ export async function searchVaults(
 
   const qs = q.toString();
   const r = await rateLimitedFetch(
-    `${apiBase()}/v1/routes/vaults${qs ? `?${qs}` : ""}`,
+    `${apiBase()}/routes/vaults${qs ? `?${qs}` : ""}`,
     { headers: jsonHeaders() }
   );
   await assertOK(r);
@@ -135,7 +135,7 @@ export async function getVaultDetails(
   vaultId: string
 ): Promise<VaultSummary> {
   const r = await rateLimitedFetch(
-    `${apiBase()}/v1/routes/vaults/${encodeURIComponent(network)}/${encodeURIComponent(vaultId)}`,
+    `${apiBase()}/routes/vaults/${encodeURIComponent(network)}/${encodeURIComponent(vaultId)}`,
     { headers: jsonHeaders() }
   );
   await assertOK(r);
@@ -191,7 +191,7 @@ export type Position = {
  */
 export async function getVaultPositions(address: string): Promise<Position[]> {
   const r = await rateLimitedFetch(
-    `${apiBase()}/v1/routes/vaults/positions/${encodeURIComponent(address)}`,
+    `${apiBase()}/routes/vaults/positions/${encodeURIComponent(address)}`,
     { headers: jsonHeaders() }
   );
   await assertOK(r);
@@ -245,7 +245,7 @@ export async function getVaultRedeemActions(
   }
 
   const r = await rateLimitedFetch(
-    `${apiBase()}/v1/routes/vaults/redeem/${encodeURIComponent(params.network)}/${encodeURIComponent(params.vaultId)}?${q.toString()}`,
+    `${apiBase()}/routes/vaults/redeem/${encodeURIComponent(params.network)}/${encodeURIComponent(params.vaultId)}?${q.toString()}`,
     { headers: jsonHeaders() }
   );
   await assertOK(r);

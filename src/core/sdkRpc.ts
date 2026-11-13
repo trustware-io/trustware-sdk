@@ -37,7 +37,7 @@ async function requestSDKRPC<T>(
   path: string,
   init: RequestInit = {}
 ): Promise<T> {
-  const response = await rateLimitedFetch(`${apiBase()}/v1/sdk/rpc${path}`, {
+  const response = await rateLimitedFetch(`${apiBase()}/sdk/rpc${path}`, {
     ...init,
     headers: jsonHeaders(),
   });

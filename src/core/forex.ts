@@ -4,13 +4,13 @@ export type ForexRates = Record<string, number>;
 
 /** Fetch all forex rates relative to `base` (default USD). */
 export async function fetchForexRates(base = "USD"): Promise<ForexRates> {
-  // /v1/forex is rate limited per API key like the rest of the SDK surface, so
+  // /forex is rate limited per API key like the rest of the SDK surface, so
   // it goes through the retrying fetch. Failure stays soft — callers fall back
   // to USD-only display rather than blocking on currency conversion — which
   // includes the RateLimitError that fetch throws once retries run out.
   let r: Response;
   try {
-    r = await rateLimitedFetch(`${apiBase()}/v1/forex?base=${base}`, {
+    r = await rateLimitedFetch(`${apiBase()}/forex?base=${base}`, {
       headers: jsonHeaders(),
     });
   } catch {

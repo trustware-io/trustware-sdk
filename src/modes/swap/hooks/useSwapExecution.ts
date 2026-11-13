@@ -34,23 +34,6 @@ import type { SwapTxStatus } from "../types";
 // How long to avoid the SA path after a transient failure before retrying.
 const SA_COOLDOWN_MS = 30_000;
 
-// The API returns snake_case but Transaction type is camelCase — normalize both forms.
-function normalizeTx(raw: Transaction): Transaction {
-  const r = raw as unknown as Record<string, unknown>;
-  return {
-    ...raw,
-    sourceTxHash:
-      (r.sourceTxHash as string) || (r.source_tx_hash as string) || "",
-    destTxHash: (r.destTxHash as string) || (r.dest_tx_hash as string) || "",
-    fromChainTxUrl:
-      (r.fromChainTxUrl as string) ||
-      (r.from_chain_tx_url as string) ||
-      undefined,
-    toChainTxUrl:
-      (r.toChainTxUrl as string) || (r.to_chain_tx_url as string) || undefined,
-  };
-}
-
 export type AllowanceStatus = "unknown" | "checking" | "needed" | "sufficient";
 
 export type SwapExecutionState = {
@@ -146,8 +129,7 @@ export function useSwapExecution(fromChain: ChainDef | null) {
       void trackIntent(receipt, {
         signal: controller.signal,
         receiptDelivery,
-        onUpdate: (raw) => {
-          const tx = normalizeTx(raw);
+        onUpdate: (tx) => {
           setState((p) => ({
             ...p,
             pollingTx: tx,

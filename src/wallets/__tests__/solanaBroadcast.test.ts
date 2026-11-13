@@ -876,7 +876,7 @@ describe("toSolanaWalletInterface with signTransaction", () => {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
-      if (url.endsWith("/v1/sdk/rpc/solana/send-serialized")) {
+      if (url.endsWith("/v2/sdk/rpc/solana/send-serialized")) {
         const body = JSON.parse(String(init?.body));
         order.push(`send(skipPreflight=${body.skipPreflight})`);
         assert.deepEqual(body, {
@@ -887,7 +887,7 @@ describe("toSolanaWalletInterface with signTransaction", () => {
         // A proxy's own answer is not what the SDK reports.
         return reply({ chainId: "solana-mainnet-beta", signature: "rpc-said" });
       }
-      if (url.includes("/v1/sdk/rpc/solana/blockhash-valid?")) {
+      if (url.includes("/v2/sdk/rpc/solana/blockhash-valid?")) {
         const query = new URL(url).searchParams;
         order.push("precheck");
         assert.deepEqual(Object.fromEntries(query), {
@@ -901,7 +901,7 @@ describe("toSolanaWalletInterface with signTransaction", () => {
           rpcHost: "rpc",
         });
       }
-      if (url.includes("/v1/sdk/rpc/solana/tx-status?")) {
+      if (url.includes("/v2/sdk/rpc/solana/tx-status?")) {
         const query = new URL(url).searchParams;
         order.push("status");
         assert.equal(query.get("signature"), bytesSignature);

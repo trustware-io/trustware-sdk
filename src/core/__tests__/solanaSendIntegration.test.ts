@@ -200,7 +200,7 @@ async function hostSend(script: {
 
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url.endsWith("/v1/sdk/rpc/solana/send-serialized")) {
+    if (url.endsWith("/v2/sdk/rpc/solana/send-serialized")) {
       const body = JSON.parse(String(init?.body));
       const s = current();
       assert.equal(body.chainId, SOLANA);
@@ -216,7 +216,7 @@ async function hostSend(script: {
       order.push(`send(${body.skipPreflight}):${response.status}`);
       return response;
     }
-    if (url.includes("/v1/sdk/rpc/solana/blockhash-valid?")) {
+    if (url.includes("/v2/sdk/rpc/solana/blockhash-valid?")) {
       const query = Object.fromEntries(new URL(url).searchParams);
       const s = current();
       assert.deepEqual(query, { chainId: SOLANA, blockhash: s.blockhash });
@@ -232,7 +232,7 @@ async function hostSend(script: {
       order.push(`valid:${answer}`);
       return response;
     }
-    if (url.includes("/v1/sdk/rpc/solana/tx-status?")) {
+    if (url.includes("/v2/sdk/rpc/solana/tx-status?")) {
       const s = current();
       assert.equal(new URL(url).searchParams.get("signature"), s.signature);
       const next = script.statuses.shift();
@@ -244,19 +244,24 @@ async function hostSend(script: {
       order.push(`status:${body.data?.status ?? response.status}`);
       return response;
     }
-    if (url.includes("/v1/route-intent/") && url.endsWith("/receipt")) {
+    if (url.includes("/v2/route-intent/") && url.endsWith("/receipt")) {
       receipts.push({
-        url: url.slice(url.indexOf("/v1/route-intent/")),
+        url: url.slice(url.indexOf("/v2/route-intent/")),
         body: JSON.parse(String(init?.body)),
       });
       const replyStatus =
         receiptReplies.length > 1 ? receiptReplies.shift()! : receiptReplies[0];
       order.push(replyStatus === 200 ? "receipt" : `receipt:${replyStatus}`);
       return replyStatus === 200
-        ? ok({ ok: true })
+        ? ok({
+            ok: true,
+            transactionId: "tx-row-1",
+            sourceTxHash: (JSON.parse(String(init?.body)) as { txHash: string })
+              .txHash,
+          })
         : envelope(replyStatus, { error: "receipt store unavailable" });
     }
-    if (url.endsWith("/v1/routes/route")) order.push("build");
+    if (url.endsWith("/v2/routes/route")) order.push("build");
     return routes(input, init);
   }) as typeof fetch;
 
@@ -336,7 +341,7 @@ describe("Solana send, end to end against the proxy contract", () => {
     });
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-rebuilt/receipt",
+        url: "/v2/route-intent/intent-rebuilt/receipt",
         body: { txHash: only.signature },
       },
     ]);
@@ -381,7 +386,7 @@ describe("Solana send, end to end against the proxy contract", () => {
     assert.equal(outcome.kind, "sent");
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-rebuilt/receipt",
+        url: "/v2/route-intent/intent-rebuilt/receipt",
         body: { txHash: run.signed[0].signature },
       },
     ]);
@@ -416,7 +421,7 @@ describe("Solana send, end to end against the proxy contract", () => {
     assert.equal(outcome.hash, run.signed[0].signature);
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-rebuilt/receipt",
+        url: "/v2/route-intent/intent-rebuilt/receipt",
         body: { txHash: run.signed[0].signature },
       },
     ]);
@@ -471,11 +476,11 @@ describe("Solana send, end to end against the proxy contract", () => {
     assert.equal((run.outcome as ReviewedRouteSend).kind, "sent");
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-rebuilt/receipt",
+        url: "/v2/route-intent/intent-rebuilt/receipt",
         body: { txHash: run.signed[0].signature },
       },
       {
-        url: "/v1/route-intent/intent-rebuilt/receipt",
+        url: "/v2/route-intent/intent-rebuilt/receipt",
         body: { txHash: run.signed[0].signature },
       },
     ]);
@@ -503,7 +508,7 @@ describe("Solana send, end to end against the proxy contract", () => {
     assert.equal(outcome.hash, run.signed[0].signature);
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-rebuilt/receipt",
+        url: "/v2/route-intent/intent-rebuilt/receipt",
         body: { txHash: run.signed[0].signature },
       },
     ]);
@@ -528,7 +533,7 @@ describe("Solana send, end to end against the proxy contract", () => {
     );
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-rebuilt/receipt",
+        url: "/v2/route-intent/intent-rebuilt/receipt",
         body: { txHash: run.signed[0].signature },
       },
     ]);
@@ -583,7 +588,7 @@ describe("Solana send, end to end against the proxy contract", () => {
     );
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-retry/receipt",
+        url: "/v2/route-intent/intent-retry/receipt",
         body: { txHash: second.signature },
       },
     ]);
@@ -626,7 +631,7 @@ describe("Solana send, end to end against the proxy contract", () => {
     assert.equal(run.retries[0].route.intentId, "intent-retry");
     assert.deepEqual(run.receipts, [
       {
-        url: "/v1/route-intent/intent-retry/receipt",
+        url: "/v2/route-intent/intent-retry/receipt",
         body: { txHash: run.signed[1].signature },
       },
     ]);

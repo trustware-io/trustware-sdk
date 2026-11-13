@@ -41,7 +41,7 @@ describe("commitAcceptedUserOperation", () => {
     globalThis.fetch = (async (url: string, init: RequestInit) => {
       assert.equal(
         url,
-        `https://api.trustware.io/api/v1/route-intent/${INTENT}/receipt`
+        `https://api.trustware.io/api/v2/route-intent/${INTENT}/receipt`
       );
       order.push("commit");
       bodies.push(JSON.parse(String(init.body)));
@@ -64,7 +64,9 @@ describe("commitAcceptedUserOperation", () => {
     serveReceipt(
       () =>
         new Response(
-          JSON.stringify({ data: { ok: true, transaction_id: "tx-1" } }),
+          JSON.stringify({
+            data: { ok: true, transactionId: "tx-1", sourceTxHash: "0xbundle" },
+          }),
           { status: 200 }
         )
     );

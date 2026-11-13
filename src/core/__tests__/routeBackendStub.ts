@@ -95,7 +95,7 @@ export function json(status: number, payload: unknown) {
 }
 
 /**
- * Serves /v1/routes/route from a queue (one reply per build, in order) and
+ * Serves /v2/routes/route from a queue (one reply per build, in order) and
  * the chain list sendRouteTransaction resolves a Solana chain id from.
  * Every build lands in `events` beside the wallet's signs, so a test can
  * read the order they happened in.
@@ -106,7 +106,7 @@ export function stubBackend(events: Event[], replies: RouteReply[]) {
     init?: RequestInit
   ): Promise<Response> => {
     const url = String(input);
-    if (url.endsWith("/v1/routes/route")) {
+    if (url.endsWith("/v2/routes/route")) {
       events.push({
         kind: "build",
         body: JSON.parse(String(init?.body)) as Record<string, unknown>,
@@ -116,7 +116,7 @@ export function stubBackend(events: Event[], replies: RouteReply[]) {
       if ("body" in reply) return json(reply.status, reply.body);
       return json(200, routeJson(reply.intentId, reply.estimate, reply.tx));
     }
-    if (url.endsWith("/v1/routes/chains")) {
+    if (url.endsWith("/v2/routes/chains")) {
       return json(200, {
         data: [
           {
@@ -128,11 +128,13 @@ export function stubBackend(events: Event[], replies: RouteReply[]) {
         ],
       });
     }
-    const receipt = url.match(/\/v1\/route-intent\/([^/]+)\/receipt$/);
+    const receipt = url.match(/\/v2\/route-intent\/([^/]+)\/receipt$/);
     if (receipt) {
       const { txHash } = JSON.parse(String(init?.body)) as { txHash: string };
       events.push({ kind: "receipt", intentId: receipt[1], txHash });
-      return json(200, { data: { ok: true } });
+      return json(200, {
+        data: { ok: true, transactionId: "tx-row-1", sourceTxHash: txHash },
+      });
     }
     throw new Error(`Unexpected request: ${url}`);
   };

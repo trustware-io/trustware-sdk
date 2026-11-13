@@ -321,7 +321,7 @@ export async function getBalances(
     if (cached) return cached;
   }
 
-  const url = `${apiBase()}/v1/data/wallets/${encodeURIComponent(chainKey)}/${trimmedAddress}/balances`;
+  const url = `${apiBase()}/data/wallets/${encodeURIComponent(chainKey)}/${trimmedAddress}/balances`;
   // The busiest SDK endpoint against a limit shared by every visitor of an
   // integrator's site, so it is the likeliest to see a 429 — the sibling
   // balance calls in this file already retry.
@@ -351,7 +351,7 @@ export async function getBalancesByAddress(
     return merged;
   }
 
-  const url = `${apiBase()}/v1/data/balances/${address}`;
+  const url = `${apiBase()}/data/balances/${address}`;
   const r = await rateLimitedFetch(url, {
     method: "GET",
     credentials: "omit",
@@ -399,7 +399,7 @@ export async function* getBalancesByAddressStream(
     return;
   }
 
-  const url = `${apiBase()}/v1/data/balances/${address}?stream=1`;
+  const url = `${apiBase()}/data/balances/${address}?stream=1`;
 
   try {
     const response = await rateLimitedFetch(url, {

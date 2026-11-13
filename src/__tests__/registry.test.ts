@@ -5,7 +5,8 @@ import { TrustwareConfigStore } from "src/config/store";
 import type { ChainDef, TokenDef } from "src/types";
 import { NATIVE_EVM, NATIVE_SOLANA } from "src/utils/chains";
 
-const BASE_URL = "https://api.test/api";
+// What `apiBase()` hands the registry: the root, the prefix and the version.
+const BASE_URL = "https://api.test/api/v2";
 const SOLANA = "solana-mainnet-beta";
 const ECLIPSE = "9286185";
 const BASE = "8453";
@@ -120,10 +121,10 @@ function fakeBackend(catalog: TokenDef[]) {
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(typeof input === "string" ? input : input.toString());
     requests.push(url.toString());
-    if (url.pathname.endsWith("/v1/routes/chains")) {
+    if (url.pathname.endsWith("/v2/routes/chains")) {
       return json({ data: CHAINS });
     }
-    if (url.pathname.endsWith("/v1/routes/tokens")) {
+    if (url.pathname.endsWith("/v2/routes/tokens")) {
       const chainId = url.searchParams.get("chainId");
       if (!chainId) return json({ data: catalog });
       const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();

@@ -128,7 +128,7 @@ describe("address balances", () => {
 
     assert.equal(fetchStub.urls.length, 2);
     for (const url of fetchStub.urls) {
-      assert.match(url, /\/v1\/data\/balances\//);
+      assert.match(url, /\/v2\/data\/balances\//);
       // The legacy alias answers today but carries Deprecation + Sunset.
       assert.doesNotMatch(url, /\/api\/data\/balances\//);
     }

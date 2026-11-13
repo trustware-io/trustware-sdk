@@ -113,7 +113,7 @@ export async function estimateRelayFeeInToken(
       // here silently zeroes the relay fee reserve below, so it is worth
       // retrying. The surrounding catch keeps that degradation soft.
       const resp = await rateLimitedFetch(
-        `${apiBase()}/v1/price/token?chainId=${cid}&address=${fromToken}`,
+        `${apiBase()}/price/token?chainId=${cid}&address=${fromToken}`,
         { headers: jsonHeaders() }
       );
       if (!resp.ok) throw new Error(`token price HTTP ${resp.status}`);
@@ -131,7 +131,7 @@ export async function estimateRelayFeeInToken(
 
   try {
     const resp = await rateLimitedFetch(
-      `${apiBase()}/v1/price/native?chainId=${cid}`,
+      `${apiBase()}/price/native?chainId=${cid}`,
       { headers: jsonHeaders() }
     );
     if (!resp.ok) throw new Error(`native price HTTP ${resp.status}`);

@@ -141,7 +141,7 @@ describe("sendRouteTransaction sends a Solana route on the route's own chain", (
     sentOn = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith("/v1/routes/chains")) {
+      if (url.endsWith("/v2/routes/chains")) {
         return json({
           data: [
             {
@@ -229,20 +229,20 @@ describe("a Solana wallet send with no chain id goes to the wallet's own chain",
       ) => {
         const url = String(input);
         const reply = (data: unknown) => json({ success: true, data });
-        if (url.endsWith("/v1/sdk/rpc/solana/send-serialized")) {
+        if (url.endsWith("/v2/sdk/rpc/solana/send-serialized")) {
           chainIdsAsked.push(JSON.parse(String(init?.body)).chainId);
           return reply({ chainId: SOLANA_MAINNET_CHAIN_KEY, signature });
         }
         const query = new URL(url).searchParams;
         chainIdsAsked.push(String(query.get("chainId")));
-        if (url.includes("/v1/sdk/rpc/solana/blockhash-valid?")) {
+        if (url.includes("/v2/sdk/rpc/solana/blockhash-valid?")) {
           return reply({
             chainId: SOLANA_MAINNET_CHAIN_KEY,
             blockhash,
             valid: true,
           });
         }
-        if (url.includes("/v1/sdk/rpc/solana/tx-status?")) {
+        if (url.includes("/v2/sdk/rpc/solana/tx-status?")) {
           return reply({
             chainId: SOLANA_MAINNET_CHAIN_KEY,
             signature,
