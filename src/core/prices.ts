@@ -28,7 +28,8 @@ async function fetchPriceUsd(path: string, source: string): Promise<number> {
 
 /** The chain's native asset, in USD. */
 export function fetchNativePriceUsd(chainId: number | string): Promise<number> {
-  return fetchPriceUsd(`/price/native?chainId=${chainId}`, "GET /price/native");
+  const query = new URLSearchParams({ chainId: String(chainId) });
+  return fetchPriceUsd(`/price/native?${query}`, "GET /price/native");
 }
 
 /** One token on a chain, in USD per full token. */
@@ -36,8 +37,6 @@ export function fetchTokenPriceUsd(
   chainId: number | string,
   address: string
 ): Promise<number> {
-  return fetchPriceUsd(
-    `/price/token?chainId=${chainId}&address=${address}`,
-    "GET /price/token"
-  );
+  const query = new URLSearchParams({ chainId: String(chainId), address });
+  return fetchPriceUsd(`/price/token?${query}`, "GET /price/token");
 }
