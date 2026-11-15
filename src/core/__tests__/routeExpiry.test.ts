@@ -589,10 +589,10 @@ describe("an expired route is never sent", () => {
     } as unknown as WalletInterFaceAPI);
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("/v1/sdk/rpc/evm/allowance")) {
+      if (url.includes("/v2/sdk/rpc/evm/allowance")) {
         return json(200, { success: true, data: { allowance: "0" } });
       }
-      if (url.includes("/v1/sdk/rpc/evm/tx-status")) {
+      if (url.includes("/v2/sdk/rpc/evm/tx-status")) {
         // The approve takes longer to confirm than the route has left.
         await new Promise((resolve) => setTimeout(resolve, 120));
         return json(200, { success: true, data: { status: "success" } });
@@ -632,7 +632,7 @@ describe("an expired route is never sent", () => {
     const expiresAt = new Date(Date.parse(serverDate) + 40);
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith("/v1/routes/route")) {
+      if (url.endsWith("/v2/routes/route")) {
         const body = routeJson("intent-evm", REVIEWED_ESTIMATE, {
           evm: "0xaaaa",
         });

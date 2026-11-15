@@ -1,9 +1,10 @@
 /* core/receipt.ts */
 import { apiBase, HttpError, jsonHeaders, rateLimitedFetch } from "./http";
+import { readObject, requireString, ResponseShapeError } from "./wire";
 
 /**
  * What one commit names: the body of
- * POST /v1/route-intent/{intentId}/receipt. Exactly one of `txHash` and
+ * POST /route-intent/{intentId}/receipt. Exactly one of `txHash` and
  * `userOpHash`, and a `userOpHash` always comes with the
  * `sponsorshipRequestId` that sponsored it.
  */
@@ -40,6 +41,30 @@ export type UserOpReceiptReport = Extract<
 /** The hash a commit names. It is also the commit's `Idempotency-Key`. */
 export function receiptHash(commit: ReceiptCommit): string {
   return commit.userOpHash === undefined ? commit.txHash : commit.userOpHash;
+}
+
+/** What the backend answers a commit with. */
+export type ReceiptCommitResult = {
+  ok: true;
+  /** The transaction row the commit created, or the one that already held the hash. */
+  transactionId: string;
+  /** The hash the receipt holds now, which differs from the committed one
+   *  after a replacement. */
+  sourceTxHash: string;
+};
+
+const COMMIT_SOURCE = "POST /route-intent/{id}/receipt";
+
+function parseCommitResult(raw: unknown): ReceiptCommitResult {
+  const wire = readObject(raw, COMMIT_SOURCE, "data");
+  if (wire.ok !== true) {
+    throw new ResponseShapeError(COMMIT_SOURCE, "ok", "true", wire.ok);
+  }
+  return {
+    ok: true,
+    transactionId: requireString(wire, "transactionId", COMMIT_SOURCE),
+    sourceTxHash: requireString(wire, "sourceTxHash", COMMIT_SOURCE),
+  };
 }
 
 /** The fields that identify a receipt in a log line. */
@@ -130,12 +155,14 @@ async function throwCommitRefusal(r: Response): Promise<never> {
 
 /**
  * Commit a receipt. Retrying the same commit is safe: the backend answers
- * 200 with the same `transaction_id` for a hash it already holds, and the
+ * 200 with the same `transactionId` for a hash it already holds, and the
  * `Idempotency-Key` (the hash) replays the first response exactly.
  */
-export async function commitReceipt(report: ReceiptReport) {
+export async function commitReceipt(
+  report: ReceiptReport
+): Promise<ReceiptCommitResult> {
   const r = await rateLimitedFetch(
-    `${apiBase()}/v1/route-intent/${report.intentId}/receipt`,
+    `${apiBase()}/route-intent/${report.intentId}/receipt`,
     {
       method: "POST",
       headers: jsonHeaders({ "Idempotency-Key": receiptHash(report) }),
@@ -144,7 +171,7 @@ export async function commitReceipt(report: ReceiptReport) {
   );
   if (!r.ok) await throwCommitRefusal(r);
   const j = await r.json();
-  return j.data;
+  return parseCommitResult(j.data);
 }
 
 /**

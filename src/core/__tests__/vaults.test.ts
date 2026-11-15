@@ -106,7 +106,7 @@ describe("vault discovery", () => {
     });
 
     assert.equal(fetchStub.urls.length, 1);
-    assert.match(fetchStub.urls[0], /\/v1\/routes\/vaults\?/);
+    assert.match(fetchStub.urls[0], /\/v2\/routes\/vaults\?/);
     // Never vaults.fyi's own domain — the whole point is the key stays server-side.
     assert.doesNotMatch(fetchStub.urls[0], /vaults\.fyi/);
     assert.equal(result.vaults.length, 1);
@@ -171,7 +171,7 @@ describe("vault discovery", () => {
     assert.equal(fetchStub.urls.length, 1);
     assert.match(
       fetchStub.urls[0],
-      new RegExp(`/v1/routes/vaults/base/${VAULT_ID}$`)
+      new RegExp(`/v2/routes/vaults/base/${VAULT_ID}$`)
     );
     assert.equal(v.name, "Steakhouse Prime Instant");
     assert.equal(v.network.name, "base");
@@ -238,7 +238,7 @@ describe("vault discovery", () => {
     assert.equal(fetchStub.urls.length, 1);
     assert.match(
       fetchStub.urls[0],
-      new RegExp(`/v1/routes/vaults/positions/${WALLET}$`)
+      new RegExp(`/v2/routes/vaults/positions/${WALLET}$`)
     );
     assert.equal(positions.length, 1);
     assert.equal(positions[0].name, "Steakhouse Prime Instant");
@@ -289,7 +289,7 @@ describe("vault discovery", () => {
     const url = new URL(fetchStub.urls[0]);
     assert.match(
       url.pathname,
-      new RegExp(`/v1/routes/vaults/redeem/base/${VAULT_ID}$`)
+      new RegExp(`/v2/routes/vaults/redeem/base/${VAULT_ID}$`)
     );
     assert.equal(url.searchParams.get("address"), ADDRESS);
     assert.equal(url.searchParams.get("assetAddress"), ASSET);

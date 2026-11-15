@@ -9,6 +9,8 @@ export const SDK_VERSION: string = __SDK_VERSION__;
 export const API_ROOT: string = __API_ROOT__;
 export const GTM_ID: string = __GTM_ID__;
 export const API_PREFIX = "/api";
+/** The one API version every request path is built from (see `apiBase`). */
+export const API_VERSION = "v2";
 export const WALLETCONNECT_PROJECT_ID = __WALLETCONNECT_PROJECT_ID__;
 
 // Assets base URL for wallet logos and other static assets

@@ -224,7 +224,7 @@ export class Registry {
   }
 
   private async loadChains() {
-    const chainsRes = await fetch(`${this.baseURL}/v1/routes/chains`, {
+    const chainsRes = await fetch(`${this.baseURL}/routes/chains`, {
       headers: { Accept: "application/json", "X-API-Key": this.config.apiKey },
     });
     if (!chainsRes.ok) throw new Error(`chains: HTTP ${chainsRes.status}`);
@@ -264,7 +264,7 @@ export class Registry {
   private async loadAllTokens() {
     await this.ensureChainsLoaded();
 
-    const tokensRes = await fetch(`${this.baseURL}/v1/routes/tokens`, {
+    const tokensRes = await fetch(`${this.baseURL}/routes/tokens`, {
       headers: { Accept: "application/json", "X-API-Key": this.config.apiKey },
     });
     if (!tokensRes.ok) throw new Error(`tokens: HTTP ${tokensRes.status}`);
@@ -380,7 +380,7 @@ export class Registry {
 
     const chain = this.chain(chainRef);
     const chainKey = normalizeChainKey(chain?.chainId ?? chainRef);
-    const url = new URL(`${this.baseURL}/v1/routes/tokens`);
+    const url = new URL(`${this.baseURL}/routes/tokens`);
     url.searchParams.set("chainId", chainKey);
     if (opts.cursor) url.searchParams.set("cursor", opts.cursor);
     if (opts.limit != null) url.searchParams.set("limit", String(opts.limit));

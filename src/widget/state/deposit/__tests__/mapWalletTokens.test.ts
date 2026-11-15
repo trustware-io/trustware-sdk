@@ -51,8 +51,8 @@ const TOKENS = [
 ] as unknown as Parameters<typeof mapWalletTokens>[2];
 
 function balances(rows: Array<[string, object[]]>) {
-  return rows.map(([chain_id, balances]) => ({
-    chain_id,
+  return rows.map(([chainId, balances]) => ({
+    chainId,
     balances,
   })) as unknown as Parameters<typeof mapWalletTokens>[0];
 }
@@ -84,6 +84,35 @@ describe("mapWalletTokens", () => {
     assert.equal(out[0].decimals, 18);
     assert.equal(out[0].balance, "123");
     assert.equal(out[0].chainId, "4217");
+  });
+
+  it("carries the v2 row's chainKey and logoUrl onto the token", () => {
+    const out = mapWalletTokens(
+      balances([
+        [
+          "98866",
+          [
+            {
+              chainKey: "plume",
+              category: "erc20",
+              contract: "0xdddd73f5df1f0dc31373357beac77545dc5a6f3f",
+              symbol: "pUSD",
+              decimals: 6,
+              balance: "42",
+              logoUrl: "https://assets.trustware.io/pusd.png",
+            },
+          ],
+        ],
+      ]),
+      [PLUME],
+      TOKENS
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].chainKey, "plume");
+    assert.equal(out[0].logoUrl, "https://assets.trustware.io/pusd.png");
+    assert.equal(out[0].chainId, "98866");
+    assert.equal("chain_key" in out[0], false);
+    assert.equal("chain_id" in out[0], false);
   });
 
   it("still maps a native balance that does resolve from the catalog", () => {

@@ -218,7 +218,7 @@ If you run `npm run build` without the env var, the SDK will call production API
   - `buildRoute` takes a full `BuildRouteBody` — `fromChain`, `toChain`, `fromToken`, `toToken`, `fromAmount`, `fromAddress`, `toAddress` are all **required**; it does not fall back to the provider config. `fromAmount` is in the source token's smallest unit (`fromAmountUsd` carries the USD figure). Optional `hooks.postHook` does bridge-and-call; `buildRoute`/`buildDepositAddress` run `assertValidPostHook` on it internally. That helper is defined in `src/core/routes.ts` and re-exported from both the package root and `./core`, so hosts can validate a hook before building.
   - There is **no** `getQuote` — the estimate comes back on the route (`route.route?.estimate`, `route.finalExchangeRate`).
   - `buildRouteForReview` / `sendReviewedRoute` (`core/signTimeRoute.ts`) are the review-then-send pair: they rebuild a Solana route right before signing. See "Solana routes are built at sign time".
-  - The status wire payload is entirely snake_case while `Transaction` is camelCase. `getStatus` runs `normalizeStatusPayload` (`src/core/routes.ts`) to map every field onto the camelCase names the type advertises, keeping the raw wire keys alongside them. Before 1.1.11 it mapped only `request_id`/`provider_request_id`, so `sourceTxHash`/`destTxHash`/`intentId` read `undefined` everywhere except swap mode, which re-mapped four of them itself in `normalizeTx`.
+  - `getStatus` parses the `/route-intent/{id}/status` body with `parseTransactionStatus` (`src/core/statusWire.ts`). See "API version and response parsing" below for the wire names and the one place the SDK's names differ from them.
 - **Validation**: `validateAddressForChain`, `validateRouteAddresses`.
 - **Data hooks** (`core/useChains.ts`, `core/useTokens.ts`): `useChains`, `useTokens`.
 - **Tx** (`core/tx.ts`): `sendRouteTransaction`, `runTopUp`. `runTopUp` builds and sends in one go, so its Solana transaction is already fresh. Widget flows don't call `sendRouteTransaction` directly; they go through `core/signTimeRoute.ts` (see "Solana routes are built at sign time"). `runTopUp({ fromAmount, ... })` resolves the rest from config, sends, submits the receipt, and polls — it resolves to the `Transaction` that `pollStatus` returns (read `sourceTxHash`/`destTxHash`; there is no `txHash` field).
@@ -227,6 +227,40 @@ There is **no** event-emitter on the facade (`Trustware.on` does not exist). Eve
 
 - **Route value guard** (`core/routeValue.ts`): `buildRoute`, `buildDepositAddress` and `sendRouteTransaction` all run `assertRouteDeliversValue`, which throws a `RouteError` (`code: "fees_exceed_output"`, one `declined` provider outcome with the same code, `status: 0`) when `toAmountUsd − totalFeesUsd < 0`. The backend ranks on that `net_usd` but never sends it or rejects on it, so the SDK recomputes it from the estimate. Fails open when either USD figure is missing. Lives in core, not a mode, so every consumer gets the same verdict; `mapError` maps the code to category `"fees_exceed_output"`.
 - Other core modules: `http.ts` (fetch wrapper + retry/rate-limit, exports `RateLimitError`), `routeError.ts` (structured `RouteError` + code vocabularies; provider outcomes are `declined` / `failed` / `rejected`, the last being a 400 `invalid_address` verdict that `mapError` maps to category `"invalid_address"`), `forex.ts`, `registryClient.ts`, `sdkRpc.ts`.
+
+### API version and response parsing (BVT-450)
+
+The SDK speaks `/api/v2` only. The backend's v2 is v1 with every JSON field in
+camelCase (spec: quicklinks_v1 `docs/plans/2026-11-12-bvt-450-camelcase-api-v2.md`,
+section 3 is the field list). `/api/v1` is frozen and sunsets on 2027-03-31.
+
+- **One version constant.** `API_VERSION` (`src/constants.ts`) is the only place
+  a version is spelled. `apiBase()` (`src/core/http.ts`) is the root, the prefix
+  and that version, and every request URL, the registry's included, is
+  `${apiBase()}/<path>`. `apiVersion.test.ts` fails if a source file appends a
+  version of its own.
+- **Parse at the HTTP boundary, once.** `src/core/wire.ts` holds the readers
+  (`requireString`, `optionalNumber`, ...) and `ResponseShapeError`, which names
+  the endpoint, the field and what arrived. The parsers that use them:
+  `parseTransactionStatus`, `parseExecutionStep`, `parseStepReceiptResult`
+  (`statusWire.ts`), `parseCommitResult` (`receipt.ts`), the balance parsers
+  (`balances.ts`) and `fetchNativePriceUsd`/`fetchTokenPriceUsd` (`prices.ts`).
+  Past them, code reads typed SDK values and never a wire key.
+- **No v1 fallback, no dual reading.** A missing required field throws; a v1
+  spelling is not looked up. A payload field the SDK's type does not name is not
+  carried onto the result.
+- **Where the SDK's name is not the wire's.** `Transaction` keeps the names it
+  had: `createdDate`/`updatedDate` for `createDate`/`updateDate`,
+  `quoteToAmountUSD`, `approvedSponsoredGasUSD`, `gasSponsoredUSD`,
+  `actualSponsoredGasUSD` and `isGMPTransaction` for the wire's `...Usd` and
+  `isGmpTransaction`. The tables in `statusWire.ts` are the one place that says so.
+- **What the SDK does not read.** The error body's `requestId`, `retryAfter` and
+  `requiredScope` (the 429 wait comes from the `Retry-After` header), the
+  `/sdk/validate` body (a 200 is the validation), and the `min_raw`/`max_conc`
+  query parameters of the wallet scan, which the SDK never sends.
+- **Values do not change.** Status strings, error codes, enum values and the
+  contents of provider payloads (`transactionRequest`, `statusRaw`, `routePath`,
+  `routeStatus`, a step's `detail`) are the same on both versions.
 
 ### Provider (`src/provider.tsx`)
 
@@ -509,13 +543,13 @@ Proxy contract (quicklinks_v1 `stephen/bvt-280-mayan-blockhash-rent`,
 scope) and use its envelope: `{"success": true, "data": …}`, or
 `{"success": false, "error": {"code", "message", "context"}}`.
 
-- `GET /v1/sdk/rpc/solana/blockhash-valid?chainId=<chain>&blockhash=<base58>`,
+- `GET /v2/sdk/rpc/solana/blockhash-valid?chainId=<chain>&blockhash=<base58>`,
   with the same `chainId` as `send-serialized`. 200 carries
   `data.valid`, from `isBlockhashValid` at `processed`. 400 is
   `INVALID_REQUEST`, `UNSUPPORTED_CHAIN_TYPE` or `CHAIN_NOT_FOUND`. 503
   `RPC_CALL_FAILED` is transient: the next iteration checks again, and it
   is never read as invalid or expired.
-- `POST /v1/sdk/rpc/solana/send-serialized` with
+- `POST /v2/sdk/rpc/solana/send-serialized` with
   `{chainId, serializedTransaction, skipPreflight?}` (left out means
   `false`). 409 `ALREADY_PROCESSED` (with `context.signature`) and 503
   `BROADCAST_FAILED` both keep a rebroadcast loop going. On the first,

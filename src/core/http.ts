@@ -1,10 +1,16 @@
 /* core/http.ts */
-import { SDK_NAME, SDK_VERSION, API_ROOT, API_PREFIX } from "../constants";
+import {
+  SDK_NAME,
+  SDK_VERSION,
+  API_ROOT,
+  API_PREFIX,
+  API_VERSION,
+} from "../constants";
 import { TrustwareConfigStore } from "../config/";
 import { RATE_LIMIT_WAIT_BUDGET_MS, type RateLimitInfo } from "../types/config";
 
 export function apiBase() {
-  return `${API_ROOT}${API_PREFIX}`;
+  return `${API_ROOT}${API_PREFIX}/${API_VERSION}`;
 }
 
 export function jsonHeaders(extra?: Record<string, string>): HeadersInit {
@@ -14,7 +20,6 @@ export function jsonHeaders(extra?: Record<string, string>): HeadersInit {
     "X-API-Key": cfg.apiKey,
     "X-SDK-Name": SDK_NAME,
     "X-SDK-Version": SDK_VERSION,
-    "X-API-Version": "2025-10-01",
   };
   return { ...h, ...(extra || {}) };
 }
@@ -49,9 +54,9 @@ export async function assertOK(r: Response) {
   throw new HttpError(r.status, msg);
 }
 
-/** GET /api/v1/sdk/validate */
+/** GET /sdk/validate */
 export async function validateSdkAccess() {
-  const r = await fetch(`${apiBase()}/v1/sdk/validate`, {
+  const r = await fetch(`${apiBase()}/sdk/validate`, {
     method: "GET",
     headers: jsonHeaders(),
   });

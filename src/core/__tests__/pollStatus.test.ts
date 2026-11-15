@@ -30,7 +30,13 @@ describe("pollStatus", () => {
     globalThis.fetch = (async () => {
       const status = statuses.length > 1 ? statuses.shift()! : statuses[0];
       reads.push(status);
-      return json(200, { data: { intent_id: INTENT, status } });
+      return json(200, {
+        data: {
+          intentId: INTENT,
+          status,
+          createDate: "2026-11-09T12:00:00Z",
+        },
+      });
     }) as unknown as typeof fetch;
     return reads;
   }

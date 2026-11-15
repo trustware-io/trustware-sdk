@@ -7,6 +7,18 @@ import type {
   ChainDef,
 } from "../types/";
 import { apiBase, jsonHeaders, rateLimitedFetch } from "./http";
+import {
+  ResponseShapeError,
+  optionalString,
+  readArray,
+  readObject,
+  requireBoolean,
+  requireNumber,
+  requireOneOf,
+  requireString,
+  requireText,
+  type WireObject,
+} from "./wire";
 import { Registry } from "../registry";
 import { TrustwareConfigStore } from "../config/store";
 import {
@@ -19,8 +31,101 @@ import { validateAddressForChain } from "../validation/address";
 export type { BalanceRow };
 
 type RawBalanceRow = Record<string, unknown>;
-type RawBalanceChunk =
-  WalletAddressBalanceWrapper | WalletAddressBalanceWrapper[];
+
+const BALANCES_SOURCE = "GET /data/balances/{address}";
+const BALANCES_STREAM_SOURCE = "GET /data/balances/{address}?stream=1";
+
+const BALANCE_CATEGORIES = [
+  "native",
+  "erc20",
+  "spl",
+  "btc",
+  "coin",
+  "bank",
+] as const satisfies readonly BalanceRow["category"][];
+
+function parseBalanceRow(
+  raw: unknown,
+  source: string,
+  path: string
+): BalanceRow {
+  const wire = readObject(raw, source, path);
+  const at = (key: string) => `${path}.${key}`;
+  const row: BalanceRow = {
+    chainKey: requireString(wire, "chainKey", source, at("chainKey")),
+    category: requireOneOf(
+      wire,
+      "category",
+      BALANCE_CATEGORIES,
+      source,
+      at("category")
+    ),
+    decimals: requireNumber(wire, "decimals", source, at("decimals")),
+    balance: requireString(wire, "balance", source, at("balance")),
+  };
+  for (const key of [
+    "contract",
+    "address",
+    "symbol",
+    "name",
+    "logoUrl",
+  ] as const) {
+    const value = optionalString(wire, key, source, at(key));
+    if (value !== undefined) row[key] = value;
+  }
+  return row;
+}
+
+/**
+ * One chain's scan result, from the buffered body's `results` or a stream's
+ * `chain_result` line. Go sends a nil slice as `null`, which is a chain that
+ * errored or holds nothing, so a null `balances` is an empty one.
+ */
+function parseChainBalances(
+  raw: unknown,
+  source: string,
+  path: string
+): WalletAddressBalanceWrapper {
+  const wire = readObject(raw, source, path);
+  const at = (key: string) => `${path}.${key}`;
+  const error = wire.error;
+  if (error !== null && typeof error !== "string") {
+    throw new ResponseShapeError(
+      source,
+      at("error"),
+      "a string or null",
+      error
+    );
+  }
+  const balances =
+    wire.balances === null
+      ? []
+      : readArray(wire.balances, source, at("balances")).map((row, index) =>
+          parseBalanceRow(row, source, `${at("balances")}[${index}]`)
+        );
+  return {
+    chainId: requireString(wire, "chainId", source, at("chainId")),
+    balances,
+    count: requireNumber(wire, "count", source, at("count")),
+    error,
+    source: requireText(wire, "source", source, at("source")),
+  };
+}
+
+/** The buffered body: `{ address, partial, results }`. */
+function parseBalancesBody(raw: unknown): {
+  partial: boolean;
+  results: WalletAddressBalanceWrapper[];
+} {
+  const wire: WireObject = readObject(raw, BALANCES_SOURCE, "body");
+  return {
+    partial: requireBoolean(wire, "partial", BALANCES_SOURCE),
+    results: readArray(wire.results, BALANCES_SOURCE, "results").map(
+      (result, index) =>
+        parseChainBalances(result, BALANCES_SOURCE, `results[${index}]`)
+    ),
+  };
+}
 
 const balanceCache = new Map<string, BalanceRow[]>();
 
@@ -97,7 +202,7 @@ function normalizeRows(
 
     if (nativeFlag) {
       const nativeRow: BalanceRow = {
-        chain_key: chainKey,
+        chainKey,
         category: "native",
         contract: nativeAddress,
         address: nativeAddress,
@@ -121,7 +226,7 @@ function normalizeRows(
     const normalizedAddress = metadata?.address ?? tokenAddress;
 
     map.set(`${chainKey}:${normalizedAddress}`, {
-      chain_key: chainKey,
+      chainKey,
       category:
         (category as BalanceRow["category"] | undefined) ??
         (chainType === "solana" ? "spl" : "erc20"),
@@ -138,7 +243,7 @@ function normalizeRows(
 
   if (!Array.from(map.values()).some((row) => row.category === "native")) {
     map.set(`${chainKey}:${nativeAddress}`, {
-      chain_key: chainKey,
+      chainKey,
       category: "native",
       contract: nativeAddress,
       address: nativeAddress,
@@ -158,26 +263,20 @@ function normalizeRows(
   });
 }
 
-function normalizeStreamChunk(
-  chunk: RawBalanceChunk
-): WalletAddressBalanceWrapper[] {
-  return Array.isArray(chunk) ? chunk : [chunk];
-}
-
-function mergeBalanceWrappers(
+export function mergeBalanceWrappers(
   current: WalletAddressBalanceWrapper[],
   incoming: WalletAddressBalanceWrapper[]
 ): WalletAddressBalanceWrapper[] {
   const merged = new Map<string, WalletAddressBalanceWrapper>();
 
   for (const item of current) {
-    merged.set(item.chain_id, item);
+    merged.set(item.chainId, item);
   }
 
   for (const item of incoming) {
-    const existing = merged.get(item.chain_id);
+    const existing = merged.get(item.chainId);
     if (!existing) {
-      merged.set(item.chain_id, item);
+      merged.set(item.chainId, item);
       continue;
     }
 
@@ -189,7 +288,7 @@ function mergeBalanceWrappers(
       balancesByKey.set(`${row.contract ?? row.address ?? row.symbol}`, row);
     }
 
-    merged.set(item.chain_id, {
+    merged.set(item.chainId, {
       ...existing,
       ...item,
       balances: Array.from(balancesByKey.values()),
@@ -214,6 +313,49 @@ function toSummary(
   };
 }
 
+type StreamLine =
+  | { kind: "chain"; chunk: WalletAddressBalanceWrapper[] }
+  | { kind: "summary"; summary: BalanceStreamSummary };
+
+/**
+ * One NDJSON line. Text that is not JSON is skipped unless `strict`; a line
+ * that is JSON but breaks the contract (an unknown `type`, a chain result
+ * without its `chainId`) always throws, because dropping it would show a
+ * wallet with fewer chains than it holds.
+ */
+function parseStreamLine(
+  line: string,
+  address: string,
+  strict: boolean | undefined
+): StreamLine | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch (error) {
+    if (strict) throw error;
+    return null;
+  }
+  const wire = readObject(parsed, BALANCES_STREAM_SOURCE, "line");
+  switch (wire.type) {
+    case "chain_result":
+      return {
+        kind: "chain",
+        chunk: [parseChainBalances(wire, BALANCES_STREAM_SOURCE, "line")],
+      };
+    // The backend closes the stream with a summary line carrying `partial`.
+    // It is not a chunk: hand it to the caller instead of dropping it.
+    case "summary":
+      return { kind: "summary", summary: toSummary(wire, address) };
+    default:
+      throw new ResponseShapeError(
+        BALANCES_STREAM_SOURCE,
+        "type",
+        'one of "chain_result", "summary"',
+        wire.type
+      );
+  }
+}
+
 async function parseStreamingBalances(
   response: Response,
   address: string,
@@ -225,6 +367,21 @@ async function parseStreamingBalances(
 
   const decoder = new TextDecoder();
   const reader = response.body.getReader();
+
+  function* chunksOf(lines: string[]) {
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const parsed = parseStreamLine(trimmed, address, options.strict);
+      if (!parsed) continue;
+      if (parsed.kind === "summary") {
+        options.onSummary?.(parsed.summary);
+        continue;
+      }
+      emitBalanceStreamChunk(address, parsed.chunk.length);
+      yield parsed.chunk;
+    }
+  }
 
   async function* stream(): AsyncGenerator<
     WalletAddressBalanceWrapper[],
@@ -240,52 +397,12 @@ async function parseStreamingBalances(
         buffer += decoder.decode(value, { stream: true });
         const frames = buffer.split(/\r?\n/);
         buffer = frames.pop() ?? "";
-
-        for (const frame of frames) {
-          const trimmed = frame.trim();
-          if (!trimmed) continue;
-
-          try {
-            const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-            // The backend closes the stream with a summary frame carrying
-            // `partial`. It has no chain_id, so it is not a chunk — hand it to
-            // the caller instead of dropping it on the floor.
-            if (!parsed.chain_id) {
-              if (parsed.type === "summary") {
-                options.onSummary?.(toSummary(parsed, address));
-              }
-              continue;
-            }
-            const chunk = normalizeStreamChunk(parsed as RawBalanceChunk);
-            emitBalanceStreamChunk(address, chunk.length);
-            yield chunk;
-          } catch (error) {
-            if (options.strict) {
-              throw error;
-            }
-          }
-        }
+        yield* chunksOf(frames);
       }
 
-      const tail = buffer.trim();
-      if (tail) {
-        try {
-          const parsed = JSON.parse(tail) as Record<string, unknown>;
-          if (parsed.chain_id) {
-            const chunk = normalizeStreamChunk(parsed as RawBalanceChunk);
-            emitBalanceStreamChunk(address, chunk.length);
-            yield chunk;
-          } else if (parsed.type === "summary") {
-            // The summary is the last line, so it is the frame most likely to
-            // arrive without a trailing newline.
-            options.onSummary?.(toSummary(parsed, address));
-          }
-        } catch (error) {
-          if (options.strict) {
-            throw error;
-          }
-        }
-      }
+      // The summary is the last line, so it is the one most likely to arrive
+      // without a trailing newline.
+      yield* chunksOf([buffer]);
     } finally {
       reader.releaseLock();
     }
@@ -294,7 +411,7 @@ async function parseStreamingBalances(
   return stream();
 }
 
-/** Map chain reference -> backend chain_key and return enriched balances */
+/** Map chain reference -> backend chain key and return enriched balances */
 export async function getBalances(
   chainRef: string | number,
   address: string,
@@ -321,7 +438,7 @@ export async function getBalances(
     if (cached) return cached;
   }
 
-  const url = `${apiBase()}/v1/data/wallets/${encodeURIComponent(chainKey)}/${trimmedAddress}/balances`;
+  const url = `${apiBase()}/data/wallets/${encodeURIComponent(chainKey)}/${trimmedAddress}/balances`;
   // The busiest SDK endpoint against a limit shared by every visitor of an
   // integrator's site, so it is the likeliest to see a 429 — the sibling
   // balance calls in this file already retry.
@@ -351,17 +468,14 @@ export async function getBalancesByAddress(
     return merged;
   }
 
-  const url = `${apiBase()}/v1/data/balances/${address}`;
+  const url = `${apiBase()}/data/balances/${address}`;
   const r = await rateLimitedFetch(url, {
     method: "GET",
     credentials: "omit",
     headers: jsonHeaders(),
   });
   if (!r.ok) throw new Error(`balances: HTTP ${r.status}`);
-  const j = await r.json();
-  const results: WalletAddressBalanceWrapper[] = Array.isArray(j)
-    ? j
-    : (j.results ?? []);
+  const { partial, results } = parseBalancesBody(await r.json());
 
   // The buffered response carries the same `partial` flag the stream reports in
   // its summary frame. Reporting it here too means a consumer's onSummary fires
@@ -369,12 +483,7 @@ export async function getBalancesByAddress(
   // below, where the caller asked to stream and silently did not.
   if (opts?.onSummary) {
     const completed = results.length;
-    opts.onSummary({
-      address,
-      partial: Array.isArray(j) ? false : Boolean(j.partial),
-      completed,
-      total: completed,
-    });
+    opts.onSummary({ address, partial, completed, total: completed });
   }
   return results;
 }
@@ -399,7 +508,7 @@ export async function* getBalancesByAddressStream(
     return;
   }
 
-  const url = `${apiBase()}/v1/data/balances/${address}?stream=1`;
+  const url = `${apiBase()}/data/balances/${address}?stream=1`;
 
   try {
     const response = await rateLimitedFetch(url, {
@@ -419,13 +528,10 @@ export async function* getBalancesByAddressStream(
     if (contentType.includes("application/json")) {
       // Asked to stream, answered buffered — the shape a caller is least likely
       // to notice, so it reports its summary like every other path.
-      const payload = await response.json();
-      const results: WalletAddressBalanceWrapper[] = Array.isArray(payload)
-        ? payload
-        : (payload.results ?? []);
+      const { partial, results } = parseBalancesBody(await response.json());
       opts.onSummary?.({
         address,
-        partial: Array.isArray(payload) ? false : Boolean(payload.partial),
+        partial,
         completed: results.length,
         total: results.length,
       });

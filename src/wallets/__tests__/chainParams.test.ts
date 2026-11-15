@@ -7,7 +7,7 @@ import {
   registerChainParams,
 } from "src/wallets/chainParams";
 
-// Shape the backend actually returns for Plume on /v1/routes/chains.
+// Shape the backend actually returns for Plume on /v2/routes/chains.
 const PLUME: ChainDef = {
   chainId: "98866",
   chainType: "evm",

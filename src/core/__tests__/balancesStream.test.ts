@@ -3,21 +3,31 @@ import assert from "node:assert/strict";
 import { getBalancesByAddress, getBalancesByAddressStream } from "../balances";
 import { TrustwareConfigStore } from "../../config/store";
 import type { BalanceStreamSummary } from "../../types/blockchain";
+import { ResponseShapeError } from "../wire";
 
 const ADDRESS = "0xa5cc6f03b19b7528d34e19c7cdb918bdbe6ccbf1";
 
-/** One chain_result frame in the shape the backend's NDJSON stream emits. */
+/** One chain_result frame in the shape the v2 backend's NDJSON stream emits. */
 function chainFrame(chainId: string, symbol: string, balance: string) {
   return JSON.stringify({
     type: "chain_result",
-    chain_id: chainId,
+    chainIndex: 0,
+    chainId,
     source: "alchemy",
     count: 1,
     error: null,
     completed: 1,
     total: 2,
     lastCompletedChain: chainId,
-    balances: [{ chain_key: chainId, symbol, balance, decimals: 18 }],
+    balances: [
+      {
+        chainKey: chainId,
+        category: "native",
+        symbol,
+        balance,
+        decimals: 18,
+      },
+    ],
   });
 }
 
@@ -63,11 +73,19 @@ function bufferedResponse(partial: boolean): Response {
       partial,
       results: [
         {
-          chain_id: "8453",
+          chainId: "8453",
           source: "alchemy",
           count: 1,
           error: null,
-          balances: [{ chain_key: "8453", symbol: "ETH", balance: "1" }],
+          balances: [
+            {
+              chainKey: "8453",
+              category: "native",
+              symbol: "ETH",
+              balance: "1",
+              decimals: 18,
+            },
+          ],
         },
       ],
     }),
@@ -116,7 +134,7 @@ describe("address balances", () => {
     fetchStub = null;
   });
 
-  it("requests the v1 path, not the deprecated alias", async () => {
+  it("requests the v2 path, not the deprecated alias", async () => {
     fetchStub = stubFetch((url) =>
       url.includes("stream=1")
         ? ndjsonResponse([chainFrame("8453", "ETH", "1"), summaryFrame(false)])
@@ -128,7 +146,12 @@ describe("address balances", () => {
 
     assert.equal(fetchStub.urls.length, 2);
     for (const url of fetchStub.urls) {
-      assert.match(url, /\/v1\/data\/balances\//);
+      assert.ok(
+        url.startsWith(
+          `https://api.trustware.io/api/v2/data/balances/${ADDRESS}`
+        ),
+        url
+      );
       // The legacy alias answers today but carries Deprecation + Sunset.
       assert.doesNotMatch(url, /\/api\/data\/balances\//);
     }
@@ -263,5 +286,274 @@ describe("address balances", () => {
     assert.equal(chunks.length, 1);
     assert.equal(summaries.length, 1);
     assert.equal(summaries[0].partial, true);
+  });
+  it("parses a v2 stream line into exactly the wrapper it describes", async () => {
+    fetchStub = stubFetch(() =>
+      ndjsonResponse([
+        JSON.stringify({
+          type: "chain_result",
+          chainIndex: 3,
+          chainId: "137",
+          source: "fallback",
+          count: 2,
+          error: null,
+          completed: 1,
+          total: 2,
+          lastCompletedChain: "137",
+          balances: [
+            {
+              chainKey: "polygon",
+              category: "native",
+              symbol: "POL",
+              decimals: 18,
+              balance: "5000",
+              name: "Polygon",
+              logoUrl: "https://assets.trustware.io/pol.png",
+            },
+            {
+              chainKey: "polygon",
+              category: "erc20",
+              contract: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+              symbol: "USDC.e",
+              decimals: 6,
+              balance: "7",
+              address: ADDRESS,
+            },
+          ],
+        }),
+        summaryFrame(false),
+      ])
+    );
+
+    const chunks = await drain(getBalancesByAddressStream(ADDRESS));
+
+    assert.deepEqual(chunks, [
+      [
+        {
+          chainId: "137",
+          source: "fallback",
+          count: 2,
+          error: null,
+          balances: [
+            {
+              chainKey: "polygon",
+              category: "native",
+              symbol: "POL",
+              decimals: 18,
+              balance: "5000",
+              name: "Polygon",
+              logoUrl: "https://assets.trustware.io/pol.png",
+            },
+            {
+              chainKey: "polygon",
+              category: "erc20",
+              contract: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+              symbol: "USDC.e",
+              decimals: 6,
+              balance: "7",
+              address: ADDRESS,
+            },
+          ],
+        },
+      ],
+    ]);
+  });
+
+  it("parses a v2 buffered body, a chain that errored included", async () => {
+    fetchStub = stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            address: ADDRESS,
+            partial: true,
+            results: [
+              {
+                chainId: "8453",
+                source: "alchemy",
+                count: 1,
+                error: null,
+                balances: [
+                  {
+                    chainKey: "8453",
+                    category: "native",
+                    symbol: "ETH",
+                    decimals: 18,
+                    balance: "1",
+                  },
+                ],
+              },
+              // Go encodes the nil slice of a failed chain as null.
+              {
+                chainId: "solana-mainnet-beta",
+                source: "",
+                count: 0,
+                error: "balance lookup timed out",
+                balances: null,
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    );
+
+    const results = await getBalancesByAddress(ADDRESS);
+
+    assert.deepEqual(results, [
+      {
+        chainId: "8453",
+        source: "alchemy",
+        count: 1,
+        error: null,
+        balances: [
+          {
+            chainKey: "8453",
+            category: "native",
+            symbol: "ETH",
+            decimals: 18,
+            balance: "1",
+          },
+        ],
+      },
+      {
+        chainId: "solana-mainnet-beta",
+        source: "",
+        count: 0,
+        error: "balance lookup timed out",
+        balances: [],
+      },
+    ]);
+  });
+
+  it("throws naming the field when a buffered result is still spelled the v1 way", async () => {
+    fetchStub = stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            address: ADDRESS,
+            partial: false,
+            results: [
+              {
+                chain_id: "8453",
+                source: "alchemy",
+                count: 0,
+                error: null,
+                balances: [],
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    );
+
+    await assert.rejects(
+      () => getBalancesByAddress(ADDRESS),
+      (error: unknown) =>
+        error instanceof ResponseShapeError &&
+        error.field === "results[0].chainId" &&
+        error.message ===
+          'GET /data/balances/{address}: field "results[0].chainId" must be a non-empty string, received nothing (missing)'
+    );
+  });
+
+  it("throws naming the field when a balance row lacks its chainKey", async () => {
+    fetchStub = stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            address: ADDRESS,
+            partial: false,
+            results: [
+              {
+                chainId: "8453",
+                source: "alchemy",
+                count: 1,
+                error: null,
+                balances: [
+                  {
+                    chain_key: "8453",
+                    category: "native",
+                    decimals: 18,
+                    balance: "1",
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    );
+
+    await assert.rejects(
+      () => getBalancesByAddress(ADDRESS),
+      (error: unknown) =>
+        error instanceof ResponseShapeError &&
+        error.field === "results[0].balances[0].chainKey"
+    );
+  });
+
+  it("reports a v1 stream line through the fallback event, then answers from the buffered path", async () => {
+    const events: { type: string; message?: string }[] = [];
+    TrustwareConfigStore.init({
+      apiKey: "test_api_key",
+      mode: "deposit",
+      routes: { toChain: "8453", toToken: "USDC" },
+      features: { balanceStreaming: true },
+      onEvent: (event) => events.push(event as { type: string }),
+    });
+    fetchStub = stubFetch((url) =>
+      url.includes("stream=1")
+        ? ndjsonResponse([
+            JSON.stringify({
+              type: "chain_result",
+              chain_id: "8453",
+              source: "alchemy",
+              count: 0,
+              error: null,
+              balances: [],
+            }),
+          ])
+        : bufferedResponse(false)
+    );
+
+    const chunks = await drain(getBalancesByAddressStream(ADDRESS));
+
+    assert.equal(chunks.length, 1);
+    assert.deepEqual(
+      events.filter((event) => event.type === "balance_stream_fallback"),
+      [
+        {
+          type: "balance_stream_fallback",
+          address: ADDRESS,
+          message:
+            'GET /data/balances/{address}?stream=1: field "line.chainId" must be a non-empty string, received nothing (missing)',
+        },
+      ]
+    );
+  });
+
+  it("refuses a stream line type it does not know", async () => {
+    const events: { type: string; message?: string }[] = [];
+    TrustwareConfigStore.init({
+      apiKey: "test_api_key",
+      mode: "deposit",
+      routes: { toChain: "8453", toToken: "USDC" },
+      features: { balanceStreaming: true },
+      onEvent: (event) => events.push(event as { type: string }),
+    });
+    fetchStub = stubFetch((url) =>
+      url.includes("stream=1")
+        ? ndjsonResponse([JSON.stringify({ type: "progress" })])
+        : bufferedResponse(false)
+    );
+
+    await drain(getBalancesByAddressStream(ADDRESS));
+
+    const fallback = events.find(
+      (event) => event.type === "balance_stream_fallback"
+    );
+    assert.equal(
+      fallback?.message,
+      'GET /data/balances/{address}?stream=1: field "type" must be one of "chain_result", "summary", received "progress"'
+    );
   });
 });

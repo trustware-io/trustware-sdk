@@ -57,12 +57,12 @@ describe("runTopUp receipt", () => {
     ) => {
       const url = String(input);
       if (
-        url.endsWith("/v1/routes/chains") ||
-        url.endsWith("/v1/routes/tokens")
+        url.endsWith("/v2/routes/chains") ||
+        url.endsWith("/v2/routes/tokens")
       ) {
         return json({ data: [] });
       }
-      if (url.endsWith("/v1/routes/route")) {
+      if (url.endsWith("/v2/routes/route")) {
         order.push("build");
         return json({
           data: {
@@ -82,17 +82,21 @@ describe("runTopUp receipt", () => {
           },
         });
       }
-      if (url.endsWith("/v1/route-intent/intent-topup/receipt")) {
-        order.push(`receipt:${JSON.parse(String(init?.body)).txHash}`);
-        return json({ data: { ok: true } });
+      if (url.endsWith("/v2/route-intent/intent-topup/receipt")) {
+        const { txHash } = JSON.parse(String(init?.body)) as { txHash: string };
+        order.push(`receipt:${txHash}`);
+        return json({
+          data: { ok: true, transactionId: "tx-row-1", sourceTxHash: txHash },
+        });
       }
-      if (url.endsWith("/v1/route-intent/intent-topup/status")) {
+      if (url.endsWith("/v2/route-intent/intent-topup/status")) {
         order.push("status");
         return json({
           data: {
-            intent_id: "intent-topup",
+            intentId: "intent-topup",
             status: "success",
-            source_tx_hash: HASH,
+            sourceTxHash: HASH,
+            createDate: "2026-11-09T12:00:00Z",
           },
         });
       }

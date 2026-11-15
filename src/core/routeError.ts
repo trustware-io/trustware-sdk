@@ -2,7 +2,7 @@
  * The routing API's structured verdict, and the one place in the SDK that knows
  * its vocabulary.
  *
- * A failed /v1/routes/* call carries more than a sentence. The backend runs
+ * A failed /routes/* call carries more than a sentence. The backend runs
  * every provider, judges each answer, and returns why each one is out:
  *
  *   {
@@ -196,7 +196,7 @@ function toProviderOutcome(value: unknown): RouteProviderOutcome | null {
 }
 
 /**
- * Builds the error to throw for a non-2xx /v1/routes/* response.
+ * Builds the error to throw for a non-2xx /routes/* response.
  *
  * `fallbackMessage` is used only when the body carries no text at all, which is
  * what happens when the response never reached us as JSON.

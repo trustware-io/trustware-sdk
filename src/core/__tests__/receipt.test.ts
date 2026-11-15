@@ -38,14 +38,20 @@ describe("submitReceipt", () => {
   it("commits the tx hash, keyed by it, and returns the data", async () => {
     const requests = answer(
       200,
-      JSON.stringify({ data: { ok: true, transaction_id: "tx-1" } })
+      JSON.stringify({
+        data: { ok: true, transactionId: "tx-1", sourceTxHash: TX_HASH },
+      })
     );
     const data = await submitReceipt(INTENT, TX_HASH);
-    assert.deepEqual(data, { ok: true, transaction_id: "tx-1" });
+    assert.deepEqual(data, {
+      ok: true,
+      transactionId: "tx-1",
+      sourceTxHash: TX_HASH,
+    });
     assert.equal(requests.length, 1);
     assert.equal(
       requests[0].url,
-      `https://api.trustware.io/api/v1/route-intent/${INTENT}/receipt`
+      `https://api.trustware.io/api/v2/route-intent/${INTENT}/receipt`
     );
     assert.equal(requests[0].init.method, "POST");
     assert.equal(

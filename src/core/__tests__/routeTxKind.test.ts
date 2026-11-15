@@ -233,7 +233,7 @@ describe("a Squid deposit-address route from Solana", () => {
       init?: RequestInit
     ) => {
       const url = String(input);
-      if (url.endsWith("/v1/routes/route")) {
+      if (url.endsWith("/v2/routes/route")) {
         events.push({
           kind: "build",
           body: JSON.parse(String(init?.body)) as Record<string, unknown>,
@@ -252,7 +252,7 @@ describe("a Squid deposit-address route from Solana", () => {
           },
         });
       }
-      if (url.endsWith("/v1/routes/chains")) {
+      if (url.endsWith("/v2/routes/chains")) {
         return json(200, {
           data: [
             {
@@ -264,11 +264,13 @@ describe("a Squid deposit-address route from Solana", () => {
           ],
         });
       }
-      const receipt = url.match(/\/v1\/route-intent\/([^/]+)\/receipt$/);
+      const receipt = url.match(/\/v2\/route-intent\/([^/]+)\/receipt$/);
       if (receipt) {
         const { txHash } = JSON.parse(String(init?.body)) as { txHash: string };
         events.push({ kind: "receipt", intentId: receipt[1], txHash });
-        return json(200, { data: { ok: true } });
+        return json(200, {
+          data: { ok: true, transactionId: "tx-row-1", sourceTxHash: txHash },
+        });
       }
       throw new Error(`Unexpected request: ${url}`);
     }) as typeof fetch;

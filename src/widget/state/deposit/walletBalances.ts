@@ -62,7 +62,7 @@ export function walletBalanceErrors(
   const errors: Record<string, string> = {};
   for (const result of results) {
     if (!result.error) continue;
-    const key = normalizeChainKey(result.chain_id);
+    const key = normalizeChainKey(result.chainId);
     const chain = chains.find(
       (candidate) => normalizeChainKey(candidate.chainId) === key
     );

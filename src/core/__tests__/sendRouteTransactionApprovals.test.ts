@@ -58,11 +58,11 @@ function jsonResponse(payload: unknown) {
 function stubFetch(calls: { allowanceChecks: number }) {
   return async (input: RequestInfo | URL): Promise<Response> => {
     const url = String(input);
-    if (url.includes("/v1/sdk/rpc/evm/allowance")) {
+    if (url.includes("/v2/sdk/rpc/evm/allowance")) {
       calls.allowanceChecks += 1;
       return jsonResponse({ success: true, data: { allowance: "0" } });
     }
-    if (url.includes("/v1/sdk/rpc/evm/tx-status")) {
+    if (url.includes("/v2/sdk/rpc/evm/tx-status")) {
       return jsonResponse({ success: true, data: { status: "success" } });
     }
     return jsonResponse({ success: true, data: {} });

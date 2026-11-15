@@ -3,9 +3,13 @@ import { routeErrorFromResponse } from "./routeError";
 import { assertValidRouteApprovals } from "./routeApprovals";
 import { assertRouteDeliversValue } from "./routeValue";
 import { parseRouteExpiresAt, parseServerClockOffsetMs } from "./routeExpiry";
+import {
+  parseStepReceiptResult,
+  parseTransactionStatus,
+  type StepReceiptResult,
+} from "./statusWire";
 import type {
   BuildRouteResult,
-  IntentExecutionStep,
   PostHookRequest,
   RoutePlan,
   RouteSponsorship,
@@ -229,6 +233,22 @@ export function routeTxKind(
   }
 }
 
+/**
+ * What `POST /routes/route` and `POST /routes/deposit-address` receive. The
+ * USD amount goes out as `fromAmountUsd`, the v2 spelling, whichever of the
+ * two names the caller used.
+ */
+function routeRequestBody(body: BuildRouteBody) {
+  const { fromAmountUSD, fromAmountUsd, ...rest } = body;
+  return {
+    ...rest,
+    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
+    toToken: canonicalRouteToken(body.toToken, body.toChain),
+    slippageBps: requestSlippageBps(body),
+    fromAmountUsd: fromAmountUSD ?? fromAmountUsd,
+  };
+}
+
 export async function buildRoute(
   body: BuildRouteBody,
   signal?: AbortSignal
@@ -248,14 +268,8 @@ export async function buildRoute(
   assertValidVaultRequest(body);
 
   const cfg = TrustwareConfigStore.get();
-  const url = `${apiBase()}/v1/routes/route`;
-  const payload = {
-    ...body,
-    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
-    toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps: requestSlippageBps(body),
-    fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
-  };
+  const url = `${apiBase()}/routes/route`;
+  const payload = routeRequestBody(body);
   const r = await rateLimitedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
@@ -348,14 +362,8 @@ export async function buildDepositAddress(
   assertValidPostHook(body.hooks);
   assertValidVaultRequest(body);
   const cfg = TrustwareConfigStore.get();
-  const url = `${apiBase()}/v1/routes/deposit-address`;
-  const payload = {
-    ...body,
-    fromToken: canonicalRouteToken(body.fromToken, body.fromChain),
-    toToken: canonicalRouteToken(body.toToken, body.toChain),
-    slippageBps: requestSlippageBps(body),
-    fromAmountUSD: body.fromAmountUSD ?? body.fromAmountUsd,
-  };
+  const url = `${apiBase()}/routes/deposit-address`;
+  const payload = routeRequestBody(body);
   const r = await rateLimitedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey },
@@ -427,9 +435,9 @@ export async function submitStepReceipt(
   intentId: string,
   stepIndex: number,
   txHash: string
-) {
+): Promise<StepReceiptResult> {
   const r = await rateLimitedFetch(
-    `${apiBase()}/v1/route-intent/${intentId}/steps/${stepIndex}/receipt`,
+    `${apiBase()}/route-intent/${intentId}/steps/${stepIndex}/receipt`,
     {
       method: "POST",
       headers: jsonHeaders({ "Idempotency-Key": txHash }),
@@ -438,7 +446,7 @@ export async function submitStepReceipt(
   );
   await assertOK(r);
   const j = await r.json();
-  return j.data;
+  return parseStepReceiptResult(j.data);
 }
 
 /**
@@ -452,137 +460,21 @@ export async function submitStepReceipt(
  * - 200 status: "success"/"failed"/"expired" → terminal. Stop polling.
  * - 200 any other status      → newer than this SDK. Keep polling.
  *
- * A "pending" payload is a stub ({intent_id, status, intent_status,
- * create_date, expiresAt}) — the full Transaction fields appear once a
- * receipt lands.
+ * A "pending" payload is a stub ({intentId, status, intentStatus,
+ * createDate, expiresAt}) — the full Transaction fields appear once a
+ * receipt lands. A body that breaks the contract (no `status`, no `intentId`,
+ * a field of the wrong type) throws `ResponseShapeError` naming the field.
  */
 export async function getStatus(intentId: string): Promise<Transaction> {
   const r = await rateLimitedFetch(
-    `${apiBase()}/v1/route-intent/${intentId}/status`,
+    `${apiBase()}/route-intent/${intentId}/status`,
     {
       headers: jsonHeaders(),
     }
   );
   await assertOK(r);
   const j = await r.json();
-  return normalizeStatusPayload(j.data);
-}
-
-/**
- * Wire (snake_case) → Transaction (camelCase) field names.
- *
- * `origin_eoa` and `landed_amount_verified` are absent on purpose: Transaction
- * spells those two in snake_case already, so they need no mapping. So is
- * `refunded`, which is one word and the same in both spellings.
- */
-const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
-  intent_id: "intentId",
-  project_id: "projectId",
-  sdk_api_key_id: "sdkApiKeyId",
-  sdk_request: "sdkRequest",
-  provider_quote_id: "providerQuoteId",
-  sender_verification: "senderVerification",
-  routing_provider: "routingProvider",
-  intent_status: "intentStatus",
-  quote_to_amount_usd: "quoteToAmountUSD",
-  poll_attempt: "pollAttempt",
-  next_poll_at: "nextPollAt",
-  gas_sponsored: "gasSponsored",
-  sponsorship_request_id: "sponsorshipRequestId",
-  sponsorship_status: "sponsorshipStatus",
-  paymaster_rule_id: "paymasterRuleId",
-  paymaster_address: "paymasterAddress",
-  approved_sponsored_gas_usd: "approvedSponsoredGasUSD",
-  gas_sponsored_usd: "gasSponsoredUSD",
-  actual_sponsored_gas_usd: "actualSponsoredGasUSD",
-  approved_sponsored_gas_wei: "approvedSponsoredGasWei",
-  actual_sponsored_gas_wei: "actualSponsoredGasWei",
-  sponsorship_user_operation_hash: "sponsorshipUserOperationHash",
-  from_address: "fromAddress",
-  to_address: "toAddress",
-  from_chain_id: "fromChainId",
-  to_chain_id: "toChainId",
-  source_tx_hash: "sourceTxHash",
-  dest_tx_hash: "destTxHash",
-  request_id: "requestId",
-  provider_request_id: "providerRequestId",
-  transaction_request: "transactionRequest",
-  status_raw: "statusRaw",
-  route_path: "routePath",
-  route_status: "routeStatus",
-  to_amount_wei: "toAmountWei",
-  from_chain_block: "fromChainBlock",
-  to_chain_block: "toChainBlock",
-  from_chain_tx_url: "fromChainTxUrl",
-  to_chain_tx_url: "toChainTxUrl",
-  gas_status: "gasStatus",
-  is_gmp_transaction: "isGMPTransaction",
-  axelar_transaction_url: "axelarTransactionUrl",
-  create_date: "createdDate",
-  update_date: "updatedDate",
-  time_spent_ms: "timeSpentMs",
-};
-
-/**
- * Maps the status payload onto the camelCase names `Transaction` advertises.
- *
- * The whole payload is snake_case on the wire (`source_tx_hash`, `intent_id`,
- * `create_date`, ...) while `Transaction` is camelCase, so without this every
- * documented field — `sourceTxHash`, `destTxHash`, `intentId`, the two
- * correlation IDs — reads undefined on whatever `getStatus`/`pollStatus`/
- * `runTopUp` hand back. Swap mode used to be the only path that worked,
- * because it re-mapped four of these itself (`normalizeTx` in
- * modes/swap/hooks/useSwapExecution.ts).
- *
- * The raw keys are kept — anything already reading `request_id` off this
- * object keeps working — an explicit camelCase key on the wire wins over the
- * snake_case one, and a missing field stays missing rather than becoming a
- * defined-but-undefined property, so `"requestId" in tx` still means what it
- * says.
- */
-export function normalizeStatusPayload(raw: unknown): Transaction {
-  if (!raw || typeof raw !== "object") return raw as Transaction;
-
-  const out = addCamelCaseKeys(
-    raw as Record<string, unknown>,
-    STATUS_WIRE_TO_CAMEL
-  );
-  if (Array.isArray(out.steps)) {
-    out.steps = out.steps.map((step: unknown) =>
-      step && typeof step === "object"
-        ? addCamelCaseKeys(step as Record<string, unknown>, STEP_WIRE_TO_CAMEL)
-        : step
-    );
-  }
-  return out as Transaction;
-}
-
-/** Wire → IntentExecutionStep field names, for `Transaction.steps`. */
-const STEP_WIRE_TO_CAMEL: Record<string, keyof IntentExecutionStep> = {
-  step_index: "stepIndex",
-  step_kind: "stepKind",
-  chain_id: "chainId",
-  tx_hash: "txHash",
-  create_date: "createdDate",
-  update_date: "updatedDate",
-};
-
-/**
- * Copies `wire` and adds each mapped camelCase key. The raw keys stay, an
- * explicit camelCase key on the wire wins, and a missing field stays missing
- * rather than becoming a defined-but-undefined property.
- */
-function addCamelCaseKeys(
-  wire: Record<string, unknown>,
-  wireToCamel: Record<string, string>
-): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...wire };
-  for (const [snake, camel] of Object.entries(wireToCamel)) {
-    if (out[camel] !== undefined) continue;
-    if (!(snake in wire)) continue;
-    out[camel] = wire[snake];
-  }
-  return out;
+  return parseTransactionStatus(j.data);
 }
 
 /**

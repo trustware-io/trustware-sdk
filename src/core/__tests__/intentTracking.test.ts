@@ -49,16 +49,25 @@ const rateLimited = (retryAfterSeconds: number) => () =>
     },
   });
 
-const accepted = ok({ ok: true, transaction_id: "tx-row-1" });
+const accepted = ok({
+  ok: true,
+  transactionId: "tx-row-1",
+  sourceTxHash: "0xhash",
+});
 const pending = ok({
-  intent_id: INTENT_ID,
+  intentId: INTENT_ID,
   status: "pending",
-  intent_status: "created",
-  create_date: "2026-07-16T05:18:10Z",
+  intentStatus: "created",
+  createDate: "2026-07-16T05:18:10Z",
   expiresAt: "2026-07-16T05:48:10Z",
 });
 const withStatus = (status: string) =>
-  ok({ intent_id: INTENT_ID, status, source_tx_hash: TX_HASH });
+  ok({
+    intentId: INTENT_ID,
+    status,
+    sourceTxHash: TX_HASH,
+    createDate: "2026-07-16T05:18:10Z",
+  });
 
 /** Every refusal code the commit handshake spec names, with the status the
  *  handler sends it with. */
@@ -104,7 +113,7 @@ function installBackend(
     const kind = url.endsWith("/receipt") ? "receipt" : "status";
     assert.equal(
       url,
-      `https://api.trustware.io/api/v1/route-intent/${INTENT_ID}/${kind}`
+      `https://api.trustware.io/api/v2/route-intent/${INTENT_ID}/${kind}`
     );
     calls.push({ kind, at: clock.now() });
     if (kind === "receipt") {

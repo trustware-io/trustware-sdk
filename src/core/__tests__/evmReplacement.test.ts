@@ -263,7 +263,9 @@ describe("a replaced EVM send commits the replacement", () => {
         key: (init.headers as Record<string, string>)["Idempotency-Key"],
       });
       if (commits.length === 2) committed();
-      return json(200, { data: { ok: true, transaction_id: "tx-1" } });
+      return json(200, {
+        data: { ok: true, transactionId: "tx-1", sourceTxHash: "0xhash" },
+      });
     }) as unknown as typeof fetch;
     const route: BuildRouteResult = {
       intentId: "intent-replaced",
@@ -293,7 +295,7 @@ describe("a replaced EVM send commits the replacement", () => {
     });
     assert.deepEqual(await accepted[0].receiptDelivery, { kind: "recorded" });
     const receiptUrl =
-      "https://api.trustware.io/api/v1/route-intent/intent-replaced/receipt";
+      "https://api.trustware.io/api/v2/route-intent/intent-replaced/receipt";
     assert.deepEqual(commits, [
       { url: receiptUrl, body: { txHash: ORIGINAL }, key: ORIGINAL },
       { url: receiptUrl, body: { txHash: REPLACEMENT }, key: REPLACEMENT },

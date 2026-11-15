@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type {
-  BalanceRow,
-  ChainDef,
-  WalletAddressBalanceWrapper,
-} from "../../../types";
+import type { BalanceRow, ChainDef } from "../../../types";
 import {
   getBalancesByAddress,
   getBalancesByAddressStream,
+  mergeBalanceWrappers,
 } from "../../../core/balances";
 import { useChains, useTokens } from "../../hooks";
 import { TrustwareConfigStore } from "../../../config/store";
@@ -111,7 +108,7 @@ export function useWalletTokenState({
             if (cancelled) {
               return false;
             }
-            accumulatedBalances = mergeWalletBalanceChunks(
+            accumulatedBalances = mergeBalanceWrappers(
               accumulatedBalances,
               chunk
             );
@@ -304,42 +301,6 @@ function applyWalletTokenState({
   return updatedTokens;
 }
 
-function mergeWalletBalanceChunks(
-  current: Awaited<ReturnType<typeof getBalancesByAddress>>,
-  incoming: WalletAddressBalanceWrapper[]
-): Awaited<ReturnType<typeof getBalancesByAddress>> {
-  const merged = new Map<string, (typeof current)[number]>();
-
-  for (const item of current) {
-    merged.set(item.chain_id, item);
-  }
-
-  for (const item of incoming) {
-    const existing = merged.get(item.chain_id);
-    if (!existing) {
-      merged.set(item.chain_id, item);
-      continue;
-    }
-
-    const balancesByKey = new Map<string, BalanceRow>();
-    for (const row of existing.balances ?? []) {
-      balancesByKey.set(`${row.contract ?? row.address ?? row.symbol}`, row);
-    }
-    for (const row of item.balances ?? []) {
-      balancesByKey.set(`${row.contract ?? row.address ?? row.symbol}`, row);
-    }
-
-    merged.set(item.chain_id, {
-      ...existing,
-      ...item,
-      balances: Array.from(balancesByKey.values()),
-      count: item.count ?? existing.count,
-    });
-  }
-
-  return Array.from(merged.values());
-}
-
 function hasChainData(token: Token | YourTokenData): token is YourTokenData {
   return "chainData" in token;
 }
@@ -351,14 +312,14 @@ export function mapWalletTokens(
 ): YourTokenData[] {
   const flattenedBalances = balances.flatMap((chainBalances) =>
     (chainBalances.balances ?? []).flatMap((balance) => {
-      if (!balance || !chainBalances?.chain_id) {
+      if (!balance || !chainBalances?.chainId) {
         return [];
       }
 
       return [
         {
           ...balance,
-          chain_id: chainBalances.chain_id,
+          chainId: chainBalances.chainId,
         },
       ];
     })
@@ -387,7 +348,7 @@ export function mapWalletTokens(
     const chain = chains.find(
       (candidate) =>
         normalizeChainKey(candidate.chainId) ===
-        normalizeChainKey(balanceRow.chain_id)
+        normalizeChainKey(balanceRow.chainId)
     );
     if (!chain) {
       return [];
@@ -402,7 +363,7 @@ export function mapWalletTokens(
       balanceAddress,
       tokens
     );
-    const canonicalKey = `${normalizeChainKey(balanceRow.chain_id)}:${canonicalBalanceAddress}`;
+    const canonicalKey = `${normalizeChainKey(balanceRow.chainId)}:${canonicalBalanceAddress}`;
     let foundToken = tokensByCanonicalKey.get(canonicalKey);
 
     if (!foundToken && balanceRow.category === "native") {
@@ -411,7 +372,7 @@ export function mapWalletTokens(
         getNativeTokenAddress(normalizeChainType(chain)),
         tokens
       );
-      const nativeKey = `${normalizeChainKey(balanceRow.chain_id)}:${nativeAddress}`;
+      const nativeKey = `${normalizeChainKey(balanceRow.chainId)}:${nativeAddress}`;
       foundToken = tokensByCanonicalKey.get(nativeKey);
     }
 
@@ -432,7 +393,7 @@ export function mapWalletTokens(
             decimals: native?.decimals ?? balanceRow.decimals ?? 18,
             name: native?.name?.trim() || symbol,
             iconUrl: chain.chainIconURI || "",
-            chainId: balanceRow.chain_id,
+            chainId: balanceRow.chainId,
             usdPrice: undefined,
             address: getNativeTokenAddress(normalizeChainType(chain)),
             chainIconURI: chain.chainIconURI || "",
@@ -453,7 +414,7 @@ export function mapWalletTokens(
         decimals: foundToken.decimals,
         name: foundToken.name,
         iconUrl: foundToken.iconUrl ?? foundToken.logoURI ?? "",
-        chainId: balanceRow.chain_id,
+        chainId: balanceRow.chainId,
         usdPrice: foundToken.usdPrice,
         address: foundToken.address,
         chainIconURI: chain.chainIconURI || "",

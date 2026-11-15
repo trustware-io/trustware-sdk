@@ -42,8 +42,8 @@ async function fetchOnceWithTimeout(
 }
 
 /**
- * Both endpoints this file calls — /v1/paymaster/sponsor-calldata and
- * /v1/bundler/send-user-operation — sit behind the backend's per-API-key rate
+ * Both endpoints this file calls — /paymaster/sponsor-calldata and
+ * /bundler/send-user-operation — sit behind the backend's per-API-key rate
  * limit, and that limit is shared by every visitor of an integrator's site. A
  * plain fetch turned a 429 there into a hard failure in the middle of a
  * payment, with none of the SDK's rate limit callbacks firing.
@@ -169,7 +169,7 @@ export async function createTrustwareSmartAccountClient(
       }
 
       const resp = await fetchWithTimeout(
-        `${apiBase()}/v1/bundler/send-user-operation`,
+        `${apiBase()}/bundler/send-user-operation`,
         {
           method: "POST",
           headers: jsonHeaders(),
@@ -256,7 +256,7 @@ export async function createTrustwareSmartAccountClient(
     const maxCostWei = totalGas * BigInt(uo.maxFeePerGas ?? "0x0") * 2n;
 
     const resp = await fetchWithTimeout(
-      `${apiBase()}/v1/paymaster/sponsor-calldata`,
+      `${apiBase()}/paymaster/sponsor-calldata`,
       {
         method: "POST",
         headers: jsonHeaders(),

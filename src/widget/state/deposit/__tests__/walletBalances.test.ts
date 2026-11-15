@@ -28,7 +28,7 @@ function token(
     chainId: "solana-mainnet-beta",
     usdPrice,
     address,
-    chain_key: "solana",
+    chainKey: "solana",
     category: "spl",
     balance,
   };
@@ -133,10 +133,10 @@ describe("walletBalanceErrors", () => {
   const EVM_WALLET = "0xa5cc6f03b19b7528d34e19c7cdb918bdbe6ccbf1";
 
   const result = (
-    chain_id: string,
+    chainId: string,
     error: string | null
   ): WalletAddressBalanceWrapper => ({
-    chain_id,
+    chainId,
     balances: [],
     count: 0,
     error,
