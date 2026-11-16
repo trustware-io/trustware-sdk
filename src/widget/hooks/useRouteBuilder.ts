@@ -7,7 +7,7 @@ import {
   useDepositWallet,
 } from "../context/DepositContext";
 import type { ChainDef } from "../../types";
-import { isEvmTxRequest, isSerializedSolanaTxRequest } from "../../core/routes";
+import { routeTxKind } from "../../core/routes";
 import { buildRouteForReview, type BuiltRoute } from "../../core/signTimeRoute";
 import { parseRouteError } from "../../core";
 import { mapError } from "../lib/mapError";
@@ -334,11 +334,7 @@ function routeStateFor(built: BuiltRoute): RouteBuilderState {
   const result = built.result;
   // Extract fee and estimate info from the route result
   const estimate = result?.route?.estimate;
-  if (
-    !result?.txReq?.data ||
-    (!isEvmTxRequest(result.txReq) &&
-      !isSerializedSolanaTxRequest(result.txReq))
-  ) {
+  if (routeTxKind(result?.txReq) === undefined) {
     throw new Error("Invalid route response");
   }
   const fees = estimate?.fees;

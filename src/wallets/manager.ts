@@ -7,6 +7,7 @@ import type {
   SolanaProviderLike,
 } from "../types";
 import type { WagmiBridge } from "./bridges";
+import { SOLANA_MAINNET_CHAIN_KEY } from "../utils/chains";
 import { connectDetectedWallet } from "./connect";
 import { useWalletDetection } from "./detect";
 import { IdentityStore, buildWalletIdentityAddress } from "../identity";
@@ -737,8 +738,8 @@ class WalletManager {
           ? { chainId: String(await this._wallet.getChainId()), type: "evm" }
           : this._wallet.ecosystem === "solana"
             ? {
-                chainId: "solana-mainnet-beta",
-                networkIdentifier: "solana-mainnet-beta",
+                chainId: SOLANA_MAINNET_CHAIN_KEY,
+                networkIdentifier: SOLANA_MAINNET_CHAIN_KEY,
                 type: "solana",
               }
             : {

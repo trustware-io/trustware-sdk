@@ -15,6 +15,13 @@ const MAX_DETAIL = 160;
 
 const GENERIC = "Transaction failed on-chain. Please try again.";
 
+/**
+ * Starts with "Transaction failed" so mapError keeps it in the
+ * transaction_failed category and shows it verbatim.
+ */
+export const REFUNDED =
+  "Transaction failed and your funds were refunded. Check your wallet; a refund can arrive as a different token.";
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
@@ -34,6 +41,10 @@ function tidy(detail: string): string {
 }
 
 export function describeTransactionFailure(tx: Transaction): string {
+  // Whether the user has their money back matters more than why the route
+  // failed, so a refund wins over anything status_raw says.
+  if (tx?.refunded === true) return REFUNDED;
+
   const raw = asRecord(tx?.statusRaw);
 
   const substatus = str(raw?.substatus);

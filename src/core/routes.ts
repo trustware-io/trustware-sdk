@@ -5,6 +5,7 @@ import { assertRouteDeliversValue } from "./routeValue";
 import { parseRouteExpiresAt, parseServerClockOffsetMs } from "./routeExpiry";
 import type {
   BuildRouteResult,
+  IntentExecutionStep,
   PostHookRequest,
   RoutePlan,
   RouteSponsorship,
@@ -16,6 +17,7 @@ import { validateRouteAddresses } from "../validation/address";
 import {
   isNativeTokenAddress,
   NATIVE_SOLANA,
+  normalizeChainKey,
   normalizeChainType,
 } from "../utils/chains";
 
@@ -195,12 +197,36 @@ type BuildDepositAddressResponse = {
   message?: string;
 };
 
-export function isEvmTxRequest(txReq?: TxRequest | null) {
-  return Boolean(txReq?.data && (txReq.to || txReq.target));
-}
+/** How a route's transaction is signed: EVM calldata, or a serialized
+ *  Solana transaction. */
+export type RouteTxKind = "evm" | "solana";
 
-export function isSerializedSolanaTxRequest(txReq?: TxRequest | null) {
-  return Boolean(txReq?.data && !txReq?.to && !txReq?.target);
+/**
+ * Which kind of transaction a route carries, decided by the chain it is sent
+ * on (the transaction's own `chainId`, else `fallbackChainId`). Undefined
+ * when it can't be sent: no data, no chain, a chain that is neither EVM nor
+ * Solana, or EVM calldata with no target.
+ *
+ * Never decided by the presence of `to`. Squid's Solana deposit-address
+ * transaction names its deposit address there (2026-11-10), and reading
+ * that as EVM sent a Solana route to the EVM path.
+ */
+export function routeTxKind(
+  txReq: TxRequest | null | undefined,
+  fallbackChainId?: number | string
+): RouteTxKind | undefined {
+  if (!txReq?.data) return undefined;
+  const chainKey =
+    normalizeChainKey(txReq.chainId) || normalizeChainKey(fallbackChainId);
+  if (chainKey === "") return undefined;
+  switch (normalizeChainType(chainKey)) {
+    case "solana":
+      return "solana";
+    case "evm":
+      return txReq.to || txReq.target ? "evm" : undefined;
+    default:
+      return undefined;
+  }
 }
 
 export async function buildRoute(
@@ -266,6 +292,13 @@ export async function buildRoute(
 
   if (!txReq?.data) {
     throw new Error("Invalid route: missing transaction data");
+  }
+  // A route's transaction is sent on the route's source chain. A backend
+  // that predates stamping it passes LiFi's Solana transaction on with no
+  // chainId, and the send then had no chain to name (staging, 2026-11-11).
+  // Filled here, where every route enters the SDK, so no send path guesses.
+  if (normalizeChainKey(txReq.chainId) === "") {
+    txReq.chainId = body.fromChain;
   }
   assertValidRouteApprovals(route?.execution?.approvals);
   const expiresAt = parseRouteExpiresAt(
@@ -439,10 +472,32 @@ export async function getStatus(intentId: string): Promise<Transaction> {
  * Wire (snake_case) → Transaction (camelCase) field names.
  *
  * `origin_eoa` and `landed_amount_verified` are absent on purpose: Transaction
- * spells those two in snake_case already, so they need no mapping.
+ * spells those two in snake_case already, so they need no mapping. So is
+ * `refunded`, which is one word and the same in both spellings.
  */
 const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
   intent_id: "intentId",
+  project_id: "projectId",
+  sdk_api_key_id: "sdkApiKeyId",
+  sdk_request: "sdkRequest",
+  provider_quote_id: "providerQuoteId",
+  sender_verification: "senderVerification",
+  routing_provider: "routingProvider",
+  intent_status: "intentStatus",
+  quote_to_amount_usd: "quoteToAmountUSD",
+  poll_attempt: "pollAttempt",
+  next_poll_at: "nextPollAt",
+  gas_sponsored: "gasSponsored",
+  sponsorship_request_id: "sponsorshipRequestId",
+  sponsorship_status: "sponsorshipStatus",
+  paymaster_rule_id: "paymasterRuleId",
+  paymaster_address: "paymasterAddress",
+  approved_sponsored_gas_usd: "approvedSponsoredGasUSD",
+  gas_sponsored_usd: "gasSponsoredUSD",
+  actual_sponsored_gas_usd: "actualSponsoredGasUSD",
+  approved_sponsored_gas_wei: "approvedSponsoredGasWei",
+  actual_sponsored_gas_wei: "actualSponsoredGasWei",
+  sponsorship_user_operation_hash: "sponsorshipUserOperationHash",
   from_address: "fromAddress",
   to_address: "toAddress",
   from_chain_id: "fromChainId",
@@ -488,16 +543,46 @@ const STATUS_WIRE_TO_CAMEL: Record<string, keyof Transaction> = {
 export function normalizeStatusPayload(raw: unknown): Transaction {
   if (!raw || typeof raw !== "object") return raw as Transaction;
 
-  const wire = raw as Record<string, unknown>;
-  const out: Record<string, unknown> = { ...wire };
+  const out = addCamelCaseKeys(
+    raw as Record<string, unknown>,
+    STATUS_WIRE_TO_CAMEL
+  );
+  if (Array.isArray(out.steps)) {
+    out.steps = out.steps.map((step: unknown) =>
+      step && typeof step === "object"
+        ? addCamelCaseKeys(step as Record<string, unknown>, STEP_WIRE_TO_CAMEL)
+        : step
+    );
+  }
+  return out as Transaction;
+}
 
-  for (const [snake, camel] of Object.entries(STATUS_WIRE_TO_CAMEL)) {
+/** Wire → IntentExecutionStep field names, for `Transaction.steps`. */
+const STEP_WIRE_TO_CAMEL: Record<string, keyof IntentExecutionStep> = {
+  step_index: "stepIndex",
+  step_kind: "stepKind",
+  chain_id: "chainId",
+  tx_hash: "txHash",
+  create_date: "createdDate",
+  update_date: "updatedDate",
+};
+
+/**
+ * Copies `wire` and adds each mapped camelCase key. The raw keys stay, an
+ * explicit camelCase key on the wire wins, and a missing field stays missing
+ * rather than becoming a defined-but-undefined property.
+ */
+function addCamelCaseKeys(
+  wire: Record<string, unknown>,
+  wireToCamel: Record<string, string>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...wire };
+  for (const [snake, camel] of Object.entries(wireToCamel)) {
     if (out[camel] !== undefined) continue;
     if (!(snake in wire)) continue;
     out[camel] = wire[snake];
   }
-
-  return out as Transaction;
+  return out;
 }
 
 /**
