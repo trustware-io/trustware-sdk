@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.19] - 2026-11-16
+
+
+### Added
+
+- Type every field of the status payload
+- Read the refunded flag on a failed transaction
+
+
+### Fixed
+
+- Make Transaction's block numbers optional
+- Send a route on the chain it was built for
+- Catch a same-chain self-transfer on non-EVM chains
+- Pick a route's send path by its chain, not its `to`
+- Rebuild a route by its request's chain when it names none
+- Show the send path's own refusals as themselves
+- Compare self-transfer tokens by tokenIdentityKey
+
 ## [1.1.18] - 2026-11-06
 
 
