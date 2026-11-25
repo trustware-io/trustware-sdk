@@ -133,7 +133,6 @@ export type SwapTokenRef = {
 export type FeatureFlags = {
   tokensPagination?: boolean;
   balanceStreaming?: boolean;
-  shouldAllowGA4?: boolean;
   /**
    * @deprecated Use top-level `mode: "swap"` on `TrustwareConfigOptions` instead. Still
    * supported for backward compatibility and treated as equivalent to `mode: "swap"`.
@@ -198,7 +197,6 @@ export type VaultDepositsConfig =
 export type ResolvedFeatureFlags = {
   tokensPagination: boolean;
   balanceStreaming: boolean;
-  shouldAllowGA4: boolean;
   swapMode: boolean;
   swapDefaultDestToken: SwapTokenRef | null;
   swapLockDestToken: boolean;
@@ -281,7 +279,6 @@ export const DEFAULT_FEATURE_FLAGS: ResolvedFeatureFlags = {
   // runtime whose fetch has no readable body — React Native, most notably.
   // The cost of defaulting ahead of a backend is one refused request per scan.
   balanceStreaming: true,
-  shouldAllowGA4: true,
   swapMode: false,
   swapDefaultDestToken: null,
   swapLockDestToken: false,

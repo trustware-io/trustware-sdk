@@ -33,7 +33,6 @@ import { ACTIVE_TRANSACTION_STATUSES } from "./app/widgetSteps";
 import { useTrustware } from "../provider";
 import { useWalletExternalDisconnect } from "src/wallets/manager";
 import { useTrustwareConfig } from "src/hooks/useTrustwareConfig";
-import { WidgetAnalytics } from "./app/WidgetAnalytics";
 import { SwapMode } from "src/modes/swap";
 
 // Styles for WidgetContent
@@ -342,28 +341,21 @@ export const TrustwareWidgetV2 = forwardRef<
     return null;
   }
 
-  // GTM is loaded once here, above the mode branch, so the container (and the
-  // page_view it fires) exists for swap mode too. Swap mode returns before
-  // WidgetInner renders, so hanging analytics off WidgetInner left swap-mode
-  // hosts reporting nothing at all. See WidgetAnalytics for the single-owner
-  // contract this respects.
+  if (config.mode === "swap") {
+    // Swap Mode bypasses DepositProvider — fully standalone
+    return <SwapMode theme={theme} style={style} />;
+  }
+
   return (
-    <WidgetAnalytics>
-      {config.mode === "swap" ? (
-        // Swap Mode bypasses DepositProvider — fully standalone
-        <SwapMode theme={theme} style={style} />
-      ) : (
-        <DepositProvider initialStep={effectiveInitialStep}>
-          <WidgetInner
-            theme={theme}
-            style={style}
-            onClose={handleClose}
-            closeRequestRef={closeRequestRef}
-            showThemeToggle={showThemeToggle}
-          />
-        </DepositProvider>
-      )}
-    </WidgetAnalytics>
+    <DepositProvider initialStep={effectiveInitialStep}>
+      <WidgetInner
+        theme={theme}
+        style={style}
+        onClose={handleClose}
+        closeRequestRef={closeRequestRef}
+        showThemeToggle={showThemeToggle}
+      />
+    </DepositProvider>
   );
 });
 

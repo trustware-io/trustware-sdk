@@ -121,7 +121,7 @@ Each npm package's trusted-publisher config references the matching GitHub envir
 
 ### Build-time secrets
 
-`TRUSTWARE_API_ROOT`, `TRUSTWARE_GTM_ID`, and `TRUSTWARE_WALLETCONNECT_PROJECT_ID` are sourced from Doppler (`trustware-sdk` project, `stg`/`prd` configs) and synced to the matching GitHub environment. Do **not** add a `prepublishOnly` script — npm runs it during `npm publish` after the workflow's package.json rewrite, with no env scoping, baking empty secrets into the bundle.
+`TRUSTWARE_API_ROOT` and `TRUSTWARE_WALLETCONNECT_PROJECT_ID` are sourced from Doppler (`trustware-sdk` project, `stg`/`prd` configs) and synced to the matching GitHub environment. Do **not** add a `prepublishOnly` script — npm runs it during `npm publish` after the workflow's package.json rewrite, with no env scoping, baking empty secrets into the bundle.
 
 ## Local Development with Example Webapp
 
@@ -240,53 +240,28 @@ There is **no** event-emitter on the facade (`Trustware.on` does not exist). Eve
 - `pages/` — `Home`, `SelectToken`, `CryptoPay/` (deposit/amount flow + `RouteQuoteLoader.tsx`), `Processing`, `Success`, `Error`.
 - `state/deposit/` — navigation + wallet/token state hooks (`useDepositNavigationState`, `useWalletTokenState`, `useWalletConnect`, `useWalletSessionState`, `useThemePreference`, `types.ts`).
 - `features/` — feature folders (`amount`, `route-preview`, `token-selection`, `transaction`, `wallet`). Domain logic and view-model hooks live here, not in `pages/`.
-- `app/` — shell plumbing: `WidgetRouter.tsx`, `WidgetPersistence.ts`, `WidgetShellOverlays.tsx`, `widgetSteps.ts`, `WidgetAnalytics.tsx`.
+- `app/` — shell plumbing: `WidgetRouter.tsx`, `WidgetPersistence.ts`, `WidgetShellOverlays.tsx`, `widgetSteps.ts`.
 - `components/`, `hooks/`, `context/`, `data/` (`popularChains.json`, `featuredAssets.json`), `helpers/`, `lib/` (`mapError.ts` — maps backend/route errors → user-facing messages for the Error page; `utils.ts`), `styles/`, `utils/`, `__tests__/`. `components/` is shell UI and reusable primitives; it should not import SDK orchestration code.
 
-### Analytics (GA4 via GTM)
+### No Google Analytics (BVT-477, 2026-11-25)
 
-`src/hooks/useGTM.ts` exposes two hooks with different jobs. `useGTM(gtmId)`
-loads the container; `useGTMTracker()` only pushes to an already-loaded one.
-Event-only consumers must use the tracker.
+The SDK loads no Google Tag Manager container and reports nothing to Google
+Analytics. The ticket's reason: "We now use our own analytics".
+`useGTM`, `useGTMTracker`, `WidgetAnalytics`, the `payment_initiated` /
+`payment_completed` / `token_approval_initiated` GA4 events and the
+`TRUSTWARE_GTM_ID` build setting were deleted, along with the backend's
+BigQuery queries that read them. Do not add a GTM, gtag or `dataLayer` call
+back. Hosts still get `transaction_started` / `transaction_success` and the
+rest of `TrustwareEvent` through `onEvent`; that stream never left the page
+and is unchanged.
 
-`WidgetAnalytics` (`src/widget/app/`) is the single `useGTM` caller. It wraps
-the mode branch in `TrustwareWidgetV2`, above both `SwapMode` and
-`DepositProvider`, so the container loads for either mode. It used to sit
-inside `WidgetInner`, which only renders on the deposit path, and swap-mode
-hosts consequently reported nothing to GA4 at all. Keep it above the branch;
-`grep -rn "useGTM(" src/` should return exactly one call site.
-
-Container ownership is refcounted at module scope in `useGTM.ts`: the script
-loads on 0 → 1 owners and unloads on 1 → 0, so two widgets on one page share
-one container and the first to unmount does not silence the second.
-
-Two events reach BigQuery, and their names and param keys are fixed by the BI
-queries in `quicklinks_v1/iluvatar/db/g4a_repo.go` — renaming either breaks
-dashboards outside this repo:
-
-| Event               | Deposit                                                   | Swap                                        |
-| ------------------- | --------------------------------------------------------- | ------------------------------------------- |
-| `payment_initiated` | `features/transaction/hooks/useTransactionActionModel.ts` | `modes/swap/SwapMode.tsx` (`handleExecute`) |
-
-`payment_initiated` fires once per send, not per confirm: both flows pass
-a callback to `prepareConfirmedSend`, which runs it only when the route is
-cleared for signing. A confirm whose Solana rebuild comes back materially
-worse goes back to review and reports nothing. ESLint allows the literal
-`"payment_initiated"` only in `src/widget/lib/confirmedSend.ts`
-(`PAYMENT_INITIATED`).
-| `payment_completed` | `widget/hooks/useTransactionPolling.ts`                   | `modes/swap/SwapMode.tsx` (`onSuccess`)     |
-
-Both carry `from_chain`, `from_token`, `to_chain`, `to_token`, `domain`. Deposit
-reads its destination from `config.routes`; **swap must not** — `routes` is
-optional under `mode: "swap"` and is usually undefined, so swap reads its own
-`toChain`/`toToken` state. `modes/swap/analytics.ts` builds the payload and
-guards each emit with `claimAttemptOnce`, keyed on the route **object
-identity** rather than `intentId`: `buildRoute` falls back to `intentId: ""`,
-which an id-keyed guard would read as unclaimable and silently drop.
-
-Collection is gated on `features.shouldAllowGA4` (default true), checked inside
-`useGTM`. `GTM_ID` is baked at build time from `TRUSTWARE_GTM_ID`; an empty
-value in a dev build logs and no-ops rather than throwing.
+**Breaking change to the public API (signed off 2026-11-25: "Remove both
+outright").** `features.shouldAllowGA4` is gone from `FeatureFlags` and
+`ResolvedFeatureFlags`, and `GTM_ID` is no longer exported from the package
+root or `./constants`. A TypeScript host that still sets the flag gets an
+excess-property error and deletes the line; at runtime an unknown feature
+key is ignored, so a JavaScript host needs no change. The alternative, keeping
+the flag as a deprecated no-op, was offered and declined.
 
 ### Widget Navigation (real flow)
 
@@ -324,8 +299,7 @@ Rules that follow from it:
   (rebuilding a Solana route) and returns a branded `SignableRoute`, which
   is the only route `sendSignableRoute` accepts, beside the reviewed
   `BuiltRoute` it rebuilds from if signing outlasts the blockhash. `sendReviewedRoute` is the
-  two in one call, for hosts. Widget flows call `prepareConfirmedSend`
-  (`src/widget/lib/confirmedSend.ts`), which wraps `routeForSigning`, and
+  two in one call, for hosts. Widget flows call `routeForSigning` and
   then send through `sendSignableRoute` or the smart-account override, so
   the override also only ever gets a cleared route. ESLint forbids
   `sendRouteTransaction` and `buildRoute` under `src/widget/` and
@@ -557,8 +531,6 @@ The rules:
   error. It never loops, and never asks a third time.
 - The receipt is posted only for the transaction actually sent. The first
   route's intent stays an ordinary abandoned one.
-- `payment_initiated` still fires once per actual send: the retry belongs
-  to the same confirm and doesn't report again.
 - `BLOCKHASH_NOT_FOUND` sits beside `ALREADY_PROCESSED` in
   `SDK_RPC_CODES`.
 - A 503 on the validity check before the first send says nothing about
@@ -582,9 +554,7 @@ inclusion" text) on an invalid answer or `BLOCKHASH_NOT_FOUND`.
 reruns `routeForSigning(reviewed)`, calls `onRetry` with
 `SIGNING_RETRY_MESSAGE`, and sends the rebuild. A second one propagates.
 Deposit shows the message under the swipe (`CryptoPaySwipeSection`), swap
-on its processing screen. `payment_initiated` fires only from
-`prepareConfirmedSend`, which runs before the first prompt, so the retry
-can't report again. `npm run check:host-types` typechecks the host example
+on its processing screen. `npm run check:host-types` typechecks the host example
 in `scripts/host-types/` against the built typings.
 
 **Host API (signed off 2026-10-16, exactly as proposed).**
@@ -773,7 +743,7 @@ one yet.
 
 ### Other Subsystems
 
-- `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, `analytics.ts` (GA4 payload builder + once-per-attempt guard), hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
+- `src/modes/swap/` — swap mode, selected with top-level `mode: "swap"` (the older `features.swapMode: true` is deprecated but still honored as equivalent): `SwapMode.tsx`, `currency.ts`, hooks (`useSwapRoute`, `useSwapExecution`, `useForex`), components.
   - Picking the token the other side already holds flips the two sides, the same as the flip button (`sides.ts`). A flip is refused when it would put a token on the buy side the host forbids (`swapLockDestToken`, or a token outside `swapAllowedDestTokens`). In that case the flip button is disabled and the sell picker hides the buy token.
   - Both sides hold the same token only during a vault deposit: selling a vault's own asset into it is a real route (BVT-398's "move to a better vault"), so with a vault selected that pick just sets the sell token. Automatic picks (the wallet's largest balance on connect, the host's default buy token) never put one token on both sides outside a vault deposit; they leave the sell side empty instead.
 - `src/smart-account/` — ERC-4337 path: `createTrustwareSmartAccountClient`, `sendRouteAsUserOperation`, `permit2.ts` (`PERMIT2`, `randomPermit2Nonce`), `uniswap.ts`, `fee-utils.ts`.

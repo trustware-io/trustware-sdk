@@ -55,8 +55,8 @@ export default tseslint.config(
   },
 
   // Widget flows build routes with buildRouteForReview, clear them for
-  // signing with prepareConfirmedSend (routeForSigning), and send them with
-  // sendSignableRoute (src/core/signTimeRoute.ts). That path rebuilds a
+  // signing with routeForSigning, and send them with sendSignableRoute
+  // (src/core/signTimeRoute.ts). That path rebuilds a
   // Solana route right before signing, since the reviewed transaction's
   // blockhash may have expired. Calling the raw functions skips it.
   {
@@ -68,7 +68,7 @@ export default tseslint.config(
           object: "Trustware",
           property: "sendRouteTransaction",
           message:
-            "Clear a confirmed route with prepareConfirmedSend, then send it with sendSignableRoute.",
+            "Clear a confirmed route with routeForSigning, then send it with sendSignableRoute.",
         },
         {
           object: "Trustware",
@@ -84,7 +84,7 @@ export default tseslint.config(
               group: ["**/core/tx", "src/core/tx"],
               importNames: ["sendRouteTransaction"],
               message:
-                "Clear a confirmed route with prepareConfirmedSend, then send it with sendSignableRoute.",
+                "Clear a confirmed route with routeForSigning, then send it with sendSignableRoute.",
             },
             {
               group: ["**/core/routes", "src/core/routes"],
@@ -97,19 +97,23 @@ export default tseslint.config(
     },
   },
 
-  // payment_initiated is reported only by prepareConfirmedSend
-  // (src/widget/lib/confirmedSend.ts), once something is about to be sent.
-  // Reporting it at confirm counted a confirm that went back to review.
+  // BVT-477: the SDK loads no Google Tag Manager container and reports
+  // nothing to Google Analytics. See "No Google Analytics" in CLAUDE.md.
   {
-    files: ["src/widget/**/*.{ts,tsx}", "src/modes/**/*.{ts,tsx}"],
-    ignores: ["src/widget/lib/confirmedSend.ts", "**/__tests__/**"],
+    files: ["src/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-syntax": [
         "error",
         {
-          selector: "Literal[value='payment_initiated']",
+          selector:
+            "Literal[value=/googletagmanager|google-analytics/i], TemplateElement[value.raw=/googletagmanager|google-analytics/i]",
           message:
-            "Report payment_initiated through prepareConfirmedSend's onSendStarting.",
+            "The SDK does not load or call Google Analytics or Tag Manager (BVT-477).",
+        },
+        {
+          selector: "MemberExpression[property.name=/^(dataLayer|gtag)$/]",
+          message:
+            "The SDK does not push to a GTM dataLayer or call gtag (BVT-477).",
         },
       ],
     },

@@ -3,14 +3,11 @@ import { useCallback, useState } from "react";
 import type { TrackedReceipt } from "../state/deposit/types";
 import { RouteExpiredError } from "../../core/routeExpiry";
 import {
+  routeForSigning,
   sendSignableRoute,
   type BuiltRoute,
   type MaterialRouteChange,
 } from "../../core/signTimeRoute";
-import {
-  prepareConfirmedSend,
-  type PAYMENT_INITIATED,
-} from "../lib/confirmedSend";
 import {
   useDepositForm,
   useDepositNavigation,
@@ -94,8 +91,6 @@ export function useTransactionSubmit() {
   const submitTransaction = useCallback(
     async (
       reviewed: BuiltRoute,
-      /** Something is about to be sent: report `payment_initiated` here. */
-      onSendStarting: (event: typeof PAYMENT_INITIATED) => void,
       sendOverride?: SendOverride
     ): Promise<SubmitOutcome> => {
       const routeResult = reviewed.result;
@@ -125,7 +120,7 @@ export function useTransactionSubmit() {
       try {
         // Rebuilds a Solana route right before signing; its blockhash may
         // have expired while the user read Confirm Deposit.
-        const decision = await prepareConfirmedSend(reviewed, onSendStarting);
+        const decision = await routeForSigning(reviewed);
         if (decision.kind === "route_changed") {
           setState({ isSubmitting: false, txHash: null, error: null });
           setTransactionStatus("idle");
