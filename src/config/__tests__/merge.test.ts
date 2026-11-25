@@ -120,3 +120,27 @@ describe("resolveConfig - balance streaming default", () => {
     assert.equal(resolved.features.balanceStreaming, false);
   });
 });
+
+// BVT-477 removed features.shouldAllowGA4 with Google Analytics itself. A
+// JavaScript host that still passes it must keep working, and the resolved
+// config must not carry it.
+describe("resolveConfig - removed features.shouldAllowGA4", () => {
+  for (const value of [true, false]) {
+    it(`ignores shouldAllowGA4: ${value} from a host that still sets it`, () => {
+      const resolved = resolveConfig({
+        apiKey: "test-key",
+        routes: { toChain: "8453", toToken: "USDC" },
+        features: { shouldAllowGA4: value },
+      } as unknown as TrustwareConfigOptions);
+      assert.deepEqual(Object.keys(resolved.features).sort(), [
+        "balanceStreaming",
+        "swapAllowedDestTokens",
+        "swapDefaultDestToken",
+        "swapLockDestToken",
+        "swapMode",
+        "tokensPagination",
+        "vaultDeposits",
+      ]);
+    });
+  }
+});

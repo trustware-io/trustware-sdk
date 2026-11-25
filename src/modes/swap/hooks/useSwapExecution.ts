@@ -4,14 +4,12 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { Trustware } from "src/core";
 import { submitStepReceipt } from "src/core/routes";
 import {
+  routeForSigning,
   sendSignableRoute,
   type BuiltRoute,
   type MaterialRouteChange,
+  type SigningDecision,
 } from "src/core/signTimeRoute";
-import {
-  prepareConfirmedSend,
-  type PAYMENT_INITIATED,
-} from "src/widget/lib/confirmedSend";
 import {
   trackIntent,
   type ReceiptDeliveryOutcome,
@@ -258,8 +256,6 @@ export function useSwapExecution(fromChain: ChainDef | null) {
         rebuilt: BuiltRoute,
         change: MaterialRouteChange
       ) => void,
-      /** Something is about to be sent: report `payment_initiated` here. */
-      onSendStarting: (event: typeof PAYMENT_INITIATED) => void,
       /** The route's `expiresAt` passed before it was sent. Nothing was
        *  sent; the caller fetches a new quote. */
       onRouteExpired: () => void
@@ -286,9 +282,9 @@ export function useSwapExecution(fromChain: ChainDef | null) {
 
       // Rebuilds a Solana route right before signing; its blockhash may
       // have expired while the user read the review screen.
-      let decision: Awaited<ReturnType<typeof prepareConfirmedSend>>;
+      let decision: SigningDecision;
       try {
-        decision = await prepareConfirmedSend(reviewed, onSendStarting);
+        decision = await routeForSigning(reviewed);
       } catch (err) {
         const msg = mapTxError(err);
         setState((p) => ({

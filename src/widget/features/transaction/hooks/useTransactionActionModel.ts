@@ -28,13 +28,11 @@ import {
   type PlannedErc20Approval,
 } from "../../../helpers/plannedApprovals";
 import type { BuildRouteResult, ChainDef } from "../../../../types";
-import { useGTMTracker } from "../../../../hooks";
 import type {
   BuiltRoute,
   MaterialRouteChange,
 } from "../../../../core/signTimeRoute";
 import { ROUTE_CHANGED_TITLE } from "../../../lib/routeChange";
-import type { PAYMENT_INITIATED } from "../../../lib/confirmedSend";
 
 type UseTransactionActionModelArgs = {
   actionErrorMessage: string | null;
@@ -88,15 +86,6 @@ export function useTransactionActionModel({
 
   const { isSubmitting, signingRetryMessage, submitTransaction } =
     useTransactionSubmit();
-  const { trackEvent } = useGTMTracker();
-
-  const destinationConfig = (() => {
-    try {
-      return Trustware.getConfig();
-    } catch {
-      return undefined;
-    }
-  })();
 
   const chainType = selectedChain?.type ?? selectedChain?.chainType;
   const chainTypeNormalized = (chainType ?? "").toLowerCase();
@@ -213,17 +202,6 @@ export function useTransactionActionModel({
       return;
     }
 
-    trackEvent("token_approval_initiated", {
-      from_chain:
-        selectedChain?.networkName ??
-        selectedChain?.axelarChainName ??
-        selectedChain?.chainId,
-      from_token: selectedToken?.symbol,
-      to_chain: destinationConfig?.routes.toChain,
-      to_token: destinationConfig?.routes.toToken,
-      domain: window.origin,
-    });
-
     setIsApproving(true);
     try {
       for (const approval of unmetApprovals) {
@@ -272,20 +250,7 @@ export function useTransactionActionModel({
     } finally {
       setIsApproving(false);
     }
-  }, [
-    amountWei,
-    destinationConfig?.routes.toChain,
-    destinationConfig?.routes.toToken,
-    isApproving,
-    readAllowance,
-    selectedChain?.axelarChainName,
-    selectedChain?.chainId,
-    selectedChain?.networkName,
-    selectedToken?.symbol,
-    trackEvent,
-    unmetApprovals,
-    walletAddress,
-  ]);
+  }, [amountWei, isApproving, readAllowance, unmetApprovals, walletAddress]);
 
   const getCachedFeeData = useCallback(async () => {
     if (!backendChainId) return {};
@@ -423,21 +388,6 @@ export function useTransactionActionModel({
     if (!builtRoute || !routeResult) {
       return;
     }
-    // Snapshot now: the event describes what the user confirmed. It's sent
-    // only once something is about to be sent, so a confirm that goes back
-    // to review (a worse Solana rebuild) reports nothing.
-    const paymentParams = {
-      from_chain:
-        selectedChain?.networkName ??
-        selectedChain?.axelarChainName ??
-        selectedChain?.chainId,
-      from_token: selectedToken?.symbol,
-      to_chain: destinationConfig?.routes.toChain,
-      to_token: destinationConfig?.routes.toToken,
-      domain: window.origin,
-    };
-    const reportPaymentInitiated = (event: typeof PAYMENT_INITIATED) =>
-      trackEvent(event, paymentParams);
 
     // Silent smart-account sponsored path. Conditions: sponsorship present,
     // wallet is EIP-1193 EVM, ERC-20 token, numeric chain ID available, and
@@ -502,11 +452,7 @@ export function useTransactionActionModel({
         }
       };
 
-      const outcome = await submitTransaction(
-        builtRoute,
-        reportPaymentInitiated,
-        sendOverride
-      );
+      const outcome = await submitTransaction(builtRoute, sendOverride);
       if (outcome.kind === "failed" && !wasRejected) {
         // Non-rejection failure: mark as failed so the next retry uses EOA.
         setSmartAccountFailed(true);
@@ -515,7 +461,7 @@ export function useTransactionActionModel({
       return;
     }
 
-    const outcome = await submitTransaction(builtRoute, reportPaymentInitiated);
+    const outcome = await submitTransaction(builtRoute);
     if (outcome.kind === "route_expired") {
       onRouteExpired();
       return;
@@ -534,18 +480,13 @@ export function useTransactionActionModel({
     onRouteExpired,
     amountWei,
     backendChainId,
-    destinationConfig?.routes.toChain,
-    destinationConfig?.routes.toToken,
     isNativeSelected,
     routeResult,
     selectedChain?.axelarChainName,
-    selectedChain?.chainId,
     selectedChain?.networkName,
     selectedToken?.address,
-    selectedToken?.symbol,
     smartAccountFailed,
     submitTransaction,
-    trackEvent,
     walletAddress,
   ]);
 

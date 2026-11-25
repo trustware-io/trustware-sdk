@@ -198,8 +198,6 @@ export function resolveConfig(
     balanceStreaming:
       input.features?.balanceStreaming ??
       DEFAULT_FEATURE_FLAGS.balanceStreaming,
-    shouldAllowGA4:
-      input.features?.shouldAllowGA4 ?? DEFAULT_FEATURE_FLAGS.shouldAllowGA4,
     // Always mirrors the canonical `mode`, however the caller set it (new `mode` field
     // or the deprecated `features.swapMode` flag).
     swapMode: mode === "swap",
